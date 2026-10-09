@@ -1,0 +1,35 @@
+{
+  "name": "hoodoo",
+  "version": "0.2.0",
+  "description": "A Bryce 2-style 3D landscape studio in the browser: wireframe scene window, Materials Lab, Terrain Editor, Sky & Fog and a GPU ray tracer.",
+  "license": "MIT",
+  "author": "Denys Myronov",
+  "homepage": "https://soft.myfunc.io/vfx/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/myfunc/hoodoo.git"
+  },
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite --port 5640 --strictPort",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 5641",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src",
+    "serve:dist": "node tools/serve-dist.mjs"
+  },
+  "devDependencies": {
+    "eslint": "^9.39.5",
+    "eslint-plugin-import-x": "^4.17.1",
+    "puppeteer-core": "^23.11.1",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.70.1",
+    "vite": "^5.4.0",
+    "vitest": "^2.1.0"
+  }
+}

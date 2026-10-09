@@ -1,0 +1,10 @@
+export const ZOOM_STEP = 0.8;
+export const FRAME_MARGIN = 1.15;
+export const MAX_PIVOT_DISTANCE = 60;
+export const RANDOMIZE = { position: 2, rotation: 30, size: 0.3 } as const;
+export const DEFAULT_FILE_NAME = 'hoodoo-scene';
+export const IMAGE_NAME = 'hoodoo-render';
+export const MOVIE_NAME = 'hoodoo-turntable';
+export const EXPORT_MAX_PIXELS = 8192 * 8192;
+export const PERCENT = 100;
+export const BYTES_PER_KB = 1024;
