@@ -26,7 +26,8 @@ No interface code writes HTML from data: the UI is built with DOM nodes and
 
 ## Recommended HTTP headers
 
-`deploy/nginx.conf` lists the headers the public instance sends. In short:
+`public/_headers` lists the headers the public instance sends (`deploy/nginx.conf`
+sends the same set on nginx). In short:
 
 - a Content Security Policy that allows only the site's own scripts, styles,
   images (plus `data:`/`blob:` images the app paints) and its service worker,

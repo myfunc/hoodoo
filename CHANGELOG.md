@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.2.1 — 2026-10-09
+
+### Added
+- Hosting on Cloudflare Workers (`npm run deploy`, `wrangler.jsonc`); the public
+  instance moves to https://hoodoo.myfunc.io/.
+- Search and sharing metadata: description, canonical address, Open Graph and
+  Twitter cards with a preview image, structured data, `robots.txt` and
+  `sitemap.xml`.
+- A short page about the app, shown until it starts and to visitors without
+  JavaScript.
+
+### Changed
+- Response headers are kept in `public/_headers`; a test checks that the nginx
+  sample sends the same set.
+
 ## 0.2.0 — 2026-10-09
 
 ### Added

@@ -1,10 +1,10 @@
 {
   "name": "hoodoo",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A Bryce 2-style 3D landscape studio in the browser: wireframe scene window, Materials Lab, Terrain Editor, Sky & Fog and a GPU ray tracer.",
   "license": "MIT",
   "author": "Denys Myronov",
-  "homepage": "https://soft.myfunc.io/vfx/",
+  "homepage": "https://hoodoo.myfunc.io/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/myfunc/hoodoo.git"
@@ -21,7 +21,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
-    "serve:dist": "node tools/serve-dist.mjs"
+    "serve:dist": "node tools/serve-dist.mjs",
+    "deploy": "npm run build && npx --yes wrangler@4.149.0 deploy"
   },
   "devDependencies": {
     "eslint": "^9.39.5",

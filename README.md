@@ -9,7 +9,7 @@ picture block by block. It adds the conveniences a modern editor is expected
 to have — undo history, live rendering, depth of field, snapshots, movies,
 offline use.
 
-**Live:** https://soft.myfunc.io/vfx/
+**Live:** https://hoodoo.myfunc.io/
 
 ![The editor with the opening scene](docs/images/editor.jpg)
 
@@ -115,9 +115,16 @@ deflated, in the URL fragment, so it never reaches a server.
 ## Deploying
 
 `npm run build` produces static files with relative paths; host `dist/` on any
-web server, at the root or under a sub-path. `deploy/nginx.conf` is a sample
-configuration with the security headers the public instance uses, and
-[SECURITY.md](SECURITY.md) explains them.
+web server, at the root or under a sub-path. The response headers live in
+`public/_headers` and [SECURITY.md](SECURITY.md) explains them.
+
+- **Cloudflare Workers** (the public instance): `npm run deploy` builds and
+  uploads `dist/` as static assets with those headers; no Worker code runs, so
+  it fits the free plan. Change the route in `wrangler.jsonc` to host your own
+  copy, or set `"workers_dev": true` for a free `*.workers.dev` address.
+- **nginx:** `deploy/nginx.conf` is a sample site with the same headers.
+- **Anything else:** `npm run serve:dist` previews a build with the production
+  headers, so a host that cannot send them is easy to compare against.
 
 ## Credits
 

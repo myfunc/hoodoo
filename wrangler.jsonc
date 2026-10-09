@@ -1,0 +1,13 @@
+// Cloudflare Workers config for the public instance at https://hoodoo.myfunc.io/.
+// Static assets only: no Worker code runs, dist/ is served as is with the
+// headers from public/_headers. To host your own copy, change the route (or drop
+// it and set "workers_dev": true for a free *.workers.dev address).
+{
+  "name": "hoodoo",
+  "compatibility_date": "2026-10-01",
+  "assets": { "directory": "./dist" },
+  "routes": [{ "pattern": "hoodoo.myfunc.io", "custom_domain": true }],
+  // One canonical address: no duplicate copies on workers.dev or preview URLs.
+  "workers_dev": false,
+  "preview_urls": false
+}

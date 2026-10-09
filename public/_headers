@@ -1,0 +1,20 @@
+# Response headers for the Cloudflare Workers instance (wrangler reads this file;
+# it is not served). deploy/nginx.conf carries the same set for nginx hosts, and
+# tools/headers-file.test.mjs keeps the two equal.
+#
+# The app paints textures into data: and blob: images, registers its own service
+# worker (through the Trusted Types policy "hoodoo-sw") and talks to nothing else.
+
+/*
+  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; require-trusted-types-for 'script'; trusted-types hoodoo-sw
+  Cross-Origin-Opener-Policy: same-origin
+  Cross-Origin-Resource-Policy: same-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), midi=(), display-capture=(), accelerometer=(), gyroscope=(), magnetometer=()
+  Referrer-Policy: no-referrer
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+
+# Hashed build files never change.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

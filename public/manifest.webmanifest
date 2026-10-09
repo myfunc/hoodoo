@@ -1,7 +1,7 @@
 {
   "name": "Hoodoo 2 — Bryce-style landscape studio",
   "short_name": "Hoodoo 2",
-  "description": "A browser remake of the 1996 Bryce 2 workflow: wireframe scene window, Materials Lab, Terrain Editor, Sky & Fog and a progressive ray tracer.",
+  "description": "Build and ray-trace 3D landscapes in your browser. A free, open-source remake of the 1996 Bryce 2 workflow: terrains, Materials Lab, Sky & Fog, GPU ray tracer.",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

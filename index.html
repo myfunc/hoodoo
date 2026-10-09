@@ -3,15 +3,59 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Hoodoo 2 — a Bryce-style 3D landscape studio</title>
-    <meta name="description" content="A browser remake of the 1996 Bryce 2 workflow: wireframe scene window, Materials Lab, Terrain Editor, Sky &amp; Fog and a progressive ray tracer." />
+    <title>Hoodoo 2 — Bryce-style 3D landscape studio in your browser</title>
+    <meta name="description" content="Build and ray-trace 3D landscapes in your browser. A free, open-source remake of the 1996 Bryce 2 workflow: terrains, Materials Lab, Sky &amp; Fog, GPU ray tracer." />
+    <link rel="canonical" href="https://hoodoo.myfunc.io/" />
     <meta name="theme-color" content="#9c9b96" />
     <link rel="icon" type="image/png" href="./icons/icon-192.png" />
     <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png" />
     <link rel="manifest" href="./manifest.webmanifest" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Hoodoo 2" />
+    <meta property="og:url" content="https://hoodoo.myfunc.io/" />
+    <meta property="og:title" content="Hoodoo 2 — Bryce-style 3D landscape studio in your browser" />
+    <meta property="og:description" content="Build and ray-trace 3D landscapes in your browser: terrains, Materials Lab, Sky &amp; Fog and a GPU ray tracer. Free and open source." />
+    <meta property="og:image" content="https://hoodoo.myfunc.io/og-image.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="The Hoodoo editor: striped rock towers and glass eggs above a reflective sea, with the stone tool palette around the render." />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Hoodoo 2",
+        "url": "https://hoodoo.myfunc.io/",
+        "description": "A browser remake of the 1996 Bryce 2 workflow: wireframe scene window, Terrain Editor, Materials Lab, Sky & Fog and a progressive GPU ray tracer.",
+        "applicationCategory": "DesignApplication",
+        "operatingSystem": "Any",
+        "browserRequirements": "Requires JavaScript and WebGL2",
+        "image": "https://hoodoo.myfunc.io/og-image.jpg",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "license": "https://opensource.org/licenses/MIT",
+        "author": { "@type": "Person", "name": "Denys Myronov", "url": "https://github.com/myfunc" },
+        "sameAs": "https://github.com/myfunc/hoodoo"
+      }
+    </script>
   </head>
   <body>
-    <div id="app"></div>
+    <!-- Shown until the app starts (and to visitors without JavaScript); startApp replaces it. -->
+    <div id="app">
+      <main class="intro">
+        <h1>Hoodoo 2</h1>
+        <p>A Bryce 2–style 3D landscape studio that runs in your browser. Build a scene from terrains, rocks and primitives in a wireframe window, dress it in the Materials Lab, set the sky and fog, and render it with a progressive GPU ray tracer.</p>
+        <ul>
+          <li>Terrain Editor with brushes, erosion and height-map import</li>
+          <li>Materials Lab, procedural textures, boolean groups</li>
+          <li>Live ray-traced viewport, depth of field, snapshots with A/B compare</li>
+          <li>WebM camera movies, autosave, share links, works offline</li>
+        </ul>
+        <p>Hoodoo needs JavaScript and a browser with WebGL2 (recent Chrome, Edge, Firefox or Safari). It is free and open source: <a href="https://github.com/myfunc/hoodoo">source code on GitHub</a>.</p>
+      </main>
+    </div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
