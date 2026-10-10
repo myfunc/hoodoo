@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.1 — 2026-10-10
+
+### Changed
+- The dunes welcome opens at first light instead of in a wall of fog: an indigo
+  and ember sky with the last stars, fog already lying in the valleys, hill
+  crests standing clear. The loop keeps its fog and a lower sun, so no frame
+  washes out; the camera looks a little higher.
+- The splash art is 640 × 400, rendered anti-aliased and shown with hard pixels,
+  like a high-quality render from 2000. The clip is painted onto a canvas,
+  because browsers smooth a scaled <video> whatever the CSS says.
+
 ## 0.4.0 — 2026-10-10
 
 ### Changed

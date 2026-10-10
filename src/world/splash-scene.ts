@@ -82,18 +82,18 @@ const DUNES_PIECES: readonly Piece[] = [
   { entry: 'sphere', name: DUNE_PLANETS[2], position: [95, 170, -520], size: [14, 14, 14], material: 'Neon Marble' },
 ];
 
-const DUNES_CAMERA = { position: [0, 9, 16] as Vec3, yaw: 0, pitch: 3, fov: 58 };
+const DUNES_CAMERA = { position: [0, 9, 16] as Vec3, yaw: 0, pitch: 7, fov: 58 };
 const DUNES_SKY = { sunAzimuth: 170, fogHeight: 2.4, cloudColor: h('#ffd0a0') };
 
-/** Sky colours by sun height: low = ember dusk, high = pale gold morning. */
+/** Sky colours by sun height: low = indigo dawn with a burning horizon, high = pale gold morning. */
 const DUNE_LIGHT = {
   lowSun: 1,
   highSun: 15,
-  sky: [h('#141a40'), h('#4a6aa8')],
-  horizon: [h('#c0402a'), h('#ffc890')],
-  haze: [h('#a04838'), h('#ffd8a8')],
-  fog: [h('#7a4a5a'), h('#ffd0a0')],
-  ambient: [h('#2a2a40'), h('#7a8a6a')],
+  sky: [h('#141c4a'), h('#4a6aa8')],
+  horizon: [h('#ff6a3a'), h('#ffc890')],
+  haze: [h('#d0705a'), h('#ffd8a8')],
+  fog: [h('#9a86b0'), h('#ffd0a0')],
+  ambient: [h('#3a3c5e'), h('#7a8a6a')],
 } as const;
 
 interface DunesState {
@@ -110,10 +110,10 @@ interface DunesState {
 
 /** The loop: the sun rises and sets twice (staying above the horizon), fog and clouds breathe, planets drift on closed paths. */
 const DUNES_LOOP = {
-  sun: { mid: 8, swing: 5, cycles: 2 },
-  fog: { mid: 30, swing: 10 },
-  fogHeight: { swing: 0.8, phase: 1.2 },
-  haze: { mid: 28, swing: 8, phase: 2.4 },
+  sun: { mid: 7, swing: 4, cycles: 2 },
+  fog: { mid: 34, swing: 6 },
+  fogHeight: { swing: 0.5, phase: 1.2 },
+  haze: { mid: 24, swing: 5, phase: 2.4 },
   clouds: { mid: 24, swing: 20, phase: 0.6 },
   planets: [{ x: 30, y: 12, cycles: 1, phase: 0 }, { x: 24, y: 16, cycles: 1, phase: 1 }, { x: 26, y: 14, cycles: 2, phase: 0 }],
 } as const;
@@ -132,10 +132,10 @@ function dunesLoop(t: number): DunesState {
   };
 }
 
-/** The welcome starts at dawn: sun on the horizon, deep fog, planets low, the camera further back. */
+/** The welcome starts at first light: sun on the horizon, stars still out, fog already lying in the valleys, the camera further back. */
 const DUNES_DAWN: DunesState = {
-  sun: 1, fog: 62, fogHeight: 5, haze: 40, clouds: 30,
-  planets: [[0, -50], [0, -40], [0, -30]],
+  sun: 1, fog: 34, fogHeight: 3, haze: 22, clouds: 26,
+  planets: [[0, -30], [0, -24], [0, -18]],
   cameraLift: 1.5, cameraBack: 10,
 };
 
@@ -171,7 +171,8 @@ function dunesFrame(base: Scene, s: DunesState): Scene {
 function dunesScene(): Scene {
   const base = emptyScene();
   const preset = SKY_LIBRARY.find((s) => s.name === 'Golden Hour')?.sky ?? base.sky;
-  const sky: Sky = { ...preset, sunAzimuth: DUNES_SKY.sunAzimuth, clouds: { ...preset.clouds, color: DUNES_SKY.cloudColor } };
+  // Stars show only while the sun is low: they fade as it rises.
+  const sky: Sky = { ...preset, sunAzimuth: DUNES_SKY.sunAzimuth, stars: true, clouds: { ...preset.clouds, color: DUNES_SKY.cloudColor } };
   return { ...base, sky, camera: { ...base.camera, ...DUNES_CAMERA }, document: SPLASH_DOCUMENT, objects: DUNES_PIECES.map(place) };
 }
 
