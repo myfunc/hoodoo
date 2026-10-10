@@ -11,7 +11,7 @@ offline use.
 
 **Live:** https://hoodoo.myfunc.io/
 
-![The editor with the opening scene](docs/images/editor.jpg)
+![Editing a scene: moving a chrome egg in the live ray-traced viewport, orbiting the camera, applying the Vapor Sunset sky, then rendering block by block](docs/images/editing.gif)
 
 ## Features
 
