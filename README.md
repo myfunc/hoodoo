@@ -23,9 +23,11 @@ offline use.
   preview, the view platform, three salmon camera crosses, the trackball dome
   and chrome render balls, hint text, and the dark lab windows. Every icon is
   rendered by the app itself at load time.
-- **Splash screen:** an art-filled welcome window while the app loads, showing
-  *Planet Meadows* — a Hoodoo scene (`src/world/splash-scene.ts`) rendered in
-  Hoodoo by `node tools/make-splash.mjs`.
+- **Splash screen:** an animated welcome while the app loads — golden fog dunes
+  under three planets by day, a planetary ring arching over a starry lake in the
+  evening. Both are Hoodoo scenes (`src/world/splash-scene.ts`) rendered frame
+  by frame in Hoodoo by `node tools/make-splash.mjs`: a five-second welcome, then
+  a seamless loop while the ray tracer starts.
 - **Scene window:** wireframe lattices with depth cue, ground grid, horizon,
   red selection, the A / M / E tag beside the selection, document-aspect frame.
 - **Render:** a progressive GPU ray tracer that draws like Bryce — 16×16 down

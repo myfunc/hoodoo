@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0 — 2026-10-10
+
+### Changed
+- The splash screen is animated. By day it shows *Golden Dunes*: sunrise over a
+  sea of fog, then a loop in which the sun rises and sets, the fog and clouds
+  breathe and three planets drift. In the evening and at night it shows *Ring
+  Arch*: dusk turns to night under a glowing ring, then a slow time-lapse of the
+  stars. Every frame is rendered by Hoodoo; the clips are WebM (0.2–0.7 MB). With
+  reduced motion requested the still picture is shown. About shows the same
+  picture as the splash.
+- The sun stays above or below the horizon for a whole clip, so the light never
+  jumps from sun to moon mid-animation; a test checks every frame.
+
+### Fixed
+- The content security policy allows same-origin media, and the service worker
+  leaves byte-range (video) requests to the browser.
+
 ## 0.3.1 — 2026-10-10
 
 ### Changed

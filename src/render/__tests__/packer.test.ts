@@ -6,7 +6,8 @@ import { demoScene } from '../../world/demo-scene';
 import { createObject } from '../../world/objects.factory';
 import { emptyScene } from '../../world/scene.defaults';
 import { FLAG_HAS_MODIFIERS, MAT_TEXELS, OBJ_TEXELS, TEXEL_FLOATS } from '../gpu/render.constants';
-import { packScene } from '../gpu/scene-packer';
+import { SplashClip, SplashKind, splashBase, splashFrame, splashFramePlan } from '../../world/splash-scene';
+import { packScene, skyUniforms } from '../gpu/scene-packer';
 
 describe('scene packer', () => {
   it('packs one row per visible solid and keeps lights apart', () => {
@@ -32,5 +33,18 @@ describe('scene packer', () => {
   it('keeps the terrain cache key while heights are unchanged', () => {
     const scene = demoScene();
     expect(packScene(scene).terrains.key).toBe(packScene(scene).terrains.key);
+  });
+});
+
+describe('splash clips in the renderer', () => {
+  // The night flag swaps sunlight for moonlight in one frame; a clip that toggled it would flash.
+  it.each(Object.values(SplashKind))('%s never toggles the night flag within a clip', (kind) => {
+    const base = splashBase(kind);
+    for (const clip of Object.values(SplashClip)) {
+      const flags = new Set(splashFramePlan(kind, clip)
+        .flatMap((f) => (f.blend ? [f.t, f.blend.t] : [f.t]))
+        .map((t) => skyUniforms(splashFrame(base, kind, clip, t).sky).fogParams[3]));
+      expect(flags.size, `${kind} ${clip}`).toBe(1);
+    }
   });
 });

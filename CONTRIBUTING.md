@@ -23,7 +23,7 @@ The dev tools in `tools/` drive a headless Chrome with a real GPU backend
 | `tools/compile-lab.html` | shader compile time per feature (`?only=full,noTerrain`, `?async`) |
 | `tools/probe.html` | page responsiveness during the first compile, posted to `?report=<url>` |
 | `tools/make-icons.mjs` | renders the app icons in `public/icons` with the app itself |
-| `tools/make-splash.mjs` | renders the splash art `src/ui/art/splash.jpg` from `src/world/splash-scene.ts`; needs the dev server (`npm run dev`) |
+| `tools/make-splash.mjs` | renders the splash stills and WebM clips in `src/ui/art` from `src/world/splash-scene.ts`; needs the dev server (`npm run dev`) |
 
 `?cold` on the app URL makes the shader source unique, so the browser cannot
 reuse a compiled copy; `window.__hoodoo` exposes a ready flag, a GPU benchmark

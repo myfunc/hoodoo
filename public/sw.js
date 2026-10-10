@@ -79,6 +79,8 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin || !url.pathname.startsWith(scopePath)) return;
+  // Video asks for byte ranges; a partial (206) response cannot be cached, so the browser fetches those itself.
+  if (request.headers.has('range')) return;
   if (ASSET.test(url.pathname)) event.respondWith(cacheFirst(request));
   else if (request.mode === 'navigate') event.respondWith(networkFirst(request, './', false));
   else event.respondWith(networkFirst(request, request, true));

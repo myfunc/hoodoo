@@ -33,9 +33,10 @@ export class MovieEncoder {
     private readonly fps: number,
   ) {}
 
-  static async create(width: number, height: number, fps: number): Promise<MovieEncoder> {
+  /** `bitsPerPixel` per frame: slow, smooth motion (the splash clips) looks clean on far less than the default. */
+  static async create(width: number, height: number, fps: number, bitsPerPixel = BITS_PER_PIXEL): Promise<MovieEncoder> {
     if (typeof VideoEncoder === 'undefined') throw new MovieUnsupportedError('This browser cannot encode video (no WebCodecs)');
-    const bitrate = Math.round(width * height * fps * BITS_PER_PIXEL);
+    const bitrate = Math.round(width * height * fps * bitsPerPixel);
     for (const c of CODECS) {
       const config: VideoEncoderConfig = { codec: c.config, width, height, bitrate, framerate: fps };
       const support = await VideoEncoder.isConfigSupported(config);
