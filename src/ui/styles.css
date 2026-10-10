@@ -260,6 +260,13 @@ input { font: inherit; }
 }
 .sel-tag .ui-button:hover { background: linear-gradient(#fff, #e2e1dd); color: var(--select); }
 .sel-tag .glyph { width: 11px; height: 11px; stroke: currentColor; stroke-width: 2.4; fill: none; }
+.sel-tag .ui-button { position: relative; }
+.sel-tag .ui-button[data-tip]:hover::after {
+  content: attr(data-tip); position: absolute; left: calc(100% + 4px); top: -1px; z-index: 3;
+  padding: 1px 5px; white-space: nowrap; pointer-events: none;
+  font: 10px/13px var(--font-ui); color: #222; background: #fffbe0; border: 1px solid #6a6a66;
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+}
 
 .display-bar { display: flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 10px; color: var(--ink-soft); white-space: nowrap; min-width: 0; }
 .display-bar > * { flex-shrink: 0; }

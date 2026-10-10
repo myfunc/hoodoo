@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.4 — 2026-10-10
+
+### Fixed
+- The A / M / E / Land buttons beside a selection work again: the scene window
+  captured the pointer on press and swallowed their clicks. Their tips show at
+  once beside the button and in the hint area, instead of after the browser's
+  one-second tooltip delay.
+- The live render no longer starts over when nothing has moved. Any editor
+  change, even a hint on hover, used to reset its average.
+
 ## 0.4.3 — 2026-10-10
 
 ### Changed

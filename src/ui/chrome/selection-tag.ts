@@ -3,7 +3,7 @@ import { shortcutOf } from '../../input/bindings';
 import type { SceneView } from '../../render/viewport';
 import { WireProjector } from '../../render/wire/wireframe';
 import { unionBox, worldBox } from '../../world/bounds';
-import type { UiContext } from '../context';
+import { type UiContext, hintOn } from '../context';
 import { Button } from '../kit/controls';
 import { el, glyph } from '../kit/dom';
 import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
@@ -16,8 +16,16 @@ export class SelectionTag {
   readonly el: HTMLElement;
 
   constructor(private readonly ctx: UiContext, private readonly view: SceneView) {
-    const b = (label: string, title: string, action: Action, content?: SVGSVGElement) =>
-      new Button({ label: content ? undefined : label, content, title: `${title} (${shortcutOf(action)})`, onClick: () => ctx.dispatch(action) }).el;
+    // No title: the browser's own tooltip waits about a second. The tip shows at once
+    // beside the tag (CSS), and the hint area says the same thing.
+    const b = (label: string, title: string, action: Action, content?: SVGSVGElement) => {
+      const tip = `${title} (${shortcutOf(action)})`;
+      const button = new Button({ label: content ? undefined : label, content, onClick: () => ctx.dispatch(action) }).el;
+      button.setAttribute('aria-label', tip);
+      button.dataset.tip = tip;
+      hintOn(ctx, button, { title, text: `Shortcut ${shortcutOf(action)}` });
+      return button;
+    };
     this.el = el('div', { cls: 'sel-tag' }, [
       b('A', 'Object Attributes', Action.Attributes),
       b('M', 'Materials Lab', Action.EditMaterial),
@@ -25,6 +33,8 @@ export class SelectionTag {
       b('', 'Land Object', Action.Land, glyph(GLYPH.arrowDown, GLYPH_BOX)),
     ]);
     this.el.style.display = 'none';
+    // The scene window captures the pointer on press, which would steal the button's click.
+    this.el.addEventListener('pointerdown', (e) => e.stopPropagation());
     const update = () => requestAnimationFrame(() => this.place());
     ctx.world.events.on('selection', update);
     ctx.world.events.on('changed', update);

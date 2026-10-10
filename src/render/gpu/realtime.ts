@@ -1,5 +1,5 @@
 import type { Scene } from '../../model/scene.types';
-import type { ViewBasis } from '../../world/camera-math';
+import { type ViewBasis, sameBasis } from '../../world/camera-math';
 import type { RayEngine } from './engine';
 import { type Target, deleteTarget } from './gl';
 import { GpuFence } from './gpu-fence';
@@ -82,6 +82,8 @@ export class RealtimeRenderer {
 
   /** Scene or camera changed: start a new average. */
   update(scene: Scene, basis: ViewBasis): void {
+    // Editor changes that move nothing (a hint, a tab, a menu) keep the average going.
+    if (scene === this.scene && this.basis && sameBasis(basis, this.basis)) return;
     if (scene !== this.scene) this.sceneDirty = true;
     this.scene = scene;
     this.basis = basis;

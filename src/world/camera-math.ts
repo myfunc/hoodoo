@@ -22,6 +22,15 @@ export interface ViewBasis {
   readonly lens: readonly [number, number];
 }
 
+const sameVec = (a: Vec3, b: Vec3): boolean => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
+
+/** Whether two bases frame exactly the same picture. */
+export function sameBasis(a: ViewBasis, b: ViewBasis): boolean {
+  return a.ortho === b.ortho && a.halfHeight === b.halfHeight && a.aspect === b.aspect
+    && a.lens[0] === b.lens[0] && a.lens[1] === b.lens[1]
+    && sameVec(a.origin, b.origin) && sameVec(a.forward, b.forward) && sameVec(a.right, b.right) && sameVec(a.up, b.up);
+}
+
 /** At aperture 100 the lens radius is this fraction of the focus distance. */
 const MAX_LENS_RATIO = 0.06;
 const APERTURE_DIAL = 100;
