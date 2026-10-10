@@ -3,6 +3,7 @@ import { ACTIONS, MenuName, shortcutOf } from '../input/bindings';
 import { el } from '../ui/kit/dom';
 import { openInfo } from '../ui/labs/setup-dialogs';
 import { APP_NAME, APP_TAGLINE } from '../ui/strings';
+import { SOURCE_URL } from './app.constants';
 
 const MOUSE: readonly [string, string][] = [
   ['Click a wireframe', 'Select (Shift adds, groups select together)'],
@@ -61,6 +62,15 @@ export function openAbout(): void {
     el('div', { text: 'A tribute to MetaTools Bryce 2 (1996, Kai Krause and Eric Wenger): the stone-grey palette, wireframe scene window, camera trackball, Materials Lab, Terrain Editor, Sky & Fog thumbnails and the block-by-block ray-traced render. Not affiliated with Bryce or its owners. Everything here is drawn and rendered by code at load time.' }),
     el('div', { cls: 'stone-section-title', text: 'Modern additions' }),
     el('ul', { style: { margin: '0', paddingLeft: '18px' } }, QOL.map((q) => el('li', { text: q }))),
+    el('div', {}, [
+      'Free and open source under the MIT licence: ',
+      el('a', { text: 'source code on GitHub', attrs: { href: SOURCE_URL, target: '_blank', rel: 'noopener noreferrer' } }),
+      '.',
+    ]),
   ]);
   openInfo(`About ${APP_NAME}`, body);
+}
+
+export function openSource(): void {
+  window.open(SOURCE_URL, '_blank', 'noopener,noreferrer');
 }

@@ -64,6 +64,7 @@ export enum Action {
   CommandPalette = 'command-palette',
   Shortcuts = 'shortcuts',
   About = 'about',
+  SourceCode = 'source-code',
   InstallApp = 'install-app',
   Bookmark = 'bookmark',
   SaveBookmark = 'save-bookmark',

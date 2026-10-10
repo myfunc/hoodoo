@@ -1,22 +1,9 @@
-import { Action } from '../../input/actions';
-import { ACTIONS, MenuName, shortcutOf } from '../../input/bindings';
+import { ACTIONS, shortcutOf } from '../../input/bindings';
 import type { UiContext } from '../context';
 import { el } from '../kit/dom';
 import { type MenuItem, closeMenu, openMenu } from '../kit/controls';
 import { APP_NAME } from '../strings';
-
-const SEP = 'sep' as const;
-type Entry = Action | typeof SEP;
-
-/** Menu layout; labels and shortcuts come from the bindings table. */
-const MENUS: readonly { name: MenuName; items: readonly Entry[] }[] = [
-  { name: MenuName.File, items: [Action.New, Action.Open, Action.Save, SEP, Action.LoadDemo, SEP, Action.DocumentSetup, Action.ExportImage, Action.CopyImage, Action.ShareLink] },
-  { name: MenuName.Edit, items: [Action.Undo, Action.Redo, SEP, Action.Cut, Action.Copy, Action.Paste, Action.Delete, SEP, Action.Duplicate, Action.Replicate, SEP, Action.SelectAll, Action.SelectNone, SEP, Action.CopyMaterial, Action.PasteMaterial] },
-  { name: MenuName.Objects, items: [Action.Attributes, Action.EditMaterial, Action.EditObject, Action.ObjectLibrary, SEP, Action.Group, Action.Ungroup, SEP, Action.Land, Action.Randomize, SEP, Action.HideSelected, Action.ShowAll] },
-  { name: MenuName.View, items: [Action.ViewCamera, Action.ViewDirector, Action.ViewTop, Action.ViewFront, Action.ViewSide, Action.QuadView, SEP, Action.FrameSelected, Action.FrameAll, Action.ZoomIn, Action.ZoomOut, Action.ResetCamera, Action.CameraFromView, SEP, Action.ToggleSidePanel, Action.ToggleDepthCue, Action.ToggleGrid, Action.ToggleGizmo, Action.ToggleSnap] },
-  { name: MenuName.Render, items: [Action.Render, Action.StopRender, Action.ClearRender, SEP, Action.ToggleLiveRender, SEP, Action.ExportImage] },
-  { name: MenuName.Help, items: [Action.CommandPalette, Action.Shortcuts, SEP, Action.About] },
-];
+import { MENUS, type MenuEntry, SEP } from './menu-layout';
 
 export class MenuBar {
   readonly el: HTMLElement;
@@ -49,7 +36,7 @@ export class MenuBar {
     this.doc.textContent = text;
   }
 
-  private items(entries: readonly Entry[]): MenuItem[] {
+  private items(entries: readonly MenuEntry[]): MenuItem[] {
     return entries.map((e) =>
       e === SEP
         ? { label: '', separator: true }

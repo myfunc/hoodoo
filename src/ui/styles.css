@@ -187,6 +187,7 @@ input { font: inherit; }
 .form-grid { display: grid; gap: 6px 10px; align-items: center; }
 .movie-form { grid-template-columns: 90px 240px; }
 .info-text { max-width: 440px; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.ui-dialog-body a { color: inherit; }
 .info-list { margin: 0; padding-left: 18px; }
 
 /* long jobs (ui/kit/progress-card.ts) */

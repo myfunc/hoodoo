@@ -25,7 +25,7 @@ import { MaterialsLab } from '../ui/labs/materials-lab';
 import { openDocumentSetup, openExport, openReplicate } from '../ui/labs/setup-dialogs';
 import { TerrainEditor } from '../ui/labs/terrain-editor';
 import { openCommandPalette } from '../ui/panels/command-palette';
-import { openAbout, openShortcuts } from './info';
+import { openAbout, openShortcuts, openSource } from './info';
 import { BYTES_PER_KB, DEFAULT_FILE_NAME, EXPORT_MAX_PIXELS, IMAGE_NAME, PERCENT, RANDOMIZE, ZOOM_STEP } from './app.constants';
 import { startFocusPick } from './lens-ops';
 import { exportMovie } from './movie-export';
@@ -131,6 +131,7 @@ export class Commands {
       [Action.CommandPalette]: () => openCommandPalette(ctx),
       [Action.Shortcuts]: () => openShortcuts(),
       [Action.About]: () => openAbout(),
+      [Action.SourceCode]: () => openSource(),
       [Action.InstallApp]: () => void promptInstall(),
       [Action.Bookmark]: (slot) => this.bookmark(slot ?? 0),
       [Action.SaveBookmark]: (slot) => { w.setBookmark(slot ?? 0, w.scene.camera); ctx.toast(`Camera saved to ${(slot ?? 0) + 1}`); },

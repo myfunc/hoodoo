@@ -10,10 +10,17 @@
   `sitemap.xml`.
 - A short page about the app, shown until it starts and to visitors without
   JavaScript.
+- Help → Source Code on GitHub, and a link to the repository in About.
 
 ### Changed
 - Response headers are kept in `public/_headers`; a test checks that the nginx
   sample sends the same set.
+
+### Fixed
+- The menus now list the 0.2.0 additions: Render Turntable Movie and Surprise Me
+  (File), Pick Focus Point (View), Take and Compare Snapshot (Render) and
+  Install as App (Help). They were reachable only from the command palette and
+  shortcuts; a test now checks that every menu action is listed.
 
 ## 0.2.0 — 2026-10-09
 

@@ -96,6 +96,7 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.Shortcuts]: { label: 'Keyboard Shortcuts', menu: MenuName.Help, chords: [c('Slash', { shift: true })] },
   [Action.InstallApp]: { label: 'Install as App…', menu: MenuName.Help, chords: [] },
   [Action.About]: { label: 'About Hoodoo', menu: MenuName.Help, chords: [] },
+  [Action.SourceCode]: { label: 'Source Code on GitHub', menu: MenuName.Help, chords: [] },
   [Action.Bookmark]: { label: 'Go to Camera Bookmark', menu: MenuName.View, chords: [] },
   [Action.SaveBookmark]: { label: 'Save Camera Bookmark', menu: MenuName.View, chords: [] },
 };

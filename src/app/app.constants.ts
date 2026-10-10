@@ -8,3 +8,4 @@ export const MOVIE_NAME = 'hoodoo-turntable';
 export const EXPORT_MAX_PIXELS = 8192 * 8192;
 export const PERCENT = 100;
 export const BYTES_PER_KB = 1024;
+export const SOURCE_URL = 'https://github.com/myfunc/hoodoo';

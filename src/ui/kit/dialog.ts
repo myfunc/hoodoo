@@ -37,9 +37,11 @@ export class Dialog {
     ]);
     this.el = el('div', { cls: 'ui-overlay' }, [win]);
     this.keyHandler = (e: KeyboardEvent) => {
-      const typing = TEXT_TAGS.has((e.target as HTMLElement).tagName);
+      // Enter belongs to text fields and to a focused link (it opens the link).
+      const target = e.target as HTMLElement;
+      const ownsEnter = TEXT_TAGS.has(target.tagName) || target instanceof HTMLAnchorElement;
       if (e.key === KEY.Escape) { e.preventDefault(); this.cancel(); }
-      else if (e.key === KEY.Enter && !typing) { e.preventDefault(); this.accept(); }
+      else if (e.key === KEY.Enter && !ownsEnter) { e.preventDefault(); this.accept(); }
     };
   }
 
