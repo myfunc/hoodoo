@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 — 2026-10-10
+
+### Changed
+- The splash art is now the vapor-sunset *Planet Meadows*: green hills under a
+  pink and violet sky, a spotted lava planet with a marbled ring and a purple
+  moon. The credits read Denys Myronov / myfunc.
+
 ## 0.3.0 — 2026-10-10
 
 ### Added

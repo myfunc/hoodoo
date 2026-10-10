@@ -5,9 +5,9 @@ export const APP_NAME = 'Hoodoo 2';
 export const APP_TAGLINE = 'A Bryce 2–style landscape studio for the browser';
 export const APP_VERSION = __APP_VERSION__;
 export const SPLASH = {
-  artAlt: 'Planet Meadows: endless green hills under a blue sky, a pale moon rising behind them and a ringed purple planet above',
+  artAlt: 'Planet Meadows: endless green hills under a pink and violet sunset sky, a spotted lava planet with a marbled ring rising behind them',
   tagline: 'Landscape studio',
-  credits: 'Denys Myronov · after MetaTools Bryce 2 (1996)',
+  credits: 'Denys Myronov / myfunc · after MetaTools Bryce 2 (1996)',
   version: 'Version',
   ready: 'Ready',
   dismiss: 'Click or press any key to start',
