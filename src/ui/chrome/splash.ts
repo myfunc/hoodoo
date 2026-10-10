@@ -102,39 +102,14 @@ export class Splash {
       this.finishIntroAfter(MIN_STILL_MS);
       return still;
     }
-    // The clip plays unseen; each frame is painted onto a canvas, because browsers scale
-    // a canvas with hard pixels (image-rendering) but smooth a <video> regardless.
-    const video = el('video', { cls: 'splash-source', attrs: { src: this.art.intro, 'aria-hidden': 'true' } });
+    const video = el('video', { cls: 'splash-art', attrs: { src: this.art.intro, 'aria-hidden': 'true' } });
     video.muted = true;
     video.playsInline = true;
     this.video = video;
-    const screen = el('canvas', { cls: 'splash-art', attrs: { 'aria-hidden': 'true' } });
-    this.paint(video, screen);
     video.addEventListener('ended', () => this.onIntroEnded(), { once: true });
     video.addEventListener('error', () => this.dropVideo('clip failed to load'), { once: true });
     video.play().catch((error: unknown) => this.dropVideo('autoplay refused', error));
-    return el('div', { cls: 'splash-picture' }, [still, video, screen]);
-  }
-
-  /** Copies the clip's frames onto `screen` for as long as the clip is on. */
-  private paint(video: HTMLVideoElement, screen: HTMLCanvasElement): void {
-    const g = screen.getContext('2d');
-    if (!g) return;
-    const frame = (): void => {
-      if (this.video !== video) {
-        screen.remove();
-        return;
-      }
-      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth) {
-        if (screen.width !== video.videoWidth) {
-          screen.width = video.videoWidth;
-          screen.height = video.videoHeight;
-        }
-        g.drawImage(video, 0, 0);
-      }
-      requestAnimationFrame(frame);
-    };
-    requestAnimationFrame(frame);
+    return el('div', { cls: 'splash-picture' }, [still, video]);
   }
 
   private onReady(): void {

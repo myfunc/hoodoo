@@ -9,9 +9,9 @@ import { launchOptions } from './browser.mjs';
 
 const [url = 'http://localhost:5640/'] = process.argv.slice(2);
 const ART = new URL('../src/ui/art/', import.meta.url);
-/** 320 × 200 like an early-2000s render: anti-aliased, then shown with big hard pixels (image-rendering: pixelated). */
-const STILL = { width: 320, height: 200, samples: 64, quality: 0.95 };
-const CLIP = { width: 320, height: 200, samples: 16, bitsPerPixel: 0.35 };
+/** 1280 × 800: sharp on high-density screens, where the 640-pixel splash card shows it at full size. */
+const STILL = { width: 1280, height: 800, samples: 32, quality: 0.88 };
+const CLIP = { width: 1280, height: 800, samples: 16, bitsPerPixel: 0.06 };
 
 const browser = await puppeteer.launch(launchOptions(['--window-size=1280,900']));
 try {

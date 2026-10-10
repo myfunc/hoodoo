@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.3 — 2026-10-10
+
+### Changed
+- The splash art is back to full detail: 1280 × 800, scaled smoothly, sharp on
+  high-density screens. The pixel look is gone, and so is the canvas the clip
+  was painted on; the clip plays in a plain video element again.
+
 ## 0.4.2 — 2026-10-10
 
 ### Changed

@@ -442,9 +442,7 @@ input { font: inherit; }
   animation: splash-in 260ms ease-out;
 }
 .splash-picture { position: absolute; inset: 0; }
-.splash-source { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-/* The art is 320 × 200, scaled up with hard pixels like a render from 2000. */
-.splash-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; image-rendering: pixelated; }
+.splash-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .splash::after {
   content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 34%;
   background: linear-gradient(rgba(10,24,6,0), rgba(10,24,6,0.7)); pointer-events: none;
@@ -464,4 +462,4 @@ input { font: inherit; }
 .splash-version { text-align: right; }
 @keyframes splash-in { from { transform: scale(0.97); } to { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .splash { animation: none; } .splash-screen { transition: none; } }
-.about-art { display: block; width: 100%; height: 170px; object-fit: cover; object-position: 50% 40%; border: 1px solid #555; image-rendering: pixelated; }
+.about-art { display: block; width: 100%; height: 170px; object-fit: cover; object-position: 50% 40%; border: 1px solid #555; }
