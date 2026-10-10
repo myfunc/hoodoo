@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0 — 2026-10-10
+
+### Added
+- A splash screen while the app loads, after the art-filled welcome windows of
+  90s desktop software: *Planet Meadows*, rolling green hills under a sky with
+  planets, rendered in Hoodoo itself. It shows the loading stage and leaves when
+  the ray tracer is ready, or on a click or key. The same picture heads About.
+- The palette shelf: the icons stand on a ledge whose lip becomes a slider when
+  they do not fit — drag it, click the lip to page, or scroll the wheel.
+
+### Changed
+- The left column follows Bryce 2 more closely: a view platform with a small
+  landscape, salmon camera crosses with flat arrows around a teal ball, a
+  salmon trackball dome with a teal four-way arrow, and chrome render balls set
+  in an arc. The object count is set in the larger grey type of the original.
+
 ## 0.2.1 — 2026-10-09
 
 ### Added

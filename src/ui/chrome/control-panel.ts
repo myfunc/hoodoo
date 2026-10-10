@@ -21,7 +21,7 @@ const MOVE_PER_PX = 0.05;
 const LOOK_PER_PX = 0.25;
 const MS_PER_S = 1000;
 const PERCENT = 100;
-const SIZES = { view: 54, cross: 44, trackball: 78, ball: 26, bigBall: 40 } as const;
+const SIZES = { view: 70, cross: 48, trackball: 84, ball: 22, bigBall: 36 } as const;
 
 type CamFn = (c: Camera, dx: number, dy: number) => Camera;
 
@@ -76,10 +76,10 @@ export class ControlPanel {
       nano,
       view,
       this.viewLabel,
-      el('div', { cls: 'ctrl-row' }, [crossXY, crossXZ]),
-      crossYZ,
+      el('div', { cls: 'ctrl-row' }, [crossXY, crossYZ]),
+      crossXZ,
       trackball,
-      el('div', { cls: 'ctrl-row' }, [stop, render, clear]),
+      el('div', { cls: 'ctrl-row balls' }, [stop, render, clear]),
       el('div', { cls: 'hint' }, [this.hintTitle, this.hintText]),
       this.stats,
     ]);

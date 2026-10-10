@@ -3,6 +3,15 @@ import type { Hint } from '../world/editor-store';
 /** Interface strings in one place (canon C12); the app speaks English like the original. */
 export const APP_NAME = 'Hoodoo 2';
 export const APP_TAGLINE = 'A Bryce 2–style landscape studio for the browser';
+export const APP_VERSION = __APP_VERSION__;
+export const SPLASH = {
+  artAlt: 'Planet Meadows: endless green hills under a blue sky, a pale moon rising behind them and a ringed purple planet above',
+  tagline: 'Landscape studio',
+  credits: 'Denys Myronov · after MetaTools Bryce 2 (1996)',
+  version: 'Version',
+  ready: 'Ready',
+  dismiss: 'Click or press any key to start',
+} as const;
 
 export const HINTS = {
   nano: { title: 'Nano Preview', text: 'Tiny live render of the camera. Click to render the full view' },

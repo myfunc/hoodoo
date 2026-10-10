@@ -17,7 +17,7 @@ const FADE_MS = 450;
 /** The clock and bar update ten times a second; the stripes animate in CSS. */
 const TICK_MS = 100;
 
-const STAGE_TEXT: Readonly<Record<EngineStage, string>> = {
+export const STAGE_TEXT: Readonly<Record<EngineStage, string>> = {
   [EngineStage.Queued]: 'Waiting for the graphics card',
   [EngineStage.Compiling]: 'Compiling the ray tracer for your graphics card',
   [EngineStage.WarmingUp]: 'Building the GPU code',

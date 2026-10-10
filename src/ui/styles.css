@@ -18,7 +18,8 @@
   --side-w: 236px;
   --menubar-h: 22px;
   --titles-h: 26px;
-  --tray-h: 62px;
+  --tray-h: 70px;
+  --lip-h: 9px;
   --displaybar-h: 28px;
   /* Replaced by generated tiles (kit/texture.ts); until then surfaces are flat colour. */
   --tex-stone: none;
@@ -77,16 +78,20 @@ input { font: inherit; }
 .ctrl-icon:active { cursor: grabbing; }
 .ctrl-row { display: flex; gap: 2px; align-items: center; justify-content: center; }
 .ctrl-icon.small { width: 30px; height: 30px; }
-.ctrl-icon.view { width: 54px; height: 44px; cursor: pointer; }
-.ctrl-icon.cross { width: 44px; height: 44px; }
-.ctrl-icon.trackball { width: 78px; height: 78px; }
-.ctrl-icon.render-ball { width: 26px; height: 26px; cursor: pointer; }
-.ctrl-icon.render-ball.big { width: 40px; height: 40px; }
+.ctrl-icon.view { width: 70px; height: 70px; margin: -10px 0 -2px; cursor: pointer; }
+.ctrl-icon.cross { width: 48px; height: 48px; }
+.ctrl-icon.cross + .ctrl-icon.cross { margin-left: -2px; }
+.ctrl-icon.trackball { width: 84px; height: 84px; filter: drop-shadow(2px 5px 3px rgba(0,0,0,0.35)); }
+.ctrl-icon.render-ball { width: 22px; height: 22px; cursor: pointer; }
+.ctrl-icon.render-ball.big { width: 36px; height: 36px; }
+/* Bryce sets its chrome render balls in a shallow arc, the big one lowest. */
+.ctrl-row.balls { align-items: flex-start; gap: 4px; }
+.ctrl-row.balls .render-ball.big { margin-top: 6px; }
 .ctrl-label { font: bold 9px var(--font-ui); color: var(--ink-soft); text-align: center; margin-top: -3px; }
 .hint { margin-top: auto; width: 92px; text-align: center; }
 .hint-title { display: block; font: 800 15px var(--font-title); color: #555; text-shadow: 0 1px 0 var(--hi); }
 .hint-text { display: block; font-size: 10px; color: var(--ink-soft); min-height: 26px; }
-.stats { font-size: 9px; color: var(--ink-faint); text-align: center; line-height: 1.25; }
+.stats { font: 700 12px/1.15 var(--font-title); color: #8a8985; text-shadow: 0 1px 0 var(--hi); text-align: center; }
 
 /* ---------- palette ---------- */
 .center { display: grid; grid-template-rows: var(--titles-h) var(--tray-h) 1fr var(--displaybar-h); min-width: 0; min-height: 0; }
@@ -102,15 +107,32 @@ input { font: inherit; }
 .palette-title .glyph:hover { opacity: 1; }
 .palette-title-sub { font: 10px var(--font-ui); color: var(--ink-faint); margin-left: auto; align-self: center; }
 
+/* Bryce's shelf: the icons stand on a pale ledge; its front lip is the tray slider. */
+.shelf {
+  position: relative; display: grid; grid-template-rows: minmax(0, 1fr) var(--lip-h);
+  min-width: 0; min-height: 0; margin: 0 8px;
+  background: linear-gradient(rgba(255,255,255,0) 20%, rgba(255,255,255,0.38));
+  border-top: 1px solid rgba(0,0,0,0.1);
+}
+.shelf-lip {
+  position: relative; overflow: hidden;
+  background: linear-gradient(#cfceca, #a9a8a4 60%, #8f8e8a);
+  border-top: 1px solid var(--hi); box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+}
+.shelf-thumb {
+  display: none; position: absolute; left: 0; top: 1px; bottom: 1px; border-radius: 3px; cursor: grab;
+  background: linear-gradient(#f2f1ec, #c2c1bc); box-shadow: inset 0 1px 0 #fff, 0 1px 1px rgba(0,0,0,0.35);
+}
+.shelf-thumb:active { cursor: grabbing; }
+.shelf.is-overflowing .shelf-lip { cursor: pointer; }
+.shelf.is-overflowing .shelf-thumb { display: block; }
 .tray {
   display: flex; align-items: center; gap: 1px; padding: 0 10px; overflow-x: auto; overflow-y: hidden;
-  margin: 0 8px; border-top: 1px solid rgba(0,0,0,0.1); border-bottom: 1px solid var(--hi);
-  background: linear-gradient(rgba(255,255,255,0.25), rgba(0,0,0,0.04));
-  scrollbar-width: none;
+  min-height: 0; scrollbar-width: none;
 }
 .tray::-webkit-scrollbar { display: none; }
 .tray-icon {
-  flex: none; width: 46px; height: 52px; display: flex; align-items: center; justify-content: center;
+  flex: none; width: 46px; height: 50px; display: flex; align-items: center; justify-content: center;
   cursor: pointer; border-radius: 3px; position: relative;
 }
 .tray-icon canvas { width: 44px; height: 44px; filter: drop-shadow(2px 3px 1.5px rgba(0,0,0,0.32)); transition: transform 80ms; }
@@ -406,3 +428,37 @@ input { font: inherit; }
 .intro h1 { font: 800 28px var(--font-title); }
 .intro ul { padding-left: 20px; }
 .intro a { color: inherit; }
+
+/* ---------- splash: the welcome window while the app loads ---------- */
+.splash-screen {
+  position: fixed; inset: 0; z-index: 1100; display: flex; align-items: center; justify-content: center;
+  background: rgba(30,30,32,0.25); transition: opacity 400ms ease-in; cursor: default;
+}
+.splash-screen.is-loading { opacity: 0; transition: none; pointer-events: none; }
+.splash-screen.done { opacity: 0; pointer-events: none; }
+.splash {
+  position: relative; width: min(640px, 92vw); aspect-ratio: 16 / 10; overflow: hidden; color: #fff;
+  border: 1px solid #111; box-shadow: 0 1px 0 rgba(255,255,255,0.25) inset, 8px 8px 0 rgba(0,0,0,0.3);
+  animation: splash-in 260ms ease-out;
+}
+.splash-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.splash::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 34%;
+  background: linear-gradient(rgba(10,24,6,0), rgba(10,24,6,0.7)); pointer-events: none;
+}
+.splash-name {
+  position: absolute; left: 26px; top: 18px; font: 800 54px/1 var(--font-title); letter-spacing: -0.02em;
+  text-shadow: 0 2px 0 rgba(0,0,0,0.25), 2px 4px 6px rgba(0,0,0,0.35);
+}
+.splash-tag { position: absolute; left: 29px; top: 76px; font: 700 14px var(--font-title); letter-spacing: 0.04em; text-shadow: 0 1px 2px rgba(0,0,0,0.45); }
+.splash-foot {
+  position: absolute; z-index: 1; left: 26px; right: 22px; bottom: 14px;
+  display: flex; justify-content: space-between; align-items: flex-end; gap: 16px;
+  font-size: 11px; text-shadow: 0 1px 2px #000;
+}
+.splash-status { font-weight: bold; }
+.splash-credits, .splash-version { opacity: 0.8; }
+.splash-version { text-align: right; }
+@keyframes splash-in { from { transform: scale(0.97); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .splash { animation: none; } .splash-screen { transition: none; } }
+.about-art { display: block; width: 100%; height: 170px; object-fit: cover; object-position: 50% 45%; border: 1px solid #555; }

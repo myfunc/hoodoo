@@ -11,7 +11,7 @@ import { type ViewBasis, cameraBasis, lookAt } from '../world/camera-math';
 import { createObject } from '../world/objects.factory';
 import { DEFAULT_CAMERA, emptyScene } from '../world/scene.defaults';
 import {
-  CLOUD_ICON, CONTROL_ICON_DATA, ICON_FIT, ICON_FOV, ICON_SEED, ICON_TERRAIN_SIZE, LATTICE_ICON_SIZE, LIBRARY_FIT,
+  CLOUD_ICON, CONTROL_ICON_DATA, ICON_FIT, type IconData, ICON_FOV, ICON_SEED, ICON_TERRAIN_SIZE, LATTICE_ICON_SIZE, LIBRARY_FIT,
   LIGHT_ICON, PLANE_ICON_SIZE, PREVIEW_FLOOR_Y, PREVIEW_FOV, type PieceData, SKY_ASPECT, SKY_FOV, SKY_LOOK_AT,
   SPOT_ICON, TEAL, TERRAIN_SEED, TRACKBALL, VIEW_FROM,
 } from './icon-data';
@@ -87,8 +87,8 @@ function build(p: PieceData): SceneObject {
 }
 
 export function controlIcon(kind: ControlIcon): IconSpec {
-  const data = CONTROL_ICON_DATA[kind];
-  return spec(data.pieces.map(build), data.from);
+  const data: IconData = CONTROL_ICON_DATA[kind];
+  return spec(data.pieces.map(build), data.from, data.studio ? PREVIEW_SKY : ICON_SKY);
 }
 
 const PLANE_ICON_MATERIAL: Partial<Record<ShapeKind, string>> = {

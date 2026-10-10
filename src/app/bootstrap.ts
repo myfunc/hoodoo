@@ -14,6 +14,7 @@ import { isModalOpen } from '../ui/kit/dialog';
 import { installSurfaces } from '../ui/kit/texture';
 import { SnapshotStore } from '../ui/snapshot-store';
 import { showToast } from '../ui/panels/toast';
+import { Splash } from '../ui/chrome/splash';
 import { demoScene } from '../world/demo-scene';
 import { EditorStore } from '../world/editor-store';
 import { World } from '../world/world';
@@ -55,6 +56,8 @@ export async function startApp(root: HTMLElement): Promise<void> {
   commands = new Commands(ctx);
   const shell = new Shell(ctx, (entry) => createFromPalette(world, entry));
   root.replaceChildren(shell.root);
+  // Browser automation (tests, screenshots) drives the editor directly; people get the welcome window.
+  if (!navigator.webdriver) document.body.append(new Splash(engine).el);
   new ViewportInput(view.root, world, editor, view, {
     onOpenObject: (id) => commands?.openObject(id),
     onDropFiles: (files) => {

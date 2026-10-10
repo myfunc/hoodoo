@@ -15,6 +15,8 @@ export interface PieceData {
 export interface IconData {
   readonly pieces: readonly PieceData[];
   readonly from: Vec3;
+  /** Light the icon under the preview sky, so chrome has a horizon to reflect. */
+  readonly studio?: boolean;
 }
 
 export const TEAL = 'teal';
@@ -46,27 +48,116 @@ export const PREVIEW_FLOOR_Y = -1;
 const ARROW: Vec3 = [0.2, 0.26, 0.2];
 const OUT = 0.62;
 const HUB: Vec3 = [0.2, 0.2, 0.2];
-const BALL_OUT = 0.71;
-const BALL_FRONT = 0.72;
 
 const arrows = (mat: string, dirs: readonly { p: Vec3; r: Vec3 }[]): PieceData[] => dirs.map((d) => ({ entry: 'cone', position: d.p, size: ARROW, rotation: d.r, mat }));
 
-const XY = [{ p: [OUT, 0, 0], r: [0, 0, -90] }, { p: [-OUT, 0, 0], r: [0, 0, 90] }, { p: [0, OUT, 0], r: [0, 0, 0] }, { p: [0, -OUT, 0], r: [180, 0, 0] }] as const;
 const XZ = [{ p: [OUT, 0, 0], r: [0, 0, -90] }, { p: [-OUT, 0, 0], r: [0, 0, 90] }, { p: [0, 0, OUT], r: [90, 0, 0] }, { p: [0, 0, -OUT], r: [-90, 0, 0] }] as const;
-const YZ = [{ p: [0, 0, OUT], r: [90, 0, 0] }, { p: [0, 0, -OUT], r: [-90, 0, 0] }, { p: [0, OUT, 0], r: [0, 0, 0] }, { p: [0, -OUT, 0], r: [180, 0, 0] }] as const;
-const BALL = [{ p: [BALL_OUT, 0, BALL_FRONT], r: [0, 0, -90] }, { p: [-BALL_OUT, 0, BALL_FRONT], r: [0, 0, 90] }, { p: [0, BALL_OUT, BALL_FRONT], r: [0, 0, 0] }, { p: [0, -BALL_OUT, BALL_FRONT], r: [180, 0, 0] }] as const;
 
 const hub = (mat: string): PieceData => ({ entry: 'sphere', size: HUB, mat });
 
+/** The flat arrow of Bryce's camera crosses: a thin pyramid head on a short block stem, pointing along local +y. */
+const FLAT = { head: { at: 0.68, w: 0.38, h: 0.2 }, stemWidth: 0.15, thick: 0.1 } as const;
+const CROSS_HUB: Vec3 = [0.24, 0.24, 0.24];
+
+export enum Plane { XY = 'xy', XZ = 'xz', YZ = 'yz' }
+
+/** The local axis that carries an arrow's width; the other one of x/z is its thickness. */
+enum Wide { X = 'x', Z = 'z' }
+
+interface Direction { readonly axis: Vec3; readonly rotation: Vec3; readonly wide: Wide }
+
+/**
+ * The four in-plane directions; `rotation` turns local +y onto `axis`, and `wide`
+ * says which local axis must carry the arrow's width so that it lies in the plane.
+ */
+const DIRECTIONS: Record<Plane, readonly Direction[]> = {
+  [Plane.XY]: [
+    { axis: [1, 0, 0], rotation: [0, 0, -90], wide: Wide.X }, { axis: [-1, 0, 0], rotation: [0, 0, 90], wide: Wide.X },
+    { axis: [0, 1, 0], rotation: [0, 0, 0], wide: Wide.X }, { axis: [0, -1, 0], rotation: [0, 0, 180], wide: Wide.X },
+  ],
+  [Plane.XZ]: [
+    { axis: [1, 0, 0], rotation: [0, 0, -90], wide: Wide.Z }, { axis: [-1, 0, 0], rotation: [0, 0, 90], wide: Wide.Z },
+    { axis: [0, 0, 1], rotation: [90, 0, 0], wide: Wide.X }, { axis: [0, 0, -1], rotation: [-90, 0, 0], wide: Wide.X },
+  ],
+  [Plane.YZ]: [
+    { axis: [0, 1, 0], rotation: [0, 0, 0], wide: Wide.Z }, { axis: [0, -1, 0], rotation: [180, 0, 0], wide: Wide.Z },
+    { axis: [0, 0, 1], rotation: [90, 0, 0], wide: Wide.Z }, { axis: [0, 0, -1], rotation: [-90, 0, 0], wide: Wide.Z },
+  ],
+};
+
+const scaled = (v: Vec3, k: number, at: Vec3 = [0, 0, 0]): Vec3 => [at[0] + v[0] * k, at[1] + v[1] * k, at[2] + v[2] * k];
+
+interface FlatPiece {
+  readonly entry: 'pyramid' | 'cube';
+  readonly direction: Direction;
+  /** Distance of the piece centre from the cross centre, before scaling. */
+  readonly at: number;
+  readonly width: number;
+  readonly halfLength: number;
+  readonly mat: string;
+  readonly scale: number;
+  readonly centre: Vec3;
+}
+
+function flatPiece(p: FlatPiece): PieceData {
+  const { width: w, halfLength: h, scale: k } = p;
+  const size: Vec3 = p.direction.wide === Wide.X ? [w * k, h * k, FLAT.thick * k] : [FLAT.thick * k, h * k, w * k];
+  return { entry: p.entry, position: scaled(p.direction.axis, p.at * k, p.centre), size, rotation: p.direction.rotation, mat: p.mat };
+}
+
+/** Four flat arrows in `plane`, scaled by `k` around `centre`; each stem starts `stemFrom` out from the centre. */
+export function flatArrows(plane: Plane, mat: string, k = 1, centre: Vec3 = [0, 0, 0], stemFrom = 0): PieceData[] {
+  const base = FLAT.head.at - FLAT.head.h;
+  const stemHalf = (base - stemFrom) / 2;
+  return DIRECTIONS[plane].flatMap((direction) => [
+    flatPiece({ entry: 'pyramid', direction, at: FLAT.head.at, width: FLAT.head.w, halfLength: FLAT.head.h, mat, scale: k, centre }),
+    flatPiece({ entry: 'cube', direction, at: stemFrom + stemHalf, width: FLAT.stemWidth, halfLength: stemHalf, mat, scale: k, centre }),
+  ]);
+}
+
+/** Bryce 2's camera cross: salmon arrows around a teal ball. */
+const cross = (plane: Plane): PieceData[] => [{ entry: 'sphere', size: CROSS_HUB, mat: TEAL }, ...flatArrows(plane, TRACKBALL, 1, [0, 0, 0], CROSS_HUB[0] - FLAT.thick)];
+
+const TRACKBALL_R = 0.8;
+const TRACKBALL_ARROW_K = 0.68;
+const TRACKBALL_ARROW_Z = 0.8;
+
+/** Viewpoints of the left-column icons, a little above so the flat crosses read in perspective like Bryce's. */
+const CONTROL_FROM = {
+  crossXY: [-1.4, 1.8, 3.8] as Vec3,
+  crossYZ: [-3.7, 2.0, 1.6] as Vec3,
+  crossXZ: [0, 3.4, 2.3] as Vec3,
+  trackball: [0, 0.35, 4.4] as Vec3,
+  view: [2.7, 2.3, 3.3] as Vec3,
+};
+
+/** Bryce's render balls are all chrome; the hint text tells them apart. */
+const CHROME_BALL: IconData = { from: VIEW_FROM.front, studio: true, pieces: [{ entry: 'sphere', mat: 'Chrome' }] };
+
 export const CONTROL_ICON_DATA = {
-  trackball: { from: VIEW_FROM.front, pieces: [{ entry: 'sphere', size: [0.8, 0.8, 0.8], mat: TRACKBALL }, ...arrows(TEAL, BALL)] },
-  'cross-xy': { from: VIEW_FROM.front, pieces: [hub(TEAL), ...arrows(TEAL, XY)] },
-  'cross-xz': { from: VIEW_FROM.top, pieces: [hub(TEAL), ...arrows(TEAL, XZ)] },
-  'cross-yz': { from: VIEW_FROM.side, pieces: [hub(TEAL), ...arrows(TEAL, YZ)] },
-  view: { from: VIEW_FROM.angled, pieces: [{ entry: 'cube', position: [0, -0.35, 0], size: [0.75, 0.3, 0.75], mat: TEAL }, { entry: 'terrain', position: [0, 0.4, 0], size: [0.7, 0.45, 0.7], mat: 'Snowy Peaks' }] },
-  render: { from: VIEW_FROM.front, pieces: [{ entry: 'sphere', mat: 'Chrome' }] },
-  stop: { from: VIEW_FROM.front, pieces: [{ entry: 'sphere', mat: 'Red Plastic' }] },
-  clear: { from: VIEW_FROM.front, pieces: [{ entry: 'sphere', mat: 'Flat Black' }] },
+  trackball: {
+    from: CONTROL_FROM.trackball,
+    pieces: [
+      { entry: 'sphere', size: [TRACKBALL_R, TRACKBALL_R, TRACKBALL_R], mat: TRACKBALL },
+      ...flatArrows(Plane.XY, TEAL, TRACKBALL_ARROW_K, [0, 0, TRACKBALL_ARROW_Z]),
+    ],
+  },
+  'cross-xy': { from: CONTROL_FROM.crossXY, pieces: cross(Plane.XY) },
+  'cross-xz': { from: CONTROL_FROM.crossXZ, pieces: cross(Plane.XZ) },
+  'cross-yz': { from: CONTROL_FROM.crossYZ, pieces: cross(Plane.YZ) },
+  view: {
+    from: CONTROL_FROM.view,
+    pieces: [
+      { entry: 'cube', position: [0, -0.42, 0], size: [0.95, 0.07, 0.95], mat: 'Polished Wood' },
+      { entry: 'terrain', position: [-0.12, -0.05, -0.15], size: [0.62, 0.32, 0.62], mat: 'Red Rock' },
+      { entry: 'cube', position: [-0.62, -0.23, 0.55], size: [0.13, 0.13, 0.13], mat: TEAL },
+      { entry: 'sphere', position: [0.1, -0.21, 0.66], size: [0.14, 0.14, 0.14], mat: TEAL },
+      { entry: 'pyramid', position: [0.66, -0.21, 0.2], size: [0.15, 0.15, 0.15], mat: TEAL },
+    ],
+  },
+  render: CHROME_BALL,
+  stop: CHROME_BALL,
+  clear: CHROME_BALL,
   materials: { from: VIEW_FROM.front, pieces: [{ entry: 'sphere', mat: 'Psycho Chrome' }] },
   resize: { from: VIEW_FROM.angled, pieces: [{ entry: 'cube', size: [0.7, 0.7, 0.7], mat: TEAL }, { entry: 'cube', position: [0.55, 0.55, 0.55], size: [0.28, 0.28, 0.28], mat: TRACKBALL }] },
   rotate: { from: VIEW_FROM.front, pieces: [{ entry: 'torus', rotation: [60, 0, 20], size: [0.95, 0.95, 0.95], mat: TEAL }] },

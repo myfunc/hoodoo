@@ -7,6 +7,7 @@ import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
 import { HINTS, TAB_TITLES } from '../strings';
 import { createTray } from './create-tray';
 import { editTray } from './edit-tray';
+import { Shelf } from './shelf';
 import { SkyTray } from './sky-tray';
 
 const TABS: readonly { tab: PaletteTab; title: string; presets: Action; hint: { title: string; text: string } }[] = [
@@ -19,6 +20,7 @@ const TABS: readonly { tab: PaletteTab; title: string; presets: Action; hint: { 
 export class Palette {
   readonly titles: HTMLElement;
   readonly trayHost: HTMLElement;
+  private readonly shelf = new Shelf();
   private readonly trays: Record<PaletteTab, HTMLElement>;
   private readonly heads = new Map<PaletteTab, HTMLElement>();
 
@@ -41,7 +43,7 @@ export class Palette {
       [PaletteTab.Edit]: editTray(ctx),
       [PaletteTab.Sky]: new SkyTray(ctx).el,
     };
-    this.trayHost = el('div', { style: { display: 'contents' } });
+    this.trayHost = this.shelf.el;
     ctx.editor.events.on('changed', ({ state, previous }) => {
       if (state.tab !== previous.tab) this.show(state.tab);
     });
@@ -50,6 +52,6 @@ export class Palette {
 
   private show(tab: PaletteTab): void {
     for (const [t, head] of this.heads) head.classList.toggle('is-active', t === tab);
-    this.trayHost.replaceChildren(this.trays[tab]);
+    this.shelf.show(this.trays[tab]);
   }
 }
