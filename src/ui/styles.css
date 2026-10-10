@@ -443,7 +443,7 @@ input { font: inherit; }
 }
 .splash-picture { position: absolute; inset: 0; }
 .splash-source { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-/* The art is 640 × 400, scaled up with hard pixels like a render from 2000. */
+/* The art is 320 × 200, scaled up with hard pixels like a render from 2000. */
 .splash-art { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; image-rendering: pixelated; }
 .splash::after {
   content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 34%;

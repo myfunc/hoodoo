@@ -9,9 +9,9 @@ import { launchOptions } from './browser.mjs';
 
 const [url = 'http://localhost:5640/'] = process.argv.slice(2);
 const ART = new URL('../src/ui/art/', import.meta.url);
-/** 640 × 400 like a 2000-era render: anti-aliased, then shown with hard pixels (image-rendering: pixelated). */
-const STILL = { width: 640, height: 400, samples: 64, quality: 0.92 };
-const CLIP = { width: 640, height: 400, samples: 16, bitsPerPixel: 0.12 };
+/** 320 × 200 like an early-2000s render: anti-aliased, then shown with big hard pixels (image-rendering: pixelated). */
+const STILL = { width: 320, height: 200, samples: 64, quality: 0.95 };
+const CLIP = { width: 320, height: 200, samples: 16, bitsPerPixel: 0.35 };
 
 const browser = await puppeteer.launch(launchOptions(['--window-size=1280,900']));
 try {

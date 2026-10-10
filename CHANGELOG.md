@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.2 — 2026-10-10
+
+### Changed
+- The splash art drops to 320 × 200 with big hard pixels, so the early-2000s
+  look shows on every screen, not only on high-density ones. The clips shrink to
+  0.1–0.3 MB.
+
 ## 0.4.1 — 2026-10-10
 
 ### Changed
