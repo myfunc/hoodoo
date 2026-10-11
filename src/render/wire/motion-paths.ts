@@ -1,7 +1,11 @@
 import type { Vec3 } from '../../core/vec3';
-import type { Key, Scene } from '../../model/scene.types';
+import type { GroupId, ObjectId } from '../../model/scene.ids';
+import type { Key, Scene, Transform } from '../../model/scene.types';
 import { channelAt } from '../../world/animation/interpolate';
-import { type KeyRef, KeyTrack, isKeyPicked } from '../../world/animation/key-selection';
+import { type KeyRef, KeyTrack, isCyclic, isKeyPicked } from '../../world/animation/key-selection';
+import { sceneFrames } from '../../world/group-pose';
+import { framePoint } from '../../world/group-transform';
+import { chain, coverItems, groupIndex } from '../../world/group-tree';
 import { WIRE } from './wire.constants';
 import type { WireProjector } from './wireframe';
 
@@ -10,14 +14,17 @@ import type { WireProjector } from './wireframe';
  * object (and of the camera, seen from another view) as a dotted line, with a
  * square at each key and the owner's name beside the first one. Squares are
  * handles: the scene window picks and drags them; picked keys show filled yellow.
+ * A keyed group has a path of its own, named after it. Paths inside a group are
+ * drawn where the group is now, so they travel with it. With a keyed group
+ * selected its path is the bold one; what moves inside it shows faintly.
  */
 
 /** A key square on screen, for picking. */
 export interface KeyHandle {
   readonly track: KeyTrack;
-  /** Object id, or '' for the camera. */
+  /** Object or group id, or '' for the camera. */
   readonly id: string;
-  /** Whose path it is: the object's name, or Camera. */
+  /** Whose path it is: the object's or group's name, or Camera. */
   readonly owner: string;
   readonly time: number;
   readonly world: Vec3;
@@ -37,6 +44,9 @@ const PATH = {
   keyEdge: 'rgba(255,255,255,0.85)',
   picked: '#ffd030',
   pickedEdge: '#2a2a2a',
+  /** Paths inside a selected keyed group: there, but quiet. */
+  faint: 'rgba(208, 32, 42, 0.32)',
+  keyFaint: 2,
   /** Path samples per second of animation, at most `maxSamples` per path. */
   perSecond: 12,
   maxSamples: 240,
@@ -50,6 +60,15 @@ interface PathStyle {
   readonly color: string;
   readonly key: number;
   readonly dash: readonly number[];
+  /** The owner's name beside the first key. */
+  readonly tag: boolean;
+}
+
+/** How one track is drawn: the space its keys live in, whether it loops, its look. */
+interface TrackDraw {
+  readonly frame: Transform | null;
+  readonly loop: boolean;
+  readonly style: PathStyle;
 }
 
 function positionAt<T>(keys: readonly Key<T>[], t: number, read: (v: T) => Vec3, loop: boolean): Vec3 {
@@ -68,11 +87,13 @@ function drawTag(g: CanvasRenderingContext2D, text: string, x: number, y: number
 }
 
 function drawPath<T>(
-  g: CanvasRenderingContext2D, proj: WireProjector, scene: Scene, keys: readonly Key<T>[], read: (v: T) => Vec3,
-  style: PathStyle, handle: Pick<KeyHandle, 'track' | 'id' | 'owner'>, picked: readonly KeyRef[], out: KeyHandle[],
+  g: CanvasRenderingContext2D, proj: WireProjector, scene: Scene, keys: readonly Key<T>[], local: (v: T) => Vec3,
+  how: TrackDraw, handle: Pick<KeyHandle, 'track' | 'id' | 'owner'>, picked: readonly KeyRef[], out: KeyHandle[],
 ): void {
   if (keys.length < 2) return;
   const a = scene.animation;
+  const { frame, style } = how;
+  const read = frame ? (v: T) => framePoint(frame, local(v)) : local;
   const first = keys[0].time;
   const last = keys[keys.length - 1].time;
   const n = Math.min(PATH.maxSamples, Math.max(2, Math.ceil((last - first) * PATH.perSecond)));
@@ -82,7 +103,7 @@ function drawPath<T>(
   g.beginPath();
   let prev: Vec3 | null = null;
   for (let i = 0; i <= n; i++) {
-    const p = proj.view(positionAt(keys, first + ((last - first) * i) / n, read, a.loop));
+    const p = proj.view(positionAt(keys, first + ((last - first) * i) / n, read, how.loop));
     if (prev) {
       const s = proj.segment(prev, p);
       if (s) {
@@ -110,7 +131,55 @@ function drawPath<T>(
     out.push({ ...handle, time: k.time, world, x, y });
     tagAt ??= [x, y];
   }
-  if (tagAt) drawTag(g, handle.owner, tagAt[0], tagAt[1], style.color);
+  if (tagAt && style.tag) drawTag(g, handle.owner, tagAt[0], tagAt[1], style.color);
+}
+
+enum Emphasis {
+  Normal = 0,
+  Faint = 1,
+  Selected = 2,
+}
+
+const STYLES: Readonly<Record<Emphasis, PathStyle>> = {
+  [Emphasis.Normal]: { color: PATH.color, key: PATH.key, dash: PATH.dash, tag: true },
+  [Emphasis.Faint]: { color: PATH.faint, key: PATH.keyFaint, dash: PATH.dash, tag: false },
+  [Emphasis.Selected]: { color: PATH.selected, key: PATH.keySelected, dash: PATH.dash, tag: true },
+};
+
+interface PathJob {
+  readonly emphasis: Emphasis;
+  readonly keys: readonly Key<Transform>[];
+  readonly draw: TrackDraw;
+  readonly handle: Pick<KeyHandle, 'track' | 'id' | 'owner'>;
+}
+
+/** Every object and group path with its look: a selected keyed group bold, what moves inside it faint. */
+function pathJobs(scene: Scene, selection: ReadonlySet<string>): PathJob[] {
+  const a = scene.animation;
+  const frame = sceneFrames(scene);
+  const index = groupIndex(scene);
+  const keyed = (id: GroupId) => (a.groups?.[id]?.length ?? 0) > 1;
+  const whole = selection.size ? coverItems(scene, selection as ReadonlySet<ObjectId>).groups : [];
+  const loud = new Set(whole.filter(keyed));
+  // Inside a selected group that moves on its own path, the paths of its parts are quiet.
+  const quiet = (parent: GroupId | null) => chain(index, parent).some((g) => loud.has(g));
+  const jobs: PathJob[] = [];
+  for (const [id, keys] of Object.entries(a.groups ?? {})) {
+    const node = index.get(id as GroupId);
+    if (!node) continue;
+    const emphasis = loud.has(node.id) ? Emphasis.Selected : quiet(node.parentId) ? Emphasis.Faint : Emphasis.Normal;
+    const draw = { frame: frame(node.parentId), loop: a.loop || isCyclic(a, KeyTrack.Group, id), style: STYLES[emphasis] };
+    jobs.push({ emphasis, keys, draw, handle: { track: KeyTrack.Group, id, owner: node.name } });
+  }
+  for (const [id, keys] of Object.entries(a.objects)) {
+    const o = scene.objects.find((x) => x.id === id);
+    if (!o || o.hidden) continue;
+    const emphasis = !selection.has(id) ? Emphasis.Normal : quiet(o.groupId) ? Emphasis.Faint : Emphasis.Selected;
+    const draw = { frame: frame(o.groupId), loop: a.loop || isCyclic(a, KeyTrack.Object, id), style: STYLES[emphasis] };
+    jobs.push({ emphasis, keys, draw, handle: { track: KeyTrack.Object, id, owner: o.name } });
+  }
+  // Louder paths last: drawn on top, and their squares win a pick.
+  return jobs.sort((x, y) => x.emphasis - y.emphasis);
 }
 
 /**
@@ -125,17 +194,13 @@ export function drawMotionPaths(
   const a = scene.animation;
   const picked = opts.keys ?? [];
   g.save();
-  const ids = Object.keys(a.objects).sort((x, y) => Number(selection.has(x)) - Number(selection.has(y)));
-  for (const id of ids) {
-    const o = scene.objects.find((x) => x.id === id);
-    const sel = selection.has(id);
-    if (!o || o.hidden || (opts.overRender && !sel)) continue;
-    const style = { color: sel ? PATH.selected : PATH.color, key: sel ? PATH.keySelected : PATH.key, dash: PATH.dash };
-    drawPath(g, proj, scene, a.objects[id], (v) => v.position, style, { track: KeyTrack.Object, id, owner: o.name }, picked, out);
+  for (const job of pathJobs(scene, selection)) {
+    if (opts.overRender && job.emphasis === Emphasis.Normal) continue;
+    drawPath(g, proj, scene, job.keys, (v) => v.position, job.draw, job.handle, picked, out);
   }
   if (opts.camera) {
-    const style = { color: PATH.camera, key: PATH.keySelected, dash: PATH.cameraDash };
-    drawPath(g, proj, scene, a.camera, (c) => c.position, style, { track: KeyTrack.Camera, id: '', owner: CAMERA_NAME }, picked, out);
+    const draw = { frame: null, loop: a.loop || isCyclic(a, KeyTrack.Camera, ''), style: { color: PATH.camera, key: PATH.keySelected, dash: PATH.cameraDash, tag: true } };
+    drawPath(g, proj, scene, a.camera, (c) => c.position, draw, { track: KeyTrack.Camera, id: '', owner: CAMERA_NAME }, picked, out);
   }
   g.restore();
   return out;

@@ -60,9 +60,13 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.Land]: { label: 'Land Object', menu: MenuName.Objects, chords: [c('KeyL')] },
   [Action.Attributes]: { label: 'Object Attributes…', menu: MenuName.Objects, chords: [c('KeyA', { alt: true })] },
   [Action.EditMaterial]: { label: 'Materials Lab…', menu: MenuName.Objects, chords: [c('KeyM')] },
+  [Action.ChooseMaterial]: { label: 'Choose Material…', menu: MenuName.Objects, chords: [] },
+  [Action.PrevMaterial]: { label: 'Previous Material', menu: MenuName.Objects, chords: [c('ArrowUp')] },
+  [Action.NextMaterial]: { label: 'Next Material', menu: MenuName.Objects, chords: [c('ArrowDown')] },
   [Action.EditObject]: { label: 'Edit Terrain…', menu: MenuName.Objects, chords: [c('KeyE')] },
   [Action.ObjectLibrary]: { label: 'Object Library…', menu: MenuName.Objects, chords: [c('KeyO', { alt: true })] },
-  [Action.Randomize]: { label: 'Randomize', menu: MenuName.Objects, chords: [c('KeyR', { alt: true })] },
+  // Menu and Edit palette only: a chord ran it by accident (TO576), and R is the walk's rise key.
+  [Action.Randomize]: { label: 'Randomize', menu: MenuName.Objects, chords: [] },
   [Action.HideSelected]: { label: 'Hide Selection', menu: MenuName.Objects, chords: [c('KeyH')] },
   [Action.ShowAll]: { label: 'Show All', menu: MenuName.Objects, chords: [c('KeyH', { alt: true })] },
   [Action.FrameSelected]: { label: 'Frame Selection', menu: MenuName.View, chords: [c('KeyF')] },
@@ -120,6 +124,8 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.SelectAllKeys]: { label: 'Select All Keys', menu: MenuName.Animation, chords: [c('KeyA', { alt: true, shift: true })] },
   // Delete and Backspace (Action.Delete) remove the picked keys while any are picked.
   [Action.DeleteKeys]: { label: 'Delete Selected Keys', menu: MenuName.Animation, chords: [] },
+  [Action.ClosePathLoop]: { label: 'Close Path Loop', menu: MenuName.Animation, chords: [] },
+  [Action.OpenPath]: { label: 'Open Path', menu: MenuName.Animation, chords: [] },
   [Action.AnimationSetup]: { label: 'Animation Setup…', menu: MenuName.Animation, chords: [] },
   [Action.ClearAnimation]: { label: 'Clear All Keys', menu: MenuName.Animation, chords: [] },
   [Action.Bookmark]: { label: 'Go to Camera Bookmark', menu: MenuName.View, chords: [] },
@@ -130,6 +136,7 @@ const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(naviga
 const KEY_NAMES: Readonly<Record<string, string>> = {
   Delete: 'Del', Backspace: 'Bksp', Escape: 'Esc', Equal: '+', Minus: '-', Slash: '/', Period: '.', Home: 'Home',
   NumpadAdd: 'Num+', NumpadSubtract: 'Num-', Tab: 'Tab', F12: 'F12', Comma: ',', Space: 'Space', End: 'End',
+  ArrowUp: '↑', ArrowDown: '↓',
 };
 const CODE_PREFIXES = ['Key', 'Digit', 'Numpad'] as const;
 
@@ -166,12 +173,25 @@ export const isTyping = (e: KeyboardEvent): boolean => {
   return !!t && (TEXT_TAGS.has(t.tagName) || t.isContentEditable) && e.key !== KEY.Escape;
 };
 
-/** Held keys of the fly camera (Director / Camera view navigation). */
-export const FLY_KEYS: Readonly<Record<string, readonly [number, number, number]>> = {
+/**
+ * Held keys that walk the camera while the pointer is over the scene window, as [right, up, forward]:
+ * W/S forward and back, A/D sideways, R/C rise and sink. Orthographic views pan with W/A/S/D.
+ */
+export const WALK_KEYS: Readonly<Record<string, readonly [number, number, number]>> = {
   KeyW: [0, 0, 1],
   KeyS: [0, 0, -1],
   KeyA: [-1, 0, 0],
   KeyD: [1, 0, 0],
+  KeyR: [0, 1, 0],
+  KeyC: [0, -1, 0],
+};
+
+/** While the right button is held the walk keys fly, and E/Q rise and sink too (they open Edit Terrain and Four Views otherwise). */
+export const FLY_KEYS: Readonly<Record<string, readonly [number, number, number]>> = {
+  ...WALK_KEYS,
   KeyE: [0, 1, 0],
   KeyQ: [0, -1, 0],
 };
+
+/** Held with a selection: drag left/right in the scene window or scroll to resize it (Bryce's Resize tool). */
+export const RESIZE_KEY = 'KeyZ';

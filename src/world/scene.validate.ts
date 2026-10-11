@@ -211,23 +211,60 @@ function keys<T>(v: unknown, duration: number, value: (raw: unknown) => T): Key<
   return out.sort((a, b) => a.time - b.time);
 }
 
-/** The timeline of a file; tracks of objects that are not in the scene are dropped. */
-export function animation(v: unknown, d: Animation, objectIds: ReadonlySet<string>, cam: Camera, skyDefault: Sky): Animation {
+/** A group's transform: like an object's, its scale kept positive (a group cannot mirror what it holds). */
+export function groupTransform(t: unknown): Transform {
+  const out = transform(t);
+  return { ...out, size: out.size.map(Math.abs) as unknown as Vec3 };
+}
+
+/** Transform tracks of the given ids, well-formed keys only; empty tracks go. */
+function transformTracks(v: unknown, ids: ReadonlySet<string>, duration: number, value: (raw: unknown) => Transform): Record<string, Key<Transform>[]> {
+  const tracks = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.keys(tracks).filter((id) => ids.has(id)).map((id) => [id, keys(tracks[id], duration, value)] as const).filter(([, k]) => k.length > 0),
+  );
+}
+
+/** Track names of closed paths (`object:<id>`, `group:<id>`, `camera:`, `sky:`) whose track exists. */
+function cyclicTracks(v: unknown, a: Pick<Animation, 'objects' | 'groups' | 'camera' | 'sky'>): string[] {
+  if (!Array.isArray(v)) return [];
+  const live = new Set([
+    ...Object.keys(a.objects).map((id) => `object:${id}`),
+    ...Object.keys(a.groups ?? {}).map((id) => `group:${id}`),
+    ...(a.camera.length ? ['camera:'] : []),
+    ...(a.sky.length ? ['sky:'] : []),
+  ]);
+  return [...new Set(v.filter((n): n is string => typeof n === 'string' && live.has(n)))];
+}
+
+/** The timeline of a file; tracks of objects and groups that are not in the scene are dropped. */
+export function animation(v: unknown, d: Animation, objectIds: ReadonlySet<string>, cam: Camera, skyDefault: Sky, groupIds: ReadonlySet<string> = new Set()): Animation {
   const r = (v ?? {}) as Partial<Record<keyof Animation, unknown>>;
   const duration = clampNum(r.duration, d.duration, ANIMATION_LIMITS.duration);
-  const tracks = (r.objects ?? {}) as Record<string, unknown>;
-  const objects = Object.fromEntries(
-    Object.keys(tracks).filter((id) => objectIds.has(id)).map((id) => [id, keys(tracks[id], duration, transform)] as const).filter(([, k]) => k.length > 0),
-  );
-  return {
+  const objects = transformTracks(r.objects, objectIds, duration, transform);
+  const groups = transformTracks(r.groups, groupIds, duration, groupTransform);
+  const out: Animation = {
     enabled: typeof r.enabled === 'boolean' ? r.enabled : d.enabled,
     duration,
     fps: Math.round(clampNum(r.fps, d.fps, ANIMATION_LIMITS.fps)),
     loop: typeof r.loop === 'boolean' ? r.loop : d.loop,
     objects,
+    ...(Object.keys(groups).length ? { groups } : {}),
     camera: keys(r.camera, duration, (c) => camera(c, cam)),
     sky: keys(r.sky, duration, (s) => sky(s, skyDefault)),
   };
+  const cyclic = cyclicTracks(r.cyclic, out);
+  return cyclic.length ? { ...out, cyclic } : out;
+}
+
+/** A malformed group transform leaves the group where it was built. */
+function optionalGroupTransform(t: unknown): Transform | null {
+  try {
+    return groupTransform(t);
+  } catch (e) {
+    if (!(e instanceof SceneFileError)) throw e;
+    return null;
+  }
 }
 
 const isId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= SCENE_LIMITS.id;
@@ -244,7 +281,9 @@ export function groupTable(v: unknown): GroupNode[] {
     const r = (raw ?? {}) as Partial<Record<keyof GroupNode, unknown>>;
     if (!isId(r.id) || nodes.has(r.id)) continue;
     const id = asGroupId(r.id);
-    nodes.set(id, { id, name: label(r.name, GROUP_NAME) || GROUP_NAME, parentId: isId(r.parentId) ? asGroupId(r.parentId) : null, collapsed: r.collapsed === true });
+    const node: GroupNode = { id, name: label(r.name, GROUP_NAME) || GROUP_NAME, parentId: isId(r.parentId) ? asGroupId(r.parentId) : null, collapsed: r.collapsed === true };
+    const pose = r.transform === undefined ? null : optionalGroupTransform(r.transform);
+    nodes.set(id, pose ? { ...node, transform: pose } : node);
   }
   const parent = new Map([...nodes.values()].map((n) => [n.id as string, n.parentId && nodes.has(n.parentId) ? n.parentId : null]));
   for (const id of parent.keys()) {

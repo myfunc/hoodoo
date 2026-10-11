@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Action } from '../actions';
-import { ACTIONS, matchKey } from '../bindings';
+import { ACTIONS, FLY_KEYS, RESIZE_KEY, WALK_KEYS, matchKey } from '../bindings';
 
 const key = (code: string, mods: Partial<KeyboardEvent> = {}) =>
   ({ code, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...mods }) as KeyboardEvent;
@@ -21,6 +21,25 @@ describe('bindings', () => {
       expect(matchKey(key(code, { ctrlKey: true, metaKey: true }))?.action, code).toBe(Action.CommandPalette);
     }
     expect(matchKey(key('KeyP'))?.action).toBe(Action.ToggleLiveRender);
+  });
+
+  it('leaves the walk keys and the resize key free as plain keys', () => {
+    for (const code of [...Object.keys(WALK_KEYS), RESIZE_KEY]) expect(matchKey(key(code)), code).toBeNull();
+  });
+
+  it('keeps the shortcuts that share a key with the walk', () => {
+    // Shift+A starts no walk (Animation); E and Q fly only with the right button held.
+    expect(matchKey(key('KeyA', { shiftKey: true }))?.action).toBe(Action.ToggleAnimation);
+    expect(matchKey(key('KeyE'))?.action).toBe(Action.EditObject);
+    expect(matchKey(key('KeyR', { ctrlKey: true, metaKey: true }))?.action).toBe(Action.Render);
+    expect(Object.keys(FLY_KEYS)).toEqual(expect.arrayContaining([...Object.keys(WALK_KEYS), 'KeyE', 'KeyQ']));
+  });
+
+  it('runs Randomize from the menu only, never from a chord', () => {
+    expect(ACTIONS[Action.Randomize].chords).toEqual([]);
+    for (const mods of [{ altKey: true }, { shiftKey: true }, { ctrlKey: true, altKey: true }]) {
+      expect(matchKey(key('KeyR', mods))?.action).not.toBe(Action.Randomize);
+    }
   });
 
   it('never binds one chord to two actions', () => {

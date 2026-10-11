@@ -4,9 +4,12 @@ import { add } from '../core/vec3';
 import type { ViewKind } from '../model/scene.enums';
 import { type GroupId, type ObjectId, newGroupId, newObjectId } from '../model/scene.ids';
 import type { Animation, Camera, DocumentSetup, GroupNode, Material, OrthoView, Scene, SceneObject, Sky } from '../model/scene.types';
-import { frameTime, recordKeys } from './animation/keying';
+import { frameTime, recordKeys, withKey } from './animation/keying';
 import { poseAt } from './animation/pose';
-import { type TreeItems, cloneGroups, dissolved, familyOf, freshGroupName, groupIndex, grouped, reparented, ungrouped, withEmptyGroup, withGroup, withGroups, withoutObjects } from './group-tree';
+import { repivoted, settled } from './group-edits';
+import { localOf } from './group-pose';
+import { IDENTITY } from './group-transform';
+import { type TreeItems, cloneGroups, coverItems, dissolved, familyOf, freshGroupName, groupIndex, grouped, reparented, ungrouped, withEmptyGroup, withGroup, withGroups, withoutObjects } from './group-tree';
 import { History } from './history';
 import { limitBreach } from './scene-limits';
 import { COPY_SUFFIX, DUPLICATE_OFFSET, HISTORY_LIMIT } from './world.constants';
@@ -23,6 +26,7 @@ export { SelectMode } from './world.enums';
  * Animation: the playhead is session state; the current scene is always posed
  * at it, and edits become keys at the playhead (animation/keying). With
  * animation off the playhead rests at zero and the scene is a still.
+ * Groups: an edit that moves a whole group moves the group itself (group-edits).
  */
 export class World {
   readonly events = new Bus<WorldEvents>();
@@ -35,6 +39,8 @@ export class World {
   private clipboardGroups: ReadonlyMap<GroupId, GroupNode> = new Map();
   private materialClipboard: Material | null = null;
   private playhead = 0;
+  /** The recorded scene while a preview is shown in its place (previewMaterial). */
+  private previewBase: Scene | null = null;
 
   constructor(initial: Scene) {
     this.history = new History(initial, 'Open scene', HISTORY_LIMIT);
@@ -77,6 +83,25 @@ export class World {
     const scene = poseAt({ ...this.scene, animation }, this.playhead);
     this.commit(label, scene, ChangeKind.Time, false);
     if (this.playhead > animation.duration) this.setTime(animation.duration);
+  }
+
+  /**
+   * Add Key: whole groups key their own transform, single objects their pose
+   * inside their group. A group keyed for the first time gets its pivot at its
+   * centre (nothing moves), so it turns about its middle.
+   */
+  addKeys(items: TreeItems, label: string): void {
+    let scene = this.scene;
+    for (const g of items.groups) if (!scene.animation.groups?.[g]?.length) scene = repivoted(scene, g);
+    const a = scene.animation;
+    const t = frameTime(this.playhead, a.fps);
+    const index = groupIndex(scene);
+    const groups = { ...(a.groups ?? {}) };
+    for (const g of items.groups) groups[g] = withKey(groups[g] ?? [], t, index.get(g)?.transform ?? IDENTITY, a.fps);
+    const objects = { ...a.objects };
+    for (const o of scene.objects.filter((x) => items.objects.includes(x.id))) objects[o.id] = withKey(objects[o.id] ?? [], t, localOf(o), a.fps);
+    const animation = { ...a, objects, ...(items.groups.length || a.groups ? { groups } : {}) };
+    this.commit(label, poseAt({ ...scene, animation }, this.playhead), ChangeKind.Time, false);
   }
 
   load(scene: Scene, label: string): void {
@@ -143,6 +168,27 @@ export class World {
     this.updateObjects(ids, label, (o) => ({ ...o, material }));
   }
 
+  /**
+   * Shows `material` on the objects without recording it: no undo step, no key,
+   * the redo list untouched (the material menu's hover). endPreview puts the
+   * recorded scene back; end it before the next edit.
+   */
+  previewMaterial(ids: ReadonlySet<ObjectId>, material: Material): void {
+    const base = (this.previewBase ??= this.scene);
+    this.show({ ...base, objects: base.objects.map((o) => (ids.has(o.id) ? { ...o, material } : o)) });
+  }
+
+  endPreview(): void {
+    const base = this.previewBase;
+    this.previewBase = null;
+    if (base) this.show(base);
+  }
+
+  private show(scene: Scene): void {
+    this.history.amend(scene);
+    this.events.emit('changed', { scene, kind: ChangeKind.Objects });
+  }
+
   setSky(sky: Sky, label: string): void {
     this.commit(label, { ...this.scene, sky }, ChangeKind.Sky);
   }
@@ -206,6 +252,11 @@ export class World {
   ungroupGroups(groups: ReadonlySet<GroupId>): void {
     const next = dissolved(this.scene, groups);
     if (next) this.commit('Ungroup', next, ChangeKind.Objects);
+  }
+
+  /** The whole groups the selection is made of (outermost), and the single objects beside them. */
+  selectedItems(): TreeItems {
+    return coverItems(this.scene, this.selected);
   }
 
   /** Selecting one member of a group selects the whole family, like Bryce: the outermost group with all inside. */
@@ -324,10 +375,16 @@ export class World {
 
   /**
    * Records the new scene; false (and a `refused` event) when it would exceed the scene limits.
-   * Edits are auto-keyed at the playhead; whole-scene swaps and timeline edits are not.
+   * Edits are auto-keyed at the playhead; whole-scene swaps and timeline edits are not
+   * (they arrive posed). An edit is first read through the groups: a whole group
+   * moved is a move of the group (group-edits).
    */
   private commit(label: string, next: Scene, kind: ChangeKind, keyed = true): boolean {
-    const scene = keyed ? recordKeys(this.scene, next, this.playhead) : next;
+    let scene = next;
+    if (keyed) {
+      const edit = settled(this.scene, next);
+      scene = recordKeys(edit.before, edit.after, this.playhead, edit.keyed);
+    }
     const breach = limitBreach(scene, this.scene);
     if (breach) {
       this.events.emit('refused', { reason: breach });

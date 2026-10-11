@@ -3,6 +3,7 @@ import { Logger } from '../core/log';
 import { randomSeed } from '../core/rng';
 import { Action } from '../input/actions';
 import { pickSceneFile, readSceneFile, downloadScene } from '../io/project-file';
+import { SCENE_NAME } from '../ui/strings';
 import { copyCanvas, downloadCanvas } from '../io/export-image';
 import { renderImage } from '../render/tiled-render';
 import { shareUrl } from '../io/share-link';
@@ -25,6 +26,7 @@ import { MaterialsLab } from '../ui/labs/materials-lab';
 import { openDocumentSetup, openExport, openReplicate } from '../ui/labs/setup-dialogs';
 import { TerrainEditor } from '../ui/labs/terrain-editor';
 import { openCommandPalette } from '../ui/panels/command-palette';
+import { StepDirection, openMaterialMenu, stepMaterial } from '../ui/panels/material-menu';
 import { openAbout, openShortcuts, openSource } from './info';
 import { BYTES_PER_KB, DEFAULT_FILE_NAME, EXPORT_MAX_PIXELS, IMAGE_NAME, PERCENT, RANDOMIZE, ZOOM_STEP } from './app.constants';
 import { startFocusPick } from './lens-ops';
@@ -40,19 +42,27 @@ import { ScrollPreference } from '../input/scroll-device';
 import { isAnimated } from '../world/animation/pose';
 import { Player, addKey, clearAnimation, isAnimationOn, jumpKey, keyCamera, removeKey, setTimeline, stepFrames, toggleAnimation } from './timeline-ops';
 import { deleteSelectedKeys, hasPickedKeys, keepKeySelection, selectAllKeys } from './timeline-ops';
+import { canLoopPath, setPathLoop } from './timeline-ops';
 
 type Handler = (arg?: number) => void;
+
+/** A file's name without its `.hoodoo` or `.json` ending names the scene. */
+const SCENE_EXTENSION = /\.(hoodoo|json)$/i;
 
 /** What commands need from the shell around them. */
 export interface CommandHooks {
   readonly openStart: () => void;
+  /** The scene was swapped for another (`fromFile`: the user opened it from a file). */
+  readonly sceneOpened?: (name: string, fromFile: boolean) => void;
+  /** The scene was saved to a file. */
+  readonly sceneSaved?: () => void;
 }
 
 /** Commands of the timeline: off while the scene's animation is off. */
 const TIMELINE_ACTIONS: ReadonlySet<Action> = new Set([
   Action.PlayPause, Action.FirstFrame, Action.LastFrame, Action.PrevFrame, Action.NextFrame, Action.PrevKey, Action.NextKey,
   Action.AddKey, Action.RemoveKey, Action.KeyCamera, Action.ToggleLoop, Action.AnimationSetup, Action.ClearAnimation, Action.ToggleMotionPaths,
-  Action.SelectAllKeys, Action.DeleteKeys,
+  Action.SelectAllKeys, Action.DeleteKeys, Action.ClosePathLoop, Action.OpenPath,
 ]);
 
 const SCROLL_OF: Partial<Record<Action, ScrollPreference>> = {
@@ -73,6 +83,7 @@ const NEEDS_SELECTION: ReadonlySet<Action> = new Set([
   Action.Cut, Action.Copy, Action.Duplicate, Action.Replicate, Action.Delete, Action.CopyMaterial, Action.PasteMaterial,
   Action.Land, Action.Attributes, Action.EditMaterial, Action.EditObject, Action.Randomize, Action.HideSelected, Action.FrameSelected,
   Action.Group, Action.Ungroup,
+  Action.ChooseMaterial, Action.PrevMaterial, Action.NextMaterial,
 ]);
 
 /**
@@ -85,7 +96,7 @@ export class Commands {
   private exporting = false;
   readonly player: Player;
 
-  constructor(private readonly ctx: UiContext, hooks: CommandHooks) {
+  constructor(private readonly ctx: UiContext, private readonly hooks: CommandHooks) {
     this.player = new Player(ctx);
     keepKeySelection(ctx);
     const w = ctx.world;
@@ -93,7 +104,7 @@ export class Commands {
     const sel = () => w.selection;
     const toggle = (key: 'quad' | 'sidePanel' | 'depthCue' | 'grid' | 'gizmo' | 'snap' | 'liveRender' | 'motionPaths') => () => e.update({ [key]: !e.state[key] });
     this.handlers = {
-      [Action.New]: () => w.replaceScene(emptyScene(), 'New scene'),
+      [Action.New]: () => { w.replaceScene(emptyScene(), 'New scene'); hooks.sceneOpened?.(SCENE_NAME.untitled, false); },
       [Action.StartWindow]: () => hooks.openStart(),
       [Action.ToggleAnimation]: () => toggleAnimation(ctx),
       [Action.PlayPause]: () => this.player.toggle(),
@@ -112,13 +123,16 @@ export class Commands {
       [Action.ToggleMotionPaths]: toggle('motionPaths'),
       [Action.SelectAllKeys]: () => selectAllKeys(ctx),
       [Action.DeleteKeys]: () => deleteSelectedKeys(ctx),
+      [Action.ClosePathLoop]: () => setPathLoop(ctx, true),
+      [Action.OpenPath]: () => setPathLoop(ctx, false),
       [Action.PreviewFeatures]: () => openPreviewFeatures(e),
       [Action.Open]: () => void this.open(),
-      [Action.Save]: () => downloadScene(w.scene, DEFAULT_FILE_NAME),
-      [Action.LoadDemo]: () => w.replaceScene(demoScene(), 'Open demo'),
+      [Action.Save]: () => { downloadScene(w.scene, DEFAULT_FILE_NAME); hooks.sceneSaved?.(); },
+      [Action.LoadDemo]: () => { w.replaceScene(demoScene(), 'Open demo'); hooks.sceneOpened?.(SCENE_NAME.demo, false); },
       [Action.SurpriseScene]: () => {
         const seed = randomSeed();
         w.replaceScene(surpriseScene(seed), `Surprise #${seed}`);
+        hooks.sceneOpened?.(`Surprise #${seed}`, false);
         ctx.toast(`Surprise #${seed} · ${shortcutOf(Action.SurpriseScene)} for another, Undo to go back`);
       },
       [Action.ExportImage]: () => openExport(w.scene.document, (s) => void this.exportImage(s.scale, s.samples, false)),
@@ -145,11 +159,15 @@ export class Commands {
       [Action.Land]: () => w.updateObjects(sel(), 'Land', (o) => landed(w.scene, o)),
       [Action.Attributes]: () => this.attributes(),
       [Action.EditMaterial]: () => this.materials(),
+      [Action.ChooseMaterial]: () => openMaterialMenu(ctx),
+      [Action.PrevMaterial]: () => stepMaterial(ctx, StepDirection.Previous),
+      [Action.NextMaterial]: () => stepMaterial(ctx, StepDirection.Next),
       [Action.EditObject]: () => this.editObject(),
       [Action.ObjectLibrary]: () => openObjectLibrary(ctx.thumbs, (lib) => createFromLibrary(w, lib)),
       [Action.Randomize]: () => {
         const next = randomized(w.selectedObjects(), { ...RANDOMIZE, seed: randomSeed() });
         w.updateObjects(new Set(next.keys()), 'Randomize', (o) => next.get(o.id) ?? o);
+        if (next.size) ctx.toast(`Randomized · undo with ${shortcutOf(Action.Undo)}`);
       },
       [Action.HideSelected]: () => w.updateObjects(sel(), 'Hide', (o) => ({ ...o, hidden: true }), true),
       [Action.ShowAll]: () => w.updateObjects(new Set(w.scene.objects.map((o) => o.id)), 'Show all', (o) => ({ ...o, hidden: false }), true),
@@ -215,6 +233,7 @@ export class Commands {
     if (a === Action.Ungroup) return w.selectedObjects().some((o) => o.groupId !== null);
     if (NEEDS_SELECTION.has(a)) return w.selection.size > 0;
     if (a === Action.StopRender) return this.ctx.view.isRendering;
+    if (a === Action.ClosePathLoop || a === Action.OpenPath) return isAnimationOn(this.ctx) && canLoopPath(this.ctx, a === Action.ClosePathLoop);
     if (TIMELINE_ACTIONS.has(a)) return isAnimationOn(this.ctx);
     if (a === Action.NewGroup) return this.tree;
     return true;
@@ -260,6 +279,7 @@ export class Commands {
   async openFile(file: File): Promise<void> {
     try {
       this.ctx.world.replaceScene(await readSceneFile(file), `Open ${file.name}`);
+      this.hooks.sceneOpened?.(file.name.replace(SCENE_EXTENSION, ''), true);
       this.ctx.toast(`Opened ${file.name}`);
     } catch (error) {
       this.logger.error('open failed', { name: file.name }, error);

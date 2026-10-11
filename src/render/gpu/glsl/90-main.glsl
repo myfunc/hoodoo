@@ -1,6 +1,14 @@
 // Ray generation and the path loop: one stochastic branch (mirror or glass) per bounce,
 // averaged over samples by the progressive accumulator.
 //
+// FAST_PREVIEW builds the interaction variant the live view draws while things move:
+// primary rays with their lights and hard shadows, then one mirror or glass ray whose
+// hit is lit without shadow rays, then the sky. It takes the heavier of the two
+// branches every time, so the picture has no noise. Without the deeper bounces and
+// the shadows in reflections a frame costs about a fifth less; dropping the
+// reflection too would halve it, but water without its reflections no longer looks
+// like the finished picture.
+//
 // Path rays and shadow rays share one loop and one traceScene / evalMaterial call
 // site. A hit on the path queues its lights; the following iterations trace their
 // shadow rays (through transparent occluders) before the path continues. Nesting
@@ -9,7 +17,10 @@
 vec4 radiance(vec3 ro, vec3 rd) {
   vec3 col = vec3(0);
   vec3 thr = vec3(1);
-#ifdef LAB_ONE_BOUNCE
+#if defined(FAST_PREVIEW)
+  // The second bounce only looks up the sky.
+  const int maxBounces = 2;
+#elif defined(LAB_ONE_BOUNCE)
   int maxBounces = 0;
 #else
   int maxBounces = uMaxBounces;
@@ -31,7 +42,11 @@ vec4 radiance(vec3 ro, vec3 rd) {
   vec3 shT = vec3(1);
   vec3 shC = vec3(0);
   int shDepth = 0;
+#ifdef FAST_PREVIEW
+  int steps = (maxBounces + 1) * (1 + (uLightCount + 1) * SHADOW_DEPTH) + 1;
+#else
   int steps = (uMaxBounces + 1) * (1 + (uLightCount + 1) * SHADOW_DEPTH) + 1;
+#endif
   for (int step = 0; step < steps + uLoopGuard; step++) {
     if (!shadow) {
       for (; nextLight < uLightCount; nextLight++) {
@@ -45,7 +60,12 @@ vec4 radiance(vec3 ro, vec3 rd) {
         col += c;
         continue;
 #endif
+#ifdef FAST_PREVIEW
+        // A point seen in a mirror or through glass is lit without testing its shadow.
+        if (uSkyParams.y <= 0.0 || bounce > 1) {
+#else
         if (uSkyParams.y <= 0.0) {
+#endif
           col += c;
           continue;
         }
@@ -64,7 +84,11 @@ vec4 radiance(vec3 ro, vec3 rd) {
     vec3 o = shadow ? shOrigin : ro;
     vec3 d = shadow ? shDir : rd;
     Hit h;
+#ifdef FAST_PREVIEW
+    bool hit = (shadow || bounce < 2) && traceScene(o, d, shadow ? shLeft : INF, h, shadow);
+#else
     bool hit = traceScene(o, d, shadow ? shLeft : INF, h, shadow);
+#endif
     Obj ob;
     bool shaded = false;
     if (hit) {
@@ -126,16 +150,23 @@ vec4 radiance(vec3 ro, vec3 rd) {
       pathDone = true;
       continue;
     }
+#ifdef FAST_PREVIEW
+    bool mirror = wR >= wT;
+    float wPick = wR + wT;
+#else
     float pR = wR / (wR + wT);
-    if (rand() < pR) {
-      thr *= mix(vec3(1), mt.diffuse, mt.metal) * (wR / pR);
+    bool mirror = rand() < pR;
+    float wPick = mirror ? wR / pR : wT / (1.0 - pR);
+#endif
+    if (mirror) {
+      thr *= mix(vec3(1), mt.diffuse, mt.metal) * wPick;
       rd = reflect(rd, n);
       // A bumped normal must not send the mirror ray back through the surface.
       float below = dot(rd, ng);
       if (below < 0.0) rd = normalize(rd - 2.0 * below * ng);
       ro = wp + ng * 2e-3;
     } else {
-      thr *= mt.transColor * (wT / (1.0 - pR));
+      thr *= mt.transColor * wPick;
       if (isThin(ob.kind) || abs(mt.ior - 1.0) < 0.005) {
         ro = wp + rd * 2e-3;
       } else {
@@ -168,6 +199,7 @@ void main() {
     ro = uCamPos;
     rd = normalize(uCamFwd + uCamRight * ndc.x * uHalfH * uAspect + uCamUp * ndc.y * uHalfH);
     // Thin lens: start on the aperture disc and aim at the same point of the focal plane.
+#ifndef FAST_PREVIEW
     if (uLens.x > 0.0) {
       vec3 focal = ro + rd * (uLens.y / dot(rd, uCamFwd));
       float r = uLens.x * sqrt(rand());
@@ -175,6 +207,7 @@ void main() {
       ro += (uCamRight * cos(a) + uCamUp * sin(a)) * r;
       rd = normalize(focal - ro);
     }
+#endif
   }
   vec4 c = radiance(ro, rd);
   // Soft shadows also roll highlights off above the knee instead of clipping them flat.

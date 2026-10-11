@@ -2,6 +2,7 @@ import { type CreateEntry, createEntry } from '../../assets/object.catalog';
 import { Action } from '../../input/actions';
 import { ACTIONS, shortcutOf } from '../../input/bindings';
 import type { ObjectId } from '../../model/scene.ids';
+import { PathLoop, loopTracks, pathLoopOf } from '../../world/animation/loops';
 import { Feature, isFeatureOn } from '../../world/preview-features';
 import { SelectMode } from '../../world/world';
 import type { UiContext } from '../context';
@@ -19,6 +20,8 @@ const CREATE_IDS = ['sphere', 'cube', 'cylinder', 'cone', 'pyramid', 'torus', 't
 export interface MenuFacts {
   readonly tree: boolean;
   readonly animation: boolean;
+  /** The selection's paths: an open one offers Close Path Loop, closed ones Open Path. */
+  readonly loop?: PathLoop;
 }
 
 /** Right-click on an object, in the scene window or the scene list. */
@@ -26,8 +29,9 @@ export function objectEntries(f: MenuFacts): ContextEntry[] {
   return [
     Action.Group, Action.Ungroup, ...(f.tree ? [Action.NewGroup] : []), SEP,
     Action.Duplicate, Action.Delete, Action.HideSelected, Action.Land, SEP,
-    Action.EditMaterial, Action.Attributes,
+    Action.ChooseMaterial, Action.EditMaterial, Action.Attributes,
     ...(f.animation ? [SEP, Action.AddKey, Action.SelectAllKeys] : []),
+    ...(f.animation && f.loop === PathLoop.Open ? [Action.ClosePathLoop] : f.animation && f.loop === PathLoop.Closed ? [Action.OpenPath] : []),
     SEP, Action.PreviewFeatures,
   ];
 }
@@ -55,7 +59,8 @@ export class SceneMenu {
   constructor(private readonly ctx: UiContext, private readonly onCreate: (e: CreateEntry) => void) {}
 
   get facts(): MenuFacts {
-    return { tree: isFeatureOn(this.ctx.editor.state.features, Feature.ObjectTree), animation: this.ctx.world.scene.animation.enabled };
+    const w = this.ctx.world;
+    return { tree: isFeatureOn(this.ctx.editor.state.features, Feature.ObjectTree), animation: w.scene.animation.enabled, loop: pathLoopOf(w.scene.animation, loopTracks(w.scene, w.selection)) };
   }
 
   /** The object menu; an object outside the selection is selected first (with `pick`: its family, or the row itself). */

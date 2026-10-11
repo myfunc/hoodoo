@@ -56,7 +56,7 @@ export interface EditorState {
   readonly features: FeatureFlags;
 }
 
-export const IDLE_HINT: Hint = { title: 'Ready', text: 'Point at any control to see what it does' };
+export const IDLE_HINT: Hint = { title: 'Ready', text: 'Point at a control for help' };
 
 export const RENDER_SAMPLE_CHOICES = [1, 4, 9, 16, 32, 64] as const;
 const DEFAULT_SAMPLES = 16;

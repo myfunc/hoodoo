@@ -18,6 +18,9 @@ import { SnapshotsPanel } from '../ui/panels/snapshots-panel';
 
 const PERCENT = 100;
 
+/** Elements whose right-click menu stays the browser's. */
+const TEXT_FIELDS = new Set(['INPUT', 'TEXTAREA']);
+
 /** Builds the Bryce 2 window: menu bar, left controls, palette, scene window, display bar, side panel. */
 export class Shell {
   readonly root: HTMLElement;
@@ -56,5 +59,12 @@ export class Shell {
     const syncAnimation = () => this.root.classList.toggle('animation-on', ctx.world.scene.animation.enabled);
     ctx.world.events.on('changed', syncAnimation);
     syncAnimation();
+    // The app has its own right-click menus: the browser's never shows over them. On Windows the
+    // contextmenu event lands after the button is let go, on our freshly opened menu, so the guard
+    // sits on the document. Text fields keep the browser menu (spelling, paste).
+    document.addEventListener('contextmenu', (e) => {
+      const t = e.target as HTMLElement | null;
+      if (!t || !(TEXT_FIELDS.has(t.tagName) || t.isContentEditable)) e.preventDefault();
+    });
   }
 }

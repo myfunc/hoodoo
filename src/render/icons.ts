@@ -11,8 +11,8 @@ import { type ViewBasis, cameraBasis, lookAt } from '../world/camera-math';
 import { createObject } from '../world/objects.factory';
 import { DEFAULT_CAMERA, emptyScene } from '../world/scene.defaults';
 import {
-  CLOUD_ICON, CONTROL_ICON_DATA, ICON_FIT, type IconData, ICON_FOV, ICON_SEED, ICON_TERRAIN_SIZE, LATTICE_ICON_SIZE, LIBRARY_FIT,
-  LIGHT_ICON, PLANE_ICON_SIZE, PREVIEW_FLOOR_Y, PREVIEW_FOV, type PieceData, SKY_ASPECT, SKY_FOV, SKY_LOOK_AT,
+  CLOUD_ICON, CONTROL_ICON_DATA, HUB_TEAL, ICON_FIT, type IconData, ICON_FOV, ICON_SEED, ICON_TERRAIN_SIZE, IconLight, LATTICE_ICON_SIZE,
+  LIBRARY_FIT, LIGHT_ICON, PEARL, PLANE_ICON_SIZE, PREVIEW_FLOOR_Y, PREVIEW_FOV, type PieceData, SKY_ASPECT, SKY_FOV, SKY_LOOK_AT,
   SPOT_ICON, TEAL, TERRAIN_SEED, TRACKBALL, VIEW_FROM,
 } from './icon-data';
 
@@ -31,6 +31,8 @@ export enum ControlIcon {
   Render = 'render',
   Stop = 'stop',
   Clear = 'clear',
+  Live = 'live',
+  SaveImage = 'save-image',
   Materials = 'materials',
   Resize = 'resize',
   Rotate = 'rotate',
@@ -54,7 +56,12 @@ const ICON_SKY: Sky = {
   clouds: { ...DEFAULT_SKY.clouds, cover: 0 },
 };
 
+/** The left column: a paler studio, so the icons sit on Bryce's light chrome. */
+const COLUMN_SKY: Sky = { ...ICON_SKY, skyColor: h('#d8dbe0'), sunAzimuth: -35, sunAltitude: 42, ambientColor: h('#b4bcc6') };
 const PREVIEW_SKY: Sky = { ...DEFAULT_SKY, sunAzimuth: -35, sunAltitude: 40, hazeAmount: 10 };
+/** The render balls: the preview sky without haze, for a clean horizon in the pearl. */
+const PEARL_SKY: Sky = { ...DEFAULT_SKY, sunAzimuth: -35, sunAltitude: 45, hazeAmount: 0 };
+const LIGHT_SKIES: Record<IconLight, Sky> = { [IconLight.Plain]: ICON_SKY, [IconLight.Column]: COLUMN_SKY, [IconLight.Studio]: PEARL_SKY };
 const LIBRARY_SKY: Sky = { ...DEFAULT_SKY, sunAzimuth: -40, sunAltitude: 40, hazeAmount: 0 };
 
 const OWN_MATERIALS: Readonly<Record<string, Material>> = {
@@ -65,8 +72,18 @@ const OWN_MATERIALS: Readonly<Record<string, Material>> = {
   }),
   [TRACKBALL]: material({
     name: 'Trackball',
-    colors: { diffuse: h('#e0956a'), ambient: h('#8a4a2a'), specular: h('#ffffff') },
-    values: { diffusion: 85, ambience: 35, specularity: 60 },
+    colors: { diffuse: h('#e88a5c'), ambient: h('#8a3a1a'), specular: h('#ffffff') },
+    values: { diffusion: 85, ambience: 42, specularity: 70 },
+  }),
+  [HUB_TEAL]: material({
+    name: 'Hub Teal',
+    colors: { diffuse: h('#1f8f92'), ambient: h('#0c4a4c'), specular: h('#ffffff') },
+    values: { diffusion: 80, ambience: 25, specularity: 90, reflection: 12 },
+  }),
+  [PEARL]: material({
+    name: 'Pearl',
+    colors: { diffuse: h('#f2f2f2'), ambient: h('#9a9a9a'), specular: h('#ffffff') },
+    values: { diffusion: 80, ambience: 35, specularity: 100, reflection: 18 },
   }),
 };
 
@@ -88,7 +105,7 @@ function build(p: PieceData): SceneObject {
 
 export function controlIcon(kind: ControlIcon): IconSpec {
   const data: IconData = CONTROL_ICON_DATA[kind];
-  return spec(data.pieces.map(build), data.from, data.studio ? PREVIEW_SKY : ICON_SKY);
+  return spec(data.pieces.map(build), data.from, LIGHT_SKIES[data.light ?? IconLight.Plain], data.fov ?? ICON_FOV);
 }
 
 const PLANE_ICON_MATERIAL: Partial<Record<ShapeKind, string>> = {

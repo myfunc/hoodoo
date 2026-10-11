@@ -29,10 +29,84 @@ skipping.
 - **Classic** (`progressive.ts`): Bryce's block-by-block render — 16×16 blocks
   down to 2×2 sweeping down the picture, then anti-aliasing passes with Halton
   jitter. Strip sizes follow the measured GPU time (`EXT_disjoint_timer_query_webgl2`).
-- **Live** (`realtime.ts`, the default): one ray per pixel per frame into a
-  running average. While the scene or camera moves, the resolution is chosen
-  from the measured cost per pixel to stay near 30 fps; once still, it
-  accumulates at full resolution to the chosen rays per pixel.
+- **Live** (`realtime.ts`, the default): while the scene or camera moves, every
+  change gets one whole *preview frame* (below); once nothing has changed for
+  140 ms it accumulates the full tracer at full resolution, one ray per pixel
+  per frame, to the chosen rays per pixel.
+
+## The live view while things move
+
+A drag, an orbit or a scrub draws preview frames, built for a steady 60 fps
+rather than for the most pixels:
+
+- **A cheaper variant of the same tracer.** `FAST_PREVIEW` (90-main.glsl) is
+  compiled in the background once the main program is ready
+  (`RayEngine.prepareFast`). It traces the primary ray with its lights and
+  hard shadows, then one mirror or glass ray whose hit is lit without shadow
+  rays, then looks up the sky. It always takes the heavier of the mirror and
+  glass branches and skips the lens and the soft-shadow jitter, so a frame has
+  no noise. Materials, textures, the sky, haze and fog are the full ones, so the
+  picture is the finished one minus deeper bounces, shadows seen in mirrors,
+  depth of field and soft shadows. Until it is compiled, preview frames use the
+  main program.
+- **A size that holds still.** `MotionScale` (motion-scale.ts) aims at 10 ms of
+  GPU time per frame. With timer queries it predicts the cost from the measured
+  cost per pixel; without them (Safari, `?notimer`) it watches whether each
+  frame finished by the next animation frame. Scales are multiples of 1/16. It
+  drops at once when a frame is clearly over budget and climbs one step at a
+  time after a calm stretch; a step up that is soon taken back makes the next
+  try wait twice as long. The size is kept between gestures.
+- **Drawn once per change.** Between pointer moves the GPU rests and the last
+  preview stays up. Preview frames go to their own 8-bit target and are filtered
+  up to the view.
+- **No flash on settling.** The first four samples of the average dissolve in
+  over the last preview frame (`uFade` in blit.glsl), so the picture refines
+  instead of jumping. The wireframe overlay is drawn as before.
+
+Profile with `node tools/perf-interact.mjs <url> [demo|waltz] [drag|orbit]`
+(`DPR=2`, `W=2560 H=1440`, `?notimer` on the URL, `SHOTS=<prefix>` for the
+moving and settled pictures). It reports the time between pictures shown, the
+animation-frame deltas, long tasks and how often the size changed.
+
+What the variant costs, GPU time of a 2560×1920 frame, MacBook (Apple silicon,
+Chrome):
+
+| Variant | Opening scene | Moon Waltz |
+|---|---|---|
+| Full tracer | 27.6 ms | 14.3 ms |
+| Preview (one reflection, the default) | 22.4 ms | about 12.6 ms |
+| No second trace at all | 14.3 ms | 8.9 ms |
+| Full tracer with 0 bounces set at run time | barely cheaper | barely cheaper |
+
+Dropping the reflection at compile time would halve the cost, but water without
+its reflections stops looking like the finished picture, so the preview keeps
+one. Setting `uMaxBounces` at run time saves almost nothing: the cost is in the
+compiled program, not in the rays it ends up tracing.
+
+Time between pictures shown during a 10 s drag or orbit, before (0.6.2) and
+after, same MacBook, production builds:
+
+| Scenario | 0.6.2 median / p95 / max, frames over 33 ms | 0.6.3 |
+|---|---|---|
+| Opening scene, drag, 1440×900, DPR 2 | 33.3 / 34.9 / 45 ms, 201 of 298 | 16.7 / 18.2 / 28 ms, 0 of 596 |
+| Opening scene, orbit, DPR 2 | 32.5 / 34.6 / 51 ms, 137 of 363 | 16.7 / 18.3 / 33 ms, 1 of 597 |
+| Moon Waltz, drag, DPR 2 | 16.7 / 18.2 / 32 ms, 0 of 598 | 16.7 / 18.2 / 32 ms, 0 of 597 |
+| Moon Waltz, orbit, DPR 2 | 16.7 / 18.1 / 31 ms, 0 of 598 | 16.7 / 18.2 / 32 ms, 0 of 598 |
+| Opening scene, drag, 2560×1440, DPR 2 | 33.3 / 34.8 / 50 ms, 184 of 297 | 16.7 / 18.3 / 26 ms, 0 of 596 |
+| Opening scene, orbit, 2560×1440, DPR 2 | 33.3 / 35.0 / 52 ms, 193 of 296 | 16.7 / 18.3 / 32 ms, 0 of 596 |
+| Moon Waltz, drag, 2560×1440, DPR 2 | 33.4 / 35.0 / 49 ms, 189 of 299 | 16.7 / 18.4 / 33 ms, 0 of 598 |
+| Moon Waltz, orbit, 2560×1440, DPR 2 | 33.3 / 35.0 / 49 ms, 175 of 298 | 16.7 / 18.3 / 49 ms, 1 of 596 |
+| Opening scene, drag, DPR 2, no timers | 33.3 / 35.0 / 48 ms, 214 of 298 | 16.8 / 32.2 / 46 ms, 16 of 556 |
+| Opening scene, orbit, DPR 2, no timers | 32.4 / 34.7 / 49 ms, 133 of 362 | 16.8 / 32.2 / 50 ms, 20 of 560 |
+
+At DPR 1 both versions hold 60 fps on this machine. The old live view drew
+every moving frame for a 22 ms budget, so a frame that just missed one display
+refresh waited for the next, and its size flipped between steps
+in 10 s (23 in one run): the rate jumped between 60, 30 and 20 fps. Without timer queries it
+never shrank at all. Animation-frame deltas and long tasks stayed flat in every
+run: the main thread was never the problem (packing the scene takes 0.2 ms),
+the GPU frame was. Preview frames now run at 0.4–1.0 of full size depending on
+the scene and window; on a slower GPU they get smaller, not slower.
 
 Every strip of GPU work is followed by a fence, and nothing new is queued until
 the GPU has finished it, so a slow GPU gives a slower picture instead of a

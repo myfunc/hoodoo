@@ -15,6 +15,8 @@ export class Autosave {
   private timer = 0;
   /** Supplies the picture saved with the scene; null keeps the last one. */
   thumbnail: () => string | null = () => null;
+  /** Runs after each write with the scene file text and the new picture (null: none this time). */
+  written: (scene: Scene, text: string, thumb: string | null) => void = () => undefined;
 
   /** The picture saved with the last scene, as a data URL. */
   loadThumbnail(): string | null {
@@ -51,12 +53,14 @@ export class Autosave {
   }
 
   private write(scene: Scene): void {
+    const text = JSON.stringify(serializeScene(scene));
+    const thumb = this.thumbnail();
     try {
-      localStorage.setItem(KEY, JSON.stringify(serializeScene(scene)));
-      const thumb = this.thumbnail();
+      localStorage.setItem(KEY, text);
       if (thumb) localStorage.setItem(THUMB_KEY, thumb);
     } catch (error) {
       logger.warn('autosave failed (storage full?)', { objects: scene.objects.length }, error);
     }
+    this.written(scene, text, thumb);
   }
 }

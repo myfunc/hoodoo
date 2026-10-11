@@ -88,9 +88,14 @@ export enum Action {
   ToggleMotionPaths = 'toggle-motion-paths',
   SelectAllKeys = 'select-all-keys',
   DeleteKeys = 'delete-keys',
+  ClosePathLoop = 'close-path-loop',
+  OpenPath = 'open-path',
   Bookmark = 'bookmark',
   SaveBookmark = 'save-bookmark',
   PreviewFeatures = 'preview-features',
+  ChooseMaterial = 'choose-material',
+  PrevMaterial = 'prev-material',
+  NextMaterial = 'next-material',
 }
 
 /** Actions that take a numeric argument (bookmark slots). */

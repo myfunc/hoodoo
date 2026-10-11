@@ -30,6 +30,8 @@ const HEADER_END = 'out vec4 fragColor;';
  */
 const COLD_NONCE = new URLSearchParams(location.search).has(COLD_FLAG) ? `\nconst float COLD_NONCE = ${Math.random()};\n` : '';
 const FINAL_SOURCE = TRACE_SOURCE.replace(HEADER_END, HEADER_END + COLD_NONCE);
+/** The interaction preview: the same tracer without its second trace (90-main.glsl). */
+const FAST_SOURCE = FINAL_SOURCE.replace(HEADER_END, `${HEADER_END}\n#define FAST_PREVIEW\n`);
 
 const UNIT_OBJECTS = 0;
 const UNIT_MATERIALS = 1;
@@ -59,6 +61,8 @@ export interface TraceRequest {
   readonly transparentBg: boolean;
   /** Weight of this sample in a running average; 1 replaces. */
   readonly blend: number;
+  /** Draw with the interaction preview once it is compiled (`prepareFast`). */
+  readonly fast?: boolean;
 }
 
 export interface BlitRequest {
@@ -74,6 +78,16 @@ export interface BlitRequest {
   readonly bottom?: number;
   readonly width: number;
   readonly height: number;
+  /** Weight of `cur` over the whole of `prev` (split must be 1); 1 shows `cur` alone. */
+  readonly fade?: number;
+}
+
+/** A compiled trace program and the scene and view versions its uniforms hold. */
+interface TraceProgram {
+  readonly program: WebGLProgram;
+  readonly u: Uniforms;
+  sceneVersion: number;
+  viewVersion: number;
 }
 
 /**
@@ -84,9 +98,10 @@ export class RayEngine {
   readonly gl: WebGL2RenderingContext;
   readonly floatInternal: number;
   private readonly logger = Logger.create('RayEngine');
-  private trace: WebGLProgram | null = null;
+  private trace: TraceProgram | null = null;
+  private fast: TraceProgram | null = null;
+  private fastStarted = false;
   private readonly blit: WebGLProgram;
-  private tu: Uniforms | null = null;
   private readonly bu: Uniforms;
   /** Resolves when the trace program is compiled and has drawn once (seconds on Windows). */
   readonly ready: Promise<void>;
@@ -94,8 +109,10 @@ export class RayEngine {
   private stageSince = performance.now();
   private failure = '';
   private compileTime = 0;
-  private sceneState: { scene: Scene; dirty: boolean } | null = null;
-  private viewState: { basis: ViewBasis; dirty: boolean } | null = null;
+  private scene: Scene | null = null;
+  private sceneVersion = 0;
+  private view: ViewBasis | null = null;
+  private viewVersion = 0;
   private readonly objectsTex: WebGLTexture;
   private readonly materialsTex: WebGLTexture;
   private readonly terrainTex: WebGLTexture;
@@ -169,8 +186,7 @@ export class RayEngine {
       this.setStage(EngineStage.WarmingUp);
       const uniforms = new Uniforms(gl, program);
       await this.warmUp(program, uniforms);
-      this.trace = program;
-      this.tu = uniforms;
+      this.trace = { program, u: uniforms, sceneVersion: -1, viewVersion: -1 };
       this.compileTime = performance.now() - started;
       this.setStage(EngineStage.Ready);
       this.logger.info('trace program compiled', { ms: Math.round(this.compileTime) });
@@ -179,6 +195,30 @@ export class RayEngine {
       this.setStage(EngineStage.Failed);
       throw error;
     }
+  }
+
+  /** True once the interaction preview can draw. */
+  get fastReady(): boolean {
+    return this.fast !== null;
+  }
+
+  /**
+   * Compiles the interaction preview after the main program, in the background.
+   * Until it is ready (or if it fails) `fast` requests draw with the main program.
+   */
+  prepareFast(): void {
+    if (this.fastStarted) return;
+    this.fastStarted = true;
+    const build = async () => {
+      await this.ready;
+      const started = performance.now();
+      const program = await linkProgramAsync(this.gl, fullscreen, FAST_SOURCE);
+      const uniforms = new Uniforms(this.gl, program);
+      await this.warmUp(program, uniforms);
+      this.fast = { program, u: uniforms, sceneVersion: -1, viewVersion: -1 };
+      this.logger.info('preview program compiled', { ms: Math.round(performance.now() - started) });
+    };
+    build().catch((error: unknown) => this.logger.warn('preview program unavailable, moving frames use the full tracer', {}, error));
   }
 
   /**
@@ -227,30 +267,33 @@ export class RayEngine {
    * The same snapshot is uploaded once, so several views of one scene share the upload.
    */
   setScene(scene: Scene): void {
-    if (this.sceneState?.scene === scene) return;
+    if (this.scene === scene) return;
     const gl = this.gl;
     const p = packScene(scene);
     this.packed = p;
     uploadFloatRows(gl, this.objectsTex, OBJ_TEXELS, p.count, p.objects);
     uploadFloatRows(gl, this.materialsTex, MAT_TEXELS, p.count, p.materials);
     if (p.terrains.key !== this.terrainKey) this.uploadTerrains(p);
-    this.sceneState = { scene, dirty: true };
+    this.scene = scene;
+    this.sceneVersion++;
   }
 
   setView(b: ViewBasis): void {
-    this.viewState = { basis: b, dirty: true };
+    this.view = b;
+    this.viewVersion++;
   }
 
-  private applyUniforms(u: Uniforms): void {
+  private applyUniforms(t: TraceProgram): void {
     const p = this.packed;
-    if (this.sceneState?.dirty && p) {
+    const u = t.u;
+    if (t.sceneVersion !== this.sceneVersion && p && this.scene) {
       u.i('uObjectCount', p.count);
       u.i('uLoopGuard', 0);
       u.i('uLightCount', p.lightCount);
       u.v4array('uLightPos', p.lightPos);
       u.v4array('uLightColor', p.lightColor);
       u.v4array('uLightDir', p.lightDir);
-      const s = this.sceneState.scene.sky;
+      const s = this.scene.sky;
       const k = skyUniforms(s);
       u.f('uSunDir', ...k.sunDir);
       u.f('uSunColor', ...s.sunColor);
@@ -265,10 +308,10 @@ export class RayEngine {
       u.f('uCloudParams', ...k.cloudParams);
       u.f('uCloudKinds', ...k.cloudKinds);
       u.f('uStyle', ...renderStyle(s));
-      this.sceneState.dirty = false;
+      t.sceneVersion = this.sceneVersion;
     }
-    if (this.viewState?.dirty) {
-      const b = this.viewState.basis;
+    if (t.viewVersion !== this.viewVersion && this.view) {
+      const b = this.view;
       u.f('uCamPos', ...b.origin);
       u.f('uCamFwd', ...b.forward);
       u.f('uCamRight', ...b.right);
@@ -277,16 +320,17 @@ export class RayEngine {
       u.f('uAspect', b.aspect);
       u.i('uOrtho', b.ortho ? 1 : 0);
       u.f('uLens', ...b.lens);
-      this.viewState.dirty = false;
+      t.viewVersion = this.viewVersion;
     }
   }
 
   /** Traces the requested rows; a no-op until the program is compiled. */
   traceRows(r: TraceRequest): void {
     const gl = this.gl;
-    if (!this.trace || !this.tu) return;
-    gl.useProgram(this.trace);
-    this.applyUniforms(this.tu);
+    const t = (r.fast && this.fast) || this.trace;
+    if (!t) return;
+    gl.useProgram(t.program);
+    this.applyUniforms(t);
     gl.bindFramebuffer(gl.FRAMEBUFFER, r.target.fbo);
     const tw = Math.ceil(r.width / r.block);
     const th = Math.ceil(r.height / r.block);
@@ -298,7 +342,7 @@ export class RayEngine {
       gl.blendColor(0, 0, 0, r.blend);
       gl.blendFunc(gl.CONSTANT_ALPHA, gl.ONE_MINUS_CONSTANT_ALPHA);
     } else gl.disable(gl.BLEND);
-    const u = this.tu;
+    const u = t.u;
     u.f('uResolution', r.width, r.height);
     u.f('uOffset', r.offsetX, r.offsetY);
     u.f('uBlock', r.block);
@@ -330,6 +374,7 @@ export class RayEngine {
     u.f('uSplit', b.split);
     u.i('uHasPrev', b.prev ? 1 : 0);
     u.i('uChecker', b.checker ? 1 : 0);
+    u.f('uFade', b.fade ?? 1);
     gl.bindVertexArray(this.vao);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }

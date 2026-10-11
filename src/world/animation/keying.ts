@@ -1,4 +1,7 @@
-import type { Animation, Key, Scene, SceneObject } from '../../model/scene.types';
+import type { Animation, Key, Scene, Transform } from '../../model/scene.types';
+import { localOf } from '../group-pose';
+import { groupIndex } from '../group-tree';
+import { IDENTITY } from '../group-transform';
 
 /**
  * Auto-key, as in Bryce 3D: change something with the playhead past zero and
@@ -6,7 +9,8 @@ import type { Animation, Key, Scene, SceneObject } from '../../model/scene.types
  * keys where it was at zero, so it moves from there. At zero, a still object is
  * simply edited. The camera is keyed once its track exists (Key Camera), so
  * looking around never starts a camera move by accident. With animation off
- * nothing is keyed.
+ * nothing is keyed. Objects are keyed by their pose inside their group, groups
+ * by their own transform (world/group-edits decides which of them an edit moved).
  */
 
 /** Key times sit on frames: two keys closer than half a frame are the same key. */
@@ -33,37 +37,57 @@ function autoKeyed<T>(keys: readonly Key<T>[], time: number, before: T, after: T
   return withKey([{ time: 0, value: before }], time, after, fps);
 }
 
-const sameTransform = (a: SceneObject, b: SceneObject): boolean => a.transform === b.transform || JSON.stringify(a.transform) === JSON.stringify(b.transform);
+const samePose = (a: Transform, b: Transform): boolean => a === b || JSON.stringify(a) === JSON.stringify(b);
 
-/** Tracks of objects that are gone are dropped with them. */
-function prunedObjects(a: Animation, alive: ReadonlySet<string>): Animation['objects'] {
-  const ids = Object.keys(a.objects);
-  if (ids.every((id) => alive.has(id))) return a.objects;
-  return Object.fromEntries(ids.filter((id) => alive.has(id)).map((id) => [id, a.objects[id]]));
+type Tracks = Readonly<Record<string, readonly Key<Transform>[]>>;
+
+/** Tracks of objects or groups that are gone are dropped with them. */
+function pruned(tracks: Tracks, alive: ReadonlySet<string>): Tracks {
+  const ids = Object.keys(tracks);
+  if (ids.every((id) => alive.has(id))) return tracks;
+  return Object.fromEntries(ids.filter((id) => alive.has(id)).map((id) => [id, tracks[id]]));
 }
 
-/** The edited scene with auto-keys recorded at `time`; with animation off only the tracks of deleted objects go. */
-export function recordKeys(before: Scene, after: Scene, time: number): Scene {
+/**
+ * The edited scene with auto-keys recorded at `time`. With animation off, or
+ * `poses` false (a change of the tree, which moves nothing), only the tracks of
+ * deleted objects and groups go.
+ */
+export function recordKeys(before: Scene, after: Scene, time: number, poses = true): Scene {
   const a = after.animation;
-  let objects = prunedObjects(a, new Set(after.objects.map((o) => o.id)));
-  if (!a.enabled) return objects === a.objects ? after : { ...after, animation: { ...a, objects } };
+  const index = groupIndex(after);
+  let objects = pruned(a.objects, new Set(after.objects.map((o) => o.id)));
+  let groups = a.groups && pruned(a.groups, new Set(index.keys()));
+  const done = (camera = a.camera, sky = a.sky): Scene => {
+    if (objects === a.objects && groups === a.groups && camera === a.camera && sky === a.sky) return after;
+    return { ...after, animation: { ...a, objects, ...(groups ? { groups } : {}), camera, sky } };
+  };
+  if (!a.enabled || !poses) return done();
   const t = frameTime(time, a.fps);
   const prior = new Map(before.objects.map((o) => [o.id, o]));
   for (const o of after.objects) {
     const old = prior.get(o.id);
-    if (!old || sameTransform(old, o)) continue;
-    const keys = autoKeyed(objects[o.id] ?? [], t, old.transform, o.transform, a.fps);
+    if (!old || samePose(localOf(old), localOf(o))) continue;
+    const keys = autoKeyed(objects[o.id] ?? [], t, localOf(old), localOf(o), a.fps);
     if (keys.length) objects = { ...objects, [o.id]: keys };
+  }
+  const was = groupIndex(before);
+  for (const g of index.values()) {
+    const old = was.get(g.id);
+    const from = old?.transform ?? IDENTITY;
+    const to = g.transform ?? IDENTITY;
+    if (!old || samePose(from, to)) continue;
+    const keys = autoKeyed(groups?.[g.id] ?? [], t, from, to, a.fps);
+    if (keys.length) groups = { ...groups, [g.id]: keys };
   }
   const camera = a.camera.length && before.camera !== after.camera ? withKey(a.camera, t, after.camera, a.fps) : a.camera;
   const sky = before.sky !== after.sky ? autoKeyed(a.sky, t, before.sky, after.sky, a.fps) : a.sky;
-  if (objects === a.objects && camera === a.camera && sky === a.sky) return after;
-  return { ...after, animation: { ...a, objects, camera, sky } };
+  return done(camera, sky);
 }
 
 /** Every key time of the animation, for the timeline's "next / previous key". */
 export function allKeyTimes(a: Animation): number[] {
-  const times = [...a.camera, ...a.sky, ...Object.values(a.objects).flat()].map((k) => k.time);
+  const times = [...a.camera, ...a.sky, ...Object.values(a.objects).flat(), ...Object.values(a.groups ?? {}).flat()].map((k) => k.time);
   return [...new Set(times)].sort((x, y) => x - y);
 }
 
@@ -81,6 +105,7 @@ export function withDuration(a: Animation, duration: number): Animation {
     camera: clip(a.camera),
     sky: clip(a.sky),
     objects: Object.fromEntries(Object.entries(a.objects).map(([id, k]) => [id, clip(k)])),
+    ...(a.groups ? { groups: Object.fromEntries(Object.entries(a.groups).map(([id, k]) => [id, clip(k)])) } : {}),
   };
 }
 

@@ -4,6 +4,8 @@ import { Action } from '../input/actions';
 import { isTyping, matchKey } from '../input/bindings';
 import { ViewportInput } from '../input/viewport-input';
 import { Autosave } from '../io/autosave';
+import { RecentScenes } from '../io/recent-scenes';
+import type { RecentScene } from '../io/recent-scenes';
 import { FILE_EXTENSION } from '../io/project-file';
 import { sceneFromHash } from '../io/share-link';
 import { RayEngine } from '../render/gpu/engine';
@@ -20,6 +22,8 @@ import { loadPrefs, saveFeature, savePrefs, startFeatures } from '../io/prefs';
 import { PREVIEW_FEATURES, isFeatureOn } from '../world/preview-features';
 import { pickSceneFile } from '../io/project-file';
 import { StartWindow } from '../ui/chrome/start-window';
+import { SCENE_NAME, START } from '../ui/strings';
+import { deserializeScene } from '../world/scene.serialize';
 import { emptyScene } from '../world/scene.defaults';
 import { isAnimated } from '../world/animation/pose';
 import { shortcutOf } from '../input/bindings';
@@ -27,6 +31,7 @@ import { EditorStore } from '../world/editor-store';
 import { World } from '../world/world';
 import { installAutomationHooks } from './automation-hooks';
 import { Commands } from './commands';
+import { RecentTracker } from './recent-ops';
 import { focusAt } from './lens-ops';
 import { installPwa } from './pwa';
 import { createFromPalette } from './scene-ops';
@@ -35,7 +40,7 @@ import '../ui/styles.css';
 
 const logger = Logger.create('App');
 const IMAGE_TYPE = /^image\//;
-const REPEATABLE: ReadonlySet<Action> = new Set([Action.Undo, Action.Redo, Action.ZoomIn, Action.ZoomOut, Action.PrevFrame, Action.NextFrame]);
+const REPEATABLE: ReadonlySet<Action> = new Set([Action.Undo, Action.Redo, Action.ZoomIn, Action.ZoomOut, Action.PrevFrame, Action.NextFrame, Action.PrevMaterial, Action.NextMaterial]);
 const THUMB = { width: 160, height: 100, quality: 0.7 } as const;
 /** ?start=0 skips the start window; ?start=1 shows it even to browser automation. */
 const START_PARAM = { skip: '0', show: '1' } as const;
@@ -61,6 +66,7 @@ function thumbnailOf(view: SceneView): string | null {
 export async function startApp(root: HTMLElement): Promise<void> {
   installSurfaces(document.documentElement);
   const autosave = new Autosave();
+  const recent = new RecentScenes();
   const prefs = loadPrefs();
   const params = new URLSearchParams(location.search);
   const startParam = params.get('start');
@@ -85,6 +91,10 @@ export async function startApp(root: HTMLElement): Promise<void> {
   const thumbs = new Thumbnailer(engine.ready);
   const view = new SceneView(world, editor, engine);
   thumbs.busy = () => view.isRendering;
+  const tracker = new RecentTracker(recent, world, () => thumbnailOf(view));
+  if (shared) tracker.begin(SCENE_NAME.shared);
+  else if (saved) tracker.resume(SCENE_NAME.lastScene, autosave.loadThumbnail());
+  else tracker.begin(SCENE_NAME.demo);
   let commands: Commands | null = null;
   const ctx: UiContext = {
     world, editor, thumbs, view, snapshots: new SnapshotStore(),
@@ -94,32 +104,54 @@ export async function startApp(root: HTMLElement): Promise<void> {
     toast: showToast,
   };
   let start: StartWindow | null = null;
+  const renderOnce = () => { if (!editor.state.liveRender) commands?.run(Action.Render); };
+  const openRecent = (e: RecentScene) => {
+    try {
+      world.load(deserializeScene(JSON.parse(e.text)), `Open ${e.name}`);
+    } catch (error) {
+      logger.warn('recent scene does not open', { name: e.name }, error);
+      recent.remove(e.id);
+      showToast(START.unreadable);
+      return;
+    }
+    tracker.reopened(e);
+    renderOnce();
+  };
   const openStart = () => {
     if (start?.isOpen) return;
     start = new StartWindow({
-      last: saved || world.scene.objects.length ? { thumb: thumbnailOf(view) ?? autosave.loadThumbnail() } : null,
+      recent: () => recent.list,
+      currentId: tracker.currentId,
       showAtStartup: loadPrefs().showStart,
-      onNew: () => world.load(emptyScene(), 'New scene'),
+      onNew: () => {
+        world.load(emptyScene(), 'New scene');
+        tracker.begin(SCENE_NAME.untitled);
+      },
       onOpenFile: () => void pickSceneFile().then((f) => f && commands?.openFile(f)),
       onExample: (e) => {
         world.load(e.build(), `Open ${e.name}`);
+        tracker.begin(e.name);
         if (isAnimated(world.scene.animation)) showToast(`${e.name} · press Play or ${shortcutOf(Action.PlayPause)}`);
-        if (!editor.state.liveRender) commands?.run(Action.Render);
+        renderOnce();
       },
+      onRecent: openRecent,
+      onForget: (e) => recent.remove(e.id),
       onContinue: () => undefined,
       onShowAtStartup: (v) => savePrefs({ showStart: v }),
     });
     start.open();
   };
-  commands = new Commands(ctx, { openStart });
+  commands = new Commands(ctx, { openStart, sceneOpened: (name, fromFile) => tracker.begin(name, fromFile), sceneSaved: () => tracker.saved() });
   const shell = new Shell(ctx, (entry) => createFromPalette(world, entry));
   root.replaceChildren(shell.root);
   // Browser automation (tests, screenshots) drives the editor directly; people get the welcome window,
   // then the start window (unless they came with a share link or turned it off).
   const askedStart = startParam === START_PARAM.show;
   const wantsStart = !shared && startParam !== START_PARAM.skip && (prefs.showStart || askedStart);
-  if (!navigator.webdriver) document.body.append(new Splash(engine, () => { if (wantsStart) openStart(); }).el);
-  else if (wantsStart && askedStart) openStart();
+  // The start window opens under the fading splash, so the two cross-fade.
+  const openStartSoon = () => void recent.ready.then(openStart);
+  if (!navigator.webdriver) document.body.append(new Splash(engine, () => { if (wantsStart) openStartSoon(); }).el);
+  else if (wantsStart && askedStart) openStartSoon();
   const input = new ViewportInput(view.root, world, editor, view, {
     onOpenObject: (id) => commands?.openObject(id),
     onDropFiles: (files) => {
@@ -156,6 +188,9 @@ export async function startApp(root: HTMLElement): Promise<void> {
     commands?.run(hit.action, hit.arg);
   });
   autosave.thumbnail = () => thumbnailOf(view);
+  autosave.written = (_scene, text, thumb) => tracker.autosaved(text, thumb);
+  view.events.on('progress', (p) => { if (!p.active && p.fraction >= 1) tracker.rendered(); });
+  view.events.on('live', (s) => { if (!s.moving && s.samples >= s.target) tracker.rendered(); });
   world.events.on('changed', ({ scene }) => autosave.schedule(scene));
   world.events.on('refused', ({ reason }) => showToast(reason));
   for (const canvas of [view.root.querySelector('canvas'), thumbs.engine.canvas]) {

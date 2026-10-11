@@ -7,8 +7,8 @@ import { GROUP_NAME, SCENE_LIMITS } from './scene.validate';
  * innermost group, a group at its parent. Plain groups (top level, default name,
  * unfolded) need no table entry, so a scene without nesting keeps the flat shape
  * of every older file. Functions here are pure; World records their results,
- * each as one undo step. Groups have no transform of their own: moving a group
- * moves its objects.
+ * each as one undo step. A group may carry a transform (group-pose): moving a
+ * whole group moves the group, and its objects keep their poses inside it.
  */
 
 type GroupedScene = Pick<Scene, 'objects' | 'groups'>;
@@ -30,7 +30,7 @@ export interface TreeRow {
 }
 
 const plainGroup = (id: GroupId): GroupNode => ({ id, name: GROUP_NAME, parentId: null, collapsed: false });
-const isPlain = (g: GroupNode): boolean => g.parentId === null && g.name === GROUP_NAME && !g.collapsed;
+const isPlain = (g: GroupNode): boolean => g.parentId === null && g.name === GROUP_NAME && !g.collapsed && !g.transform;
 
 /** Every group of the scene by id: the table plus the plain groups objects point at. */
 export function groupIndex(scene: GroupedScene): Map<GroupId, GroupNode> {
@@ -47,8 +47,8 @@ export function chain(index: ReadonlyMap<GroupId, GroupNode>, id: GroupId | null
 }
 
 /**
- * The table worth keeping: groups that hold objects, and every named, nested or
- * folded group even when empty (it stays until it is deleted), with the groups
+ * The table worth keeping: groups that hold objects, and every named, nested,
+ * folded or moved group even when empty (it stays until it is deleted), with the groups
  * around them. A plain group needs an entry only while it holds a group.
  */
 export function tidyGroups(objects: readonly SceneObject[], nodes: Iterable<GroupNode>): GroupNode[] {

@@ -11,8 +11,8 @@ import { openMenu } from '../kit/controls';
 import { HINTS, VIEW_NAMES } from '../strings';
 import { iconCanvas } from './icon-canvas';
 
-const NANO_W = 88;
-const NANO_H = 66;
+const NANO_W = 120;
+const NANO_H = 90;
 const NANO_SAMPLES = 2;
 const NANO_DEBOUNCE_MS = 260;
 const MAX_DPR = 2;
@@ -21,13 +21,13 @@ const MOVE_PER_PX = 0.05;
 const LOOK_PER_PX = 0.25;
 const MS_PER_S = 1000;
 const PERCENT = 100;
-const SIZES = { view: 70, cross: 48, trackball: 84, ball: 22, bigBall: 36 } as const;
+const SIZES = { view: 112, cross: 78, trackball: 124, ball: 20, midBall: 26, bigBall: 36 } as const;
 
 type CamFn = (c: Camera, dx: number, dy: number) => Camera;
 
 /**
  * The left column of Bryce 2: nano preview, view control, three camera crosses,
- * the big trackball, the render balls and the hint text.
+ * the big trackball, the five render balls and the hint text, on light chrome.
  */
 export class ControlPanel {
   readonly el: HTMLElement;
@@ -36,6 +36,7 @@ export class ControlPanel {
   private readonly hintText: HTMLElement;
   private readonly stats: HTMLElement;
   private readonly viewLabel: HTMLElement;
+  private readonly live: HTMLElement;
   private nanoTimer = 0;
 
   constructor(private readonly ctx: UiContext) {
@@ -59,15 +60,21 @@ export class ControlPanel {
       this.setCamera(look(this.camera(), -e.deltaX * LOOK_PER_PX, -e.deltaY * LOOK_PER_PX), 'Camera look');
     }, { passive: false });
 
-    const render = this.icon(ControlIcon.Render, 'render-ball big', SIZES.bigBall);
-    render.addEventListener('click', () => ctx.dispatch(Action.Render));
-    hintOn(ctx, render, HINTS.render);
-    const stop = this.icon(ControlIcon.Stop, 'render-ball', SIZES.ball);
-    stop.addEventListener('click', () => ctx.dispatch(Action.StopRender));
-    hintOn(ctx, stop, HINTS.stop);
-    const clear = this.icon(ControlIcon.Clear, 'render-ball', SIZES.ball);
-    clear.addEventListener('click', () => ctx.dispatch(Action.ClearRender));
-    hintOn(ctx, clear, HINTS.clear);
+    const ball = (kind: ControlIcon, cls: string, size: number, action: Action, hint: { title: string; text: string }) => {
+      const node = this.icon(kind, `render-ball ${cls}`, size);
+      node.addEventListener('click', () => ctx.dispatch(action));
+      hintOn(ctx, node, hint);
+      return node;
+    };
+    // Bryce's five render balls in an arc: the big one renders, the outer pair sit highest.
+    this.live = ball(ControlIcon.Live, 'outer', SIZES.ball, Action.ToggleLiveRender, HINTS.live);
+    const balls = [
+      this.live,
+      ball(ControlIcon.Stop, 'inner', SIZES.midBall, Action.StopRender, HINTS.stop),
+      ball(ControlIcon.Render, 'big', SIZES.bigBall, Action.Render, HINTS.render),
+      ball(ControlIcon.Clear, 'inner', SIZES.midBall, Action.ClearRender, HINTS.clear),
+      ball(ControlIcon.SaveImage, 'outer', SIZES.ball, Action.ExportImage, HINTS.saveImage),
+    ];
 
     this.hintTitle = el('span', { cls: 'hint-title' });
     this.hintText = el('span', { cls: 'hint-text' });
@@ -79,7 +86,7 @@ export class ControlPanel {
       el('div', { cls: 'ctrl-row' }, [crossXY, crossYZ]),
       crossXZ,
       trackball,
-      el('div', { cls: 'ctrl-row balls' }, [stop, render, clear]),
+      el('div', { cls: 'ctrl-row balls' }, balls),
       el('div', { cls: 'hint' }, [this.hintTitle, this.hintText]),
       this.stats,
     ]);
@@ -87,6 +94,7 @@ export class ControlPanel {
       this.hintTitle.textContent = state.hint.title;
       this.hintText.textContent = state.hint.text;
       this.viewLabel.textContent = VIEW_NAMES[state.view];
+      this.live.classList.toggle('is-on', state.liveRender);
     });
     ctx.world.events.on('changed', ({ kind }) => {
       if (kind !== ChangeKind.Views) this.scheduleNano();
@@ -94,6 +102,7 @@ export class ControlPanel {
     });
     ctx.world.events.on('selection', () => this.updateStats());
     this.viewLabel.textContent = VIEW_NAMES[ctx.editor.state.view];
+    this.live.classList.toggle('is-on', ctx.editor.state.liveRender);
     this.hintTitle.textContent = ctx.editor.state.hint.title;
     this.hintText.textContent = ctx.editor.state.hint.text;
     this.scheduleNano();

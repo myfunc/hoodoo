@@ -11,8 +11,10 @@ shadows, a dial in Sky & Fog. It adds the conveniences a modern editor is
 expected to have — undo history, live rendering, depth of field, snapshots,
 movies, trackpad gestures, offline use.
 
-The start window offers a new scene, a file, the last scene or one of eight
-example projects: four stills and four animations.
+The start window keeps your scenes apart from the examples: on top, the last
+eight scenes you opened, saved or changed, each with its picture and when you
+had it (stored in the browser, × removes one from the list); below, eight
+example projects, four stills and four animations.
 
 **Live:** https://hoodoo.myfunc.io/
 
@@ -64,6 +66,13 @@ example projects: four stills and four animations.
   a square per key and its owner's name by the first one, and the camera's
   route shows in the other views. Drag a square to reshape the path (Alt lifts
   it).
+- **Animated groups:** a group has its own transform and track. Moving,
+  turning or resizing a whole group keys the group; what it holds keeps its
+  own keys inside it, so a moon orbits a planet while the pair flies. A
+  member picked alone (its row in the scene list) is keyed by itself. Paths
+  inside a group travel with it; a selected group's path is bold, the paths
+  inside it faint. *Close Path Loop* makes a path end where it began and loop
+  seamlessly; *Open Path* undoes it.
 - **Key selection:** click squares or ruler keys (Shift adds), or drag a band:
   in the scene window a band that holds key squares selects those keys,
   otherwise objects. Selected keys move together and Delete removes them;
@@ -81,7 +90,14 @@ example projects: four stills and four animations.
 
 1. Unlimited undo and redo with a clickable history.
 2. Live ray-traced viewport: real-time while you move, refining when you stop.
-3. Orbit, pan and dolly navigation, right-drag + WASD fly, frame selection.
+3. Orbit, pan and dolly navigation, frame selection. **Walk** with the pointer over
+   the scene window (or after clicking it): W/S forward and back, A/D sideways,
+   R/C up and down, Shift faster; flat views (Top, Front, Side) pan with W/A/S/D.
+   Right-drag + the same keys (or E/Q for up and down) flies and looks around.
+   **Quick resize:** hold Z and drag left/right in the scene window, or scroll, to
+   scale the selection about its centre (a wheel notch is 10%). Alt, Shift and Cmd
+   keep their scroll meanings. Randomize runs from the Objects menu and the Edit
+   palette only.
 4. Move handles with grid snapping and a numeric Attributes panel.
 5. Scene outliner: select, rename, hide, lock.
 6. Autosave, `.hoodoo` scene files, drag and drop to open.
@@ -97,7 +113,7 @@ example projects: four stills and four animations.
 16. **Surprise Me:** a whole random landscape from one seed (Alt+Shift+N).
 17. **Movies:** turntable, swing, fly-in and sunrise time-lapse, saved as WebM.
 18. **Offline and installable** as an app.
-19. **Start window** with a new scene, the last scene and example projects.
+19. **Start window** with your recent scenes, a new scene, a file and example projects.
 20. **Trackpad gestures:** two fingers orbit, Shift pans, a pinch zooms, Safari's
     twist turns; a mouse wheel still dollies (View › Scroll Gestures to fix it).
 21. **Context menus:** right-click an object in the scene window or the scene
@@ -107,6 +123,9 @@ example projects: four stills and four animations.
     each with an Off | On switch that is remembered. The first is the Object
     Tree: nested, named groups with + Group in the scene list, and a group
     menu on right-click (rename, ungroup, fold, a new group inside).
+23. **Material menu:** the material name in Attributes (or right-click › Choose
+    Material…) opens rendered preset balls by family; hover previews on the
+    selection, click applies. ↑ / ↓ step the selection through the presets.
 
 | Depth of field | Snapshot compare |
 |---|---|

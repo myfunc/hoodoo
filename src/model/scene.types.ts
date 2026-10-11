@@ -65,7 +65,14 @@ export interface SceneObject {
   readonly id: ObjectId;
   readonly name: string;
   readonly kind: ShapeKind;
+  /** Where the object is in the world, posed at the playhead: what is drawn, picked and edited. */
   readonly transform: Transform;
+  /**
+   * Inside a moved group: the pose relative to the group (world = group ∘ local),
+   * which the object's keys hold. Absent when the groups around it are where they
+   * were built; then `transform` is the local pose too (world/group-pose).
+   */
+  readonly local?: Transform;
   readonly material: Material;
   readonly boolean: BooleanMode;
   readonly groupId: GroupId | null;
@@ -90,6 +97,11 @@ export interface GroupNode {
   readonly parentId: GroupId | null;
   /** Folded in the scene list. */
   readonly collapsed: boolean;
+  /**
+   * The group's pivot inside its parent, posed at the playhead: position, rotation,
+   * and `size` read as a scale factor (1 = as built). Absent: the identity.
+   */
+  readonly transform?: Transform;
 }
 
 export interface CloudSettings {
@@ -169,9 +181,14 @@ export interface Animation {
   readonly duration: number;
   readonly fps: number;
   readonly loop: boolean;
+  /** Object keys hold the pose inside the object's group (the world pose for an ungrouped object). */
   readonly objects: Readonly<Record<string, readonly Key<Transform>[]>>;
+  /** Group keys hold the group's pivot transform inside its parent; absent in older scenes. */
+  readonly groups?: Readonly<Record<string, readonly Key<Transform>[]>>;
   readonly camera: readonly Key<Camera>[];
   readonly sky: readonly Key<Sky>[];
+  /** Closed paths (`<track>:<id>`, world/animation/loops): the track flows from its last key back into its first. */
+  readonly cyclic?: readonly string[];
 }
 
 export interface Scene {

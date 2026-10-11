@@ -8,6 +8,10 @@ const STRIP_H = 14;
 const GREYS = 12;
 const HEX_LENGTH = 7;
 const CHANNEL_MAX = 255;
+const HUE_SECTORS = 6;
+/** Below this saturation a colour is a grey: the marker moves to the grey strip. */
+const GREY_SATURATION = 0.02;
+const PERCENT = 100;
 
 const pickerState: { node: HTMLElement | null; away: ((e: Event) => void) | null } = { node: null, away: null };
 
@@ -40,46 +44,83 @@ function spectrumColor(u: number, v: number): Rgb {
   return v < 0.5 ? hsvToRgb(u, v * 2, 1) : hsvToRgb(u, 1, 2 - v * 2);
 }
 
-function greyStrip(onPick: (c: Rgb) => void): HTMLElement {
-  const strip = el('div', { cls: 'ui-picker-greys' });
+/** Hue, saturation and value, each 0..1. */
+export function rgbToHsv(c: Rgb): [number, number, number] {
+  const [r, g, b] = c;
+  const max = Math.max(r, g, b);
+  const d = max - Math.min(r, g, b);
+  if (d <= 0) return [0, 0, max];
+  const sector = max === r ? (g - b) / d : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [(((sector / HUE_SECTORS) % 1) + 1) % 1, d / max, max];
+}
+
+/**
+ * Where a colour sits on the spectrum, as 0..1 across and down; null for a grey.
+ * A colour off the spectrum (neither full value nor full saturation) goes to the nearer half.
+ */
+export function spectrumSpot(c: Rgb): { u: number; v: number } | null {
+  const [h, s, v] = rgbToHsv(c);
+  if (s < GREY_SATURATION) return null;
+  return { u: h, v: 1 - v <= 1 - s ? s / 2 : 1 - v / 2 };
+}
+
+const greyIndex = (c: Rgb): number => Math.round(Math.max(...c) * (GREYS - 1));
+
+function greyStrip(onPick: (c: Rgb) => void): { node: HTMLElement; cells: HTMLElement[] } {
+  const node = el('div', { cls: 'ui-picker-greys' });
+  const cells: HTMLElement[] = [];
   for (let i = 0; i < GREYS; i++) {
     const v = i / (GREYS - 1);
     const cell = el('div', { cls: 'ui-picker-grey', style: { background: rgbToHex([v, v, v]), height: `${STRIP_H}px` } });
     cell.addEventListener('click', () => onPick([v, v, v]));
-    strip.append(cell);
+    cells.push(cell);
+    node.append(cell);
   }
-  return strip;
+  return { node, cells };
 }
 
-/** Spectrum pop-up; reports live picks and closes on outside click. */
+/** Spectrum pop-up; reports live picks and closes on outside click. A ring marks the current colour. */
 export function openColorPicker(anchor: HTMLElement, value: Rgb, onPick: (c: Rgb, final: boolean) => void): void {
   closePicker();
   const canvas = el('canvas', { cls: 'ui-picker-spectrum', attrs: { width: String(SPECTRUM_W), height: String(SPECTRUM_H) } });
   paintSpectrum(canvas);
+  const ring = el('div', { cls: 'ui-picker-ring' });
   const hex = el('input', { cls: 'ui-picker-hex', attrs: { value: rgbToHex(value), maxlength: String(HEX_LENGTH), spellcheck: 'false' } });
   const swatch = el('div', { cls: 'ui-picker-preview', style: { background: rgbToHex(value) } });
-  const pick = (c: Rgb, final: boolean) => {
+  /** `spot`: where the pointer is on the spectrum, so the ring stays under it even where hue wraps. */
+  const mark = (c: Rgb, spot = spectrumSpot(c)) => {
+    ring.hidden = !spot;
+    if (spot) Object.assign(ring.style, { left: `${spot.u * PERCENT}%`, top: `${spot.v * PERCENT}%` });
+    greys.cells.forEach((cell, i) => cell.classList.toggle('is-picked', !spot && i === greyIndex(c)));
+  };
+  const pick = (c: Rgb, final: boolean, spot?: { u: number; v: number }) => {
     swatch.style.background = rgbToHex(c);
     hex.value = rgbToHex(c);
+    mark(c, spot ?? spectrumSpot(c));
     onPick(c, final);
   };
-  const fromEvent = (e: PointerEvent): Rgb => {
+  const greys = greyStrip((c) => pick(c, true));
+  const fromEvent = (e: PointerEvent): { u: number; v: number } => {
     const r = canvas.getBoundingClientRect();
-    const u = Math.min(1, Math.max(0, (e.clientX - r.left) / r.width));
-    const v = Math.min(1, Math.max(0, (e.clientY - r.top) / r.height));
-    return spectrumColor(u, v);
+    return { u: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), v: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) };
+  };
+  const spectrumPick = (e: PointerEvent, final: boolean) => {
+    const spot = fromEvent(e);
+    pick(spectrumColor(spot.u, spot.v), final, spot);
   };
   onDrag(canvas, {
-    start: (e) => pick(fromEvent(e), false),
-    move: (_dx, _dy, e) => pick(fromEvent(e), false),
-    end: (e) => pick(fromEvent(e), true),
+    start: (e) => spectrumPick(e, false),
+    move: (_dx, _dy, e) => spectrumPick(e, false),
+    end: (e) => spectrumPick(e, true),
   });
   hex.addEventListener('keydown', (e) => {
     e.stopPropagation();
     if (e.key === KEY.Enter && /^#[0-9a-f]{6}$/i.test(hex.value)) pick(hexToRgb(hex.value), true);
     if (e.key === KEY.Escape) closePicker();
   });
-  const pop = el('div', { cls: 'ui-picker' }, [canvas, greyStrip((c) => pick(c, true)), el('div', { cls: 'ui-picker-row' }, [swatch, hex])]);
+  mark(value);
+  const field = el('div', { cls: 'ui-picker-field' }, [canvas, ring]);
+  const pop = el('div', { cls: 'ui-picker' }, [field, greys.node, el('div', { cls: 'ui-picker-row' }, [swatch, hex])]);
   document.body.append(pop);
   const r = anchor.getBoundingClientRect();
   const pr = pop.getBoundingClientRect();

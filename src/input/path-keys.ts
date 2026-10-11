@@ -1,11 +1,14 @@
 import { type Vec3, add, dot, scale, sub } from '../core/vec3';
-import type { ObjectId } from '../model/scene.ids';
-import type { Animation } from '../model/scene.types';
+import type { GroupId, ObjectId } from '../model/scene.ids';
+import type { Animation, Transform } from '../model/scene.types';
 import type { ViewCell } from '../render/viewport';
 import type { KeyHandle } from '../render/wire/motion-paths';
 import { keyRefOf, keysInRect, pickKeyHandle } from '../render/wire/picking';
 import { type KeyRef, KeyTrack, isKeyPicked, pickKeys, withKeysMoved } from '../world/animation/key-selection';
 import { type EditorStore, IDLE_HINT } from '../world/editor-store';
+import { sceneFrames } from '../world/group-pose';
+import { frameDelta } from '../world/group-transform';
+import { groupIndex, subtree } from '../world/group-tree';
 import { SelectMode, type World } from '../world/world';
 import { PICK_RADIUS_PX } from './input.constants';
 import { groundPoint } from './pick';
@@ -18,6 +21,8 @@ export interface KeyDrag {
   readonly y: number;
   readonly anim: Animation;
   readonly moving: readonly KeyRef[];
+  /** The space the track's keys live in: the groups around its owner, posed now (null: the world). */
+  readonly frame: Transform | null;
 }
 
 const SECONDS_DIGITS = 2;
@@ -67,7 +72,7 @@ export class PathKeys {
     }
     const moving = this.picked.filter((r) => r.track === ref.track && r.id === ref.id);
     this.world.beginGesture(moving.length > 1 ? 'Move keys' : 'Move key');
-    return { handle: h, cell, x, y, anim: a, moving };
+    return { handle: h, cell, x, y, anim: a, moving, frame: this.frameOf(h) };
   }
 
   /** Moves the dragged keys like an object: over the ground at the key's height, Alt lifts; ortho views move in their plane. */
@@ -82,7 +87,9 @@ export class PathKeys {
       const to = groundPoint(d.cell, x, y, d.handle.world[1]);
       if (from && to) delta = sub(to, from);
     }
-    this.world.setAnimation(withKeysMoved(d.anim, d.moving, delta), d.moving.length > 1 ? 'Move keys' : 'Move key');
+    const frame = d.frame;
+    const inTrack = frame ? (_t: KeyTrack, _id: string, v: Vec3) => frameDelta(frame, v) : undefined;
+    this.world.setAnimation(withKeysMoved(d.anim, d.moving, delta, inTrack), d.moving.length > 1 ? 'Move keys' : 'Move key');
   }
 
   /** Box select: picks the key squares inside the band (Shift adds); false when it holds none. */
@@ -103,11 +110,26 @@ export class PathKeys {
     this.hinted = true;
     const camera = h.track === KeyTrack.Camera;
     const when = `${h.time.toFixed(SECONDS_DIGITS)} s`;
-    this.editor.setHint({ title: camera ? 'Camera key' : 'Object key', text: `${camera ? '' : `${h.owner} · `}${when} · ${HINT_ACTIONS}` });
+    const title = camera ? 'Camera key' : h.track === KeyTrack.Group ? 'Group key' : 'Object key';
+    this.editor.setHint({ title, text: `${camera ? '' : `${h.owner} · `}${when} · ${HINT_ACTIONS}` });
   }
 
-  /** An object key belongs to its object: grabbing it selects that object (which clears the picked keys). */
+  /** The groups around the key's owner, posed now; the keys move in their space. */
+  private frameOf(h: KeyHandle): Transform | null {
+    const scene = this.world.scene;
+    const frame = sceneFrames(scene);
+    if (h.track === KeyTrack.Group) return frame(groupIndex(scene).get(h.id as GroupId)?.parentId ?? null);
+    if (h.track === KeyTrack.Object) return frame(this.world.object(h.id as ObjectId)?.groupId ?? null);
+    return null;
+  }
+
+  /** An object key belongs to its object, a group key to its group: grabbing it selects the owner (which clears the picked keys). */
   private selectOwner(h: KeyHandle): void {
+    if (h.track === KeyTrack.Group) {
+      const ids = subtree(this.world.scene, h.id as GroupId);
+      if (ids.some((id) => !this.world.selection.has(id))) this.world.select(ids, SelectMode.Replace);
+      return;
+    }
     if (h.track !== KeyTrack.Object) return;
     const id = h.id as ObjectId;
     if (!this.world.selection.has(id)) this.world.select([id], SelectMode.Replace);

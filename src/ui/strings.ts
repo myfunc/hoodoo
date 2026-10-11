@@ -18,14 +18,25 @@ export const SPLASH = {
 
 export const START = {
   title: 'Welcome to Hoodoo',
-  begin: 'Begin',
   newScene: 'New empty scene',
   open: 'Open a .hoodoo file…',
-  continue: 'Continue the last scene',
-  examples: 'Example projects',
+  examples: 'Examples',
   animated: 'Animated',
   showAtStartup: 'Show at startup',
   close: 'Close (Esc): keep the current scene',
+  yourScenes: 'Your scenes',
+  noScenes: 'Scenes you open, save or change will wait here',
+  current: 'Open now',
+  forget: 'Remove from the list',
+  unreadable: 'This scene no longer opens and was removed from the list',
+} as const;
+
+/** Names of scenes that do not come from a file, for the start window's list. */
+export const SCENE_NAME = {
+  untitled: 'Untitled scene',
+  demo: 'Demo scene',
+  shared: 'Shared scene',
+  lastScene: 'Last scene',
 } as const;
 
 export const HINTS = {
@@ -38,12 +49,14 @@ export const HINTS = {
   render: { title: 'Render', text: 'Ray-trace the current view, block by block' },
   stop: { title: 'Stop', text: 'Stop the render in progress' },
   clear: { title: 'Clear', text: 'Remove the rendered picture and show wireframes only' },
+  live: { title: 'Live Render', text: 'Keep the view ray-traced while you edit' },
+  saveImage: { title: 'Render to Image', text: 'Render at any size and save the picture' },
   create: { title: 'Create', text: 'Click an icon to add it to the scene' },
   editTitle: { title: 'Edit', text: 'Edit tools for the selected objects' },
   sky: { title: 'Sky & Fog', text: 'Drag the thumbnails to change the atmosphere' },
   presets: { title: 'Presets', text: 'Open the preset library' },
   materials: { title: 'Materials', text: 'Open the Materials Lab for the selection' },
-  resize: { title: 'Resize', text: 'Drag an axis chip (or the icon for all axes) to scale' },
+  resize: { title: 'Resize', text: 'Drag a chip or the icon, or Z+drag in the scene' },
   rotate: { title: 'Rotate', text: 'Drag an axis chip to spin the selection' },
   reposition: { title: 'Reposition', text: 'Drag an axis chip to slide the selection' },
   align: { title: 'Align', text: 'Line up selected objects on an axis' },
@@ -51,7 +64,7 @@ export const HINTS = {
   land: { title: 'Land', text: 'Drop the selection onto whatever is below it' },
   editTerrain: { title: 'Edit Terrain', text: 'Open the Terrain Editor for the selected terrain' },
   library: { title: 'Object Library', text: 'Preset terrains and landforms' },
-  skyMode: { title: 'Sky Mode', text: 'Soft, Darker, Custom or no atmosphere at all' },
+  skyMode: { title: 'Sky Mode', text: 'Soft pales, Darker deepens, Custom keeps your colours' },
   shadows: { title: 'Shadows', text: 'Drag left/right: shadow darkness' },
   softShadows: { title: 'Soft Shadows', text: 'Drag left/right: 0 crisp like Bryce 2, 100 soft like Bryce 3D' },
   fog: { title: 'Fog', text: 'Drag left/right: density. Up/down: height' },

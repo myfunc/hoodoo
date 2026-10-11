@@ -20,6 +20,7 @@ The dev tools in `tools/` drive a headless Chrome with a real GPU backend
 | `tools/shot.mjs <url> <out.png>` | screenshot once the renderer is ready |
 | `tools/interact.mjs <url> <prefix> '<steps json>'` | scripted clicks, drags, keys and screenshots |
 | `tools/perf.mjs "<url>?cold"` | first-start profile: long tasks, worst frame, time to picture |
+| `tools/perf-interact.mjs <url> [demo\|waltz] [drag\|orbit] [ms]` | frame times while dragging or orbiting (`DPR=2`, `W`/`H`, `SHOTS=<prefix>`) |
 | `tools/compile-lab.html` | shader compile time per feature (`?only=full,noTerrain`, `?async`) |
 | `tools/probe.html` | page responsiveness during the first compile, posted to `?report=<url>` |
 | `tools/make-icons.mjs` | renders the app icons in `public/icons` with the app itself |

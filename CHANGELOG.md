@@ -1,5 +1,96 @@
 # Changelog
 
+## 0.6.3 — 2026-10-11
+
+### Added
+- Walk with the keyboard: with the pointer over the scene window (or after
+  clicking it) W/S move forward and back, A/D sideways, R/C up and down, and
+  Shift goes faster. The motion eases in and out, is the same at any frame
+  rate and its speed follows the size of the scene. A walk in the Camera view
+  is one undo step; in Top, Front and Side views W/A/S/D pan. The hint line
+  shows the keys the first time the pointer enters the scene window.
+- Quick resize: hold Z and drag left/right in the scene window to scale the
+  selection evenly about its centre (with nothing selected, the object under
+  the press is picked), or scroll with Z held (a wheel notch is 10%, a
+  trackpad glides). A drag or a swipe is one undo step and is keyed on the timeline
+  like any edit.
+- Material menu: the Material name in Attributes, Objects › Choose Material…
+  and the scene window's right-click menu open a pop-up of rendered preset
+  balls, one row per family, the current one outlined in red. Hovering a ball
+  shows it on the selection without an undo step (Redo is kept), a click
+  applies it (one undo step), and Esc or a
+  click elsewhere puts the old material back. It replaces the long preset
+  drop-down.
+- ↑ / ↓ with objects selected step through the presets in the menu's order
+  (wrapping at the ends); the toast names the material and its family, and a
+  held arrow is one undo step.
+- The colour picker marks the current colour with a ring on the spectrum (or
+  on the grey strip for a grey) and moves it as you drag.
+- With animation on, toasts sit above the timeline instead of over its keys.
+- With animation on, the first Sky & Fog change past 0 s says where its key
+  went ("Sky keyed at 2.0 s · …the Sky lane"); a change at 0 s says how to
+  start animating the sky.
+- Groups animate as groups. A group has its own transform: move, turn or
+  resize a whole group (pick a member in the scene window, or the group's row)
+  and the group itself is keyed on its own track, while what it holds keeps
+  its poses inside it — a moon keyed to orbit inside a group keeps orbiting
+  while the group flies. To key one member alone, pick its row in the scene
+  list (or its key square). Nested groups compose. The Rotate tool turns a
+  group (or any multi-selection) as one body about its centre; a group keyed
+  for the first time gets its pivot at its centre.
+- Paths inside a group are drawn where the group is now, so they travel with
+  it. A keyed group has its own path and name tag; with it selected that path
+  is the bold one and the paths inside it are faint, so the squares no longer
+  pile up. The objects lane of the timeline shows the group's keys too.
+- Animation › Close Path Loop (also in the right-click menu of an animated
+  object or group): a key at the end of the timeline repeats the first, the
+  track flows through the seam and Loop Playback turns on — one undo step.
+  Open Path removes that closing key again.
+
+### Changed
+- The live view holds 60 fps while you drag, orbit or scrub. Moving frames use
+  a cheaper, noiseless variant of the tracer (one reflection, no deeper
+  bounces, hard shadows) at a size that stays put instead of flipping every
+  frame, and the full render dissolves in over them when you stop. On a
+  retina MacBook the opening scene went from about 30 fps (two frames in three
+  over 33 ms) to 60 fps with none; without GPU timers (Safari) the size now
+  adapts too. Details and numbers in docs/rendering.md.
+- Scene files are version 3: groups carry transforms and tracks, and an
+  object's transform is its pose inside its group. Older files open unchanged.
+- Sky & Fog's Soft and Darker modes repaint the dome and horizon from the
+  sky's own hue — Soft pale, Darker deep — so they visibly change the picture
+  (with a black dome they looked the same). Custom keeps your colours; the
+  mode thumbnails preview each look.
+- Randomize has no shortcut any more (Alt+R ran it by accident); it runs from
+  the Objects menu and the Edit palette and says "Randomized · undo with
+  Cmd/Ctrl+Z". Right-drag flying also takes R/C for up and down.
+- The start window opens under the fading splash, so the two cross-fade: the
+  dimmed app never shows between them for a moment. A click that dismisses
+  the splash cannot land on the start window.
+- The start window shows "Your scenes" and "Examples" as two titled boxes.
+  Your scenes are the last eight scenes you opened from a file, saved or
+  changed, newest first, with picture, name and how long ago (the open one is
+  marked; × removes a card from the list). They are kept in the browser
+  (IndexedDB, about 4 MB at most; entries that no longer open are dropped).
+  New empty scene and Open a .hoodoo file sit beside them. Example cards keep
+  one line of text: the name.
+- The left column is Bryce's light chrome: a smooth silver panel, wider
+  (156 px), with bigger rendered icons casting soft shadows down and left.
+  The camera crosses have Bryce's chunky salmon arrows round glossy teal
+  balls; the trackball's teal arrows are embossed on the ball and follow its
+  curve instead of floating in front of it. Five white pearls sit in an arc:
+  Render in the middle, Stop and Clear beside it, Live Render (ringed while
+  on) and Render to Image outside.
+- The animation timeline is restyled as Bryce 3D's Time Palette: a silver bar,
+  overlapping oval VCR buttons with teal marks and a red Stop, an engraved
+  time readout, key lanes engraved as grooves with copper diamond keys under a
+  red scrubber needle, and the "− key +" cluster past a slanted cut.
+
+### Fixed
+- On Windows the browser's own right-click menu no longer opens over the
+  app's menu; text fields keep the browser menu.
+- The hint line's idle text fits on one line ("Point at a control for help").
+
 ## 0.6.2 — 2026-10-11
 
 ### Added

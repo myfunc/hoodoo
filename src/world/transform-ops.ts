@@ -1,8 +1,10 @@
+import { multiply, rotationEuler, transformDir } from '../core/mat4';
 import { Rng } from '../core/rng';
 import { type Vec3, add, mul, scale, sub, withAxis } from '../core/vec3';
 import type { ObjectId } from '../model/scene.ids';
 import type { Scene, SceneObject, Transform } from '../model/scene.types';
 import { boxSphere, unionBox, worldBox } from './bounds';
+import { eulerOf } from './group-transform';
 import { INFINITE_KINDS } from './objects.factory';
 import { raycast } from './raycast';
 
@@ -37,6 +39,23 @@ export function resized(objs: readonly SceneObject[], factor: Vec3): Map<ObjectI
 export function rotated(o: SceneObject, axis: number, degrees: number): SceneObject {
   const r = o.transform.rotation;
   return withTransform(o, { rotation: withAxis(r, axis, r[axis] + degrees) });
+}
+
+/**
+ * Rotate tool: one object turns on its own axis; several (a group) turn as one
+ * body about the world axis through their common centre, so a group stays whole.
+ */
+export function turned(objs: readonly SceneObject[], axis: number, degrees: number): Map<ObjectId, SceneObject> {
+  if (objs.length < 2) return new Map(objs.map((o) => [o.id, rotated(o, axis, degrees)]));
+  const box = unionBox(objs.map(worldBox));
+  const center = box ? boxSphere(box).center : [0, 0, 0] as Vec3;
+  const step = withAxis([0, 0, 0], axis, degrees);
+  const turn = rotationEuler(step);
+  return new Map(objs.map((o) => {
+    const t = o.transform;
+    const position = add(center, transformDir(turn, sub(t.position, center)));
+    return [o.id, withTransform(o, { position, rotation: eulerOf(multiply(turn, rotationEuler(t.rotation)), add(t.rotation, step)) })];
+  }));
 }
 
 /** Bryce "Land": drop the object until its base rests on whatever is below (or y = 0). */

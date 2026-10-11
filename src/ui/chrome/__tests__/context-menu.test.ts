@@ -12,7 +12,7 @@ describe('context menus', () => {
     const plain = objectEntries({ tree: false, animation: false });
     expect(actions(plain)).toEqual([
       Action.Group, Action.Ungroup, Action.Duplicate, Action.Delete, Action.HideSelected, Action.Land,
-      Action.EditMaterial, Action.Attributes, Action.PreviewFeatures,
+      Action.ChooseMaterial, Action.EditMaterial, Action.Attributes, Action.PreviewFeatures,
     ]);
     const full = objectEntries({ tree: true, animation: true });
     expect(actions(full)).toContain(Action.NewGroup);

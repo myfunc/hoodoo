@@ -3,7 +3,7 @@ import { Action } from '../../input/actions';
 import { ControlIcon, controlIcon } from '../../render/icons';
 import type { ObjectId } from '../../model/scene.ids';
 import type { SceneObject } from '../../model/scene.types';
-import { AlignMode, aligned, moved, resized, rotated } from '../../world/transform-ops';
+import { AlignMode, aligned, moved, resized, turned } from '../../world/transform-ops';
 import { type UiContext, hintOn } from '../context';
 import { el, onDrag } from '../kit/dom';
 import { openMenu } from '../kit/controls';
@@ -24,7 +24,7 @@ const dragResize: DragFn = (start, axis, dx) => {
   const f: Vec3 = axis === ALL ? [k, k, k] : withAxis([1, 1, 1], axis, k);
   return resized(start, f);
 };
-const dragRotate: DragFn = (start, axis, dx) => new Map(start.map((o) => [o.id, rotated(o, axis === ALL ? 1 : axis, dx * ROTATE_DEG_PER_PX)]));
+const dragRotate: DragFn = (start, axis, dx) => turned(start, axis === ALL ? 1 : axis, dx * ROTATE_DEG_PER_PX);
 const dragMove: DragFn = (start, axis, dx) =>
   new Map(start.map((o) => [o.id, moved(o, axis === ALL ? [dx * MOVE_UNITS_PER_PX, 0, 0] : withAxis([0, 0, 0], axis, dx * MOVE_UNITS_PER_PX), false)]));
 

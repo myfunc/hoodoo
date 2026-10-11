@@ -150,16 +150,21 @@ vec3 discJitter(vec3 d, float r) {
 }
 
 // Light i as seen from wp (i = -1 is the sun or moon): direction l, distance (INF for the sun), colour.
-// Soft shadows give the lights a size: shadows get soft edges as samples add up.
+// Soft shadows give the lights a size: shadows get soft edges as samples add up
+// (not in the interaction preview, which has one noiseless sample).
 vec3 lightAt(int i, vec3 wp, out vec3 l, out float dist) {
   if (i < 0) {
     l = keyLightDir();
+#ifndef FAST_PREVIEW
     if (uStyle.x > 0.0) l = normalize(l + discJitter(l, uStyle.x));
+#endif
     dist = INF;
     return keyLightColor();
   }
   vec3 toL = uLightPos[i].xyz - wp;
+#ifndef FAST_PREVIEW
   if (uStyle.y > 0.0) toL += discJitter(normalize(toL), uStyle.y);
+#endif
   dist = length(toL);
   l = toL / dist;
   float atten = 1.0 / (1.0 + uLightColor[i].w * dist * dist);

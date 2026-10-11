@@ -1,12 +1,13 @@
-import type { Rgb } from '../../core/color';
+import { type Rgb, hsvToRgb } from '../../core/color';
 import { randomSeed } from '../../core/rng';
 import { rollSky } from './sky-roll';
 import { SkyMode } from '../../model/scene.enums';
 import type { CloudSettings, Sky } from '../../model/scene.types';
 import { skyPreview } from '../../render/icons';
+import { hasKeyAt } from '../../world/animation/keying';
 import { ChangeKind } from '../../world/world.events';
 import { type UiContext, hintOn } from '../context';
-import { ColorSwatch } from '../kit/color-picker';
+import { ColorSwatch, rgbToHsv } from '../kit/color-picker';
 import { Toggle } from '../kit/controls';
 import { el, onDrag } from '../kit/dom';
 import { HINTS } from '../strings';
@@ -29,11 +30,46 @@ const SUN_DOT_RADIUS = 4;
 const DEG = Math.PI / 180;
 const SUN_GLOW_CORE = 0.05;
 const SUN_DOT_ORBIT = 0.85;
+/**
+ * Soft and Darker paint the dome from the sky's own hue, as Bryce's preset skies
+ * do: Soft pale and milky, Darker deep. Custom keeps the colours as they are.
+ * Saturation and value of zenith and horizon for each.
+ */
+const MODE_LOOKS: Partial<Record<SkyMode, { zenith: readonly [number, number]; horizon: readonly [number, number] }>> = {
+  [SkyMode.SoftSky]: { zenith: [0.4, 0.92], horizon: [0.1, 1] },
+  [SkyMode.DarkerSky]: { zenith: [0.88, 0.36], horizon: [0.5, 0.74] },
+};
+/** A colour with less saturation or value than this has no hue worth keeping. */
+const HUE_MIN_SATURATION = 0.12;
+const HUE_MIN_VALUE = 0.08;
+/** Bryce's daytime blue, for a sky whose colours are greys. */
+const DEFAULT_SKY_HUE = 0.6;
+const SECONDS_DIGITS = 1;
 
 type Patch = (s: Sky, dx: number, dy: number, start: Sky) => Sky;
 
 const clampDial = (v: number) => Math.round(Math.min(DIAL, Math.max(0, v)));
 const withClouds = (s: Sky, c: Partial<CloudSettings>): Sky => ({ ...s, clouds: { ...s.clouds, ...c } });
+
+/** The hue a sky is painted in: the dome's, else the horizon's, else daytime blue. */
+function skyHue(s: Sky): number {
+  for (const c of [s.skyColor, s.horizonColor]) {
+    const [h, sat, v] = rgbToHsv(c);
+    if (sat >= HUE_MIN_SATURATION && v >= HUE_MIN_VALUE) return h;
+  }
+  return DEFAULT_SKY_HUE;
+}
+
+/** The sky switched to `mode`; Soft and Darker repaint the dome and the horizon from its hue. */
+export function skyInMode(s: Sky, mode: SkyMode): Sky {
+  const look = MODE_LOOKS[mode];
+  if (!look) return { ...s, mode };
+  const h = skyHue(s);
+  return { ...s, mode, skyColor: hsvToRgb(h, ...look.zenith), horizonColor: hsvToRgb(h, ...look.horizon) };
+}
+
+/** Each of these is said once per session: how animating the sky works. */
+const told = { keyed: false, still: false };
 
 interface DragThumb {
   readonly label: string;
@@ -105,6 +141,7 @@ export class SkyTray {
     ]);
     ctx.world.events.on('changed', ({ kind }) => {
       if (kind === ChangeKind.Sky || kind === ChangeKind.Time || kind === ChangeKind.All) this.schedule();
+      if (kind === ChangeKind.Sky) this.explainKeys();
     });
     this.refresh();
   }
@@ -119,6 +156,23 @@ export class SkyTray {
     this.syncControls();
   }
 
+  /**
+   * With animation on, a sky edit past zero is a key (world/animation/keying):
+   * the first one says so and where to find it; an edit at zero says how to start.
+   */
+  private explainKeys(): void {
+    const w = this.ctx.world;
+    const a = w.scene.animation;
+    if (!a.enabled) return;
+    if (w.time > 0 && !told.keyed && hasKeyAt(a.sky, w.time, a.fps)) {
+      told.keyed = true;
+      this.ctx.toast(`Sky keyed at ${w.time.toFixed(SECONDS_DIGITS)} s · its diamonds are on the Sky lane of the timeline`);
+    } else if (w.time === 0 && !a.sky.length && !told.still) {
+      told.still = true;
+      this.ctx.toast('To animate the sky, move the playhead past 0 s and change it there');
+    }
+  }
+
   private renderThumb(canvas: HTMLCanvasElement, sky: Sky): void {
     const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
     const w = Math.round(THUMB_W * dpr);
@@ -129,7 +183,7 @@ export class SkyTray {
   private refresh(): void {
     const s = this.sky;
     for (const t of this.thumbCanvases) this.renderThumb(t.canvas, s);
-    for (const m of this.modeCanvases) this.renderThumb(m.canvas, { ...s, mode: m.mode });
+    for (const m of this.modeCanvases) this.renderThumb(m.canvas, skyInMode(s, m.mode));
     this.syncControls();
   }
 
@@ -147,7 +201,7 @@ export class SkyTray {
     for (const m of MODES) {
       const canvas = el('canvas');
       const node = el('div', { cls: 'tray-thumb', style: { cursor: 'pointer', width: '40px' } }, [canvas, el('span', { cls: 'tray-thumb-label', text: m.label })]);
-      node.addEventListener('click', () => this.ctx.world.setSky({ ...this.sky, mode: m.mode }, 'Sky mode'));
+      node.addEventListener('click', () => this.ctx.world.setSky(skyInMode(this.sky, m.mode), 'Sky mode'));
       hintOn(this.ctx, node, HINTS.skyMode);
       this.modeCanvases.push({ canvas, mode: m.mode, node });
       row.append(node);

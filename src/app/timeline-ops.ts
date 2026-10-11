@@ -1,6 +1,7 @@
 import type { Animation } from '../model/scene.types';
 import type { UiContext } from '../ui/context';
-import { type KeyRef, allKeyRefs, liveKeyRefs, withoutKeys } from '../world/animation/key-selection';
+import { type KeyRef, KeyTrack, allKeyRefs, liveKeyRefs, withoutKeys } from '../world/animation/key-selection';
+import { PathLoop, loopTracks, pathLoopOf, selectionTracks, withPathLoop } from '../world/animation/loops';
 import { allKeyTimes, frameTime, hasKeyAt, withDuration, withKey, withoutKey } from '../world/animation/keying';
 import { EMPTY_ANIMATION } from '../world/scene.defaults';
 
@@ -23,35 +24,29 @@ export function toggleAnimation(ctx: UiContext): void {
   if (!enabled && allKeyTimes(a).length) ctx.toast('Animation off. The keys are kept until it is back on');
 }
 
-/** Keys the selected objects where they are now; with nothing selected, the camera. */
+/** Keys the selection where it is now: a whole group by its own transform, single objects by theirs; with nothing selected, the camera. */
 export function addKey(ctx: UiContext): void {
   const w = ctx.world;
-  const a = anim(ctx);
-  const t = frameTime(w.time, a.fps);
-  const targets = w.selectedObjects();
-  if (!targets.length) {
+  const items = w.selectedItems();
+  const count = items.groups.length + items.objects.length;
+  if (!count) {
     keyCamera(ctx);
     return;
   }
-  const objects = { ...a.objects };
-  for (const o of targets) objects[o.id] = withKey(objects[o.id] ?? [], t, o.transform, a.fps);
-  w.setAnimation({ ...a, objects }, targets.length === 1 ? `Key ${targets[0].name}` : `Key ${targets.length} objects`);
+  const single = items.objects.length === 1 && !items.groups.length ? w.object(items.objects[0])?.name : undefined;
+  w.addKeys(items, single ? `Key ${single}` : items.groups.length === 1 && !items.objects.length ? 'Key group' : `Key ${count} items`);
 }
 
-/** Removes the keys at the playhead: of the selection, or of the camera and sky when nothing is selected. */
+/** Removes the keys at the playhead: of the selection (its groups' own tracks too), or of the camera and sky when nothing is selected. */
 export function removeKey(ctx: UiContext): void {
   const w = ctx.world;
   const a = anim(ctx);
   const t = frameTime(w.time, a.fps);
-  const ids = w.selectedObjects().map((o) => o.id);
-  if (ids.length) {
-    const objects = { ...a.objects };
-    for (const id of ids) {
-      const left = withoutKey(objects[id] ?? [], t, a.fps);
-      if (left.length) objects[id] = left;
-      else delete objects[id];
-    }
-    w.setAnimation({ ...a, objects }, 'Remove key');
+  const items = w.selectedItems();
+  if (items.objects.length || items.groups.length) {
+    const tracks = selectionTracks(w.scene, w.selection);
+    const refs = tracks.map((r) => ({ ...r, time: t }));
+    w.setAnimation(withoutKeys(a, refs), 'Remove key');
     return;
   }
   if (!hasKeyAt(a.camera, t, a.fps) && !hasKeyAt(a.sky, t, a.fps)) {
@@ -95,11 +90,29 @@ export function clearAnimation(ctx: UiContext): void {
   ctx.world.setAnimation({ ...EMPTY_ANIMATION, enabled: a.enabled, duration: a.duration, fps: a.fps, loop: a.loop }, 'Clear all keys');
 }
 
+/** Close Path Loop is offered while a selected path is open, Open Path while all are closed. */
+export function canLoopPath(ctx: UiContext, close: boolean): boolean {
+  return pathLoopOf(anim(ctx), loopTracks(ctx.world.scene, ctx.world.selection)) === (close ? PathLoop.Open : PathLoop.Closed);
+}
+
+/**
+ * Closes the selection's paths into seamless loops (the end of the timeline
+ * repeats the first key; the timeline loops) or opens them again; one undo step.
+ */
+export function setPathLoop(ctx: UiContext, close: boolean): void {
+  const tracks = loopTracks(ctx.world.scene, ctx.world.selection);
+  if (!tracks.length) return;
+  const a = anim(ctx);
+  ctx.world.setAnimation(withPathLoop(a, tracks, close), close ? 'Close path loop' : 'Open path');
+  if (close && !a.loop) ctx.toast('Loop Playback is on: the path flows from its end into its start');
+}
+
 export const hasPickedKeys = (ctx: UiContext): boolean => ctx.editor.state.selectedKeys.length > 0;
 
-/** Picks every key shown: of the selected objects, or of every animated object, the camera and the sky. */
+/** Picks every key shown: of the selection (its groups' own tracks too), or of every animated object and group, the camera and the sky. */
 export function selectAllKeys(ctx: UiContext): void {
-  const refs = allKeyRefs(anim(ctx), ctx.world.selectedObjects().map((o) => o.id));
+  const groups = selectionTracks(ctx.world.scene, ctx.world.selection).filter((r) => r.track === KeyTrack.Group).map((r) => r.id);
+  const refs = allKeyRefs(anim(ctx), ctx.world.selectedObjects().map((o) => o.id), groups);
   if (!refs.length) ctx.toast('No keys to select');
   ctx.editor.update({ selectedKeys: refs });
 }

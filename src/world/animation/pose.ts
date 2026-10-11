@@ -1,6 +1,9 @@
 import type { Rgb } from '../../core/color';
 import type { Animation, Camera, Key, Scene, Sky, Transform } from '../../model/scene.types';
+import { groupIndex, withGroups } from '../group-tree';
+import { placed } from '../group-pose';
 import { channelAt, rgbAt, stepAt, vec3At } from './interpolate';
+import { KeyTrack, isCyclic } from './key-selection';
 
 /** The values of every animated track at time `t`, laid over the scene. */
 
@@ -58,21 +61,41 @@ export function skyAt(keys: readonly Key<Sky>[], t: number, loop = false): Sky {
   };
 }
 
+const hasKeys = (tracks: Animation['groups']): boolean => Object.values(tracks ?? {}).some((k) => k.length > 0);
+
 /** The scene moves: animation is on and some track has keys. */
 export const isAnimated = (a: Animation): boolean =>
-  a.enabled && (a.camera.length > 0 || a.sky.length > 0 || Object.values(a.objects).some((k) => k.length > 0));
+  a.enabled && (a.camera.length > 0 || a.sky.length > 0 || hasKeys(a.objects) || hasKeys(a.groups));
 
-/** The scene posed at `t`: animated objects, camera and sky take their interpolated values; a still stays as it is. */
+/** Groups with a track take their pose at `t` (a plain group gets a table entry to carry it). */
+function posedGroups(scene: Scene, t: number): Scene {
+  const a = scene.animation;
+  const tracked = Object.entries(a.groups ?? {}).filter(([, keys]) => keys.length > 0);
+  if (!tracked.length) return scene;
+  const index = groupIndex(scene);
+  for (const [id, keys] of tracked) {
+    const node = index.get(id as never);
+    if (node) index.set(node.id, { ...node, transform: transformAt(keys, t, a.loop || isCyclic(a, KeyTrack.Group, id)) });
+  }
+  return withGroups(scene, scene.objects, index.values());
+}
+
+/**
+ * The scene posed at `t`: animated objects, groups, camera and sky take their
+ * interpolated values, and every object its world pose through its groups
+ * (group-pose); a still stays as it is.
+ */
 export function poseAt(scene: Scene, t: number): Scene {
   const a = scene.animation;
-  if (!isAnimated(a)) return scene;
-  return {
-    ...scene,
+  if (!isAnimated(a)) return placed(scene);
+  const loops = (track: KeyTrack, id: string) => a.loop || isCyclic(a, track, id);
+  return placed({
+    ...posedGroups(scene, t),
     objects: scene.objects.map((o) => {
       const keys = a.objects[o.id];
-      return keys?.length ? { ...o, transform: transformAt(keys, t, a.loop) } : o;
+      return keys?.length ? { ...o, local: transformAt(keys, t, loops(KeyTrack.Object, o.id)) } : o;
     }),
-    camera: a.camera.length ? cameraAt(a.camera, t, a.loop) : scene.camera,
-    sky: a.sky.length ? skyAt(a.sky, t, a.loop) : scene.sky,
-  };
+    camera: a.camera.length ? cameraAt(a.camera, t, loops(KeyTrack.Camera, '')) : scene.camera,
+    sky: a.sky.length ? skyAt(a.sky, t, loops(KeyTrack.Sky, '')) : scene.sky,
+  });
 }

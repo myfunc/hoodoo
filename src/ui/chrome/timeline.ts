@@ -1,7 +1,8 @@
 import { Action } from '../../input/actions';
 import { shortcutOf } from '../../input/bindings';
 import type { Animation, Key } from '../../model/scene.types';
-import { type KeyRef, KeyTrack, isKeyPicked, pickKeys } from '../../world/animation/key-selection';
+import { type KeyRef, KeyTrack, isKeyPicked, pickKeys, trackKeys, withTracksRetimed } from '../../world/animation/key-selection';
+import { selectionTracks } from '../../world/animation/loops';
 import { frameTime, retimed, sameTime } from '../../world/animation/keying';
 import { SelectMode } from '../../world/world.enums';
 import type { UiContext } from '../context';
@@ -11,11 +12,11 @@ import { el, glyph } from '../kit/dom';
 import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
 
 /**
- * The animation controls under the scene window (shown while Animation is on), after Bryce 3D:
- * transport buttons, the time readout, and a ruler with the time scrubber and
- * three lanes of keys — objects (the selection, or every animated object),
- * camera and sky. Drag the ruler to scrub, a key to retime it; double-click a
- * key to jump to it. A click picks a key (Shift toggles), Shift-drag on the
+ * The animation controls under the scene window (shown while Animation is on), after Bryce 3D's
+ * Time Palette: chrome VCR buttons with a red stop, the time readout, and a ruler engraved with
+ * three grooves of copper keys — objects (the selection, or every animated object),
+ * camera and sky — under a red scrubber needle. Drag the ruler to scrub, a key to retime it;
+ * double-click a key to jump to it. A click picks a key (Shift toggles), Shift-drag on the
  * ruler picks the keys inside the band; picked keys show filled yellow.
  */
 
@@ -28,25 +29,35 @@ enum Lane {
 const LANES = [Lane.Objects, Lane.Camera, Lane.Sky] as const;
 const LANE_TRACKS = [KeyTrack.Object, KeyTrack.Camera, KeyTrack.Sky] as const;
 const RULER = { top: 13, lane: 10, pad: 8, label: 18, keyHit: 6 } as const;
-/** The scrubber: a red line under a small red triangle, Bryce 3D's time marker. */
-const SCRUBBER = { line: 1.5, head: 5, rise: 2 } as const;
+/** The scrubber: a red needle with a bead on top, riding the tick groove. */
+const SCRUBBER = { line: 1.5, bead: 3.5, beadY: 9.5, highlight: 1.5 } as const;
+/** An engraved groove: a dark upper lip and a light lower one. */
+const GROOVE = { height: 6, top: 4 } as const;
 const TICKS = { frame: 3, label: 7, textGap: 14, textX: 2, textY: 5, font: '9px Geneva, Verdana, sans-serif', eps: 1e-6 } as const;
 const LANE_GLYPH = { x: 2, y: 6.5, scale: 0.55, stroke: 2.6 } as const;
+/** Key colours: the lit facet, the shaded facet and the outline. */
+interface Bevel { readonly light: string; readonly dark: string; readonly edge: string }
+const COPPER: Bevel = { light: '#f3a676', dark: '#b4511f', edge: '#6a2c0e' };
+const PEWTER: Bevel = { light: '#d6d6d4', dark: '#8f8e8a', edge: '#5f5e5a' };
+const PICKED: Bevel = { light: '#fff08a', dark: '#f0b818', edge: '#2a2a2a' };
 const COLORS = {
-  tick: 'rgba(0,0,0,0.35)',
-  tickText: '#5a5955',
-  laneBg: ['rgba(200,40,45,0.12)', 'rgba(43,138,138,0.14)', 'rgba(200,150,40,0.16)'],
-  laneEdge: 'rgba(0,0,0,0.12)',
-  key: ['#c8282d', '#1f7a7a', '#b8801e'],
-  keyIdle: '#8f8e8a',
-  picked: '#ffd030',
-  pickedEdge: '#2a2a2a',
-  keyEdge: 'rgba(255,255,255,0.8)',
+  tick: 'rgba(0,0,0,0.38)',
+  tickText: '#55565a',
+  tickTextShadow: 'rgba(255,255,255,0.9)',
+  grooveFill: 'rgba(120,122,128,0.22)',
+  grooveShade: 'rgba(0,0,0,0.32)',
+  grooveLight: 'rgba(255,255,255,0.95)',
   band: 'rgba(200,40,45,0.9)',
   bandFill: 'rgba(200,40,45,0.1)',
-  scrubber: '#d0362e',
-  label: '#6d6d6a',
+  scrubber: '#d0281e',
+  scrubberDark: '#7a0e08',
+  scrubberLight: '#ffb0a8',
+  label: '#6a6b6f',
 } as const;
+/** Bryce's stop is a red square in the middle of the VCR row. */
+const STOP_GLYPH = ['M6 6h12v12H6z'] as const;
+/** The old-fashioned key between − and +: bow, shaft and two teeth. */
+const KEY_GLYPH = ['M7 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z', 'M10.5 12H22', 'M18.5 12v3.5M21.5 12v2.5'] as const;
 const LANE_NAMES = ['Objects', 'Camera', 'Sky'] as const;
 const LANE_GLYPHS = [GLYPH.cube, GLYPH.camera, GLYPH.sun] as const;
 const MAX_DPR = 2;
@@ -116,7 +127,7 @@ export class Timeline {
       return b;
     };
     this.play = tb(Action.PlayPause, GLYPH.play, 'Play / Pause', 'tl-play');
-    this.loop = tb(Action.ToggleLoop, GLYPH.loop, 'Loop playback');
+    this.loop = tb(Action.ToggleLoop, GLYPH.loop, 'Loop playback', 'tl-loop');
     this.readout = el('span', { cls: 'tl-time' });
     this.frameOut = el('span', { cls: 'tl-frame' });
     const clock = el('div', { cls: 'tl-clock', title: 'Animation Setup: length and frame rate' }, [this.readout, this.frameOut]);
@@ -127,10 +138,15 @@ export class Timeline {
     if (!g) throw new Error('2D canvas unavailable');
     this.g = g;
     hintOn(ctx, this.canvas, HINTS.ruler);
+    // Stop only pauses: Bryce's red square, next to Play, which toggles.
+    const stop = new Button({ cls: 'tl-button tl-stop', title: 'Stop', content: glyph(STOP_GLYPH, GLYPH_BOX), onClick: () => this.stop() });
+    hintOn(ctx, stop.el, { title: 'Stop', text: 'Stop playback here' });
+    const keyMark = el('span', { cls: 'tl-key-mark' }, [glyph(KEY_GLYPH, GLYPH_BOX)]);
     this.el = el('div', { cls: 'timeline' }, [
       el('div', { cls: 'tl-transport' }, [
         tb(Action.FirstFrame, GLYPH.toStart, 'Go to start').el,
         tb(Action.PrevKey, GLYPH.stepBack, 'Previous key').el,
+        stop.el,
         this.play.el,
         tb(Action.NextKey, GLYPH.stepForward, 'Next key').el,
         tb(Action.LastFrame, GLYPH.toEnd, 'Go to end').el,
@@ -138,9 +154,10 @@ export class Timeline {
       clock,
       this.canvas,
       el('div', { cls: 'tl-keys' }, [
-        tb(Action.AddKey, GLYPH.keyAdd, 'Add key: selection, or camera when nothing is selected').el,
-        tb(Action.RemoveKey, GLYPH.keyRemove, 'Remove key at the playhead').el,
-        tb(Action.KeyCamera, GLYPH.camera, 'Animate the camera: key it here').el,
+        tb(Action.RemoveKey, GLYPH.minus, 'Remove key at the playhead', 'tl-round').el,
+        keyMark,
+        tb(Action.AddKey, GLYPH.plus, 'Add key: selection, or camera when nothing is selected', 'tl-round').el,
+        tb(Action.KeyCamera, GLYPH.camera, 'Animate the camera: key it here', 'tl-round').el,
         this.loop.el,
       ]),
     ]);
@@ -152,6 +169,10 @@ export class Timeline {
       if (state.playing !== previous.playing || state.selectedKeys !== previous.selectedKeys) this.redraw();
     });
     this.redraw();
+  }
+
+  private stop(): void {
+    if (this.ctx.editor.state.playing) this.ctx.dispatch(Action.PlayPause);
   }
 
   private get anim(): Animation {
@@ -172,9 +193,8 @@ export class Timeline {
     const a = this.anim;
     if (lane === Lane.Camera) return [{ track: KeyTrack.Camera, id: '', keys: a.camera }];
     if (lane === Lane.Sky) return [{ track: KeyTrack.Sky, id: '', keys: a.sky }];
-    const sel = this.ctx.world.selection;
-    const ids = sel.size ? [...sel].filter((id) => a.objects[id]) : Object.keys(a.objects);
-    return ids.map((id) => ({ track: KeyTrack.Object, id, keys: a.objects[id] }));
+    // Objects lane: the selection's tracks (a whole group's own track too), or every object and group track.
+    return selectionTracks(this.ctx.world.scene, this.ctx.world.selection).map((r) => ({ ...r, keys: trackKeys(a, r.track, r.id) }));
   }
 
   /** The keys one diamond stands for: every track of the lane with a key at that time. */
@@ -184,7 +204,7 @@ export class Timeline {
   }
 
   private isPicked(lane: Lane, track: LaneTrack, time: number): boolean {
-    return isKeyPicked(this.ctx.editor.state.selectedKeys, { track: LANE_TRACKS[lane], id: track.id, time }, this.anim.fps);
+    return isKeyPicked(this.ctx.editor.state.selectedKeys, { track: lane === Lane.Objects ? track.track : LANE_TRACKS[lane], id: track.id, time }, this.anim.fps);
   }
 
   private get span(): { x0: number; w: number } {
@@ -232,15 +252,34 @@ export class Timeline {
     this.drawTicks(cw);
     for (const lane of LANES) this.drawLane(lane, cw);
     this.drawBand();
-    const x = this.xOf(t);
+    this.drawScrubber(this.xOf(t), ch);
+  }
+
+  /** The red needle down the grooves, a bead on top of it. */
+  private drawScrubber(x: number, ch: number): void {
+    const g = this.g;
     g.fillStyle = COLORS.scrubber;
-    g.fillRect(Math.round(x) - 0.5, RULER.top - SCRUBBER.rise, SCRUBBER.line, ch - RULER.top + SCRUBBER.rise);
+    g.fillRect(Math.round(x) - 0.5, SCRUBBER.beadY, SCRUBBER.line, ch - SCRUBBER.beadY);
+    const bead = g.createRadialGradient(x - 1, SCRUBBER.beadY - 1, SCRUBBER.highlight / 2, x, SCRUBBER.beadY, SCRUBBER.bead);
+    bead.addColorStop(0, COLORS.scrubberLight);
+    bead.addColorStop(0.5, COLORS.scrubber);
+    bead.addColorStop(1, COLORS.scrubberDark);
+    g.fillStyle = bead;
     g.beginPath();
-    g.moveTo(x - SCRUBBER.head, 1);
-    g.lineTo(x + SCRUBBER.head, 1);
-    g.lineTo(x, RULER.top - 1);
-    g.closePath();
+    g.arc(x, SCRUBBER.beadY, SCRUBBER.bead, 0, Math.PI * 2);
     g.fill();
+  }
+
+  /** A groove cut into the chrome, `h` tall and centred on y. */
+  private groove(y: number, h: number, x0: number, x1: number): void {
+    const g = this.g;
+    const top = Math.round(y - h / 2) + 0.5;
+    g.fillStyle = COLORS.grooveFill;
+    g.fillRect(x0, top, x1 - x0, h);
+    g.fillStyle = COLORS.grooveShade;
+    g.fillRect(x0, top, x1 - x0, 1);
+    g.fillStyle = COLORS.grooveLight;
+    g.fillRect(x0, top + h, x1 - x0, 1);
   }
 
   private drawTicks(cw: number): void {
@@ -261,12 +300,16 @@ export class Timeline {
     }
     const step = TICK_STEPS.find((s) => s * pxPerS >= LABEL_EVERY_PX) ?? TICK_STEPS[TICK_STEPS.length - 1];
     g.font = TICKS.font;
-    g.fillStyle = COLORS.tickText;
     for (let s = 0; s <= a.duration + TICKS.eps; s += step) {
       const x = Math.round(this.xOf(s)) + 0.5;
       g.moveTo(x, RULER.top - TICKS.label);
       g.lineTo(x, RULER.top);
-      if (x + TICKS.textGap < cw) g.fillText(`${s}s`, x + TICKS.textX, RULER.top - TICKS.textY);
+      if (x + TICKS.textGap >= cw) continue;
+      // Engraved numbers: a white shadow under dark ink.
+      g.fillStyle = COLORS.tickTextShadow;
+      g.fillText(`${s}s`, x + TICKS.textX, RULER.top - TICKS.textY + 1);
+      g.fillStyle = COLORS.tickText;
+      g.fillText(`${s}s`, x + TICKS.textX, RULER.top - TICKS.textY);
     }
     g.stroke();
   }
@@ -274,11 +317,7 @@ export class Timeline {
   private drawLane(lane: Lane, cw: number): void {
     const g = this.g;
     const y = this.laneY(lane);
-    g.fillStyle = COLORS.laneBg[lane];
-    g.fillRect(RULER.label, y - RULER.lane / 2 + 0.5, cw - RULER.label, RULER.lane - 1);
-    // An engraved trough: dark top edge, like Bryce's sunken slots.
-    g.fillStyle = COLORS.laneEdge;
-    g.fillRect(RULER.label, y - RULER.lane / 2 + 0.5, cw - RULER.label, 1);
+    this.groove(y, GROOVE.height, RULER.label, cw);
     // A tiny glyph names the lane, like the icons of Bryce's palettes.
     g.save();
     g.translate(LANE_GLYPH.x, y - LANE_GLYPH.y);
@@ -288,7 +327,7 @@ export class Timeline {
     for (const d of LANE_GLYPHS[lane]) g.stroke(new Path2D(d));
     g.restore();
     const selected = lane !== Lane.Objects || this.ctx.world.selection.size > 0;
-    const color = selected ? COLORS.key[lane] : COLORS.keyIdle;
+    const bevel = selected ? COPPER : PEWTER;
     g.lineWidth = 1;
     const seen = new Set<number>();
     const picked = new Set<number>();
@@ -298,17 +337,22 @@ export class Timeline {
         if (this.isPicked(lane, track, k.time)) picked.add(x);
         if (seen.has(x)) continue;
         seen.add(x);
-        this.diamond(x, y, DIAMOND, color, COLORS.keyEdge);
+        this.diamond(x, y, DIAMOND, bevel);
       }
     }
     // Picked keys are drawn last, on top of their neighbours.
-    for (const x of picked) this.diamond(x, y, DIAMOND_PICKED, COLORS.picked, COLORS.pickedEdge);
+    for (const x of picked) this.diamond(x, y, DIAMOND_PICKED, PICKED);
   }
 
-  private diamond(x: number, y: number, r: number, fill: string, edge: string): void {
+  /** A bevelled diamond: two facets, lit on the upper left, shaded on the lower right. */
+  private diamond(x: number, y: number, r: number, b: Bevel): void {
     const g = this.g;
+    const fill = g.createLinearGradient(x - r, y - r, x + r, y + r);
+    fill.addColorStop(0, b.light);
+    fill.addColorStop(0.5, b.light);
+    fill.addColorStop(0.5, b.dark);
     g.fillStyle = fill;
-    g.strokeStyle = edge;
+    g.strokeStyle = b.edge;
     g.beginPath();
     g.moveTo(x, y - r);
     g.lineTo(x + r, y);
@@ -445,9 +489,6 @@ export class Timeline {
     const target = frameTime(to, a.fps);
     if (d.lane === Lane.Camera) return { ...a, camera: retimed(a.camera, d.from, target, a) };
     if (d.lane === Lane.Sky) return { ...a, sky: retimed(a.sky, d.from, target, a) };
-    const sel = this.ctx.world.selection;
-    const objects = Object.fromEntries(Object.entries(a.objects).map(([id, keys]) =>
-      [id, sel.size && !sel.has(id as never) ? keys : retimed(keys, d.from, target, a)]));
-    return { ...a, objects };
+    return withTracksRetimed(a, this.laneTracks(Lane.Objects), d.from, target);
   }
 }

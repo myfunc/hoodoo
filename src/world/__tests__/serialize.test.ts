@@ -17,14 +17,15 @@ describe('scene files', () => {
     expect(() => deserializeScene({ hello: 1 })).toThrow(SceneFileError);
   });
 
-  it('write version 2 with the animation switch and soft shadows', () => {
+  it('write version 3 with the animation switch and soft shadows', () => {
     const scene = { ...demoScene(), sky: { ...demoScene().sky, softShadows: 40 } };
     const file = JSON.parse(JSON.stringify(serializeScene(scene)));
-    expect(file.version).toBe(2);
+    expect(file.version).toBe(3);
     expect(file.scene.studio).toBeUndefined();
     expect(file.scene.animation.enabled).toBe(false);
     expect(deserializeScene(file).sky.softShadows).toBe(40);
-    expect(() => deserializeScene({ ...file, version: 3 })).toThrow(SceneFileError);
+    expect(deserializeScene({ ...file, version: 2 }).objects).toHaveLength(scene.objects.length);
+    expect(() => deserializeScene({ ...file, version: 4 })).toThrow(SceneFileError);
   });
 });
 

@@ -1,5 +1,4 @@
-import { KEY, TEXT_TAGS } from '../core/keys';
-import { type Vec3, add, dot, normalize, scale, sub } from '../core/vec3';
+import { type Vec3, add, dot, scale, sub } from '../core/vec3';
 import { ViewKind } from '../model/scene.enums';
 import type { ObjectId } from '../model/scene.ids';
 import type { Camera, SceneObject } from '../model/scene.types';
@@ -10,16 +9,18 @@ import { MIN_SPAN, dolly, orbit, translateLocal } from '../world/camera-math';
 import { type EditorStore, isPerspective } from '../world/editor-store';
 import { moved } from '../world/transform-ops';
 import { SelectMode, type World } from '../world/world';
-import { FLY_KEYS } from './bindings';
+import { CameraWalk, cameraOf, setCameraOf } from './camera-walk';
 import {
-  BUTTON_LEFT, BUTTON_MIDDLE, BUTTON_RIGHT, DRAG_THRESHOLD_PX, FLY_FAST, FLY_UNITS_PER_SEC, GESTURE_MIN_SCALE, GIZMO_PICK_PX, MAX_FLY_DT,
-  MS_PER_SECOND, ORBIT_DEG_PER_PX, ORTHO_ZOOM, PICK_RADIUS_PX, PINCH_DOLLY, SWIPE_GAP_MS, TRACKPAD_ORBIT_DEG_PER_PX,
+  BUTTON_LEFT, BUTTON_MIDDLE, BUTTON_RIGHT, DRAG_THRESHOLD_PX, GESTURE_MIN_SCALE, GIZMO_PICK_PX, ORBIT_DEG_PER_PX, ORTHO_ZOOM, PICK_RADIUS_PX, PINCH_DOLLY, SWIPE_GAP_MS, TRACKPAD_ORBIT_DEG_PER_PX,
   TRACKPAD_PAN, WHEEL_DOLLY,
 } from './input.constants';
 import { installFileDrop } from './file-drop';
 import { type KeyDrag, PathKeys } from './path-keys';
 import { gizmoAxisAt, groundPoint, pickObject, surfacePoint } from './pick';
+import { QuickResize } from './quick-resize';
+import { SceneKeys } from './scene-keys';
 import { ScrollClassifier, ScrollDevice } from './scroll-device';
+import { scrollResizeFactor } from './walk-math';
 
 /** Safari's pinch and rotate events (not in the DOM typings). */
 interface GestureEvent extends UIEvent {
@@ -41,6 +42,8 @@ enum Gesture {
   Orbit = 'orbit',
   Pan = 'pan',
   Fly = 'fly',
+  /** The resize key held: a left drag scales the selection (quick-resize.ts). */
+  Resize = 'resize',
 }
 
 export interface InputHooks {
@@ -73,23 +76,23 @@ interface Press {
  * READ ME — the scene window's pointer state machine:
  * Idle → Pressing → (MoveObjects | AxisDrag | BoxSelect) on the left button,
  * KeyPress → KeyDrag on a motion-path key square (path-keys.ts),
- * Orbit (right / Alt-left), Pan (middle / Space-left), Fly (right + WASD).
+ * Orbit (right / Alt-left), Pan (middle / Space-left), Fly (right + WASD/RC/QE), Resize (Z held + left).
  * A right press let go before it travels DRAG_THRESHOLD_PX is a right click: the context menu.
  * A band that holds key squares picks those keys; otherwise it selects objects.
+ * Keys: over the scene window (or with it focused) WASD walk and R/C rise and sink (camera-walk.ts).
  * Scrolling: a mouse wheel dollies; on a trackpad two fingers orbit (Shift or
  * Option: pan, Cmd: dolly) and a pinch zooms — in Safari a two-finger twist turns too.
+ * With Z held any scroll or pinch resizes the selection instead; Alt, Shift and Cmd keep their meaning.
  * It reads the view for picking and sends commands to World or EditorStore.
  */
 export class ViewportInput {
   private state = Gesture.Idle;
   private press: Press | null = null;
   private last = { x: 0, y: 0 };
-  private spaceHeld = false;
-  private readonly held = new Set<string>();
-  private flyFrame = 0;
-  private flyLast = 0;
+  /** The right button is down in a perspective view: held keys fly. */
   private flyArmed = false;
-  private fast = false;
+  private readonly resize: QuickResize;
+  private readonly sceneKeys: SceneKeys;
   private readonly box: HTMLElement;
   readonly scroll = new ScrollClassifier();
   private scrollTimer = 0;
@@ -110,6 +113,12 @@ export class ViewportInput {
     this.box = document.createElement('div');
     this.box.className = 'box-select';
     this.keys = new PathKeys(world, editor);
+    const walk = new CameraWalk(world, editor, { walkCell: () => this.walkCell(), onFly: () => this.onFly(), idle: () => this.state === Gesture.Idle });
+    this.resize = new QuickResize(world, editor, () => this.state === Gesture.Idle);
+    this.sceneKeys = new SceneKeys(el, editor, walk, this.resize, {
+      flying: () => this.flyArmed,
+      resizeChanged: () => this.updateHover(this.last.x, this.last.y),
+    });
     el.addEventListener('pointerdown', (e) => this.down(e));
     el.addEventListener('pointermove', (e) => this.move(e));
     el.addEventListener('pointerup', (e) => this.up(e));
@@ -127,9 +136,6 @@ export class ViewportInput {
     el.addEventListener('gestureend', (e) => e.preventDefault());
     el.addEventListener('contextmenu', (e) => e.preventDefault());
     el.addEventListener('dblclick', (e) => this.doubleClick(e));
-    window.addEventListener('keydown', (e) => this.keyDown(e));
-    window.addEventListener('keyup', (e) => this.keyUp(e));
-    window.addEventListener('blur', () => this.held.clear());
     installFileDrop(el, (files) => this.hooks.onDropFiles(files));
   }
 
@@ -151,6 +157,7 @@ export class ViewportInput {
       return;
     }
     this.el.setPointerCapture(e.pointerId);
+    this.el.focus({ preventScroll: true });
     this.last = { x, y };
     const base = { x, y, cell, shift: e.shiftKey, alt: e.altKey, start: this.world.selectedObjects(), camera: this.camera(cell) };
     if (e.button === BUTTON_RIGHT || (e.button === BUTTON_LEFT && e.altKey && !this.world.selection.size)) {
@@ -158,19 +165,21 @@ export class ViewportInput {
       this.state = isPerspective(cell.kind) ? Gesture.Orbit : Gesture.Pan;
       this.rightClick = e.button === BUTTON_RIGHT;
       this.beginCameraGesture(cell, 'Camera trackball');
-      if (e.button === BUTTON_RIGHT && isPerspective(cell.kind)) {
-        this.flyArmed = true;
-        this.startFly();
-      }
+      this.flyArmed = e.button === BUTTON_RIGHT && isPerspective(cell.kind);
       return;
     }
-    if (e.button === BUTTON_MIDDLE || (e.button === BUTTON_LEFT && this.spaceHeld)) {
+    if (e.button === BUTTON_MIDDLE || (e.button === BUTTON_LEFT && this.sceneKeys.spaceHeld)) {
       this.press = { ...base, target: null, axis: -1 };
       this.state = Gesture.Pan;
       this.beginCameraGesture(cell, 'Camera pan');
       return;
     }
     if (e.button !== BUTTON_LEFT) return;
+    if (this.resize.isHeld && this.beginResize(cell, x, y)) {
+      this.press = { ...base, target: null, axis: -1 };
+      this.state = Gesture.Resize;
+      return;
+    }
     const key = this.keys.at(cell, x, y);
     if (key) {
       this.press = { ...base, target: null, axis: -1, key };
@@ -215,6 +224,7 @@ export class ViewportInput {
       case Gesture.AxisDrag: this.dragAxis(x, y); break;
       case Gesture.KeyDrag: if (this.press?.keyDrag) this.keys.drag(this.press.keyDrag, x, y, e.altKey); break;
       case Gesture.BoxSelect: this.drawBox(p.x, p.y, x, y); break;
+      case Gesture.Resize: this.resize.drag(x - p.x); break;
       case Gesture.Orbit:
       case Gesture.Fly: if (!this.stillClick(p, x, y)) this.orbitBy(p.cell, dx, dy); break;
       case Gesture.Pan: if (!this.stillClick(p, x, y)) this.panBy(p.cell, dx, dy); break;
@@ -248,7 +258,7 @@ export class ViewportInput {
   private finish(): void {
     this.box.remove();
     this.world.endGesture();
-    this.stopFly();
+    this.flyArmed = false;
     this.state = Gesture.Idle;
     this.press = null;
     this.rightClick = false;
@@ -291,7 +301,7 @@ export class ViewportInput {
     const axis = this.editor.state.gizmo ? gizmoAxisAt(cell.gizmo, x, y, GIZMO_PICK_PX) : -1;
     const object = axis >= 0 ? null : this.pickAt(cell, x, y);
     this.view.hover = { object, gizmoAxis: axis };
-    this.el.style.cursor = axis >= 0 || object ? 'pointer' : 'default';
+    this.el.style.cursor = this.resize.isHeld ? 'ew-resize' : axis >= 0 || object ? 'pointer' : 'default';
   }
 
   /** Plain drag slides on the ground plane through the grab point; Alt lifts vertically. Ortho views move in their plane. */
@@ -349,12 +359,11 @@ export class ViewportInput {
   }
 
   private camera(cell: ViewCell): Camera {
-    return cell.kind === ViewKind.Director ? this.editor.state.director : this.world.scene.camera;
+    return cameraOf(this.world, this.editor, cell);
   }
 
   private setCamera(cell: ViewCell, c: Camera, label: string): void {
-    if (cell.kind === ViewKind.Director) this.editor.update({ director: c });
-    else this.world.setCamera(c, label);
+    setCameraOf(this.world, this.editor, cell, c, label);
   }
 
   private beginCameraGesture(cell: ViewCell, label: string): void {
@@ -388,6 +397,10 @@ export class ViewportInput {
     if (device === ScrollDevice.Trackpad && !this.trackpadSeen) {
       this.trackpadSeen = true;
       this.hooks.onTrackpad();
+    }
+    if (this.resize.isHeld && this.world.selection.size) {
+      this.resize.scroll(scrollResizeFactor(e.deltaY, device));
+      return;
     }
     this.scrollGesture(cell, device === ScrollDevice.Trackpad && !e.metaKey ? (e.shiftKey || e.altKey || cell.basis.ortho ? 'Camera pan' : 'Camera trackball') : 'Camera dolly');
     if (device === ScrollDevice.Pinch) {
@@ -453,47 +466,25 @@ export class ViewportInput {
     this.hooks.onFocusPicked(cell.kind, surfacePoint(this.world.scene, cell, x, y));
   }
 
-  /** While the right button is held in a perspective view, WASD/QE fly and never reach editor shortcuts. */
-  private keyDown(e: KeyboardEvent): void {
-    if (e.key === KEY.Space && !TEXT_TAGS.has((e.target as HTMLElement).tagName)) this.spaceHeld = true;
-    this.fast = e.shiftKey;
-    if (this.flyArmed && FLY_KEYS[e.code]) {
-      this.held.add(e.code);
-      e.preventDefault();
-      e.stopImmediatePropagation();
-    }
+  /** Where held keys move the camera: the right-dragged view, the view under the pointer, or the main view when focused. */
+  private walkCell(): { cell: ViewCell; flying: boolean } | null {
+    if (this.press) return this.flyArmed ? { cell: this.press.cell, flying: true } : null;
+    if (this.state !== Gesture.Idle) return null;
+    const keys = this.sceneKeys;
+    const cell = keys.inside ? this.view.cellAt(this.last.x, this.last.y) : keys.focused ? this.view.mainCell() : null;
+    return cell ? { cell, flying: false } : null;
   }
 
-  private keyUp(e: KeyboardEvent): void {
-    if (e.key === KEY.Space) this.spaceHeld = false;
-    this.fast = e.shiftKey;
-    this.held.delete(e.code);
+  /** Keys moved the camera during a right press: letting go must not open the context menu. */
+  private onFly(): void {
+    this.state = Gesture.Fly;
+    this.rightClick = false;
   }
 
-  /** Right button held: orbit with the mouse, WASD/QE to fly (switches the gesture to Fly). */
-  private startFly(): void {
-    this.flyLast = performance.now();
-    const step = (now: number) => {
-      if (!this.press) return;
-      const dt = Math.min((now - this.flyLast) / MS_PER_SECOND, MAX_FLY_DT);
-      this.flyLast = now;
-      if (this.held.size) {
-        this.state = Gesture.Fly;
-        let dir: Vec3 = [0, 0, 0];
-        for (const code of this.held) dir = add(dir, FLY_KEYS[code] ?? [0, 0, 0]);
-        const speed = FLY_UNITS_PER_SEC * (this.fast ? FLY_FAST : 1) * dt;
-        const d = normalize(dir);
-        const cell = this.press.cell;
-        this.setCamera(cell, translateLocal(this.camera(cell), d[0] * speed, d[1] * speed, d[2] * speed), 'Camera fly');
-      }
-      this.flyFrame = requestAnimationFrame(step);
-    };
-    this.flyFrame = requestAnimationFrame(step);
-  }
-
-  private stopFly(): void {
-    cancelAnimationFrame(this.flyFrame);
-    this.flyArmed = false;
-    this.held.clear();
+  /** Z + press: resizes the selection, or the object under the pointer when nothing is selected. */
+  private beginResize(cell: ViewCell, x: number, y: number): boolean {
+    const target = this.world.selection.size ? null : this.pickAt(cell, x, y);
+    if (target) this.world.select(this.world.groupMembers(target), SelectMode.Replace);
+    return this.resize.begin();
   }
 }

@@ -6,7 +6,7 @@ export const ORBIT_DEG_PER_PX = 0.35;
 export const LOOK_DEG_PER_PX = 0.2;
 export const WHEEL_DOLLY = 0.0012;
 export const ORTHO_ZOOM = 0.0012;
-export const FLY_UNITS_PER_SEC = 8;
+/** Shift while walking or flying multiplies the speed (the speed itself follows the scene's size, walk-math.ts). */
 export const FLY_FAST = 4;
 export const BUTTON_LEFT = 0;
 export const BUTTON_MIDDLE = 1;
