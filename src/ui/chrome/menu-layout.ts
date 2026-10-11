@@ -1,15 +1,17 @@
 import { Action } from '../../input/actions';
 import { MenuName } from '../../input/bindings';
+import { Studio } from '../../model/scene.enums';
 
 export const SEP = 'sep' as const;
 export type MenuEntry = Action | typeof SEP;
 
-/** Menu layout; labels and shortcuts come from the bindings table. */
-export const MENUS: readonly { name: MenuName; items: readonly MenuEntry[] }[] = [
-  { name: MenuName.File, items: [Action.New, Action.Open, Action.Save, SEP, Action.LoadDemo, Action.SurpriseScene, SEP, Action.DocumentSetup, Action.ExportImage, Action.ExportMovie, Action.CopyImage, Action.ShareLink] },
+/** Menu layout; labels and shortcuts come from the bindings table. A menu with a studio shows only there. */
+export const MENUS: readonly { name: MenuName; items: readonly MenuEntry[]; studio?: Studio }[] = [
+  { name: MenuName.File, items: [Action.StartWindow, Action.New, Action.Open, Action.Save, SEP, Action.LoadDemo, Action.SurpriseScene, SEP, Action.DocumentSetup, Action.ExportImage, Action.ExportMovie, Action.CopyImage, Action.ShareLink] },
   { name: MenuName.Edit, items: [Action.Undo, Action.Redo, SEP, Action.Cut, Action.Copy, Action.Paste, Action.Delete, SEP, Action.Duplicate, Action.Replicate, SEP, Action.SelectAll, Action.SelectNone, SEP, Action.CopyMaterial, Action.PasteMaterial] },
   { name: MenuName.Objects, items: [Action.Attributes, Action.EditMaterial, Action.EditObject, Action.ObjectLibrary, SEP, Action.Group, Action.Ungroup, SEP, Action.Land, Action.Randomize, SEP, Action.HideSelected, Action.ShowAll] },
-  { name: MenuName.View, items: [Action.ViewCamera, Action.ViewDirector, Action.ViewTop, Action.ViewFront, Action.ViewSide, Action.QuadView, SEP, Action.FrameSelected, Action.FrameAll, Action.ZoomIn, Action.ZoomOut, Action.ResetCamera, Action.CameraFromView, Action.PickFocus, SEP, Action.ToggleSidePanel, Action.ToggleDepthCue, Action.ToggleGrid, Action.ToggleGizmo, Action.ToggleSnap] },
+  { name: MenuName.View, items: [Action.ViewCamera, Action.ViewDirector, Action.ViewTop, Action.ViewFront, Action.ViewSide, Action.QuadView, SEP, Action.FrameSelected, Action.FrameAll, Action.ZoomIn, Action.ZoomOut, Action.ResetCamera, Action.CameraFromView, Action.PickFocus, SEP, Action.ToggleSidePanel, Action.ToggleDepthCue, Action.ToggleGrid, Action.ToggleGizmo, Action.ToggleSnap, SEP, Action.ScrollAuto, Action.ScrollWheel, Action.ScrollTrackpad] },
   { name: MenuName.Render, items: [Action.Render, Action.StopRender, Action.ClearRender, SEP, Action.ToggleLiveRender, SEP, Action.TakeSnapshot, Action.CompareSnapshot, SEP, Action.ExportImage, Action.ExportMovie] },
+  { name: MenuName.Animation, studio: Studio.ThreeD, items: [Action.PlayPause, Action.FirstFrame, Action.LastFrame, SEP, Action.PrevFrame, Action.NextFrame, Action.PrevKey, Action.NextKey, SEP, Action.AddKey, Action.RemoveKey, Action.KeyCamera, Action.ClearAnimation, SEP, Action.ToggleLoop, Action.ToggleMotionPaths, Action.AnimationSetup] },
   { name: MenuName.Help, items: [Action.CommandPalette, Action.Shortcuts, SEP, Action.SourceCode, Action.InstallApp, SEP, Action.About] },
 ];

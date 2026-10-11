@@ -2,8 +2,8 @@ import { DEFAULT_LIGHT } from '../assets/object.catalog';
 import type { Vec3 } from '../core/vec3';
 import { VALUE_LIMITS } from '../model/material.factory';
 import type { Rgb } from '../core/color';
-import { BooleanMode, ChannelSource, ColorChannel, Family, ShapeKind, SkyMode, TextureKind, TextureMapping, ValueChannel } from '../model/scene.enums';
-import type { Camera, CloudSettings, DocumentSetup, LightData, OrthoView, ProceduralTexture, Sky, Transform } from '../model/scene.types';
+import { BooleanMode, ChannelSource, ColorChannel, Family, ShapeKind, SkyMode, Studio, TextureKind, TextureMapping, ValueChannel } from '../model/scene.enums';
+import type { Animation, Camera, CloudSettings, DocumentSetup, Key, LightData, OrthoView, ProceduralTexture, Sky, Transform } from '../model/scene.types';
 
 /**
  * Guards for scene data that arrives from outside (files, share links, autosave):
@@ -13,7 +13,7 @@ export class SceneFileError extends Error {}
 
 export const TERRAIN_RES = { min: 2, max: 512 } as const;
 /** Limits for files and links from elsewhere: enough for any real scene, too little to hang a browser. */
-export const SCENE_LIMITS = { objects: 400, terrainSamples: 4194304, booleanMembers: 24, name: 80, id: 64 } as const;
+export const SCENE_LIMITS = { objects: 400, terrainSamples: 4194304, booleanMembers: 24, name: 80, id: 64, keysPerTrack: 600 } as const;
 const MAX_COORD = 1e6;
 const MIN_SIZE = 1e-4;
 
@@ -186,5 +186,44 @@ export function materialParts(m: unknown): {
     colorSources: pick<ColorChannel, ChannelSource>(r.colorSources, colorKeys, (v) => SOURCES.has(v)),
     valueSources: pick<ValueChannel, ChannelSource>(r.valueSources, valueKeys, (v) => SOURCES.has(v)),
     textures: Array.isArray(r.textures) ? r.textures.slice(0, 3).map(proceduralTexture) : [],
+  };
+}
+
+const STUDIOS: ReadonlySet<unknown> = new Set(Object.values(Studio));
+export const studio = (v: unknown): Studio => (STUDIOS.has(v) ? (v as Studio) : Studio.Two);
+
+export const ANIMATION_LIMITS = { duration: { min: 0.5, max: 600 }, fps: { min: 6, max: 60 } } as const;
+
+/** Keys of one track: well-formed ones only, inside the duration, sorted, at most keysPerTrack. */
+function keys<T>(v: unknown, duration: number, value: (raw: unknown) => T): Key<T>[] {
+  if (!Array.isArray(v)) return [];
+  const out: Key<T>[] = [];
+  for (const k of v.slice(0, SCENE_LIMITS.keysPerTrack)) {
+    const r = (k ?? {}) as Partial<Record<keyof Key<T>, unknown>>;
+    if (!isNum(r.time)) continue;
+    try {
+      out.push({ time: Math.min(duration, Math.max(0, r.time)), value: value(r.value) });
+    } catch {
+      // A malformed key is dropped; the rest of the track still plays.
+    }
+  }
+  return out.sort((a, b) => a.time - b.time);
+}
+
+/** The timeline of a file; tracks of objects that are not in the scene are dropped. */
+export function animation(v: unknown, d: Animation, objectIds: ReadonlySet<string>, cam: Camera, skyDefault: Sky): Animation {
+  const r = (v ?? {}) as Partial<Record<keyof Animation, unknown>>;
+  const duration = clampNum(r.duration, d.duration, ANIMATION_LIMITS.duration);
+  const tracks = (r.objects ?? {}) as Record<string, unknown>;
+  const objects = Object.fromEntries(
+    Object.keys(tracks).filter((id) => objectIds.has(id)).map((id) => [id, keys(tracks[id], duration, transform)] as const).filter(([, k]) => k.length > 0),
+  );
+  return {
+    duration,
+    fps: Math.round(clampNum(r.fps, d.fps, ANIMATION_LIMITS.fps)),
+    loop: typeof r.loop === 'boolean' ? r.loop : d.loop,
+    objects,
+    camera: keys(r.camera, duration, (c) => camera(c, cam)),
+    sky: keys(r.sky, duration, (s) => sky(s, skyDefault)),
   };
 }

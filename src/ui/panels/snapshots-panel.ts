@@ -5,6 +5,7 @@ import { Button } from '../kit/controls';
 import { clearChildren, el, glyph } from '../kit/dom';
 import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
 import type { Snapshot } from '../snapshot-store';
+import { panelTitle } from './panel-title';
 
 const THUMB_W = 64;
 const THUMB_H = 48;
@@ -21,7 +22,7 @@ export class SnapshotsPanel {
       cls: 'ghost panel-action', title: `Take a snapshot of the picture (${shortcutOf(Action.TakeSnapshot)})`,
       content: glyph(GLYPH.plus, GLYPH_BOX), onClick: () => ctx.dispatch(Action.TakeSnapshot),
     });
-    this.el = el('div', { cls: 'panel' }, [el('div', { cls: 'panel-title' }, ['Snapshots', take.el]), this.body]);
+    this.el = el('div', { cls: 'panel' }, [panelTitle('Snapshots', GLYPH.camera, take.el), this.body]);
     ctx.snapshots.events.on('changed', () => this.render());
     ctx.snapshots.events.on('compare', () => this.render());
     this.render();

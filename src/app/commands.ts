@@ -33,8 +33,28 @@ import { promptInstall } from './pwa';
 import { openMovieDialog } from '../ui/labs/movie-dialog';
 import { compareLatest, takeSnapshot } from './snapshot-ops';
 import { createFromLibrary, frame } from './scene-ops';
+import { openAnimationSetup } from '../ui/labs/animation-setup';
+import { ScrollPreference } from '../input/scroll-device';
+import { Player, addKey, clearAnimation, isMotionStudio, jumpKey, keyCamera, removeKey, setTimeline, stepFrames } from './timeline-ops';
 
 type Handler = (arg?: number) => void;
+
+/** What commands need from the shell around them. */
+export interface CommandHooks {
+  readonly openStart: () => void;
+}
+
+/** Commands of the Hoodoo 3D timeline: off in Hoodoo 2. */
+const TIMELINE_ACTIONS: ReadonlySet<Action> = new Set([
+  Action.PlayPause, Action.FirstFrame, Action.LastFrame, Action.PrevFrame, Action.NextFrame, Action.PrevKey, Action.NextKey,
+  Action.AddKey, Action.RemoveKey, Action.KeyCamera, Action.ToggleLoop, Action.AnimationSetup, Action.ClearAnimation, Action.ToggleMotionPaths,
+]);
+
+const SCROLL_OF: Partial<Record<Action, ScrollPreference>> = {
+  [Action.ScrollAuto]: ScrollPreference.Auto,
+  [Action.ScrollWheel]: ScrollPreference.Wheel,
+  [Action.ScrollTrackpad]: ScrollPreference.Trackpad,
+};
 
 const VIEW_OF: Partial<Record<Action, ViewKind>> = {
   [Action.ViewCamera]: ViewKind.Camera,
@@ -58,14 +78,31 @@ export class Commands {
   private readonly logger = Logger.create('Commands');
   private readonly handlers: Partial<Record<Action, Handler>>;
   private exporting = false;
+  readonly player: Player;
 
-  constructor(private readonly ctx: UiContext) {
+  constructor(private readonly ctx: UiContext, hooks: CommandHooks) {
+    this.player = new Player(ctx);
     const w = ctx.world;
     const e = ctx.editor;
     const sel = () => w.selection;
-    const toggle = (key: 'quad' | 'sidePanel' | 'depthCue' | 'grid' | 'gizmo' | 'snap' | 'liveRender') => () => e.update({ [key]: !e.state[key] });
+    const toggle = (key: 'quad' | 'sidePanel' | 'depthCue' | 'grid' | 'gizmo' | 'snap' | 'liveRender' | 'motionPaths') => () => e.update({ [key]: !e.state[key] });
     this.handlers = {
-      [Action.New]: () => w.replaceScene(emptyScene(), 'New scene'),
+      [Action.New]: () => w.replaceScene(emptyScene(w.scene.studio), 'New scene'),
+      [Action.StartWindow]: () => hooks.openStart(),
+      [Action.PlayPause]: () => this.player.toggle(),
+      [Action.FirstFrame]: () => w.setTime(0),
+      [Action.LastFrame]: () => w.setTime(w.scene.animation.duration),
+      [Action.PrevFrame]: () => stepFrames(ctx, -1),
+      [Action.NextFrame]: () => stepFrames(ctx, 1),
+      [Action.PrevKey]: () => jumpKey(ctx, -1),
+      [Action.NextKey]: () => jumpKey(ctx, 1),
+      [Action.AddKey]: () => addKey(ctx),
+      [Action.RemoveKey]: () => removeKey(ctx),
+      [Action.KeyCamera]: () => keyCamera(ctx),
+      [Action.ToggleLoop]: () => setTimeline(ctx, { loop: !w.scene.animation.loop }),
+      [Action.AnimationSetup]: () => openAnimationSetup(w.scene.animation, (s) => setTimeline(ctx, s)),
+      [Action.ClearAnimation]: () => clearAnimation(ctx),
+      [Action.ToggleMotionPaths]: toggle('motionPaths'),
       [Action.Open]: () => void this.open(),
       [Action.Save]: () => downloadScene(w.scene, DEFAULT_FILE_NAME),
       [Action.LoadDemo]: () => w.replaceScene(demoScene(), 'Open demo'),
@@ -139,6 +176,9 @@ export class Commands {
     for (const [action, kind] of Object.entries(VIEW_OF) as [Action, ViewKind][]) {
       this.handlers[action] = () => e.update({ view: kind, quad: false });
     }
+    for (const [action, scroll] of Object.entries(SCROLL_OF) as [Action, ScrollPreference][]) {
+      this.handlers[action] = () => e.update({ scroll });
+    }
   }
 
   run(action: Action, arg?: number): void {
@@ -159,6 +199,7 @@ export class Commands {
     if (a === Action.EditObject || a === Action.Attributes) return w.selection.size === 1;
     if (NEEDS_SELECTION.has(a)) return w.selection.size > 0;
     if (a === Action.StopRender) return this.ctx.view.isRendering;
+    if (TIMELINE_ACTIONS.has(a)) return isMotionStudio(this.ctx);
     return true;
   }
 
@@ -166,6 +207,8 @@ export class Commands {
     const s = this.ctx.editor.state;
     const view = VIEW_OF[a];
     if (view !== undefined) return s.view === view && !s.quad;
+    const scroll = SCROLL_OF[a];
+    if (scroll !== undefined) return s.scroll === scroll;
     const flags: Partial<Record<Action, boolean>> = {
       [Action.QuadView]: s.quad,
       [Action.ToggleSidePanel]: s.sidePanel,
@@ -174,6 +217,9 @@ export class Commands {
       [Action.ToggleGizmo]: s.gizmo,
       [Action.ToggleSnap]: s.snap,
       [Action.ToggleLiveRender]: s.liveRender,
+      [Action.PlayPause]: s.playing,
+      [Action.ToggleLoop]: this.ctx.world.scene.animation.loop,
+      [Action.ToggleMotionPaths]: s.motionPaths,
     };
     return flags[a] ?? false;
   }
@@ -223,7 +269,8 @@ export class Commands {
   /** Esc closes the innermost mode first (compare, then Pick Focus); true when it did. */
   closeMode(): boolean {
     const { snapshots, editor } = this.ctx;
-    if (snapshots.compared) snapshots.compare(null);
+    if (editor.state.playing) this.player.stop();
+    else if (snapshots.compared) snapshots.compare(null);
     else if (editor.state.pickingFocus) editor.update({ pickingFocus: false });
     else return false;
     return true;
@@ -231,7 +278,8 @@ export class Commands {
 
   private movie(): void {
     if (this.exporting) return;
-    openMovieDialog(this.ctx.world.scene.document, (spec) => {
+    const scene = this.ctx.world.scene;
+    openMovieDialog(scene.document, isMotionStudio(this.ctx) ? scene.animation : null, (spec) => {
       this.exporting = true;
       void exportMovie(this.ctx, spec).finally(() => { this.exporting = false; });
     });

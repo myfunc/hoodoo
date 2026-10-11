@@ -19,6 +19,15 @@ export enum ShapeKind {
   SpotLight = 16,
 }
 
+/**
+ * The two studios, after Bryce 2 (1996) and Bryce 3D (1997). A scene belongs to
+ * one of them and renders in its style; the 3D studio adds the animation timeline.
+ */
+export enum Studio {
+  Two = 'hoodoo-2',
+  ThreeD = 'hoodoo-3d',
+}
+
 /** Bryce 2 object attributes: neutral objects ignore booleans; the rest act inside a group. */
 export enum BooleanMode {
   Neutral = 0,

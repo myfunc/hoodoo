@@ -1,6 +1,7 @@
 import { Bus } from '../core/bus';
 import { ViewKind } from '../model/scene.enums';
 import type { Camera } from '../model/scene.types';
+import { ScrollPreference } from './world.enums';
 import { DEFAULT_CAMERA } from './scene.defaults';
 
 export enum PaletteTab {
@@ -33,6 +34,12 @@ export interface EditorState {
   readonly hint: Hint;
   /** The next click in a perspective view sets the camera's focus distance. */
   readonly pickingFocus: boolean;
+  /** What two-finger scrolling does: guessed per swipe, or fixed by the user. */
+  readonly scroll: ScrollPreference;
+  /** Hoodoo 3D: the timeline is playing. */
+  readonly playing: boolean;
+  /** Hoodoo 3D: dotted paths of animated objects in the wireframe. */
+  readonly motionPaths: boolean;
 }
 
 export const IDLE_HINT: Hint = { title: 'Ready', text: 'Point at any control to see what it does' };
@@ -55,6 +62,9 @@ export const INITIAL_EDITOR: EditorState = {
   renderSamples: DEFAULT_SAMPLES,
   hint: IDLE_HINT,
   pickingFocus: false,
+  scroll: ScrollPreference.Auto,
+  playing: false,
+  motionPaths: true,
 };
 
 export interface EditorEvents {

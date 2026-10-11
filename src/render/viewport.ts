@@ -12,6 +12,8 @@ import { ProgressiveRenderer, type RenderProgress } from './gpu/progressive';
 import { RealtimeRenderer, type RealtimeStatus } from './gpu/realtime';
 import { FINAL_BOUNCES, PREVIEW_BOUNCES, PREVIEW_SAMPLES } from './gpu/render.constants';
 import { type Frame, type GizmoHandles, type SegmentIndex, WireProjector, drawWireframe } from './wire/wireframe';
+import { type KeyHandle, drawMotionPaths } from './wire/motion-paths';
+import { Studio } from '../model/scene.enums';
 
 /** One drawable view inside the scene window (one in single view, four in quad view). */
 export interface ViewCell {
@@ -23,6 +25,8 @@ export interface ViewCell {
   readonly basis: ViewBasis;
   segments: SegmentIndex;
   gizmo: GizmoHandles | null;
+  /** Hoodoo 3D: key squares of the motion paths drawn in this cell. */
+  keys: readonly KeyHandle[];
 }
 
 export interface ViewportEvents {
@@ -311,7 +315,7 @@ export class SceneView {
       : [{ kind: s.view, rect: { x: 0, y: 0, w: this.width, h: this.height } }];
     this.cellsCache = rects.map(({ kind, rect }) => {
       const frame = fitFrame(rect, aspect);
-      return { kind, rect, frame, basis: this.basisFor(kind, aspect), segments: new Map(), gizmo: null };
+      return { kind, rect, frame, basis: this.basisFor(kind, aspect), segments: new Map(), gizmo: null, keys: [] };
     });
     const main = this.mainCell();
     if (main && !this.renderer.active) this.placeGlCanvas(main.frame);
@@ -360,6 +364,9 @@ export class SceneView {
       });
       cell.segments = out.segments;
       cell.gizmo = out.gizmo;
+      // Paths are for editing: hidden while the show plays.
+      const paths = scene.studio === Studio.ThreeD && s.motionPaths && !s.playing;
+      cell.keys = paths ? drawMotionPaths(g, scene, new WireProjector(basis, cell.frame), this.world.selection, { camera: cell.kind !== ViewKind.Camera, overRender }) : [];
       this.drawFocus(cell, basis);
       g.font = LABEL_FONT;
       g.fillStyle = LABEL_COLOR;

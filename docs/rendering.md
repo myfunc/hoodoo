@@ -83,3 +83,15 @@ browser keeps the compiled program, and later starts take well under a second.
 `tools/compile-lab.html` measures the compile time of shader variants with
 single features removed (`LAB_NO_TERRAIN`, `LAB_NO_TEX`, …), which is how the
 cost of each part was found.
+
+## Hoodoo 3D render style
+
+Each studio renders in its own style (`src/render/gpu/render-style.ts`, the
+`uStyle` uniform). Hoodoo 2 is Bryce 2: the sun is a point, shadows are hard,
+and colours clip at white. Hoodoo 3D gives the sun a disc and every lamp a
+radius: each sample aims its shadow ray at a random point of the light, so the
+penumbra softens as samples accumulate (the live view and the Render button
+already average many samples). Above a knee, highlights roll off smoothly
+instead of clipping. Nothing else differs, so a scene keeps its light and
+colours between the two looks; a scene belongs to one studio and is always
+rendered in that studio's style.

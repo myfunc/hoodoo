@@ -1,9 +1,16 @@
+import { Studio } from '../model/scene.enums';
 import type { Hint } from '../world/editor-store';
 
 /** Interface strings in one place (canon C12); the app speaks English like the original. */
 export const APP_NAME = 'Hoodoo 2';
 export const APP_TAGLINE = 'A Bryce 2–style landscape studio for the browser';
 export const APP_VERSION = __APP_VERSION__;
+
+/** The two studios, after Bryce 2 (1996) and Bryce 3D (1997). */
+export const STUDIO_NAMES: Readonly<Record<Studio, string>> = {
+  [Studio.Two]: 'Hoodoo 2',
+  [Studio.ThreeD]: 'Hoodoo 3D',
+};
 export const SPLASH = {
   alt: {
     dunes: 'Golden Dunes: a sea of golden fog between green hills at sunrise, three planets in a row above them',
@@ -14,6 +21,24 @@ export const SPLASH = {
   version: 'Version',
   ready: 'Ready',
   dismiss: 'Click or press any key to start',
+} as const;
+
+export const START = {
+  title: 'Welcome to Hoodoo',
+  studio: 'Studio',
+  years: { [Studio.Two]: 'stills · 1996', [Studio.ThreeD]: 'animation · 1997' } as Readonly<Record<Studio, string>>,
+  notes: {
+    [Studio.Two]: 'The Bryce 2 studio: still landscapes, crisp shadows, render on request',
+    [Studio.ThreeD]: 'The Bryce 3D studio: a timeline with keys, soft shadows, movies',
+  } as Readonly<Record<Studio, string>>,
+  begin: 'Begin',
+  newScene: 'New empty scene',
+  open: 'Open a .hoodoo file…',
+  continue: 'Continue the last scene',
+  examples: 'Example projects',
+  animated: 'Animated',
+  showAtStartup: 'Show at startup',
+  close: 'Close (Esc): keep the current scene',
 } as const;
 
 export const HINTS = {

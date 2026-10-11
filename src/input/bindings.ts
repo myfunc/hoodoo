@@ -21,6 +21,7 @@ export enum MenuName {
   Objects = 'Objects',
   View = 'View',
   Render = 'Render',
+  Animation = 'Animation',
   Help = 'Help',
   Palette = 'Palette',
 }
@@ -97,6 +98,24 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.InstallApp]: { label: 'Install as App…', menu: MenuName.Help, chords: [] },
   [Action.About]: { label: 'About Hoodoo', menu: MenuName.Help, chords: [] },
   [Action.SourceCode]: { label: 'Source Code on GitHub', menu: MenuName.Help, chords: [] },
+  [Action.ScrollAuto]: { label: 'Scroll Gestures: Detect Device', menu: MenuName.View, chords: [] },
+  [Action.ScrollWheel]: { label: 'Scroll Gestures: Mouse Wheel Zooms', menu: MenuName.View, chords: [] },
+  [Action.ScrollTrackpad]: { label: 'Scroll Gestures: Trackpad Orbits', menu: MenuName.View, chords: [] },
+  [Action.StartWindow]: { label: 'Start Window…', menu: MenuName.File, chords: [] },
+  [Action.PlayPause]: { label: 'Play / Pause', menu: MenuName.Animation, chords: [c('Space', { shift: true })] },
+  [Action.FirstFrame]: { label: 'Go to Start', menu: MenuName.Animation, chords: [c('Home', { shift: true })] },
+  [Action.LastFrame]: { label: 'Go to End', menu: MenuName.Animation, chords: [c('End', { shift: true })] },
+  [Action.PrevFrame]: { label: 'Previous Frame', menu: MenuName.Animation, chords: [c('Comma')] },
+  [Action.NextFrame]: { label: 'Next Frame', menu: MenuName.Animation, chords: [c('Period')] },
+  [Action.PrevKey]: { label: 'Previous Key', menu: MenuName.Animation, chords: [c('Comma', { shift: true })] },
+  [Action.NextKey]: { label: 'Next Key', menu: MenuName.Animation, chords: [c('Period', { shift: true })] },
+  [Action.AddKey]: { label: 'Add Key for Selection', menu: MenuName.Animation, chords: [c('KeyK')] },
+  [Action.RemoveKey]: { label: 'Remove Key at Playhead', menu: MenuName.Animation, chords: [c('KeyK', { alt: true })] },
+  [Action.KeyCamera]: { label: 'Animate Camera (key it here)', menu: MenuName.Animation, chords: [c('KeyK', { shift: true })] },
+  [Action.ToggleLoop]: { label: 'Loop Playback', menu: MenuName.Animation, chords: [] },
+  [Action.ToggleMotionPaths]: { label: 'Show Motion Paths', menu: MenuName.Animation, chords: [] },
+  [Action.AnimationSetup]: { label: 'Animation Setup…', menu: MenuName.Animation, chords: [] },
+  [Action.ClearAnimation]: { label: 'Clear All Keys', menu: MenuName.Animation, chords: [] },
   [Action.Bookmark]: { label: 'Go to Camera Bookmark', menu: MenuName.View, chords: [] },
   [Action.SaveBookmark]: { label: 'Save Camera Bookmark', menu: MenuName.View, chords: [] },
 };
@@ -104,7 +123,7 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 const KEY_NAMES: Readonly<Record<string, string>> = {
   Delete: 'Del', Backspace: 'Bksp', Escape: 'Esc', Equal: '+', Minus: '-', Slash: '/', Period: '.', Home: 'Home',
-  NumpadAdd: 'Num+', NumpadSubtract: 'Num-', Tab: 'Tab', F12: 'F12',
+  NumpadAdd: 'Num+', NumpadSubtract: 'Num-', Tab: 'Tab', F12: 'F12', Comma: ',', Space: 'Space', End: 'End',
 };
 const CODE_PREFIXES = ['Key', 'Digit', 'Numpad'] as const;
 

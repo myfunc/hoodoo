@@ -91,6 +91,9 @@ uniform vec4 uFogParams;
 uniform vec4 uCloudParams;
 // cumulus, stratus
 uniform vec2 uCloudKinds;
+// Studio render style: sun disc radius for soft shadows (0 = Bryce 2's hard shadows),
+// point light radius, highlight roll-off (0 = clip like Bryce 2), unused.
+uniform vec4 uStyle;
 
 out vec4 fragColor;
 

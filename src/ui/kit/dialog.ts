@@ -24,6 +24,16 @@ let openCount = 0;
 /** Editor shortcuts stay quiet while any modal is open. */
 export const isModalOpen = (): boolean => openCount > 0;
 
+/** For modal windows built without Dialog (the start window): returns the release. */
+export function holdModal(): () => void {
+  openCount++;
+  let held = true;
+  return () => {
+    if (held) openCount--;
+    held = false;
+  };
+}
+
 /** Modal window. Enter accepts, Escape cancels. */
 export class Dialog {
   readonly el: HTMLElement;

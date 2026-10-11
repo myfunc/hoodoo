@@ -4,6 +4,8 @@ import { add, scale } from '../core/vec3';
 
 /** Camera or sun moves for the turntable movie; t runs 0..1 over the movie. */
 export enum MovieMotion {
+  /** Hoodoo 3D: the keys of the timeline, frame by frame. */
+  Timeline = 'timeline',
   Orbit = 'orbit',
   Swing = 'swing',
   FlyIn = 'fly-in',
@@ -15,12 +17,14 @@ export const MOVIE_FPS = 30;
 export interface MovieSpec {
   readonly motion: MovieMotion;
   readonly seconds: number;
+  readonly fps: number;
   readonly width: number;
   readonly height: number;
   readonly samples: number;
 }
 
 export const MOTION_LABELS: Readonly<Record<MovieMotion, string>> = {
+  [MovieMotion.Timeline]: 'The timeline animation',
   [MovieMotion.Orbit]: 'Orbit 360° around the focus point',
   [MovieMotion.Swing]: 'Swing gently left and right',
   [MovieMotion.FlyIn]: 'Fly in toward the focus point',
@@ -50,3 +54,7 @@ export function skyAt(motion: MovieMotion, s: Sky, t: number): Sky {
   if (motion !== MovieMotion.Sunrise) return s;
   return { ...s, sunAltitude: SUN.from + (SUN.to - SUN.from) * ease(t) };
 }
+
+/** Frames of a movie: a looping timeline ends one frame before its start comes round again. */
+export const movieFrames = (spec: MovieSpec, loop: boolean): number =>
+  Math.round(spec.seconds * spec.fps) + (spec.motion === MovieMotion.Timeline && !loop ? 1 : 0);

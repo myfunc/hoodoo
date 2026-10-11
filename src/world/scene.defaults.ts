@@ -1,6 +1,6 @@
 import { DEFAULT_SKY } from '../assets/sky.presets';
-import { ViewKind } from '../model/scene.enums';
-import type { Camera, DocumentSetup, OrthoView, Scene } from '../model/scene.types';
+import { Studio, ViewKind } from '../model/scene.enums';
+import type { Animation, Camera, DocumentSetup, OrthoView, Scene } from '../model/scene.types';
 
 /** Bryce 2's default document: 640 x 480. */
 export const DEFAULT_DOCUMENT: DocumentSetup = { width: 640, height: 480 };
@@ -28,8 +28,13 @@ export const DEFAULT_VIEWS: Readonly<Record<ViewKind, OrthoView>> = {
 
 export const BOOKMARK_SLOTS = 9;
 
-export function emptyScene(): Scene {
+/** Bryce 3D's new animation: five seconds; 15 frames a second keeps ray-traced movies quick. */
+export const EMPTY_ANIMATION: Animation = { duration: 5, fps: 15, loop: true, objects: {}, camera: [], sky: [] };
+
+export function emptyScene(studio: Studio = Studio.Two): Scene {
   return {
+    studio,
+    animation: EMPTY_ANIMATION,
     objects: [],
     camera: DEFAULT_CAMERA,
     sky: DEFAULT_SKY,

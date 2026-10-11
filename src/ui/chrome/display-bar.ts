@@ -4,7 +4,7 @@ import { shortcutOf } from '../../input/bindings';
 import type { RenderProgress } from '../../render/gpu/progressive';
 import type { RealtimeStatus } from '../../render/gpu/realtime';
 import { RENDER_SAMPLE_CHOICES } from '../../world/editor-store';
-import type { UiContext } from '../context';
+import { type UiContext, hintOn } from '../context';
 import { Button, Select } from '../kit/controls';
 import { el, glyph } from '../kit/dom';
 import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
@@ -25,7 +25,18 @@ interface ToggleButton {
   readonly button: Button;
 }
 
-/** Bottom strip under the scene window: view, display toggles and render status. */
+/** What each display toggle shows: its mark and the hint. */
+const TOGGLES: Partial<Record<Action, { mark: readonly string[]; title: string; text: string }>> = {
+  [Action.QuadView]: { mark: GLYPH.quad, title: 'Four Views', text: 'Top, Camera, Front and Side at once' },
+  [Action.ToggleLiveRender]: { mark: GLYPH.live, title: 'Live Render', text: 'Keep ray-tracing while you edit (off: Bryce renders on request)' },
+  [Action.ToggleGrid]: { mark: GLYPH.grid, title: 'Ground Grid', text: 'The pink grid on the ground plane' },
+  [Action.ToggleDepthCue]: { mark: GLYPH.depthCue, title: 'Depth Cue', text: 'Far wireframes fade' },
+  [Action.ToggleGizmo]: { mark: GLYPH.handles, title: 'Move Handles', text: 'Drag an axis arrow to move along it' },
+  [Action.ToggleSnap]: { mark: GLYPH.snap, title: 'Snap to Grid', text: 'Moves land on the grid' },
+  [Action.ToggleSidePanel]: { mark: GLYPH.panel, title: 'Scene Panel', text: 'Attributes, scene list, snapshots and history' },
+};
+
+/** Bottom strip under the scene window: view, display toggles (Bryce-style marks) and render status. */
 export class DisplayBar {
   readonly el: HTMLElement;
   private readonly status: HTMLElement;
@@ -42,7 +53,7 @@ export class DisplayBar {
       onChange: (k) => ctx.dispatch(VIEW_ACTIONS[k]),
     });
     const samples = new Select<number>({
-      items: RENDER_SAMPLE_CHOICES.map((n) => ({ value: n, label: n === 1 ? 'No anti-aliasing' : `${n} rays / pixel` })),
+      items: RENDER_SAMPLE_CHOICES.map((n) => ({ value: n, label: n === 1 ? 'No anti-aliasing' : `${n} rays/px` })),
       value: ctx.editor.state.renderSamples,
       title: 'Anti-aliasing quality of Render',
       onChange: (n) => ctx.editor.update({ renderSamples: n }),
@@ -55,22 +66,22 @@ export class DisplayBar {
       this.redo.el,
       el('div', { cls: 'sep' }),
       this.viewSelect.el,
-      this.toggle('Quad', Action.QuadView),
+      this.toggle(Action.QuadView),
       el('div', { cls: 'sep' }),
-      this.toggle('Live', Action.ToggleLiveRender),
+      this.toggle(Action.ToggleLiveRender),
       samples.el,
       el('div', { cls: 'sep' }),
-      this.toggle('Grid', Action.ToggleGrid),
-      this.toggle('D-Cue', Action.ToggleDepthCue),
-      this.toggle('Handles', Action.ToggleGizmo),
-      this.toggle('Snap', Action.ToggleSnap),
+      this.toggle(Action.ToggleGrid),
+      this.toggle(Action.ToggleDepthCue),
+      this.toggle(Action.ToggleGizmo),
+      this.toggle(Action.ToggleSnap),
       el('div', { cls: 'sep' }),
-      new Button({ cls: 'ghost', title: 'Zoom out', content: glyph(GLYPH.minus, GLYPH_BOX), onClick: () => ctx.dispatch(Action.ZoomOut) }).el,
-      new Button({ cls: 'ghost', title: 'Zoom in', content: glyph(GLYPH.plus, GLYPH_BOX), onClick: () => ctx.dispatch(Action.ZoomIn) }).el,
-      new Button({ label: 'Frame', cls: 'ghost', title: `Frame selection (${shortcutOf(Action.FrameSelected)})`, onClick: () => ctx.dispatch(Action.FrameSelected) }).el,
+      this.tool(Action.ZoomOut, GLYPH.minus, 'Zoom Out', 'Back away from the scene'),
+      this.tool(Action.ZoomIn, GLYPH.plus, 'Zoom In', 'Move closer'),
+      this.tool(Action.FrameSelected, GLYPH.frame, 'Frame Selection', 'Fit the selection in the view'),
       el('div', { cls: 'grow' }),
       this.status,
-      this.toggle('Panel', Action.ToggleSidePanel),
+      this.toggle(Action.ToggleSidePanel),
     ]);
     ctx.editor.events.on('changed', ({ state }) => {
       this.viewSelect.set(state.view);
@@ -107,10 +118,24 @@ export class DisplayBar {
     this.status.textContent = `${d.width} × ${d.height}`;
   }
 
-  private toggle(label: string, action: Action): HTMLElement {
-    const button = new Button({ label, cls: 'ghost', title: `${label} (${shortcutOf(action) || 'menu'})`, onClick: () => this.ctx.dispatch(action) });
+  private toggle(action: Action): HTMLElement {
+    const t = TOGGLES[action];
+    const button = this.markButton(action, t?.mark ?? GLYPH.dot, t?.title ?? action, t?.text ?? '');
     this.toggles.push({ action, button });
     return button.el;
+  }
+
+  private tool(action: Action, mark: readonly string[], title: string, text: string): HTMLElement {
+    return this.markButton(action, mark, title, text).el;
+  }
+
+  /** A stone chip with a mark; the hint area names it (no slow browser tooltip). */
+  private markButton(action: Action, mark: readonly string[], title: string, text: string): Button {
+    const key = shortcutOf(action);
+    const button = new Button({ cls: 'mark-chip', content: glyph(mark, GLYPH_BOX), onClick: () => this.ctx.dispatch(action) });
+    button.el.setAttribute('aria-label', key ? `${title} (${key})` : title);
+    hintOn(this.ctx, button.el, { title, text: key ? `${text}. Shortcut ${key}` : text });
+    return button;
   }
 
   private sync(): void {

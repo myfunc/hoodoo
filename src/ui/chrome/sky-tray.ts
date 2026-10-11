@@ -103,7 +103,7 @@ export class SkyTray {
       this.diceGroup(),
     ]);
     ctx.world.events.on('changed', ({ kind }) => {
-      if (kind === ChangeKind.Sky || kind === ChangeKind.All) this.schedule();
+      if (kind === ChangeKind.Sky || kind === ChangeKind.Time || kind === ChangeKind.All) this.schedule();
     });
     this.refresh();
   }

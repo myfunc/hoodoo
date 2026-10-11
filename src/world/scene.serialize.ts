@@ -2,10 +2,10 @@ import { CREATE_PALETTE } from '../assets/object.catalog';
 import { DEFAULT_SKY } from '../assets/sky.presets';
 import { material } from '../model/material.factory';
 import { type GroupId, asGroupId, asObjectId, newObjectId } from '../model/scene.ids';
-import { BooleanMode, type ViewKind } from '../model/scene.enums';
+import { BooleanMode, Studio, type ViewKind } from '../model/scene.enums';
 import type { Material, Scene, SceneObject, TerrainData } from '../model/scene.types';
 import { LIGHT_KINDS, TERRAIN_KINDS } from './objects.factory';
-import { BOOKMARK_SLOTS, DEFAULT_CAMERA, DEFAULT_DOCUMENT, DEFAULT_VIEWS } from './scene.defaults';
+import { BOOKMARK_SLOTS, DEFAULT_CAMERA, DEFAULT_DOCUMENT, DEFAULT_VIEWS, EMPTY_ANIMATION } from './scene.defaults';
 import * as check from './scene.validate';
 import { SceneFileError } from './scene.validate';
 
@@ -143,10 +143,17 @@ export function deserializeScene(raw: unknown): Scene {
   checkSize(s.objects);
   const seen = new Set<string>();
   const bookmarks = Array.from({ length: BOOKMARK_SLOTS }, (_, i) => s.bookmarks?.[i] ?? null);
+  const objects = capBooleans(s.objects.map((o) => reviveObject(o, seen)));
+  const camera = check.camera(s.camera, DEFAULT_CAMERA);
+  const sky = check.sky(s.sky, DEFAULT_SKY);
+  const studio = check.studio(s.studio);
   return {
-    objects: capBooleans(s.objects.map((o) => reviveObject(o, seen))),
-    camera: check.camera(s.camera, DEFAULT_CAMERA),
-    sky: check.sky(s.sky, DEFAULT_SKY),
+    studio,
+    // Files from before the studios (version 1 without a studio) are Hoodoo 2 scenes: no timeline.
+    animation: studio === Studio.ThreeD ? check.animation(s.animation, EMPTY_ANIMATION, new Set(objects.map((o) => o.id)), camera, sky) : EMPTY_ANIMATION,
+    objects,
+    camera,
+    sky,
     document: check.documentSetup(s.document, DEFAULT_DOCUMENT),
     views: Object.fromEntries((Object.keys(DEFAULT_VIEWS) as unknown as ViewKind[]).map((k) => [k, check.orthoView((s.views as Record<string, unknown> | undefined)?.[k], DEFAULT_VIEWS[k])])) as Scene['views'],
     bookmarks: bookmarks.map((b) => (b ? check.camera(b, DEFAULT_CAMERA) : null)),

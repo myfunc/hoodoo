@@ -1,13 +1,18 @@
-# Hoodoo 2
+# Hoodoo
 
-**A Bryce 2–style 3D landscape studio that runs in the browser.**
+**Bryce-style 3D landscape studios that run in the browser: Hoodoo 2 and Hoodoo 3D.**
 
 Hoodoo recreates the workflow and the look of MetaTools Bryce 2 (1996): the
 stone-grey interface, the wireframe scene window, the camera trackball, the
 Materials Lab, the Terrain Editor, Sky & Fog, and a ray tracer that paints the
-picture block by block. It adds the conveniences a modern editor is expected
-to have — undo history, live rendering, depth of field, snapshots, movies,
-offline use.
+picture block by block. **Hoodoo 3D** follows Bryce 3D (1997): the same studio
+with an animation timeline, keys, motion paths and its own softer render.
+Both add the conveniences a modern editor is expected to have — undo history,
+live rendering, depth of field, snapshots, movies, trackpad gestures, offline use.
+
+The start window asks which studio to open, then offers a new scene, a file,
+the last scene or one of eight example projects. Open
+https://hoodoo.myfunc.io/3d/ to go straight to Hoodoo 3D.
 
 **Live:** https://hoodoo.myfunc.io/
 
@@ -41,6 +46,25 @@ offline use.
   Object Attributes, Edit palette (resize / rotate / reposition, align,
   randomize, land), Object Library, Document Setup.
 
+### From Bryce 3D (the Hoodoo 3D studio)
+
+- **Timeline** under the scene window: transport buttons, a time readout that
+  opens Animation Setup (length, frame rate, loop), and a ruler with the red
+  time scrubber and three lanes of keys — objects, camera, sky.
+- **Auto-key:** move the scrubber, then move, turn or resize an object or
+  change the sky, and that becomes a key. Keys interpolate smoothly (cubic, no
+  overshoot of dials and colours); a looping track that ends where it began
+  flows through the seam. Drag a key on the ruler to retime it.
+- **Motion paths:** every animated object shows its route as a dotted line with
+  a square per key, and the camera's route shows in the other views. Drag a
+  square to reshape the path (Alt lifts it).
+- **Camera moves** start with *Animate Camera* (Shift+K), so looking around
+  never keys the camera by accident.
+- **Its own render:** the sun and lamps have a size, so shadows soften as
+  samples add up, and highlights roll off instead of clipping. The two studios
+  never mix: a scene belongs to one and renders in its style.
+- **Movies** of the timeline, frame by frame, saved as WebM.
+
 ### Modern additions
 
 1. Unlimited undo and redo with a clickable history.
@@ -61,6 +85,9 @@ offline use.
 16. **Surprise Me:** a whole random landscape from one seed (Alt+Shift+N).
 17. **Movies:** turntable, swing, fly-in and sunrise time-lapse, saved as WebM.
 18. **Offline and installable** as an app.
+19. **Start window** with both studios, the last scene and example projects.
+20. **Trackpad gestures:** two fingers orbit, Shift pans, a pinch zooms, Safari's
+    twist turns; a mouse wheel still dollies (View › Scroll Gestures to fix it).
 
 | Depth of field | Snapshot compare |
 |---|---|
@@ -105,7 +132,7 @@ core → model → assets → world → render / io → input → ui → app
 | `core` | vectors, matrices, colour, event bus, logger, seeded random numbers, key names |
 | `model` | scene types and enums, branded ids, material factory |
 | `assets` | presets as data: materials, skies, objects, terrain recipes |
-| `world` | the `World` (immutable scene snapshots, undo, gestures), terrain operations, camera math, transforms, scene files and validation, the landscape generator |
+| `world` | the `World` (immutable scene snapshots, undo, gestures, the playhead), animation keys and interpolation, terrain operations, camera math, transforms, scene files and validation, the landscape generator, example projects |
 | `render` | the GPU engine, classic and live renderers, thumbnails, tiled export, wireframe |
 | `io` | project files, autosave, share links, image export, WebM muxer and encoder |
 | `input` | actions, key bindings, the scene-window pointer state machine |
@@ -115,7 +142,9 @@ core → model → assets → world → render / io → input → ui → app
 ### Scene files and links
 
 A `.hoodoo` file is JSON (`format: "hoodoo-scene"`, `version: 1`); terrain
-heights are stored as base64 16-bit samples. A share link holds the same JSON,
+heights are stored as base64 16-bit samples. `studio` names the studio
+(`hoodoo-2`, or `hoodoo-3d` with an `animation` of keyed tracks); files without
+it open in Hoodoo 2. A share link holds the same JSON,
 deflated, in the URL fragment, so it never reaches a server.
 
 ## Deploying

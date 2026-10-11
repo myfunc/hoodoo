@@ -7,6 +7,8 @@ export enum ChangeKind {
   Camera = 'camera',
   Document = 'document',
   Views = 'views',
+  /** The playhead moved or the timeline changed: animated objects, camera and sky may all differ. */
+  Time = 'time',
   All = 'all',
 }
 

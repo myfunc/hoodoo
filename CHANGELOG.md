@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.5.0 — 2026-10-10
+
+### Added
+- **Hoodoo 3D**, a second studio after Bryce 3D: an animation timeline with
+  transport buttons, a time scrubber and lanes of keys for objects, camera and
+  sky; auto-key at the playhead; smooth key interpolation that never overshoots
+  dials and colours and loops without a seam; key retiming on the ruler; motion
+  paths with draggable key squares in the scene window; Animate Camera; an
+  Animation menu and Animation Setup; movies of the timeline. Its renderer
+  gives the sun and lamps a size for soft shadows and rolls highlights off.
+  Scenes keep their studio; older files open in Hoodoo 2.
+- A start window after the splash: choose the studio, start a new scene, open a
+  file, continue the last scene (with its picture) or open one of eight example
+  projects — four stills for Hoodoo 2, four animated scenes for Hoodoo 3D,
+  rendered by `node tools/make-examples.mjs`. `?studio=3d` or `/3d/` opens it in
+  Hoodoo 3D, `?start=0` skips it; File › Start Window and the studio name in the
+  menu bar bring it back.
+- Trackpad gestures in the scene window: two fingers orbit (Shift or Option pan,
+  Cmd dollies), a pinch zooms, and in Safari a twist turns. A mouse wheel still
+  dollies; the device is guessed per swipe and View › Scroll Gestures can fix it.
+  A swipe or a pinch is one undo step.
+
+### Changed
+- The side panel is dressed like a Bryce palette: embossed titles with teal
+  marks, the scene list with each object's rendered icon, names in their
+  wireframe colours and brackets for groups; Attributes rows led by the Edit
+  tools' icons, the boolean mode as four marks, the material as its rendered
+  ball (click it for the Materials Lab); the history as a trail of pebbles
+  marked by what each step did.
+- The display bar under the scene window uses stone chips with marks instead of
+  words; pointing at one names it in the hint area.
+
 ## 0.4.4 — 2026-10-10
 
 ### Fixed

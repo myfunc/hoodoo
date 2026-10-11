@@ -10,6 +10,7 @@ import type {
   TextureKind,
   TextureMapping,
   ValueChannel,
+  Studio,
   ViewKind,
 } from './scene.enums';
 import type { GroupId, ObjectId } from './scene.ids';
@@ -137,7 +138,30 @@ export interface DocumentSetup {
   readonly height: number;
 }
 
+/** One key of an animation track: the full value at a moment, in seconds. */
+export interface Key<T> {
+  readonly time: number;
+  readonly value: T;
+}
+
+/**
+ * The Hoodoo 3D timeline. Tracks hold keys sorted by time; values between keys
+ * are interpolated (world/animation). Objects without a track stay where they are.
+ */
+export interface Animation {
+  /** Seconds. */
+  readonly duration: number;
+  readonly fps: number;
+  readonly loop: boolean;
+  readonly objects: Readonly<Record<string, readonly Key<Transform>[]>>;
+  readonly camera: readonly Key<Camera>[];
+  readonly sky: readonly Key<Sky>[];
+}
+
 export interface Scene {
+  readonly studio: Studio;
+  /** In Hoodoo 3D the animated values of `objects`, `camera` and `sky` are the pose at the playhead. */
+  readonly animation: Animation;
   readonly objects: readonly SceneObject[];
   readonly camera: Camera;
   readonly sky: Sky;

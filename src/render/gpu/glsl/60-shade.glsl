@@ -139,14 +139,27 @@ vec3 ambientTerm(Mat mt) {
   return mt.ambient * mt.ambience * mix(uAmbientColor, vec3(1), mt.ambience * mt.ambience) * 1.4;
 }
 
+// A random offset in the disc of radius r around direction d (soft shadows: each sample sees another part of the light).
+vec3 discJitter(vec3 d, float r) {
+  vec3 a = abs(d.y) < 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0);
+  vec3 u = normalize(cross(a, d));
+  vec3 v = cross(d, u);
+  float rr = r * sqrt(rand());
+  float phi = TAU * rand();
+  return (u * cos(phi) + v * sin(phi)) * rr;
+}
+
 // Light i as seen from wp (i = -1 is the sun or moon): direction l, distance (INF for the sun), colour.
+// The Hoodoo 3D style gives the lights a size: shadows get soft edges as samples add up.
 vec3 lightAt(int i, vec3 wp, out vec3 l, out float dist) {
   if (i < 0) {
     l = keyLightDir();
+    if (uStyle.x > 0.0) l = normalize(l + discJitter(l, uStyle.x));
     dist = INF;
     return keyLightColor();
   }
   vec3 toL = uLightPos[i].xyz - wp;
+  if (uStyle.y > 0.0) toL += discJitter(normalize(toL), uStyle.y);
   dist = length(toL);
   l = toL / dist;
   float atten = 1.0 / (1.0 + uLightColor[i].w * dist * dist);

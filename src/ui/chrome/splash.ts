@@ -65,7 +65,8 @@ export class Splash {
     this.close();
   };
 
-  constructor(private readonly engine: RayEngine) {
+  /** `onGone` runs once the splash has faded out (what comes next must not catch the dismissing click). */
+  constructor(private readonly engine: RayEngine, private readonly onGone: () => void = () => undefined) {
     this.status = el('div', { cls: 'splash-status', attrs: { role: 'status' } });
     const card = el('div', { cls: 'splash' }, [
       this.picture(),
@@ -90,7 +91,10 @@ export class Splash {
     window.removeEventListener('keydown', this.onKey, true);
     this.stopVideo();
     this.el.classList.add('done');
-    window.setTimeout(() => this.el.remove(), FADE_MS);
+    window.setTimeout(() => {
+      this.el.remove();
+      this.onGone();
+    }, FADE_MS);
   }
 
   /** The clip over the still, or the still alone when motion is unwanted. */

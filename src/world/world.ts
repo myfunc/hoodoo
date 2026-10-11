@@ -3,7 +3,9 @@ import { Logger } from '../core/log';
 import { add } from '../core/vec3';
 import type { ViewKind } from '../model/scene.enums';
 import { type GroupId, type ObjectId, newGroupId, newObjectId } from '../model/scene.ids';
-import type { Camera, DocumentSetup, Material, OrthoView, Scene, SceneObject, Sky } from '../model/scene.types';
+import type { Animation, Camera, DocumentSetup, Material, OrthoView, Scene, SceneObject, Sky } from '../model/scene.types';
+import { frameTime, recordKeys } from './animation/keying';
+import { poseAt } from './animation/pose';
 import { History } from './history';
 import { limitBreach } from './scene-limits';
 import { COPY_SUFFIX, DUPLICATE_OFFSET, HISTORY_LIMIT } from './world.constants';
@@ -17,6 +19,8 @@ export { SelectMode } from './world.enums';
  * Scenes are immutable snapshots; every method builds a new one and records it.
  * Between beginGesture and endGesture all edits amend one history entry,
  * so a whole drag is a single undo step. Selection is not part of history.
+ * Hoodoo 3D: the playhead is session state; the current scene is always posed
+ * at it, and edits become keys at the playhead (animation/keying).
  */
 export class World {
   readonly events = new Bus<WorldEvents>();
@@ -27,6 +31,7 @@ export class World {
   private gestureOpened = false;
   private clipboard: readonly SceneObject[] = [];
   private materialClipboard: Material | null = null;
+  private playhead = 0;
 
   constructor(initial: Scene) {
     this.history = new History(initial, 'Open scene', HISTORY_LIMIT);
@@ -48,8 +53,30 @@ export class World {
     return this.scene.objects.find((o) => o.id === id);
   }
 
+  /** Seconds on the Hoodoo 3D timeline. */
+  get time(): number {
+    return this.playhead;
+  }
+
+  /** Moves the playhead: the scene takes the pose at that frame. Navigation, not an edit. */
+  setTime(t: number): void {
+    const a = this.scene.animation;
+    const time = Math.min(a.duration, Math.max(0, frameTime(t, a.fps)));
+    if (time === this.playhead) return;
+    this.playhead = time;
+    this.pose(ChangeKind.Time);
+  }
+
+  /** Replaces the timeline (keys moved, added or removed, duration changed) and re-poses the scene. */
+  setAnimation(animation: Animation, label: string): void {
+    const scene = poseAt({ ...this.scene, animation }, this.playhead);
+    this.commit(label, scene, ChangeKind.Time, false);
+    if (this.playhead > animation.duration) this.setTime(animation.duration);
+  }
+
   load(scene: Scene, label: string): void {
-    this.history.reset(label, scene);
+    this.playhead = 0;
+    this.history.reset(label, poseAt(scene, 0));
     this.selected = new Set();
     this.logger.info('scene loaded', { label, objects: scene.objects.length });
     this.emitAll(ChangeKind.All);
@@ -58,7 +85,8 @@ export class World {
   /** Swaps the whole scene as an undoable step (New, Open, demo, shared link). */
   replaceScene(scene: Scene, label: string): void {
     this.endGesture();
-    this.commit(label, scene, ChangeKind.All);
+    this.playhead = 0;
+    this.commit(label, poseAt(scene, 0), ChangeKind.All, false);
     this.selected = new Set();
     this.events.emit('selection', { ids: this.selected });
   }
@@ -210,6 +238,8 @@ export class World {
   jumpTo(position: number): void {
     if (this.inGesture) return;
     this.history.jump(position);
+    // An older entry was posed at another time: show it at the playhead.
+    this.history.amend(poseAt(this.history.current, Math.min(this.playhead, this.history.current.animation.duration)));
     this.pruneSelection();
     this.emitAll(ChangeKind.All);
   }
@@ -238,8 +268,18 @@ export class World {
     });
   }
 
-  /** Records the new scene; false (and a `refused` event) when it would exceed the scene limits. */
-  private commit(label: string, scene: Scene, kind: ChangeKind): boolean {
+  private pose(kind: ChangeKind): void {
+    const scene = poseAt(this.scene, this.playhead);
+    this.history.amend(scene);
+    this.events.emit('changed', { scene, kind });
+  }
+
+  /**
+   * Records the new scene; false (and a `refused` event) when it would exceed the scene limits.
+   * Edits are auto-keyed at the playhead; whole-scene swaps and timeline edits are not.
+   */
+  private commit(label: string, next: Scene, kind: ChangeKind, keyed = true): boolean {
+    const scene = keyed ? recordKeys(this.scene, next, this.playhead) : next;
     const breach = limitBreach(scene, this.scene);
     if (breach) {
       this.events.emit('refused', { reason: breach });

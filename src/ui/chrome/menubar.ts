@@ -1,19 +1,27 @@
+import { Action } from '../../input/actions';
 import { ACTIONS, shortcutOf } from '../../input/bindings';
 import type { UiContext } from '../context';
 import { el } from '../kit/dom';
 import { type MenuItem, closeMenu, openMenu } from '../kit/controls';
-import { APP_NAME } from '../strings';
+import { ChangeKind } from '../../world/world.events';
+import { STUDIO_NAMES } from '../strings';
 import { MENUS, type MenuEntry, SEP } from './menu-layout';
 
 export class MenuBar {
   readonly el: HTMLElement;
   private readonly doc: HTMLElement;
+  private readonly title: HTMLElement;
+  private readonly studioHeads: { head: HTMLElement; studio: string }[] = [];
 
   constructor(private readonly ctx: UiContext) {
     this.doc = el('span', { cls: 'menubar-doc' });
-    this.el = el('div', { cls: 'menubar' }, [el('span', { cls: 'menubar-title', text: APP_NAME })]);
+    this.title = el('span', { cls: 'menubar-title' });
+    this.title.addEventListener('click', () => ctx.dispatch(Action.StartWindow));
+    this.title.title = 'Start window: switch studio, open an example';
+    this.el = el('div', { cls: 'menubar' }, [this.title]);
     for (const menu of MENUS) {
       const head = el('span', { cls: 'menubar-item', text: menu.name });
+      if (menu.studio) this.studioHeads.push({ head, studio: menu.studio });
       head.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -30,6 +38,15 @@ export class MenuBar {
     }
     this.el.append(el('span', { cls: 'menubar-spacer' }), this.doc);
     document.addEventListener('keydown', () => closeMenu());
+    ctx.world.events.on('changed', ({ kind }) => { if (kind === ChangeKind.All) this.syncStudio(); });
+    this.syncStudio();
+  }
+
+  /** The title names the studio; menus of the other studio hide. */
+  private syncStudio(): void {
+    const studio = this.ctx.world.scene.studio;
+    this.title.textContent = STUDIO_NAMES[studio];
+    for (const h of this.studioHeads) h.head.hidden = h.studio !== studio;
   }
 
   set docInfo(text: string) {

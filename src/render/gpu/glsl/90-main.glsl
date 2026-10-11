@@ -177,5 +177,11 @@ void main() {
     }
   }
   vec4 c = radiance(ro, rd);
+  // Hoodoo 3D rolls highlights off above the knee instead of clipping them flat.
+  if (uStyle.z > 0.0) {
+    float knee = 1.0 - uStyle.z;
+    vec3 over = max(c.rgb - knee, 0.0);
+    c.rgb = min(c.rgb, vec3(knee)) + uStyle.z * (1.0 - exp(-over / uStyle.z));
+  }
   fragColor = vec4(clamp(c.rgb, 0.0, 1.0), c.a);
 }

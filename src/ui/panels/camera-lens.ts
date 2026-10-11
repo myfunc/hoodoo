@@ -5,7 +5,8 @@ import { MIN_FOCUS } from '../../world/camera-math';
 import { ChangeKind } from '../../world/world.events';
 import type { UiContext } from '../context';
 import { Button, Dial, NumberField } from '../kit/controls';
-import { el } from '../kit/dom';
+import { el, glyph } from '../kit/dom';
+import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
 
 const FOV = { min: 10, max: 120 } as const;
 const APERTURE = { min: 0, max: 100 } as const;
@@ -43,13 +44,13 @@ export class CameraLens {
       onClick: () => ctx.dispatch(Action.PickFocus),
     });
     this.el = el('div', { cls: 'camera-lens' }, [
-      el('div', { cls: 'stone-section-title', text: 'Camera lens' }),
+      el('div', { cls: 'stone-section-title lens-title' }, [glyph(GLYPH.camera, GLYPH_BOX), 'Camera lens']),
       this.fov.el,
       this.aperture.el,
       el('div', { cls: 'lens-focus' }, [el('span', { cls: 'props-label', text: 'Focus' }), this.focus.el, pick.el]),
     ]);
     ctx.world.events.on('changed', ({ kind }) => {
-      if (kind === ChangeKind.Camera || kind === ChangeKind.All) this.sync();
+      if (kind === ChangeKind.Camera || kind === ChangeKind.Time || kind === ChangeKind.All) this.sync();
     });
   }
 
