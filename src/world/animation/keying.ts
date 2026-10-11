@@ -1,4 +1,3 @@
-import { Studio } from '../../model/scene.enums';
 import type { Animation, Key, Scene, SceneObject } from '../../model/scene.types';
 
 /**
@@ -6,7 +5,8 @@ import type { Animation, Key, Scene, SceneObject } from '../../model/scene.types
  * the change becomes a key at that frame. A first change of a still object also
  * keys where it was at zero, so it moves from there. At zero, a still object is
  * simply edited. The camera is keyed once its track exists (Key Camera), so
- * looking around never starts a camera move by accident.
+ * looking around never starts a camera move by accident. With animation off
+ * nothing is keyed.
  */
 
 /** Key times sit on frames: two keys closer than half a frame are the same key. */
@@ -42,13 +42,13 @@ function prunedObjects(a: Animation, alive: ReadonlySet<string>): Animation['obj
   return Object.fromEntries(ids.filter((id) => alive.has(id)).map((id) => [id, a.objects[id]]));
 }
 
-/** The edited scene with auto-keys recorded at `time`; Hoodoo 2 scenes pass through. */
+/** The edited scene with auto-keys recorded at `time`; with animation off only the tracks of deleted objects go. */
 export function recordKeys(before: Scene, after: Scene, time: number): Scene {
-  if (after.studio !== Studio.ThreeD) return after;
   const a = after.animation;
+  let objects = prunedObjects(a, new Set(after.objects.map((o) => o.id)));
+  if (!a.enabled) return objects === a.objects ? after : { ...after, animation: { ...a, objects } };
   const t = frameTime(time, a.fps);
   const prior = new Map(before.objects.map((o) => [o.id, o]));
-  let objects = prunedObjects(a, new Set(after.objects.map((o) => o.id)));
   for (const o of after.objects) {
     const old = prior.get(o.id);
     if (!old || sameTransform(old, o)) continue;

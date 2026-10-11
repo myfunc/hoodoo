@@ -39,6 +39,7 @@ export function skyAt(keys: readonly Key<Sky>[], t: number, loop = false): Sky {
     sunAltitude: n((s) => s.sunAltitude),
     sunVisible: step((s) => s.sunVisible),
     shadows: n((s) => s.shadows),
+    softShadows: n((s) => s.softShadows),
     fogAmount: n((s) => s.fogAmount),
     fogHeight: n((s) => s.fogHeight),
     fogColor: rgb((s) => s.fogColor),
@@ -57,10 +58,11 @@ export function skyAt(keys: readonly Key<Sky>[], t: number, loop = false): Sky {
   };
 }
 
+/** The scene moves: animation is on and some track has keys. */
 export const isAnimated = (a: Animation): boolean =>
-  a.camera.length > 0 || a.sky.length > 0 || Object.values(a.objects).some((k) => k.length > 0);
+  a.enabled && (a.camera.length > 0 || a.sky.length > 0 || Object.values(a.objects).some((k) => k.length > 0));
 
-/** The scene posed at `t`: animated objects, camera and sky take their interpolated values. */
+/** The scene posed at `t`: animated objects, camera and sky take their interpolated values; a still stays as it is. */
 export function poseAt(scene: Scene, t: number): Scene {
   const a = scene.animation;
   if (!isAnimated(a)) return scene;

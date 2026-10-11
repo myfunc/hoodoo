@@ -44,6 +44,7 @@ interface DragThumb {
 
 const THUMBS: readonly DragThumb[] = [
   { label: 'Shadows', hint: HINTS.shadows, patch: (_s, dx, _dy, a) => ({ ...a, shadows: clampDial(a.shadows + dx / PX_PER_DIAL) }), value: (s) => `${s.shadows}` },
+  { label: 'Soft shadows', hint: HINTS.softShadows, patch: (_s, dx, _dy, a) => ({ ...a, softShadows: clampDial(a.softShadows + dx / PX_PER_DIAL) }), value: (s) => `${s.softShadows}` },
   {
     label: 'Fog', hint: HINTS.fog,
     patch: (_s, dx, dy, a) => ({ ...a, fogAmount: clampDial(a.fogAmount + dx / PX_PER_DIAL), fogHeight: Math.min(FOG_HEIGHT_MAX, Math.max(0, a.fogHeight - dy * FOG_HEIGHT_PER_PX)) }),

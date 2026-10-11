@@ -12,4 +12,9 @@ describe('menu layout', () => {
     const missing = Object.values(Action).filter((a) => ACTIONS[a].menu !== MenuName.Palette && !KEYS_ONLY.has(a) && !listed.has(a));
     expect(missing).toEqual([]);
   });
+
+  it('always has the Animation menu, its switch on top', () => {
+    const menu = MENUS.find((m) => m.name === MenuName.Animation);
+    expect(menu?.items[0]).toBe(Action.ToggleAnimation);
+  });
 });

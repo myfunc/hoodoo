@@ -35,7 +35,7 @@ enum Gesture {
   MoveObjects = 'move-objects',
   AxisDrag = 'axis-drag',
   BoxSelect = 'box-select',
-  /** Hoodoo 3D: dragging a key square of a motion path. */
+  /** Animation: dragging a key square of a motion path. */
   KeyDrag = 'key-drag',
   Orbit = 'orbit',
   Pan = 'pan',

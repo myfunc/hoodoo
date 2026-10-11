@@ -16,6 +16,16 @@ describe('scene files', () => {
   it('rejects foreign JSON', () => {
     expect(() => deserializeScene({ hello: 1 })).toThrow(SceneFileError);
   });
+
+  it('write version 2 with the animation switch and soft shadows', () => {
+    const scene = { ...demoScene(), sky: { ...demoScene().sky, softShadows: 40 } };
+    const file = JSON.parse(JSON.stringify(serializeScene(scene)));
+    expect(file.version).toBe(2);
+    expect(file.scene.studio).toBeUndefined();
+    expect(file.scene.animation.enabled).toBe(false);
+    expect(deserializeScene(file).sky.softShadows).toBe(40);
+    expect(() => deserializeScene({ ...file, version: 3 })).toThrow(SceneFileError);
+  });
 });
 
 describe('hostile scene files', () => {
@@ -44,6 +54,19 @@ describe('hostile scene files', () => {
 describe('hostile scene files, round 2', () => {
   const ok = deserializeScene(JSON.parse(JSON.stringify(serializeScene(demoScene()))));
   const file = (patch: Record<string, unknown>) => ({ format: 'hoodoo-scene', version: 1, scene: { objects: [], ...patch } });
+
+  it('clamps soft shadows to the dial', () => {
+    const soft = (v: unknown, version = 2) => deserializeScene({ ...file({ sky: { softShadows: v } }), version }).sky.softShadows;
+    expect(soft(-50)).toBe(0);
+    expect(soft(500)).toBe(100);
+    expect(soft(37.5)).toBe(37.5);
+    expect(soft('100')).toBe(0);
+    expect(soft(null)).toBe(0);
+    expect(soft(Number.NaN)).toBe(0);
+    expect(soft(Infinity)).toBe(0);
+    expect(soft(1e300)).toBe(0);
+    expect(soft({ valueOf: () => 100 })).toBe(0);
+  });
 
   it('replaces malformed sky colours with defaults', () => {
     const s = deserializeScene(file({ sky: { sunColor: 5, clouds: { color: 'red' } } }));

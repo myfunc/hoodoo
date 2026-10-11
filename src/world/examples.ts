@@ -2,7 +2,6 @@ import { createEntry } from '../assets/object.catalog';
 import { OBJECT_LIBRARY } from '../assets/object.library';
 import { SKY_LIBRARY } from '../assets/sky.presets';
 import type { Vec3 } from '../core/vec3';
-import { Studio } from '../model/scene.enums';
 import type { Camera, Key, Scene, SceneObject, Transform } from '../model/scene.types';
 import { bakeAnimation, keyTimes } from './animation/bake';
 import { lookAt } from './camera-math';
@@ -13,13 +12,14 @@ import { EMPTY_ANIMATION, emptyScene } from './scene.defaults';
 import { SplashClip, SplashKind, splashBase, splashFrame, splashScene } from './splash-scene';
 
 /**
- * The example projects of the start window: finished scenes for each studio,
- * the Hoodoo 3D ones with their animation already on the timeline. Thumbnails
- * are rendered by tools/make-examples.mjs into src/ui/art/examples/<id>.jpg.
+ * The example projects of the start window: finished stills, then animated scenes
+ * with their keys already on the timeline. Thumbnails are rendered by
+ * tools/make-examples.mjs into src/ui/art/examples/<id>.jpg.
  */
 export interface Example {
   readonly id: string;
-  readonly studio: Studio;
+  /** The scene comes with its animation on (the start window's badge; a test checks it against the build). */
+  readonly animated: boolean;
   readonly name: string;
   readonly blurb: string;
   build(): Scene;
@@ -29,22 +29,25 @@ const TAU = 2 * Math.PI;
 const RAD_PER_DEG = Math.PI / 180;
 const EXAMPLE_DOCUMENT = { width: 960, height: 600 } as const;
 const SURPRISE_SEED = 2024;
+/** The animated examples keep the Bryce 3D look they were made with. */
+const SOFT_SHADOWS = 100;
 
-const inStudio = (scene: Scene, studio: Studio, document = scene.document): Scene => ({ ...scene, studio, document });
+const withDocument = (scene: Scene, document: Scene['document']): Scene => ({ ...scene, document });
+const softened = (scene: Scene, document = scene.document): Scene => ({ ...scene, document, sky: { ...scene.sky, softShadows: SOFT_SHADOWS } });
 
-// ---------- Hoodoo 3D: the splash motions as editable keys ----------
+// ---------- Animated: the splash motions as editable keys ----------
 
 const LOOP_SECONDS = 10;
 const LOOP_KEYS = 21;
 
 function splashMotion(kind: SplashKind, loop: boolean): Scene {
-  const base = inStudio(splashBase(kind), Studio.ThreeD, EXAMPLE_DOCUMENT);
+  const base = softened(splashBase(kind), EXAMPLE_DOCUMENT);
   const frameAt = (t: number) => splashFrame(base, kind, SplashClip.Loop, t / LOOP_SECONDS);
   const animation = bakeAnimation(base, frameAt, keyTimes(LOOP_SECONDS, LOOP_KEYS), { duration: LOOP_SECONDS, loop });
   return { ...frameAt(0), animation };
 }
 
-// ---------- Hoodoo 3D: a flight through the canyon ----------
+// ---------- Animated: a flight through the canyon ----------
 
 const FLIGHT = {
   seconds: 8,
@@ -62,7 +65,7 @@ function aimed(c: Camera, from: Vec3, at: Vec3): Camera {
 }
 
 function canyonFlight(): Scene {
-  const scene = inStudio(demoScene(), Studio.ThreeD);
+  const scene = softened(demoScene());
   const F = FLIGHT;
   const camera = keyed(F.path.map((p) => aimed(scene.camera, [p[0], p[1], p[2]], F.aim)), F.seconds);
   const eggs = scene.objects.filter((o) => o.name.endsWith('Egg') && o.name !== 'Pedestal Egg');
@@ -77,11 +80,11 @@ function canyonFlight(): Scene {
     values[steps] = values[0];
     return [egg.id, keyed(values, F.seconds)];
   }));
-  const animation = { ...EMPTY_ANIMATION, duration: F.seconds, loop: true, objects, camera };
+  const animation = { ...EMPTY_ANIMATION, enabled: true, duration: F.seconds, loop: true, objects, camera };
   return { ...scene, animation, camera: camera[0].value };
 }
 
-// ---------- Hoodoo 3D: moons around a ringed planet ----------
+// ---------- Animated: moons around a ringed planet ----------
 
 const WALTZ = {
   seconds: 8,
@@ -108,7 +111,7 @@ function piece(entry: string, name: string, material: string, position: Vec3, si
 }
 
 function moonWaltz(): Scene {
-  const base = emptyScene(Studio.ThreeD);
+  const base = emptyScene();
   const W = WALTZ;
   const p = W.planet;
   const planet = piece('sphere', 'Ringed Planet', 'Mars Soil', p, W.planetSize);
@@ -134,20 +137,20 @@ function moonWaltz(): Scene {
   }));
   const camera = keyed(W.camera.map((c) => aimed(base.camera, [c[0], c[1], c[2]], [p[0], p[1] - W.aimDrop, p[2]])), W.seconds);
   const preset = SKY_LIBRARY.find((s) => s.name === W.sky.preset)?.sky ?? base.sky;
-  const sky = { ...preset, sunAzimuth: W.sky.azimuth, sunAltitude: W.sky.altitude };
+  const sky = { ...preset, sunAzimuth: W.sky.azimuth, sunAltitude: W.sky.altitude, softShadows: SOFT_SHADOWS };
   return {
     ...base, sky, objects, document: EXAMPLE_DOCUMENT, camera: camera[0].value,
-    animation: { ...EMPTY_ANIMATION, duration: W.seconds, loop: true, objects: tracks, camera },
+    animation: { ...EMPTY_ANIMATION, enabled: true, duration: W.seconds, loop: true, objects: tracks, camera },
   };
 }
 
 export const EXAMPLES: readonly Example[] = [
-  { id: 'canyon', studio: Studio.Two, name: 'Trapper Keeper Canyon', blurb: 'Strata towers and chrome eggs in a lagoon', build: () => demoScene() },
-  { id: 'dunes', studio: Studio.Two, name: 'Golden Dunes', blurb: 'Sunrise fog between hills, three planets', build: () => inStudio(splashScene(SplashKind.Dunes), Studio.Two, EXAMPLE_DOCUMENT) },
-  { id: 'arch', studio: Studio.Two, name: 'Ring Arch', blurb: 'A planet ring over a starry lake', build: () => inStudio(splashScene(SplashKind.Arch), Studio.Two, EXAMPLE_DOCUMENT) },
-  { id: 'surprise', studio: Studio.Two, name: 'Checkerboard Desert', blurb: `Stones on chrome checkers · Surprise #${SURPRISE_SEED}`, build: () => surpriseScene(SURPRISE_SEED) },
-  { id: 'flight', studio: Studio.ThreeD, name: 'Canyon Flight', blurb: 'The camera flies round bobbing eggs', build: canyonFlight },
-  { id: 'waltz', studio: Studio.ThreeD, name: 'Moon Waltz', blurb: 'Two moons orbit a ringed planet', build: moonWaltz },
-  { id: 'dunes-morning', studio: Studio.ThreeD, name: 'Dunes Morning', blurb: 'Sun, fog and planets breathe in a loop', build: () => splashMotion(SplashKind.Dunes, true) },
-  { id: 'arch-night', studio: Studio.ThreeD, name: 'Arch Night', blurb: 'The night sky wheels over the lake', build: () => splashMotion(SplashKind.Arch, false) },
+  { id: 'canyon', animated: false, name: 'Trapper Keeper Canyon', blurb: 'Strata towers and chrome eggs', build: () => demoScene() },
+  { id: 'dunes', animated: false, name: 'Golden Dunes', blurb: 'Sunrise fog and three planets', build: () => withDocument(splashScene(SplashKind.Dunes), EXAMPLE_DOCUMENT) },
+  { id: 'arch', animated: false, name: 'Ring Arch', blurb: 'A planet ring over a starry lake', build: () => withDocument(splashScene(SplashKind.Arch), EXAMPLE_DOCUMENT) },
+  { id: 'surprise', animated: false, name: 'Checkerboard Desert', blurb: `Stones · Surprise Me #${SURPRISE_SEED}`, build: () => surpriseScene(SURPRISE_SEED) },
+  { id: 'flight', animated: true, name: 'Canyon Flight', blurb: 'The camera flies round the eggs', build: canyonFlight },
+  { id: 'waltz', animated: true, name: 'Moon Waltz', blurb: 'Two moons orbit a ringed planet', build: moonWaltz },
+  { id: 'dunes-morning', animated: true, name: 'Dunes Morning', blurb: 'Sun, fog and planets breathe', build: () => splashMotion(SplashKind.Dunes, true) },
+  { id: 'arch-night', animated: true, name: 'Arch Night', blurb: 'The night sky wheels over the lake', build: () => splashMotion(SplashKind.Arch, false) },
 ];

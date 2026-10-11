@@ -1,18 +1,18 @@
 # Hoodoo
 
-**Bryce-style 3D landscape studios that run in the browser: Hoodoo 2 and Hoodoo 3D.**
+**A Bryce-style 3D landscape studio that runs in the browser.**
 
 Hoodoo recreates the workflow and the look of MetaTools Bryce 2 (1996): the
 stone-grey interface, the wireframe scene window, the camera trackball, the
 Materials Lab, the Terrain Editor, Sky & Fog, and a ray tracer that paints the
-picture block by block. **Hoodoo 3D** follows Bryce 3D (1997): the same studio
-with an animation timeline, keys, motion paths and its own softer render.
-Both add the conveniences a modern editor is expected to have — undo history,
-live rendering, depth of field, snapshots, movies, trackpad gestures, offline use.
+picture block by block. From Bryce 3D (1997) it takes the animation timeline,
+keys and motion paths — switched on for any scene with one click — and soft
+shadows, a dial in Sky & Fog. It adds the conveniences a modern editor is
+expected to have — undo history, live rendering, depth of field, snapshots,
+movies, trackpad gestures, offline use.
 
-The start window asks which studio to open, then offers a new scene, a file,
-the last scene or one of eight example projects. Open
-https://hoodoo.myfunc.io/3d/ to go straight to Hoodoo 3D.
+The start window offers a new scene, a file, the last scene or one of eight
+example projects: four stills and four animations.
 
 **Live:** https://hoodoo.myfunc.io/
 
@@ -46,8 +46,13 @@ https://hoodoo.myfunc.io/3d/ to go straight to Hoodoo 3D.
   Object Attributes, Edit palette (resize / rotate / reposition, align,
   randomize, land), Object Library, Document Setup.
 
-### From Bryce 3D (the Hoodoo 3D studio)
+### From Bryce 3D
 
+- **Animation switch:** every scene is a still until its animation is switched
+  on — the film chip in the display bar, Animation › Animation, or Shift+A. On,
+  the timeline appears; off, it hides, edits are no longer keyed and the scene
+  rests in its start pose. The keys are kept, so switching back on brings the
+  motion back. Each switch is one undo step and is saved with the scene.
 - **Timeline** under the scene window: transport buttons, a time readout that
   opens Animation Setup (length, frame rate, loop), and a ruler with the red
   time scrubber and three lanes of keys — objects, camera, sky.
@@ -60,10 +65,12 @@ https://hoodoo.myfunc.io/3d/ to go straight to Hoodoo 3D.
   square to reshape the path (Alt lifts it).
 - **Camera moves** start with *Animate Camera* (Shift+K), so looking around
   never keys the camera by accident.
-- **Its own render:** the sun and lamps have a size, so shadows soften as
-  samples add up, and highlights roll off instead of clipping. The two studios
-  never mix: a scene belongs to one and renders in its style.
-- **Movies** of the timeline, frame by frame, saved as WebM.
+- **Soft shadows:** a Sky & Fog dial from 0 (Bryce 2's crisp shadows, the
+  default) to 100 (Bryce 3D's look): the sun and lamps get a size, so shadows
+  soften as samples add up, and highlights roll off instead of clipping. It can
+  be keyed like any other sky dial.
+- **Movies** of the timeline, frame by frame, saved as WebM, when the scene is
+  animated.
 
 ### Modern additions
 
@@ -85,7 +92,7 @@ https://hoodoo.myfunc.io/3d/ to go straight to Hoodoo 3D.
 16. **Surprise Me:** a whole random landscape from one seed (Alt+Shift+N).
 17. **Movies:** turntable, swing, fly-in and sunrise time-lapse, saved as WebM.
 18. **Offline and installable** as an app.
-19. **Start window** with both studios, the last scene and example projects.
+19. **Start window** with a new scene, the last scene and example projects.
 20. **Trackpad gestures:** two fingers orbit, Shift pans, a pinch zooms, Safari's
     twist turns; a mouse wheel still dollies (View › Scroll Gestures to fix it).
 
@@ -141,11 +148,12 @@ core → model → assets → world → render / io → input → ui → app
 
 ### Scene files and links
 
-A `.hoodoo` file is JSON (`format: "hoodoo-scene"`, `version: 1`); terrain
-heights are stored as base64 16-bit samples. `studio` names the studio
-(`hoodoo-2`, or `hoodoo-3d` with an `animation` of keyed tracks); files without
-it open in Hoodoo 2. A share link holds the same JSON,
-deflated, in the URL fragment, so it never reaches a server.
+A `.hoodoo` file is JSON (`format: "hoodoo-scene"`, `version: 2`); terrain
+heights are stored as base64 16-bit samples. `animation` holds the switch
+(`enabled`) and the keyed tracks, `sky.softShadows` the shadow softness.
+Version 1 files named a studio instead: `hoodoo-3d` scenes open with animation
+on and soft shadows at 100, the rest as stills with crisp shadows. A share link
+holds the same JSON, deflated, in the URL fragment, so it never reaches a server.
 
 ## Deploying
 

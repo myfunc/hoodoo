@@ -35,7 +35,8 @@ import { compareLatest, takeSnapshot } from './snapshot-ops';
 import { createFromLibrary, frame } from './scene-ops';
 import { openAnimationSetup } from '../ui/labs/animation-setup';
 import { ScrollPreference } from '../input/scroll-device';
-import { Player, addKey, clearAnimation, isMotionStudio, jumpKey, keyCamera, removeKey, setTimeline, stepFrames } from './timeline-ops';
+import { isAnimated } from '../world/animation/pose';
+import { Player, addKey, clearAnimation, isAnimationOn, jumpKey, keyCamera, removeKey, setTimeline, stepFrames, toggleAnimation } from './timeline-ops';
 
 type Handler = (arg?: number) => void;
 
@@ -44,7 +45,7 @@ export interface CommandHooks {
   readonly openStart: () => void;
 }
 
-/** Commands of the Hoodoo 3D timeline: off in Hoodoo 2. */
+/** Commands of the timeline: off while the scene's animation is off. */
 const TIMELINE_ACTIONS: ReadonlySet<Action> = new Set([
   Action.PlayPause, Action.FirstFrame, Action.LastFrame, Action.PrevFrame, Action.NextFrame, Action.PrevKey, Action.NextKey,
   Action.AddKey, Action.RemoveKey, Action.KeyCamera, Action.ToggleLoop, Action.AnimationSetup, Action.ClearAnimation, Action.ToggleMotionPaths,
@@ -87,8 +88,9 @@ export class Commands {
     const sel = () => w.selection;
     const toggle = (key: 'quad' | 'sidePanel' | 'depthCue' | 'grid' | 'gizmo' | 'snap' | 'liveRender' | 'motionPaths') => () => e.update({ [key]: !e.state[key] });
     this.handlers = {
-      [Action.New]: () => w.replaceScene(emptyScene(w.scene.studio), 'New scene'),
+      [Action.New]: () => w.replaceScene(emptyScene(), 'New scene'),
       [Action.StartWindow]: () => hooks.openStart(),
+      [Action.ToggleAnimation]: () => toggleAnimation(ctx),
       [Action.PlayPause]: () => this.player.toggle(),
       [Action.FirstFrame]: () => w.setTime(0),
       [Action.LastFrame]: () => w.setTime(w.scene.animation.duration),
@@ -163,7 +165,8 @@ export class Commands {
       [Action.TabCreate]: () => e.update({ tab: PaletteTab.Create }),
       [Action.TabEdit]: () => e.update({ tab: PaletteTab.Edit }),
       [Action.TabSky]: () => e.update({ tab: PaletteTab.Sky }),
-      [Action.SkyLibrary]: () => openSkyLibrary(ctx.thumbs, (s) => w.setSky(s.sky, `Sky: ${s.name}`), () => undefined),
+      // A preset is an atmosphere: the scene keeps its shadow softness.
+      [Action.SkyLibrary]: () => openSkyLibrary(ctx.thumbs, (s) => w.setSky({ ...s.sky, softShadows: w.scene.sky.softShadows }, `Sky: ${s.name}`), () => undefined),
       [Action.MaterialLibrary]: () => this.materials(),
       [Action.CommandPalette]: () => openCommandPalette(ctx),
       [Action.Shortcuts]: () => openShortcuts(),
@@ -199,7 +202,7 @@ export class Commands {
     if (a === Action.EditObject || a === Action.Attributes) return w.selection.size === 1;
     if (NEEDS_SELECTION.has(a)) return w.selection.size > 0;
     if (a === Action.StopRender) return this.ctx.view.isRendering;
-    if (TIMELINE_ACTIONS.has(a)) return isMotionStudio(this.ctx);
+    if (TIMELINE_ACTIONS.has(a)) return isAnimationOn(this.ctx);
     return true;
   }
 
@@ -217,6 +220,7 @@ export class Commands {
       [Action.ToggleGizmo]: s.gizmo,
       [Action.ToggleSnap]: s.snap,
       [Action.ToggleLiveRender]: s.liveRender,
+      [Action.ToggleAnimation]: this.ctx.world.scene.animation.enabled,
       [Action.PlayPause]: s.playing,
       [Action.ToggleLoop]: this.ctx.world.scene.animation.loop,
       [Action.ToggleMotionPaths]: s.motionPaths,
@@ -279,7 +283,8 @@ export class Commands {
   private movie(): void {
     if (this.exporting) return;
     const scene = this.ctx.world.scene;
-    openMovieDialog(scene.document, isMotionStudio(this.ctx) ? scene.animation : null, (spec) => {
+    // A scene with animation on and keys films its timeline; a still gets the turntable moves.
+    openMovieDialog(scene.document, isAnimated(scene.animation) ? scene.animation : null, (spec) => {
       this.exporting = true;
       void exportMovie(this.ctx, spec).finally(() => { this.exporting = false; });
     });

@@ -34,6 +34,7 @@ const TOGGLES: Partial<Record<Action, { mark: readonly string[]; title: string; 
   [Action.ToggleGizmo]: { mark: GLYPH.handles, title: 'Move Handles', text: 'Drag an axis arrow to move along it' },
   [Action.ToggleSnap]: { mark: GLYPH.snap, title: 'Snap to Grid', text: 'Moves land on the grid' },
   [Action.ToggleSidePanel]: { mark: GLYPH.panel, title: 'Scene Panel', text: 'Attributes, scene list, snapshots and history' },
+  [Action.ToggleAnimation]: { mark: GLYPH.film, title: 'Animation', text: 'Timeline with keys, play, movies' },
 };
 
 /** Bottom strip under the scene window: view, display toggles (Bryce-style marks) and render status. */
@@ -70,6 +71,8 @@ export class DisplayBar {
       el('div', { cls: 'sep' }),
       this.toggle(Action.ToggleLiveRender),
       samples.el,
+      el('div', { cls: 'sep' }),
+      this.toggle(Action.ToggleAnimation),
       el('div', { cls: 'sep' }),
       this.toggle(Action.ToggleGrid),
       this.toggle(Action.ToggleDepthCue),

@@ -2,7 +2,7 @@ import { DEFAULT_LIGHT } from '../assets/object.catalog';
 import type { Vec3 } from '../core/vec3';
 import { VALUE_LIMITS } from '../model/material.factory';
 import type { Rgb } from '../core/color';
-import { BooleanMode, ChannelSource, ColorChannel, Family, ShapeKind, SkyMode, Studio, TextureKind, TextureMapping, ValueChannel } from '../model/scene.enums';
+import { BooleanMode, ChannelSource, ColorChannel, Family, ShapeKind, SkyMode, TextureKind, TextureMapping, ValueChannel } from '../model/scene.enums';
 import type { Animation, Camera, CloudSettings, DocumentSetup, Key, LightData, OrthoView, ProceduralTexture, Sky, Transform } from '../model/scene.types';
 
 /**
@@ -121,6 +121,7 @@ export function sky(s: unknown, d: Sky): Sky {
     sunAltitude: clampNum(r.sunAltitude, d.sunAltitude, ALTITUDE),
     sunVisible: bool(r.sunVisible, d.sunVisible),
     shadows: clampNum(r.shadows, d.shadows, DIAL),
+    softShadows: clampNum(r.softShadows, d.softShadows, DIAL),
     fogAmount: clampNum(r.fogAmount, d.fogAmount, DIAL),
     fogHeight: clampNum(r.fogHeight, d.fogHeight, HEIGHT),
     fogColor: rgbOr(r.fogColor, d.fogColor),
@@ -189,9 +190,6 @@ export function materialParts(m: unknown): {
   };
 }
 
-const STUDIOS: ReadonlySet<unknown> = new Set(Object.values(Studio));
-export const studio = (v: unknown): Studio => (STUDIOS.has(v) ? (v as Studio) : Studio.Two);
-
 export const ANIMATION_LIMITS = { duration: { min: 0.5, max: 600 }, fps: { min: 6, max: 60 } } as const;
 
 /** Keys of one track: well-formed ones only, inside the duration, sorted, at most keysPerTrack. */
@@ -219,6 +217,7 @@ export function animation(v: unknown, d: Animation, objectIds: ReadonlySet<strin
     Object.keys(tracks).filter((id) => objectIds.has(id)).map((id) => [id, keys(tracks[id], duration, transform)] as const).filter(([, k]) => k.length > 0),
   );
   return {
+    enabled: typeof r.enabled === 'boolean' ? r.enabled : d.enabled,
     duration,
     fps: Math.round(clampNum(r.fps, d.fps, ANIMATION_LIMITS.fps)),
     loop: typeof r.loop === 'boolean' ? r.loop : d.loop,

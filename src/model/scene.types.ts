@@ -10,7 +10,6 @@ import type {
   TextureKind,
   TextureMapping,
   ValueChannel,
-  Studio,
   ViewKind,
 } from './scene.enums';
 import type { GroupId, ObjectId } from './scene.ids';
@@ -104,6 +103,8 @@ export interface Sky {
   readonly sunVisible: boolean;
   /** 0..100 darkness of shadows. */
   readonly shadows: number;
+  /** 0..100 size of the sun and lamps: 0 is Bryce 2's crisp shadows, 100 Bryce 3D's soft ones. */
+  readonly softShadows: number;
   readonly fogAmount: number;
   readonly fogHeight: number;
   readonly fogColor: Rgb;
@@ -145,10 +146,12 @@ export interface Key<T> {
 }
 
 /**
- * The Hoodoo 3D timeline. Tracks hold keys sorted by time; values between keys
+ * The timeline, after Bryce 3D. Tracks hold keys sorted by time; values between keys
  * are interpolated (world/animation). Objects without a track stay where they are.
+ * Switched off, the scene is a still: nothing is keyed or played, the keys wait.
  */
 export interface Animation {
+  readonly enabled: boolean;
   /** Seconds. */
   readonly duration: number;
   readonly fps: number;
@@ -159,8 +162,7 @@ export interface Animation {
 }
 
 export interface Scene {
-  readonly studio: Studio;
-  /** In Hoodoo 3D the animated values of `objects`, `camera` and `sky` are the pose at the playhead. */
+  /** With animation on, the animated values of `objects`, `camera` and `sky` are the pose at the playhead. */
   readonly animation: Animation;
   readonly objects: readonly SceneObject[];
   readonly camera: Camera;

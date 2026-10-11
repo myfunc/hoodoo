@@ -177,7 +177,7 @@ void main() {
     }
   }
   vec4 c = radiance(ro, rd);
-  // Hoodoo 3D rolls highlights off above the knee instead of clipping them flat.
+  // Soft shadows also roll highlights off above the knee instead of clipping them flat.
   if (uStyle.z > 0.0) {
     float knee = 1.0 - uStyle.z;
     vec3 over = max(c.rgb - knee, 0.0);

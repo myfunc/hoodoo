@@ -5,7 +5,7 @@ import { WIRE } from './wire.constants';
 import type { WireProjector } from './wireframe';
 
 /**
- * Hoodoo 3D motion paths, as Bryce 3D drew them: the route of every animated
+ * Motion paths, as Bryce 3D drew them: the route of every animated
  * object (and of the camera, seen from another view) as a dotted line, with a
  * square at each key. Squares are handles: the scene window drags them.
  */

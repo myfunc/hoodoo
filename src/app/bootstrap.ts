@@ -16,11 +16,9 @@ import { SnapshotStore } from '../ui/snapshot-store';
 import { showToast } from '../ui/panels/toast';
 import { Splash } from '../ui/chrome/splash';
 import { demoScene } from '../world/demo-scene';
-import { Studio } from '../model/scene.enums';
 import { loadPrefs, savePrefs } from '../io/prefs';
 import { pickSceneFile } from '../io/project-file';
 import { StartWindow } from '../ui/chrome/start-window';
-import { STUDIO_NAMES } from '../ui/strings';
 import { emptyScene } from '../world/scene.defaults';
 import { isAnimated } from '../world/animation/pose';
 import { shortcutOf } from '../input/bindings';
@@ -38,8 +36,8 @@ const logger = Logger.create('App');
 const IMAGE_TYPE = /^image\//;
 const REPEATABLE: ReadonlySet<Action> = new Set([Action.Undo, Action.Redo, Action.ZoomIn, Action.ZoomOut, Action.PrevFrame, Action.NextFrame]);
 const THUMB = { width: 160, height: 100, quality: 0.7 } as const;
-/** ?studio=3d (or the /3d/ address) opens the start window in Hoodoo 3D; ?start=0 skips it. */
-const STUDIO_PARAM: Readonly<Record<string, Studio>> = { '2': Studio.Two, '3d': Studio.ThreeD };
+/** ?start=0 skips the start window; ?start=1 shows it even to browser automation. */
+const START_PARAM = { skip: '0', show: '1' } as const;
 
 /** A small JPEG of the scene window's picture for the Continue card. */
 function thumbnailOf(view: SceneView): string | null {
@@ -64,7 +62,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
   const autosave = new Autosave();
   const prefs = loadPrefs();
   const params = new URLSearchParams(location.search);
-  const askedStudio = STUDIO_PARAM[params.get('studio') ?? ''] ?? null;
+  const startParam = params.get('start');
   const shared = await sceneFromHash(location.hash).catch((error) => {
     logger.warn('share link unreadable', {}, error);
     return null;
@@ -90,14 +88,13 @@ export async function startApp(root: HTMLElement): Promise<void> {
   const openStart = () => {
     if (start?.isOpen) return;
     start = new StartWindow({
-      studio: askedStudio ?? world.scene.studio,
-      last: saved || world.scene.objects.length ? { studio: world.scene.studio, thumb: thumbnailOf(view) ?? autosave.loadThumbnail() } : null,
+      last: saved || world.scene.objects.length ? { thumb: thumbnailOf(view) ?? autosave.loadThumbnail() } : null,
       showAtStartup: loadPrefs().showStart,
-      onNew: (studio) => world.load(emptyScene(studio), 'New scene'),
+      onNew: () => world.load(emptyScene(), 'New scene'),
       onOpenFile: () => void pickSceneFile().then((f) => f && commands?.openFile(f)),
       onExample: (e) => {
         world.load(e.build(), `Open ${e.name}`);
-        if (isAnimated(world.scene.animation)) showToast(`${STUDIO_NAMES[world.scene.studio]}: ${e.name} · press Play or ${shortcutOf(Action.PlayPause)}`);
+        if (isAnimated(world.scene.animation)) showToast(`${e.name} · press Play or ${shortcutOf(Action.PlayPause)}`);
         if (!editor.state.liveRender) commands?.run(Action.Render);
       },
       onContinue: () => undefined,
@@ -110,9 +107,10 @@ export async function startApp(root: HTMLElement): Promise<void> {
   root.replaceChildren(shell.root);
   // Browser automation (tests, screenshots) drives the editor directly; people get the welcome window,
   // then the start window (unless they came with a share link or turned it off).
-  const wantsStart = !shared && params.get('start') !== '0' && (prefs.showStart || askedStudio !== null);
+  const askedStart = startParam === START_PARAM.show;
+  const wantsStart = !shared && startParam !== START_PARAM.skip && (prefs.showStart || askedStart);
   if (!navigator.webdriver) document.body.append(new Splash(engine, () => { if (wantsStart) openStart(); }).el);
-  else if (wantsStart && askedStudio !== null) openStart();
+  else if (wantsStart && askedStart) openStart();
   const input = new ViewportInput(view.root, world, editor, view, {
     onOpenObject: (id) => commands?.openObject(id),
     onDropFiles: (files) => {

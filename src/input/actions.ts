@@ -70,6 +70,7 @@ export enum Action {
   ScrollWheel = 'scroll-wheel',
   ScrollTrackpad = 'scroll-trackpad',
   StartWindow = 'start-window',
+  ToggleAnimation = 'toggle-animation',
   PlayPause = 'play-pause',
   FirstFrame = 'first-frame',
   LastFrame = 'last-frame',

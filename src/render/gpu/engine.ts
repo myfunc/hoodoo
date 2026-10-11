@@ -1,5 +1,5 @@
 import { Logger } from '../../core/log';
-import { RENDER_STYLES } from './render-style';
+import { renderStyle } from './render-style';
 import type { Scene } from '../../model/scene.types';
 import type { ViewBasis } from '../../world/camera-math';
 import { EngineStage } from './engine.enums';
@@ -251,7 +251,7 @@ export class RayEngine {
       u.f('uFogParams', ...k.fogParams);
       u.f('uCloudParams', ...k.cloudParams);
       u.f('uCloudKinds', ...k.cloudKinds);
-      u.f('uStyle', ...RENDER_STYLES[this.sceneState.scene.studio]);
+      u.f('uStyle', ...renderStyle(s));
       this.sceneState.dirty = false;
     }
     if (this.viewState?.dirty) {

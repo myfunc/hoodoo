@@ -19,8 +19,9 @@ export { SelectMode } from './world.enums';
  * Scenes are immutable snapshots; every method builds a new one and records it.
  * Between beginGesture and endGesture all edits amend one history entry,
  * so a whole drag is a single undo step. Selection is not part of history.
- * Hoodoo 3D: the playhead is session state; the current scene is always posed
- * at it, and edits become keys at the playhead (animation/keying).
+ * Animation: the playhead is session state; the current scene is always posed
+ * at it, and edits become keys at the playhead (animation/keying). With
+ * animation off the playhead rests at zero and the scene is a still.
  */
 export class World {
   readonly events = new Bus<WorldEvents>();
@@ -53,7 +54,7 @@ export class World {
     return this.scene.objects.find((o) => o.id === id);
   }
 
-  /** Seconds on the Hoodoo 3D timeline. */
+  /** Seconds on the timeline. */
   get time(): number {
     return this.playhead;
   }
@@ -61,14 +62,16 @@ export class World {
   /** Moves the playhead: the scene takes the pose at that frame. Navigation, not an edit. */
   setTime(t: number): void {
     const a = this.scene.animation;
-    const time = Math.min(a.duration, Math.max(0, frameTime(t, a.fps)));
+    const time = a.enabled ? Math.min(a.duration, Math.max(0, frameTime(t, a.fps))) : 0;
     if (time === this.playhead) return;
     this.playhead = time;
     this.pose(ChangeKind.Time);
   }
 
-  /** Replaces the timeline (keys moved, added or removed, duration changed) and re-poses the scene. */
+  /** Replaces the timeline (keys moved, added or removed, duration changed, on or off) and re-poses the scene. */
   setAnimation(animation: Animation, label: string): void {
+    // Switched off, the scene stays a still in its start pose.
+    if (!animation.enabled) this.setTime(0);
     const scene = poseAt({ ...this.scene, animation }, this.playhead);
     this.commit(label, scene, ChangeKind.Time, false);
     if (this.playhead > animation.duration) this.setTime(animation.duration);
@@ -238,8 +241,10 @@ export class World {
   jumpTo(position: number): void {
     if (this.inGesture) return;
     this.history.jump(position);
-    // An older entry was posed at another time: show it at the playhead.
-    this.history.amend(poseAt(this.history.current, Math.min(this.playhead, this.history.current.animation.duration)));
+    // An older entry was posed at another time: show it at the playhead (zero when it is a still).
+    const a = this.history.current.animation;
+    if (!a.enabled) this.playhead = 0;
+    this.history.amend(poseAt(this.history.current, Math.min(this.playhead, a.duration)));
     this.pruneSelection();
     this.emitAll(ChangeKind.All);
   }

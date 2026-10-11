@@ -13,6 +13,7 @@ export const DEFAULT_SKY: Sky = {
   sunAltitude: 42,
   sunVisible: true,
   shadows: 75,
+  softShadows: 0,
   fogAmount: 0,
   fogHeight: 1,
   fogColor: h('#c8d2dc'),

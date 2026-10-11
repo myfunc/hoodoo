@@ -150,7 +150,7 @@ vec3 discJitter(vec3 d, float r) {
 }
 
 // Light i as seen from wp (i = -1 is the sun or moon): direction l, distance (INF for the sun), colour.
-// The Hoodoo 3D style gives the lights a size: shadows get soft edges as samples add up.
+// Soft shadows give the lights a size: shadows get soft edges as samples add up.
 vec3 lightAt(int i, vec3 wp, out vec3 l, out float dist) {
   if (i < 0) {
     l = keyLightDir();

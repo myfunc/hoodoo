@@ -36,9 +36,9 @@ export interface EditorState {
   readonly pickingFocus: boolean;
   /** What two-finger scrolling does: guessed per swipe, or fixed by the user. */
   readonly scroll: ScrollPreference;
-  /** Hoodoo 3D: the timeline is playing. */
+  /** Animation: the timeline is playing. */
   readonly playing: boolean;
-  /** Hoodoo 3D: dotted paths of animated objects in the wireframe. */
+  /** Animation: dotted paths of animated objects in the wireframe. */
   readonly motionPaths: boolean;
 }
 

@@ -102,6 +102,7 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.ScrollWheel]: { label: 'Scroll Gestures: Mouse Wheel Zooms', menu: MenuName.View, chords: [] },
   [Action.ScrollTrackpad]: { label: 'Scroll Gestures: Trackpad Orbits', menu: MenuName.View, chords: [] },
   [Action.StartWindow]: { label: 'Start Window…', menu: MenuName.File, chords: [] },
+  [Action.ToggleAnimation]: { label: 'Animation', menu: MenuName.Animation, chords: [c('KeyA', { shift: true })] },
   [Action.PlayPause]: { label: 'Play / Pause', menu: MenuName.Animation, chords: [c('Space', { shift: true })] },
   [Action.FirstFrame]: { label: 'Go to Start', menu: MenuName.Animation, chords: [c('Home', { shift: true })] },
   [Action.LastFrame]: { label: 'Go to End', menu: MenuName.Animation, chords: [c('End', { shift: true })] },

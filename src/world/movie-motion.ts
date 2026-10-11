@@ -4,7 +4,7 @@ import { add, scale } from '../core/vec3';
 
 /** Camera or sun moves for the turntable movie; t runs 0..1 over the movie. */
 export enum MovieMotion {
-  /** Hoodoo 3D: the keys of the timeline, frame by frame. */
+  /** Animation on: the keys of the timeline, frame by frame. */
   Timeline = 'timeline',
   Orbit = 'orbit',
   Swing = 'swing',

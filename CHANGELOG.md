@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.6.0 — 2026-10-11
+
+### Changed
+- Hoodoo 2 and Hoodoo 3D are one program again, Hoodoo. Animation is a switch
+  of each scene: the film chip in the display bar, Animation › Animation or
+  Shift+A. On, the timeline shows and edits are keyed; off, the timeline hides,
+  nothing is keyed or played, and the scene rests in its start pose. The keys
+  are kept while it is off. A new scene starts as a still; the Animation menu is
+  always there.
+- Soft shadows are a Sky & Fog dial (0–100) instead of a studio style: 0 is
+  Bryce 2's crisp shadows (the default), 100 the Bryce 3D look. Sky keys
+  animate it; a sky preset keeps the scene's setting.
+- The start window shows all eight examples in one grid, the animated ones
+  badged; the studio picker is gone. `?start=1` opens it under browser
+  automation, `?start=0` still skips it, and `/3d/` leads to the app.
+- Scene files are version 2: they save the animation switch and the soft
+  shadows. Version 1 files still open — Hoodoo 3D scenes with animation on and
+  soft shadows at 100, the rest as stills.
+- Render Movie films the timeline when the scene is animated and offers the
+  camera moves otherwise.
+
+### Fixed
+- With the timeline hidden, the display bar sits on the bottom edge again
+  instead of floating above an empty strip.
+
 ## 0.5.0 — 2026-10-10
 
 ### Added

@@ -20,7 +20,7 @@ function sized(doc: DocumentSetup, k: number): { width: number; height: number }
 }
 
 /**
- * Render Movie: motion, length, size and rays per pixel. With a timeline (Hoodoo 3D)
+ * Render Movie: motion, length, size and rays per pixel. With an animated timeline
  * the timeline is the default motion and sets the length and frame rate itself.
  */
 export function openMovieDialog(doc: DocumentSetup, timeline: Animation | null, onApply: (s: MovieSpec) => void): void {

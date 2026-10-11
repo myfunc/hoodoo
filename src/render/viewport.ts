@@ -13,7 +13,6 @@ import { RealtimeRenderer, type RealtimeStatus } from './gpu/realtime';
 import { FINAL_BOUNCES, PREVIEW_BOUNCES, PREVIEW_SAMPLES } from './gpu/render.constants';
 import { type Frame, type GizmoHandles, type SegmentIndex, WireProjector, drawWireframe } from './wire/wireframe';
 import { type KeyHandle, drawMotionPaths } from './wire/motion-paths';
-import { Studio } from '../model/scene.enums';
 
 /** One drawable view inside the scene window (one in single view, four in quad view). */
 export interface ViewCell {
@@ -25,7 +24,7 @@ export interface ViewCell {
   readonly basis: ViewBasis;
   segments: SegmentIndex;
   gizmo: GizmoHandles | null;
-  /** Hoodoo 3D: key squares of the motion paths drawn in this cell. */
+  /** Key squares of the motion paths drawn in this cell. */
   keys: readonly KeyHandle[];
 }
 
@@ -365,7 +364,7 @@ export class SceneView {
       cell.segments = out.segments;
       cell.gizmo = out.gizmo;
       // Paths are for editing: hidden while the show plays.
-      const paths = scene.studio === Studio.ThreeD && s.motionPaths && !s.playing;
+      const paths = scene.animation.enabled && s.motionPaths && !s.playing;
       cell.keys = paths ? drawMotionPaths(g, scene, new WireProjector(basis, cell.frame), this.world.selection, { camera: cell.kind !== ViewKind.Camera, overRender }) : [];
       this.drawFocus(cell, basis);
       g.font = LABEL_FONT;

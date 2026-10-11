@@ -1,16 +1,9 @@
-import { Studio } from '../model/scene.enums';
 import type { Hint } from '../world/editor-store';
 
 /** Interface strings in one place (canon C12); the app speaks English like the original. */
-export const APP_NAME = 'Hoodoo 2';
-export const APP_TAGLINE = 'A Bryce 2–style landscape studio for the browser';
+export const APP_NAME = 'Hoodoo';
+export const APP_TAGLINE = 'A Bryce-style landscape studio for the browser';
 export const APP_VERSION = __APP_VERSION__;
-
-/** The two studios, after Bryce 2 (1996) and Bryce 3D (1997). */
-export const STUDIO_NAMES: Readonly<Record<Studio, string>> = {
-  [Studio.Two]: 'Hoodoo 2',
-  [Studio.ThreeD]: 'Hoodoo 3D',
-};
 export const SPLASH = {
   alt: {
     dunes: 'Golden Dunes: a sea of golden fog between green hills at sunrise, three planets in a row above them',
@@ -25,12 +18,6 @@ export const SPLASH = {
 
 export const START = {
   title: 'Welcome to Hoodoo',
-  studio: 'Studio',
-  years: { [Studio.Two]: 'stills · 1996', [Studio.ThreeD]: 'animation · 1997' } as Readonly<Record<Studio, string>>,
-  notes: {
-    [Studio.Two]: 'The Bryce 2 studio: still landscapes, crisp shadows, render on request',
-    [Studio.ThreeD]: 'The Bryce 3D studio: a timeline with keys, soft shadows, movies',
-  } as Readonly<Record<Studio, string>>,
   begin: 'Begin',
   newScene: 'New empty scene',
   open: 'Open a .hoodoo file…',
@@ -66,6 +53,7 @@ export const HINTS = {
   library: { title: 'Object Library', text: 'Preset terrains and landforms' },
   skyMode: { title: 'Sky Mode', text: 'Soft, Darker, Custom or no atmosphere at all' },
   shadows: { title: 'Shadows', text: 'Drag left/right: shadow darkness' },
+  softShadows: { title: 'Soft Shadows', text: 'Drag left/right: 0 crisp like Bryce 2, 100 soft like Bryce 3D' },
   fog: { title: 'Fog', text: 'Drag left/right: density. Up/down: height' },
   haze: { title: 'Haze', text: 'Drag left/right: distant haze' },
   clouds: { title: 'Cloud Cover', text: 'Drag left/right: cover. Up/down: height' },

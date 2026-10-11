@@ -62,7 +62,7 @@ export function openAbout(): void {
   const body = el('div', { style: { maxWidth: '520px', display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '12px' } }, [
     el('img', { cls: 'about-art', attrs: { src: art.still, alt: art.alt } }),
     el('div', { text: `${APP_NAME} ${APP_VERSION} — ${APP_TAGLINE}.`, style: { fontWeight: 'bold' } }),
-    el('div', { text: 'A tribute to MetaTools Bryce 2 (1996, Kai Krause and Eric Wenger): the stone-grey palette, wireframe scene window, camera trackball, Materials Lab, Terrain Editor, Sky & Fog thumbnails and the block-by-block ray-traced render. Not affiliated with Bryce or its owners. The interface is drawn and rendered by code at load time; the picture above is a Hoodoo scene rendered in Hoodoo — golden dunes by day, a ring arch at night.' }),
+    el('div', { text: 'A tribute to MetaTools Bryce 2 (1996, Kai Krause and Eric Wenger): the stone-grey palette, wireframe scene window, camera trackball, Materials Lab, Terrain Editor, Sky & Fog thumbnails and the block-by-block ray-traced render; the animation timeline and soft shadows follow Bryce 3D (1997). Not affiliated with Bryce or its owners. The interface is drawn and rendered by code at load time; the picture above is a Hoodoo scene rendered in Hoodoo — golden dunes by day, a ring arch at night.' }),
     el('div', { cls: 'stone-section-title', text: 'Modern additions' }),
     el('ul', { style: { margin: '0', paddingLeft: '18px' } }, QOL.map((q) => el('li', { text: q }))),
     el('div', {}, [

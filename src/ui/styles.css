@@ -1,4 +1,4 @@
-/* Hoodoo 2 — the Bryce 2 look: stone-paper chrome, embossed grey titles,
+/* Hoodoo — the Bryce 2 look: stone-paper chrome, embossed grey titles,
    rendered teal icons, a dark lab for the editors. Surfaces come from kit/texture.ts. */
 :root {
   --ink: #3b3b3b;
@@ -148,7 +148,7 @@ input { font: inherit; }
   box-shadow: 1px 1px 0 var(--hi); background: #333;
 }
 .tray-thumb canvas { width: 100%; height: 100%; display: block; }
-.tray-thumb-label { position: absolute; left: 0; right: 0; bottom: -12px; text-align: center; font-size: 9px; color: var(--ink-soft); }
+.tray-thumb-label { position: absolute; left: -6px; right: -6px; bottom: -12px; text-align: center; font-size: 9px; color: var(--ink-soft); white-space: nowrap; }
 .tray-thumb-value { position: absolute; right: 2px; top: 1px; font-size: 9px; color: #fff; text-shadow: 0 0 2px #000; }
 .tray-tool { display: flex; flex-direction: column; align-items: center; width: 56px; cursor: ew-resize; }
 .tray-tool canvas { width: 40px; height: 40px; filter: drop-shadow(2px 3px 1.5px rgba(0,0,0,0.3)); }
@@ -268,7 +268,8 @@ input { font: inherit; }
   box-shadow: 2px 2px 0 rgba(0,0,0,0.2);
 }
 
-.display-bar { display: flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 10px; color: var(--ink-soft); white-space: nowrap; min-width: 0; }
+/* The last row of the centre column, whether or not the timeline row above it shows. */
+.display-bar { grid-row: -2; display: flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 10px; color: var(--ink-soft); white-space: nowrap; min-width: 0; }
 .display-bar > * { flex-shrink: 0; }
 .display-bar .ui-button { height: 18px; }
 .display-bar .status { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -520,10 +521,10 @@ input { font: inherit; }
 @media (prefers-reduced-motion: reduce) { .splash { animation: none; } .splash-screen { transition: none; } }
 .about-art { display: block; width: 100%; height: 170px; object-fit: cover; object-position: 50% 40%; border: 1px solid #555; }
 
-/* ---------- Hoodoo 3D timeline (ui/chrome/timeline.ts) ---------- */
+/* ---------- Animation timeline (ui/chrome/timeline.ts) ---------- */
 .center { grid-template-rows: var(--titles-h) var(--tray-h) 1fr auto var(--displaybar-h); }
 .timeline { display: none; }
-.studio-3d .timeline {
+.animation-on .timeline {
   display: flex; align-items: center; gap: 8px; height: 52px; margin: 4px 8px 0; padding: 0 6px;
   border: 1px solid rgba(0,0,0,0.18); box-shadow: inset 0 1px 0 var(--hi), 0 1px 0 var(--hi);
   background: linear-gradient(rgba(255,255,255,0.25), rgba(0,0,0,0.04));
@@ -558,26 +559,15 @@ input { font: inherit; }
 .ui-button.start-close { margin-left: auto; width: 24px; height: 24px; padding: 0; border-radius: 50%; }
 .ui-button.start-close .glyph { width: 12px; height: 12px; }
 .start-label { font: 800 12px var(--font-title); color: var(--ink-soft); text-shadow: 0 1px 0 var(--hi); margin: 12px 0 5px; }
-.start-studios { display: inline-flex; border: 1px solid #7d7c78; border-radius: 3px; overflow: hidden; box-shadow: 0 1px 0 var(--hi); }
-.start-studio {
-  display: flex; align-items: baseline; gap: 8px; padding: 5px 14px; cursor: pointer;
-  background: linear-gradient(#fbfbfa, #d3d2ce); border-right: 1px solid #9a9994;
-}
-.start-studio:last-child { border-right: 0; }
-.start-studio:hover { background: linear-gradient(#fff, #e3e2de); }
-.start-studio.is-on { background: linear-gradient(#5fb8b8, var(--teal) 60%, var(--teal-dark)); color: #fff; box-shadow: inset 0 1px 2px rgba(0,0,0,0.3); }
-.start-studio-name { font: 800 15px/1 var(--font-title); }
-.start-studio-year { font-size: 10px; opacity: 0.75; }
-.start-note { margin-top: 5px; color: var(--ink-soft); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.start-body { display: grid; grid-template-columns: 200px 1fr; gap: 18px; }
+.start-window:focus { outline: none; }
+.start-body { display: grid; grid-template-columns: 190px 1fr; gap: 16px; }
 .start-actions { display: flex; flex-direction: column; gap: 6px; }
 .ui-button.start-action { display: block; text-align: left; padding: 6px 10px; }
 .ui-button.start-action > span { display: flex; align-items: center; gap: 8px; }
 .ui-button.start-action .glyph { width: 14px; height: 14px; flex: none; }
 .start-continue > span { align-items: center; }
 .start-continue-thumb { width: 64px; height: 40px; object-fit: cover; border: 1px solid #555; flex: none; }
-.start-continue .start-card-blurb { display: block; }
-.start-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.start-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
 .ui-button.start-card {
   display: block; position: relative; padding: 0; text-align: left; border: 1px solid #555; border-radius: 0;
   background: #2e2e32 var(--tex-lab); color: var(--lab-ink); box-shadow: 3px 3px 0 rgba(0,0,0,0.25); cursor: pointer; overflow: hidden;
@@ -587,9 +577,8 @@ input { font: inherit; }
 .ui-button.start-card > span { display: block; }
 .start-thumb { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; background: #444; }
 .start-thumb.is-empty { background: linear-gradient(#6a7a8a, #3a3a40); }
-.start-card-name { display: block; padding: 5px 8px 0; font: 800 13px var(--font-title); color: #e8e8e2; text-shadow: 0 1px 0 #000; }
-.start-card-blurb { display: block; padding: 0 8px 6px; font-size: 10px; color: var(--lab-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ui-button.start-action .start-card-blurb { padding: 0; color: var(--ink-faint); }
+.start-card-name { display: block; padding: 4px 6px 0; font: 800 12px var(--font-title); color: #e8e8e2; text-shadow: 0 1px 0 #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.start-card-blurb { display: block; padding: 0 6px 5px; font-size: 9px; color: var(--lab-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .start-badge {
   position: absolute; left: 6px; top: 6px; display: flex; align-items: center; gap: 4px; padding: 1px 6px 1px 4px;
   font: bold 9px/14px var(--font-ui); color: #fff; background: rgba(0,0,0,0.55); border-radius: 2px;
@@ -598,4 +587,4 @@ input { font: inherit; }
 .start-foot { display: flex; justify-content: flex-start; margin-top: 12px; color: var(--ink-soft); }
 .menubar-title { cursor: pointer; }
 .menubar-title:hover { color: var(--teal-dark); }
-@media (max-width: 720px) { .start-body { grid-template-columns: 1fr; } }
+@media (max-width: 720px) { .start-body { grid-template-columns: 1fr; } .start-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

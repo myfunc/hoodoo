@@ -27,7 +27,8 @@ The dev tools in `tools/` drive a headless Chrome with a real GPU backend
 | `tools/make-examples.mjs` | renders the start window's example thumbnails in `src/ui/art/examples` from `src/world/examples.ts` (pass ids to redo some); needs the dev server |
 
 `?cold` on the app URL makes the shader source unique, so the browser cannot
-reuse a compiled copy; `window.__hoodoo` exposes a ready flag, a GPU benchmark
+reuse a compiled copy; automated browsers skip the splash and the start window
+unless the URL has `?start=1`; `window.__hoodoo` exposes a ready flag, a GPU benchmark
 (`await __hoodoo.bench()`) and a test-scene builder for these tools.
 
 ## Code rules

@@ -2,8 +2,8 @@ import { CREATE_PALETTE } from '../assets/object.catalog';
 import { DEFAULT_SKY } from '../assets/sky.presets';
 import { material } from '../model/material.factory';
 import { type GroupId, asGroupId, asObjectId, newObjectId } from '../model/scene.ids';
-import { BooleanMode, Studio, type ViewKind } from '../model/scene.enums';
-import type { Material, Scene, SceneObject, TerrainData } from '../model/scene.types';
+import { BooleanMode, type ViewKind } from '../model/scene.enums';
+import type { Animation, Material, Scene, SceneObject, Sky, TerrainData } from '../model/scene.types';
 import { LIGHT_KINDS, TERRAIN_KINDS } from './objects.factory';
 import { BOOKMARK_SLOTS, DEFAULT_CAMERA, DEFAULT_DOCUMENT, DEFAULT_VIEWS, EMPTY_ANIMATION } from './scene.defaults';
 import * as check from './scene.validate';
@@ -13,10 +13,15 @@ export { SceneFileError };
 
 /**
  * Scene file format. Heights are quantised to 16 bits and base64-encoded,
- * which keeps a 128² terrain near 44 KB of text.
+ * which keeps a 128² terrain near 44 KB of text. Version 2 keeps the animation
+ * switch and soft shadows in the scene; version 1 named a studio instead.
  */
 export const SCENE_FORMAT = 'hoodoo-scene';
-export const SCENE_VERSION = 1;
+export const SCENE_VERSION = 2;
+/** Version 1 scenes of the Hoodoo 3D studio had the timeline on and soft shadows. */
+const V1_MOTION_STUDIO = 'hoodoo-3d';
+const V1_MOTION_SKY: Sky = { ...DEFAULT_SKY, softShadows: 100 };
+const V1_MOTION_ANIMATION: Animation = { ...EMPTY_ANIMATION, enabled: true };
 const QUANT = 65535;
 const BYTE = 0xff;
 const BITS_PER_BYTE = 8;
@@ -145,12 +150,14 @@ export function deserializeScene(raw: unknown): Scene {
   const bookmarks = Array.from({ length: BOOKMARK_SLOTS }, (_, i) => s.bookmarks?.[i] ?? null);
   const objects = capBooleans(s.objects.map((o) => reviveObject(o, seen)));
   const camera = check.camera(s.camera, DEFAULT_CAMERA);
-  const sky = check.sky(s.sky, DEFAULT_SKY);
-  const studio = check.studio(s.studio);
+  // Version 1: a Hoodoo 3D scene opens with its timeline on and soft shadows; a Hoodoo 2
+  // scene (or one from before the studios) is a still with crisp shadows.
+  const v1 = file.version < SCENE_VERSION;
+  const motion = v1 && (s as { readonly studio?: unknown }).studio === V1_MOTION_STUDIO;
+  const sky = check.sky(s.sky, motion ? V1_MOTION_SKY : DEFAULT_SKY);
+  const ids = new Set(objects.map((o) => o.id));
   return {
-    studio,
-    // Files from before the studios (version 1 without a studio) are Hoodoo 2 scenes: no timeline.
-    animation: studio === Studio.ThreeD ? check.animation(s.animation, EMPTY_ANIMATION, new Set(objects.map((o) => o.id)), camera, sky) : EMPTY_ANIMATION,
+    animation: v1 && !motion ? EMPTY_ANIMATION : check.animation(s.animation, motion ? V1_MOTION_ANIMATION : EMPTY_ANIMATION, ids, camera, sky),
     objects,
     camera,
     sky,

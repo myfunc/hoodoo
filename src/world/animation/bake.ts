@@ -4,11 +4,11 @@ import { frameTime } from './keying';
 
 /**
  * Turns a motion written as code (scene at time t) into ordinary timeline keys,
- * so the result can be opened, played and edited like any Hoodoo 3D scene.
- * Only what actually moves gets a track.
+ * so the result can be opened, played and edited like any animated scene.
+ * Only what actually moves gets a track; the animation comes out switched on.
  */
 export function bakeAnimation(base: Scene, frameAt: (t: number) => Scene, times: readonly number[], setup: Partial<Animation> = {}): Animation {
-  const a = { ...EMPTY_ANIMATION, ...setup };
+  const a = { ...EMPTY_ANIMATION, enabled: true, ...setup };
   const frames = times.map((t) => ({ time: frameTime(t, a.fps), scene: frameAt(t) }));
   const same = (x: unknown, y: unknown) => JSON.stringify(x) === JSON.stringify(y);
   const objects: Record<string, Key<Scene['objects'][number]['transform']>[]> = {};

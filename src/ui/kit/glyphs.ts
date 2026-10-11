@@ -27,6 +27,8 @@ export const GLYPH = {
   sun: ['M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z', 'M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M5 19l2-2M17 7l2-2'],
   cube: ['M12 3l8 4.5v9L12 21l-8-4.5v-9z', 'M4 7.5l8 4.5 8-4.5M12 12v9'],
   clock: ['M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z', 'M12 7v5l3 2'],
+  /** The animation switch: a strip of film. */
+  film: ['M5 3h14v18H5z', 'M9 3v18M15 3v18', 'M5 7.5h4M5 12h4M5 16.5h4M15 7.5h4M15 12h4M15 16.5h4'],
   // Display palette and history marks.
   quad: ['M4 4h7v7H4z', 'M13 4h7v7h-7z', 'M4 13h7v7H4z', 'M13 13h7v7h-7z'],
   live: ['M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z', 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z', 'M12 1v2M4.5 3.5l1.4 1.4M19.5 3.5l-1.4 1.4'],

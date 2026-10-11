@@ -1,16 +1,26 @@
-import { Studio } from '../model/scene.enums';
 import type { Animation } from '../model/scene.types';
 import type { UiContext } from '../ui/context';
 import { allKeyTimes, frameTime, hasKeyAt, withDuration, withKey, withoutKey } from '../world/animation/keying';
 import { EMPTY_ANIMATION } from '../world/scene.defaults';
 
-/** Timeline commands of Hoodoo 3D: keys at the playhead, stepping, playback. */
+/** Timeline commands: the animation switch, keys at the playhead, stepping, playback. */
 
 const MS_PER_S = 1000;
 
-export const isMotionStudio = (ctx: UiContext): boolean => ctx.world.scene.studio === Studio.ThreeD;
+export const isAnimationOn = (ctx: UiContext): boolean => ctx.world.scene.animation.enabled;
 
 const anim = (ctx: UiContext): Animation => ctx.world.scene.animation;
+
+/**
+ * Animation on or off for this scene, one undo step. Off, the timeline hides, edits
+ * are not keyed and the scene rests in its start pose; the keys wait for it to come back.
+ */
+export function toggleAnimation(ctx: UiContext): void {
+  const a = anim(ctx);
+  const enabled = !a.enabled;
+  ctx.world.setAnimation({ ...a, enabled }, enabled ? 'Animation on' : 'Animation off');
+  if (!enabled && allKeyTimes(a).length) ctx.toast('Animation off. The keys are kept until it is back on');
+}
 
 /** Keys the selected objects where they are now; with nothing selected, the camera. */
 export function addKey(ctx: UiContext): void {
@@ -81,7 +91,7 @@ export function setTimeline(ctx: UiContext, patch: { duration?: number; fps?: nu
 
 export function clearAnimation(ctx: UiContext): void {
   const a = anim(ctx);
-  ctx.world.setAnimation({ ...EMPTY_ANIMATION, duration: a.duration, fps: a.fps, loop: a.loop }, 'Clear all keys');
+  ctx.world.setAnimation({ ...EMPTY_ANIMATION, enabled: a.enabled, duration: a.duration, fps: a.fps, loop: a.loop }, 'Clear all keys');
 }
 
 /**
@@ -95,8 +105,8 @@ export class Player {
 
   constructor(private readonly ctx: UiContext) {
     ctx.world.events.on('history', () => {
-      // A new scene or an undo across studios stops the show.
-      if (this.playing && !isMotionStudio(ctx)) this.stop();
+      // Animation turned off (by the switch, an undo or a new scene) stops the show.
+      if (this.playing && !isAnimationOn(ctx)) this.stop();
     });
   }
 
@@ -110,7 +120,7 @@ export class Player {
   }
 
   play(): void {
-    if (this.playing || !isMotionStudio(this.ctx)) return;
+    if (this.playing || !isAnimationOn(this.ctx)) return;
     const w = this.ctx.world;
     const start = anim(this.ctx);
     if (w.time >= start.duration - 0.5 / start.fps) w.setTime(0);

@@ -9,7 +9,7 @@ import { el, glyph } from '../kit/dom';
 import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
 
 /**
- * The Hoodoo 3D animation controls under the scene window, after Bryce 3D:
+ * The animation controls under the scene window (shown while Animation is on), after Bryce 3D:
  * transport buttons, the time readout, and a ruler with the time scrubber and
  * three lanes of keys — objects (the selection, or every animated object),
  * camera and sky. Drag the ruler to scrub, a key to retime it; double-click a
