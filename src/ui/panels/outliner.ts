@@ -71,7 +71,7 @@ export class Outliner {
   private icon(o: SceneObject): HTMLCanvasElement {
     const cached = this.icons.get(o.id);
     if (cached && cached.kind === o.kind) return cached.canvas;
-    const entry = entryOfKind(o.kind);
+    const entry = entryOfKind(o.kind, o.shapeParam);
     const canvas = iconCanvas(this.ctx.thumbs, createIcon(entry), ICON_PX);
     canvas.className = 'outliner-icon';
     this.icons.set(o.id, { kind: o.kind, canvas });

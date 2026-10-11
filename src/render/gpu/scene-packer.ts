@@ -1,6 +1,7 @@
 import type { Rgb } from '../../core/color';
 import { invert, transformDir } from '../../core/mat4';
 import { normalize } from '../../core/vec3';
+import { latheIndex } from '../../assets/lathe.profiles';
 import { COLOR_CHANNELS, VALUE_CHANNELS } from '../../model/material.factory';
 import { BooleanMode, ChannelSource, ShapeKind, SkyMode, ValueChannel } from '../../model/scene.enums';
 import type { GroupId } from '../../model/scene.ids';
@@ -140,7 +141,7 @@ export function packScene(scene: Scene): PackedScene {
     if (o.material.values.transparency === 0 && o.material.valueSources.transparency === ChannelSource.Flat) flags |= FLAG_OPAQUE;
     out4(objects, base + OBJ_AT.header, o.kind, o.boolean, group, flags);
     const layer = TERRAIN_KINDS.has(o.kind) ? terrainLayer++ : 0;
-    out4(objects, base + OBJ_AT.params, layer, o.shapeParam, terrains.res, 0);
+    out4(objects, base + OBJ_AT.params, layer, o.kind === ShapeKind.Lathe ? latheIndex(o.shapeParam) : o.shapeParam, terrains.res, 0);
     const partner = partners.get(o.id);
     if (partner) out4(objects, base + OBJ_AT.portal, rowOf.get(partner) ?? 0, 0, 0, 0);
     if (INFINITE_KINDS.has(o.kind)) out4(objects, base + OBJ_AT.bound, 0, 0, 0, -1);

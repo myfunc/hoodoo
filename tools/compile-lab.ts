@@ -5,6 +5,7 @@ import noise from '../src/render/gpu/glsl/10-noise.glsl?raw';
 import textures from '../src/render/gpu/glsl/20-textures.glsl?raw';
 import shapes from '../src/render/gpu/glsl/30-shapes.glsl?raw';
 import terrain from '../src/render/gpu/glsl/35-terrain.glsl?raw';
+import lathe from '../src/render/gpu/glsl/36-lathe.glsl?raw';
 import portalShape from '../src/render/gpu/glsl/38-portal-shape.glsl?raw';
 import scene from '../src/render/gpu/glsl/40-scene.glsl?raw';
 import sky from '../src/render/gpu/glsl/50-sky.glsl?raw';
@@ -13,7 +14,7 @@ import portals from '../src/render/gpu/glsl/70-portals.glsl?raw';
 import main from '../src/render/gpu/glsl/90-main.glsl?raw';
 import vert from '../src/render/gpu/glsl/fullscreen.vert.glsl?raw';
 
-const SOURCE = [header, noise, textures, shapes, terrain, portalShape, scene, sky, shade, portals, main].join('\n');
+const SOURCE = [header, noise, textures, shapes, terrain, lathe, portalShape, scene, sky, shade, portals, main].join('\n');
 /** The pre-2026-10-09 source sampled with implicit derivatives; FXC (Windows) chokes on those inside loops. */
 const GRADIENT_SOURCE = SOURCE.replace(/textureLod\(([^;]*), 0\.0\)/g, 'texture($1)');
 const VARIANTS: Record<string, string[]> = {

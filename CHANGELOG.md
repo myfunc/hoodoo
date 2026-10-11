@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.8.0 — 2026-10-11
+
+### Added
+- Chess & Billiards, a new category of the Object Library (Create ▾, Objects ›
+  Object Library…, Alt+O; a Landforms | Chess & Billiards strip on top) and of
+  the Create submenu of the right-click menu: a Staunton chess set (board and
+  32 pieces in the opening position, one group), the board alone, each piece in
+  boxwood and in ebony, an 8-ball rack with the cue ball (one group) and the
+  balls 0–15 alone. Every piece and ball is an ordinary object: it picks,
+  shows a wireframe, moves, resizes, turns, lands, animates and saves.
+- Lathe, a new shape: a smooth surface of revolution traced exactly, with
+  carved notches (rook, queen), a mitre slit (bishop), a joined cross (king)
+  and a carved side-view head (knight). The six chess pieces use it.
+- Pool Ball texture: solid or striped by the ball's number, a white circle
+  with the black number on both sides, the cue ball plain white; standard
+  colours under a glossy lacquer.
+- Chess & Billiards material family: Ivory, Ebony, Boxwood, Rosewood,
+  Chessboard, Walnut and Billiard Cloth.
+
+### Fixed
+- Land puts a turned sphere exactly on the ground: its box no longer grows
+  with the turn.
+
 ## 0.7.0 — 2026-10-11
 
 ### Added

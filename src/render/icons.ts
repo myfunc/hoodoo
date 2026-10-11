@@ -8,6 +8,7 @@ import { material } from '../model/material.factory';
 import { ShapeKind, SkyMode } from '../model/scene.enums';
 import type { Material, Scene, SceneObject, Sky } from '../model/scene.types';
 import { type ViewBasis, cameraBasis, lookAt } from '../world/camera-math';
+import { boxSphere, unionBox, worldBox } from '../world/bounds';
 import { createObject } from '../world/objects.factory';
 import { DEFAULT_CAMERA, emptyScene } from '../world/scene.defaults';
 import {
@@ -155,4 +156,27 @@ export function libraryPreview(lib: LibraryObject, terrain: SceneObject): IconSp
   const k = LIBRARY_FIT / Math.max(lib.size[0], lib.size[2]);
   const t: SceneObject = { ...terrain, transform: { position: [0, 0, 0], rotation: [0, 0, 0], size: [lib.size[0] * k, lib.size[1] * k, lib.size[2] * k] } };
   return spec([t], VIEW_FROM.library, LIBRARY_SKY);
+}
+
+/** Low and to the side, so a single piece shows its profile; sets are seen from higher up. */
+const PIECE_FROM: Vec3 = [2.6, 1.3, 3.6];
+/** Room around the framed objects. */
+const OBJECTS_MARGIN = 1.08;
+const SINGLE_FIT = 1.05;
+const DEG = Math.PI / 180;
+
+/** A library cell of ready-made objects (chess, billiards): framed from `from`, on a plain floor under the library sky. */
+export function objectsPreview(objects: readonly SceneObject[], high: boolean): IconSpec {
+  const box = unionBox(objects.map(worldBox));
+  if (!box) return spec([...objects], VIEW_FROM.library, LIBRARY_SKY);
+  const { center } = boxSphere(box);
+  // A single piece or ball fills its cell: framed by its largest half-size (a turned ball's box is loose).
+  const radius = high ? boxSphere(box).radius : Math.max(...objects.flatMap((o) => o.transform.size)) * SINGLE_FIT;
+  const from = high ? VIEW_FROM.library : PIECE_FROM;
+  const dist = (radius * OBJECTS_MARGIN) / Math.sin((ICON_FOV * DEG) / 2);
+  const len = Math.hypot(from[0], from[1], from[2]);
+  const position: Vec3 = [center[0] + (from[0] / len) * dist, center[1] + (from[1] / len) * dist, center[2] + (from[2] / len) * dist];
+  const floor = createObject(createEntry('ground'), { seed: 1, position: [0, box.min[1], 0], material: 'Default' });
+  const cam = lookAt({ ...DEFAULT_CAMERA, position, fov: ICON_FOV, focus: dist }, center);
+  return { scene: { ...emptyScene(), objects: [floor, ...objects], sky: LIBRARY_SKY }, basis: cameraBasis(cam, 1) };
 }

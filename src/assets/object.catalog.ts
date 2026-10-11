@@ -2,6 +2,8 @@ import { hexToRgb as h } from '../core/color';
 import type { Vec3 } from '../core/vec3';
 import { Family, ShapeKind, TerrainOp } from '../model/scene.enums';
 import type { LightData } from '../model/scene.types';
+import { CHESS_WHITE } from './games.materials';
+import { LATHE_PROFILES, latheIndex } from './lathe.profiles';
 
 /** One icon of the Create palette. Order is the palette order, left to right. */
 export interface CreateEntry {
@@ -57,11 +59,26 @@ export const CREATE_PALETTE: readonly CreateEntry[] = [
  */
 export const PORTAL_ENTRY: CreateEntry = { id: 'portal', label: 'Portal Pair', kind: ShapeKind.Portal, size: [1, 1.5, 0.1], material: 'Glow White', family: Family.Teal, shapeParam: 0 };
 
-/** Every entry, the palette's and the preview features'. */
-const ALL_ENTRIES: readonly CreateEntry[] = [...CREATE_PALETTE, PORTAL_ENTRY];
+/** World units per millimetre of the chess set: a 57 mm (2¼ in) square is two units, a billiard ball one unit in radius. */
+export const PIECE_SCALE = 2 / 57.15;
 
-/** The entry that makes objects of this kind: the outliner draws its icon. */
-export const entryOfKind = (kind: ShapeKind): CreateEntry => ALL_ENTRIES.find((e) => e.kind === kind) ?? CREATE_PALETTE[0];
+/** One Lathe entry per profile (the chess pieces), at its real proportions. */
+export const LATHE_ENTRIES: readonly CreateEntry[] = LATHE_PROFILES.map((p, i) => ({
+  id: `lathe-${p.name.toLowerCase()}`,
+  label: p.name,
+  kind: ShapeKind.Lathe,
+  size: [p.halfSize[0] * PIECE_SCALE, p.halfSize[1] * PIECE_SCALE, p.halfSize[2] * PIECE_SCALE],
+  material: CHESS_WHITE,
+  family: Family.Gray,
+  shapeParam: i,
+}));
+
+/** Every entry, the palette's, the preview features' and the lathe's. */
+const ALL_ENTRIES: readonly CreateEntry[] = [...CREATE_PALETTE, PORTAL_ENTRY, ...LATHE_ENTRIES];
+
+/** The entry that makes objects of this kind (a lathe's by its profile): the outliner draws its icon. */
+export const entryOfKind = (kind: ShapeKind, shapeParam = 0): CreateEntry =>
+  kind === ShapeKind.Lathe ? LATHE_ENTRIES[latheIndex(shapeParam)] : ALL_ENTRIES.find((e) => e.kind === kind) ?? CREATE_PALETTE[0];
 
 export const DEFAULT_LIGHT: LightData = { color: h('#fff2d8'), intensity: 60, cone: 25, falloff: 40 };
 

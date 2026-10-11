@@ -1,6 +1,10 @@
 import { OBJECT_LIBRARY, type LibraryObject } from '../../assets/object.library';
 import { SKY_LIBRARY, type SkyPreset } from '../../assets/sky.presets';
-import { libraryPreview, skyPreview } from '../../render/icons';
+import { libraryPreview, objectsPreview, skyPreview } from '../../render/icons';
+import { GAME_ROWS, type GameItem, GameItemKind } from '../../assets/games.library';
+import { buildGameItem } from '../../world/game-sets';
+import { Choice } from '../kit/controls';
+import type { Vec3 } from '../../core/vec3';
 import type { Thumbnailer } from '../../render/thumbs';
 import { createEntry } from '../../assets/object.catalog';
 import { createObject } from '../../world/objects.factory';
@@ -30,16 +34,100 @@ function grid<T>(items: readonly T[], label: (t: T) => string, sub: (t: T) => st
   return g;
 }
 
-/** Bryce's preset library for objects: a grid of rendered landforms. */
-export function openObjectLibrary(thumbs: Thumbnailer, onPick: (o: LibraryObject) => void): void {
-  let picked: LibraryObject | null = null;
+/** The object library's categories, chosen with a strip at the top; the last one is kept for next time. */
+enum LibraryCategory {
+  Landforms = 'Terrains & Landforms',
+  Games = 'Chess & Billiards',
+}
+const CATEGORY_LABELS: readonly { value: LibraryCategory; label: string }[] = [
+  { value: LibraryCategory.Landforms, label: 'Landforms' },
+  { value: LibraryCategory.Games, label: 'Chess & Billiards' },
+];
+let lastCategory = LibraryCategory.Landforms;
+
+export interface LibraryPick {
+  readonly terrain: (o: LibraryObject) => void;
+  readonly game: (item: GameItem) => void;
+}
+
+type Picked = { readonly terrain: LibraryObject } | { readonly game: GameItem };
+
+/** Ready-made pieces are smaller cells, a row per kind: sets, white, black, solids, stripes. */
+const GAME_CELL_W = 76;
+const GAME_CELL_H = 60;
+const GAME_SAMPLES = 4;
+/** Where a library item is built for its picture; the preview frames it. */
+const ORIGIN = 0;
+/** Turns a ball's +Z number disc toward the preview camera (render/icons.ts PIECE_FROM). */
+const BALL_FACING: Vec3 = [-16, 36, 0];
+
+function gameRows(thumbs: Thumbnailer, onPick: (t: GameItem) => void, close: () => void): HTMLElement {
+  const host = el('div', { cls: 'library-games' });
+  const cells: HTMLElement[] = [];
+  for (const row of GAME_ROWS) {
+    const line = el('div', { cls: 'library-games-row' });
+    for (const item of row) {
+      const c = el('canvas', { style: { width: `${GAME_CELL_W}px`, height: `${GAME_CELL_H}px` } });
+      const cell = el('div', { cls: 'library-games-cell', title: item.description }, [c, el('div', { cls: 'library-games-name', text: item.name })]);
+      cell.addEventListener('dblclick', () => { onPick(item); close(); });
+      cell.addEventListener('click', () => {
+        for (const x of cells) x.classList.remove('is-picked');
+        cell.classList.add('is-picked');
+        onPick(item);
+      });
+      // The rack's picture leaves the cue ball out: it waits far in front and would shrink the triangle.
+      const built = buildGameItem(item, ORIGIN, ORIGIN);
+      // A lone ball turns its number to the camera.
+      const shown = item.kind === GameItemKind.Rack ? built.objects.slice(0, -1)
+        : item.kind === GameItemKind.Ball ? built.objects.map((o) => ({ ...o, transform: { ...o.transform, rotation: BALL_FACING } }))
+        : built.objects;
+      const high = item.kind === GameItemKind.ChessSet || item.kind === GameItemKind.Board || item.kind === GameItemKind.Rack;
+      const spec = objectsPreview(shown, high);
+      thumbs.enqueue({ ...spec, basis: { ...spec.basis, aspect: GAME_CELL_W / GAME_CELL_H }, width: GAME_CELL_W * 2, height: GAME_CELL_H * 2, samples: GAME_SAMPLES, bounces: 2, transparent: false, into: c });
+      cells.push(cell);
+      line.append(cell);
+    }
+    host.append(line);
+  }
+  return host;
+}
+
+/** Bryce's preset library for objects: rendered landforms, or the chess and billiards pieces. */
+export function openObjectLibrary(thumbs: Thumbnailer, pick: LibraryPick): void {
+  let picked: Picked | null = null;
   const dialog: { d?: Dialog } = {};
-  const body = grid(OBJECT_LIBRARY, (o) => o.name, (o) => o.description, (o, c) => {
-    const terrain = createObject(createEntry('terrain'), { seed: PREVIEW_SEED, recipe: o.recipe, material: o.material });
-    const spec = libraryPreview(o, terrain);
-    thumbs.enqueue({ ...spec, basis: { ...spec.basis, aspect: CELL_W / CELL_H }, width: CELL_W * 2, height: CELL_H * 2, samples: SAMPLES, bounces: 2, transparent: false, into: c });
-  }, (o) => { picked = o; }, () => { dialog.d?.close(); if (picked) onPick(picked); });
-  dialog.d = new Dialog({ title: 'Objects — Terrains & Landforms', style: DialogStyle.Lab, body, onOk: () => { if (picked) onPick(picked); }, onCancel: () => undefined });
+  const accept = () => {
+    if (!picked) return;
+    if ('terrain' in picked) pick.terrain(picked.terrain);
+    else pick.game(picked.game);
+  };
+  const close = () => { dialog.d?.close(); accept(); };
+  const pages = new Map<LibraryCategory, HTMLElement>();
+  const page = (c: LibraryCategory): HTMLElement => {
+    let p = pages.get(c);
+    if (!p) {
+      p = c === LibraryCategory.Landforms
+        ? grid(OBJECT_LIBRARY, (o) => o.name, (o) => o.description, (o, cv) => {
+          const terrain = createObject(createEntry('terrain'), { seed: PREVIEW_SEED, recipe: o.recipe, material: o.material });
+          const spec = libraryPreview(o, terrain);
+          thumbs.enqueue({ ...spec, basis: { ...spec.basis, aspect: CELL_W / CELL_H }, width: CELL_W * 2, height: CELL_H * 2, samples: SAMPLES, bounces: 2, transparent: false, into: cv });
+        }, (o) => { picked = { terrain: o }; }, close)
+        : gameRows(thumbs, (item) => { picked = { game: item }; }, close);
+      pages.set(c, p);
+    }
+    return p;
+  };
+  const holder = el('div');
+  const show = (c: LibraryCategory) => {
+    lastCategory = c;
+    picked = null;
+    holder.replaceChildren(page(c));
+    const title = dialog.d?.el.querySelector('.ui-dialog-title');
+    if (title) title.textContent = `Objects — ${c}`;
+  };
+  const strip = new Choice({ cls: 'segmented library-categories', items: CATEGORY_LABELS, value: lastCategory, onChange: show });
+  dialog.d = new Dialog({ title: `Objects — ${lastCategory}`, style: DialogStyle.Lab, body: el('div', {}, [strip.el, holder]), onOk: accept, onCancel: () => undefined });
+  show(lastCategory);
   dialog.d.open();
 }
 

@@ -1,4 +1,5 @@
 import { type CreateEntry, PORTAL_ENTRY, createEntry } from '../../assets/object.catalog';
+import { GAME_ITEMS, type GameItem, GameItemKind, Side } from '../../assets/games.library';
 import { Action } from '../../input/actions';
 import { ACTIONS, shortcutOf } from '../../input/bindings';
 import type { ObjectId } from '../../model/scene.ids';
@@ -55,7 +56,7 @@ export const openContextMenu = (x: number, y: number, items: readonly MenuItem[]
  * Action, so it does exactly what the menu bar and its shortcut do.
  */
 export class SceneMenu {
-  constructor(private readonly ctx: UiContext, private readonly onCreate: (e: CreateEntry) => void) {}
+  constructor(private readonly ctx: UiContext, private readonly onCreate: (e: CreateEntry) => void, private readonly onGame?: (item: GameItem) => void) {}
 
   get facts(): MenuFacts {
     const w = this.ctx.world;
@@ -75,13 +76,32 @@ export class SceneMenu {
   items(entries: readonly ContextEntry[]): MenuItem[] {
     return shownEntries(entries, this.ctx.editor.state.features, SEP).map((e) => {
       if (e === SEP) return SEPARATOR;
-      if (e === CREATE) return { label: 'Create', items: [...CREATE_IDS.map((id) => this.create(createEntry(id))), ...this.previewCreates()] };
+      if (e === CREATE) return { label: 'Create', items: [...CREATE_IDS.map((id) => this.create(createEntry(id))), ...this.previewCreates(), ...this.gameCreates()] };
       return actionItem(this.ctx, e);
     });
   }
 
   private create(entry: CreateEntry): MenuItem {
     return { label: entry.label, run: () => this.onCreate(entry) };
+  }
+
+  /** The object library's Chess & Billiards category as a submenu: sets, each side's pieces, the balls. */
+  private gameCreates(): MenuItem[] {
+    const run = this.onGame;
+    if (!run) return [];
+    const item = (g: GameItem): MenuItem => ({ label: g.name, run: () => run(g) });
+    const of = (kind: GameItemKind, side?: Side) => GAME_ITEMS.filter((g) => g.kind === kind && (side === undefined || g.side === side)).map(item);
+    return [SEPARATOR, {
+      label: 'Chess & Billiards',
+      items: [
+        ...of(GameItemKind.ChessSet), ...of(GameItemKind.Board),
+        { label: 'White Pieces', items: of(GameItemKind.Piece, Side.White) },
+        { label: 'Black Pieces', items: of(GameItemKind.Piece, Side.Black) },
+        SEPARATOR,
+        ...of(GameItemKind.Rack),
+        { label: 'Pool Balls', items: of(GameItemKind.Ball) },
+      ],
+    }];
   }
 
   /** Creates of preview features that are on: the Portal Pair. */

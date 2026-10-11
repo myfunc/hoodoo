@@ -1,5 +1,6 @@
-import { compose, transformPoint } from '../core/mat4';
+import { compose, transformDir, transformPoint } from '../core/mat4';
 import { type Vec3, add, length, scale, sub } from '../core/vec3';
+import { ShapeKind } from '../model/scene.enums';
 import type { SceneObject } from '../model/scene.types';
 import { INFINITE_KINDS } from './objects.factory';
 
@@ -9,6 +10,7 @@ export interface Box {
 }
 
 const CORNERS: readonly Vec3[] = [-1, 1].flatMap((x) => [-1, 1].flatMap((y) => [-1, 1].map((z): Vec3 => [x, y, z])));
+const AXES: readonly Vec3[] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
 /** Infinite planes are given a finite extent for framing and wire drawing. */
 export const PLANE_EXTENT = 40;
 
@@ -20,6 +22,13 @@ export function worldBox(o: SceneObject): Box {
     return { min: [p[0] - PLANE_EXTENT, p[1], p[2] - PLANE_EXTENT], max: [p[0] + PLANE_EXTENT, p[1], p[2] + PLANE_EXTENT] };
   }
   const m = objectMatrix(o);
+  if (o.kind === ShapeKind.Sphere) {
+    // A turned ellipsoid's exact box (a billiard ball rests on its surface, not on its turned box).
+    const axes = AXES.map((a) => transformDir(m, a));
+    const half = [0, 1, 2].map((i) => Math.hypot(axes[0][i], axes[1][i], axes[2][i]));
+    const c = o.transform.position;
+    return { min: [c[0] - half[0], c[1] - half[1], c[2] - half[2]], max: [c[0] + half[0], c[1] + half[1], c[2] + half[2]] };
+  }
   const pts = CORNERS.map((c) => transformPoint(m, c));
   const min: Vec3 = [Math.min(...pts.map((p) => p[0])), Math.min(...pts.map((p) => p[1])), Math.min(...pts.map((p) => p[2]))];
   const max: Vec3 = [Math.max(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[1])), Math.max(...pts.map((p) => p[2]))];

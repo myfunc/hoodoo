@@ -719,3 +719,15 @@ body:has(.animation-on) .toast { bottom: calc(var(--displaybar-h) + 66px); }
 .segmented .ui-toggle.is-on { color: #fff; background: linear-gradient(#5fb8b8, var(--teal) 60%, var(--teal-dark)); box-shadow: inset 0 1px 2px rgba(0,0,0,0.25); }
 /* Settings › Interface › Hint line: Hidden (the window itself: ui/labs/settings-window.css) */
 .app.no-hint-line .controls .hint { visibility: hidden; }
+/* Object library: category strip and the Chess & Billiards rows (ui/labs/library-dialog.ts) */
+.library-categories { display: inline-flex; margin: 0 0 10px; }
+.ui-dialog-lab .segmented { border-color: #111; }
+.ui-dialog-lab .segmented .ui-toggle { color: var(--lab-ink); background: linear-gradient(#56565c, #333337); }
+.ui-dialog-lab .segmented .ui-toggle + .ui-toggle { border-left-color: #111; }
+.ui-dialog-lab .segmented .ui-toggle.is-on { color: #1c1306; background: linear-gradient(#e0a84a, #a8701e); }
+.library-games { display: flex; flex-direction: column; gap: 6px; }
+.library-games-row { display: flex; gap: 8px; }
+.library-games-cell { width: 76px; cursor: pointer; }
+.library-games-cell canvas { display: block; border: 1px solid #000; background: #222; }
+.library-games-cell.is-picked canvas { outline: 2px solid #e0a84a; }
+.library-games-name { margin-top: 2px; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -35,7 +35,7 @@ import { Commands } from './commands';
 import { RecentTracker } from './recent-ops';
 import { focusAt } from './lens-ops';
 import { installPwa } from './pwa';
-import { createFromPalette } from './scene-ops';
+import { createFromPalette, createGameItem } from './scene-ops';
 import { offerPortals } from './portal-ops';
 import { Shell } from './shell';
 import '../ui/styles.css';
@@ -155,7 +155,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
     start.open();
   };
   commands = new Commands(ctx, { openStart, sceneOpened: (name, fromFile) => tracker.begin(name, fromFile), sceneSaved: () => tracker.saved() });
-  const shell = new Shell(ctx, (entry) => createFromPalette(world, entry));
+  const shell = new Shell(ctx, (entry) => createFromPalette(world, entry), (item) => createGameItem(world, item));
   root.replaceChildren(shell.root);
   // Browser automation (tests, screenshots) drives the editor directly; people get the welcome window,
   // then the start window (unless they came with a share link or turned it off).

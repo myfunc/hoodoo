@@ -19,6 +19,18 @@ export enum ShapeKind {
   SpotLight = 16,
   /** Preview feature Portals: an oval that leads to its partner (world/portals.ts). */
   Portal = 17,
+  /** A turned solid: a profile from assets/lathe.profiles.ts spun about Y (`shapeParam` picks it). */
+  Lathe = 18,
+}
+
+/** The profiles of Lathe objects (their `shapeParam`): saved in files, so append only. */
+export enum LatheProfile {
+  Pawn = 0,
+  Rook = 1,
+  Knight = 2,
+  Bishop = 3,
+  Queen = 4,
+  King = 5,
 }
 
 /** Bryce 2 object attributes: neutral objects ignore booleans; the rest act inside a group. */
@@ -43,6 +55,8 @@ export enum TextureKind {
   Altitude = 11,
   Slope = 12,
   Ridged = 13,
+  /** A billiard ball: its colour, the white caps of a stripe and the number disc; the seed is the number. */
+  PoolBall = 14,
 }
 
 export enum TextureMapping {

@@ -6,6 +6,8 @@ import type { Scene, SceneObject } from '../model/scene.types';
 import { objectMatrix } from './bounds';
 import { INFINITE_KINDS, LIGHT_KINDS } from './objects.factory';
 import { coneT, cubeT, cylinderT, pyramidT, torusT } from './ray-shapes';
+import { latheProfile } from '../assets/lathe.profiles';
+import { latheT } from './lathe-ray';
 import { sample } from './terrain/heightfield';
 
 export interface RayHit {
@@ -117,6 +119,7 @@ function objectT(obj: SceneObject, origin: Vec3, dir: Vec3): number {
     case ShapeKind.Pyramid: return pyramidT(o, d);
     case ShapeKind.Torus: return torusT(o, d, obj.shapeParam);
     case ShapeKind.Portal: return portalT(o, d);
+    case ShapeKind.Lathe: return latheT(latheProfile(obj.shapeParam), o, d);
     default: return cubeT(o, d);
   }
 }

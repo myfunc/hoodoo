@@ -10,6 +10,7 @@ import noise from './glsl/10-noise.glsl?raw';
 import textures from './glsl/20-textures.glsl?raw';
 import shapes from './glsl/30-shapes.glsl?raw';
 import terrain from './glsl/35-terrain.glsl?raw';
+import lathe from './glsl/36-lathe.glsl?raw';
 import portalShape from './glsl/38-portal-shape.glsl?raw';
 import sceneGlsl from './glsl/40-scene.glsl?raw';
 import sky from './glsl/50-sky.glsl?raw';
@@ -22,8 +23,9 @@ import fullscreen from './glsl/fullscreen.vert.glsl?raw';
 import { MAT_TEXELS, OBJ_TEXELS } from './render.constants';
 import { NOISE_SIZE, bakeNoise } from './noise-texture';
 import { type PackedScene, packScene, skyUniforms } from './scene-packer';
+import { packLathe } from './lathe-pack';
 
-const TRACE_SOURCE = [header, noise, textures, shapes, terrain, portalShape, sceneGlsl, sky, shade, portals, main].join('\n');
+const TRACE_SOURCE = [header, noise, textures, shapes, terrain, lathe, portalShape, sceneGlsl, sky, shade, portals, main].join('\n');
 const COLD_FLAG = 'cold';
 const HEADER_END = 'out vec4 fragColor;';
 
@@ -41,6 +43,7 @@ const UNIT_MATERIALS = 1;
 const UNIT_TERRAINS = 2;
 const UNIT_NOISE = 3;
 const UNIT_TERRAIN_MAX = 4;
+const UNIT_LATHE = 5;
 const UNIT_CUR = 0;
 const UNIT_PREV = 1;
 
@@ -134,6 +137,7 @@ export class RayEngine {
   private readonly terrainTex: WebGLTexture;
   private readonly noiseTex: WebGLTexture;
   private readonly terrainMaxTex: WebGLTexture;
+  private readonly latheTex: WebGLTexture;
   private readonly vao: WebGLVertexArrayObject;
   private terrainKey = '';
   private packed: PackedScene | null = null;
@@ -163,6 +167,9 @@ export class RayEngine {
     const maxTex = gl.createTexture();
     if (!maxTex) throw new GlError('Cannot allocate terrain grid');
     this.terrainMaxTex = maxTex;
+    this.latheTex = dataTexture(gl);
+    const lathe = packLathe();
+    uploadFloatRows(gl, this.latheTex, lathe.width, lathe.rows, lathe.data);
     this.logger.info('engine created', { float: this.floatInternal === gl.RGBA32F ? '32F' : '16F' });
   }
 
@@ -446,6 +453,9 @@ export class RayEngine {
     gl.bindTexture(gl.TEXTURE_3D, this.noiseTex);
     gl.activeTexture(gl.TEXTURE0 + UNIT_TERRAIN_MAX);
     gl.bindTexture(gl.TEXTURE_2D_ARRAY, this.terrainMaxTex);
+    gl.activeTexture(gl.TEXTURE0 + UNIT_LATHE);
+    gl.bindTexture(gl.TEXTURE_2D, this.latheTex);
+    u.i('uLathe', UNIT_LATHE);
     u.i('uNoise', UNIT_NOISE);
     u.i('uTerrainMax', UNIT_TERRAIN_MAX);
     u.i('uObjects', UNIT_OBJECTS);

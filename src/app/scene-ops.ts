@@ -1,5 +1,7 @@
 import type { CreateEntry } from '../assets/object.catalog';
 import type { LibraryObject } from '../assets/object.library';
+import type { GameItem } from '../assets/games.library';
+import { buildGameItem } from '../world/game-sets';
 import { createEntry } from '../assets/object.catalog';
 import { randomSeed } from '../core/rng';
 import type { Vec3 } from '../core/vec3';
@@ -31,6 +33,13 @@ export function createFromLibrary(world: World, lib: LibraryObject): void {
   const obj = createObject(createEntry('terrain'), { seed: randomSeed(), recipe: lib.recipe, size: lib.size, material: lib.material, name: lib.name });
   const [x, z] = dropPoint(world.scene.camera);
   world.addObjects([{ ...obj, transform: { ...obj.transform, position: [x, lib.size[1], z] } }], `Create ${lib.name}`);
+}
+
+/** A Chess & Billiards item under the camera's aim; a set comes as one named group. */
+export function createGameItem(world: World, item: GameItem): void {
+  const [x, z] = dropPoint(world.scene.camera);
+  const { objects, groups } = buildGameItem(item, x, z);
+  world.addObjects(objects, `Create ${item.name}`, groups);
 }
 
 /** Frames the selection (or everything) in the active view. */

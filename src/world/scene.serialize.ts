@@ -147,7 +147,7 @@ function reviveObject(o: SerializedObject, seen: Set<string>): SceneObject {
     showAsBox: o.showAsBox === true,
     terrain: TERRAIN_KINDS.has(kind) ? terrain : null,
     light: LIGHT_KINDS.has(kind) ? check.light(o.light) : null,
-    shapeParam: typeof o.shapeParam === 'number' && Number.isFinite(o.shapeParam) ? o.shapeParam : (CREATE_PALETTE.find((e) => e.kind === kind)?.shapeParam ?? 0),
+    shapeParam: check.shapeParam(kind, o.shapeParam, CREATE_PALETTE.find((e) => e.kind === kind)?.shapeParam ?? 0),
     ...(kind === ShapeKind.Portal && check.isId(o.pair) ? { pair: asObjectId(o.pair) } : {}),
   };
 }

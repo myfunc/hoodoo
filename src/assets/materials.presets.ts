@@ -2,6 +2,7 @@ import { hexToRgb as h } from '../core/color';
 import { TEXTURED_COLOR, material, texture } from '../model/material.factory';
 import { ChannelSource, TextureKind, TextureMapping } from '../model/scene.enums';
 import type { Material } from '../model/scene.types';
+import { GAMES_MATERIALS } from './games.materials';
 
 /** Materials Lab preset library, grouped like Bryce 2's preset categories. */
 export interface MaterialCategory {
@@ -320,6 +321,7 @@ export const MATERIAL_LIBRARY: readonly MaterialCategory[] = [
   { name: 'Glass', materials: glass },
   { name: 'Metals', materials: metals },
   { name: 'Simple & Basic', materials: basic },
+  { name: 'Chess & Billiards', materials: GAMES_MATERIALS },
 ];
 
 const byName = new Map(MATERIAL_LIBRARY.flatMap((c) => c.materials).map((m) => [m.name, m]));

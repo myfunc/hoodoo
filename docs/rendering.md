@@ -12,11 +12,17 @@ skipping.
   infinite water / ground / cloud planes), sphere-traced signed distance fields
   for the torus and stones, and height-field terrains and symmetrical lattices
   (height 0 is clipped, like Bryce's black).
+- Lathe objects (the chess pieces, `36-lathe.glsl`): a profile of cone
+  frustums with smoothed normals, a bounding cylinder per eight segments,
+  notches and slits cut by rotated plane groups, joined boxes, and the
+  knight's head sphere-traced inside its extruded side view. Profiles live in
+  one float texture (`lathe-pack.ts`).
 - Boolean groups: Positive objects are cut by Negative members and clipped by
   Intersect members of their group.
 - Bryce 2 materials: ambient, diffuse and specular colour channels, diffusion,
   ambience, specularity, metallicity, transparency, reflection, refraction and
-  bump, each driven flat or by one of three procedural 3D textures (13 kinds).
+  bump, each driven flat or by one of three procedural 3D textures (14 kinds, the last the
+  numbered Pool Ball).
 - Sun or moon, radial and spot lights, shadows through transparent objects.
 - The Bryce sky: gradient modes, sun disc and halo, cumulus and stratus,
   haze, height fog, stars.

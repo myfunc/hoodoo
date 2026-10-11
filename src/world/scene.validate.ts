@@ -1,4 +1,5 @@
 import { DEFAULT_LIGHT } from '../assets/object.catalog';
+import { latheIndex } from '../assets/lathe.profiles';
 import type { Vec3 } from '../core/vec3';
 import { VALUE_LIMITS } from '../model/material.factory';
 import type { Rgb } from '../core/color';
@@ -42,6 +43,12 @@ export function transform(t: unknown): Transform {
 export function shapeKind(k: unknown): ShapeKind {
   if (!SHAPES.has(k)) throw new SceneFileError(`unknown object kind ${String(k)}`);
   return k as ShapeKind;
+}
+
+/** A shape's parameter: a number, and for a Lathe one of its profiles (an unknown one becomes the nearest). */
+export function shapeParam(kind: ShapeKind, v: unknown, fallback: number): number {
+  const n = typeof v === 'number' && Number.isFinite(v) ? v : fallback;
+  return kind === ShapeKind.Lathe ? latheIndex(n) : n;
 }
 
 export const booleanMode = (b: unknown): BooleanMode => (BOOLEANS.has(b) ? (b as BooleanMode) : BooleanMode.Neutral);

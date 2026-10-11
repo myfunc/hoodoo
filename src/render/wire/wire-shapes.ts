@@ -3,6 +3,8 @@ import { ShapeKind } from '../../model/scene.enums';
 import { PORTAL_WINDOW } from '../../world/portals';
 import type { SceneObject, TerrainData } from '../../model/scene.types';
 import { PLANE_EXTENT } from '../../world/bounds';
+import { latheProfile } from '../../assets/lathe.profiles';
+import { latheLines } from './lathe-wire';
 
 /** Line list in object space: [a, b, a, b, …]. */
 export type Lines = Vec3[];
@@ -149,6 +151,9 @@ function build(o: SceneObject): Lines {
     }
     case ShapeKind.Disk:
       circle(out, 1, 0); out.push([-1, 0, 0], [1, 0, 0], [0, 0, -1], [0, 0, 1]);
+      break;
+    case ShapeKind.Lathe:
+      out.push(...latheLines(latheProfile(o.shapeParam)));
       break;
     case ShapeKind.Portal:
       circle(out, 1, 0, 'z'); circle(out, PORTAL_WINDOW, 0, 'z');

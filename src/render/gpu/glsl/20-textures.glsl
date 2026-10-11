@@ -12,6 +12,7 @@
 #define T_ALTITUDE 11
 #define T_SLOPE 12
 #define T_RIDGED 13
+#define T_POOLBALL 14
 
 #define MAP_WORLD 0
 #define MAP_OBJECT 1
@@ -66,6 +67,51 @@ float textureScalar(int kind, vec3 p, int octaves, Surface s) {
   return 0.5;
 }
 
+// Billiard balls (T_POOLBALL): 0 = the ball's colour, 0.5 = white, 1 = the number's ink.
+// Digits are strokes in a glyph box x -0.5..0.5, y -1..1; the number sits in a white
+// disc on +Z and again on -Z, stripes (9-15) have white caps about Y.
+float pbSeg(vec2 p, vec2 a, vec2 b) {
+  vec2 pa = p - a;
+  vec2 ba = b - a;
+  return length(pa - ba * clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0));
+}
+
+// Arc about c from angle a0, counterclockwise through `sweep` radians.
+float pbArc(vec2 p, vec2 c, float r, float a0, float sweep) {
+  vec2 q = p - c;
+  if (mod(atan(q.y, q.x) - a0, TAU) <= sweep) return abs(length(q) - r);
+  vec2 e0 = c + r * vec2(cos(a0), sin(a0));
+  vec2 e1 = c + r * vec2(cos(a0 + sweep), sin(a0 + sweep));
+  return min(length(p - e0), length(p - e1));
+}
+
+float pbRing(vec2 p, vec2 c, float r) { return abs(length(p - c) - r); }
+
+float pbDigit(int d, vec2 p) {
+  if (d == 9) { p = -p; d = 6; }
+  if (d == 0) return abs(length(vec2(p.x, max(abs(p.y) - 0.46, 0.0))) - 0.4);
+  if (d == 1) return min(pbSeg(p, vec2(0.06, -0.86), vec2(0.06, 0.86)), pbSeg(p, vec2(0.06, 0.86), vec2(-0.28, 0.58)));
+  if (d == 2) return min(pbArc(p, vec2(0.0, 0.44), 0.4, -0.7, 3.49), min(pbSeg(p, vec2(0.306, 0.183), vec2(-0.4, -0.86)), pbSeg(p, vec2(-0.4, -0.86), vec2(0.42, -0.86))));
+  if (d == 3) return min(pbArc(p, vec2(0.0, 0.45), 0.4, -1.571, 4.19), pbArc(p, vec2(0.0, -0.43), 0.43, -2.618, 4.19));
+  if (d == 4) return min(pbSeg(p, vec2(0.2, -0.86), vec2(0.2, 0.86)), min(pbSeg(p, vec2(0.2, 0.86), vec2(-0.44, -0.3)), pbSeg(p, vec2(-0.44, -0.3), vec2(0.44, -0.3))));
+  if (d == 5) return min(min(pbSeg(p, vec2(0.38, 0.86), vec2(-0.3, 0.86)), pbSeg(p, vec2(-0.3, 0.86), vec2(-0.36, 0.06))), pbArc(p, vec2(0.0, -0.36), 0.46, -2.618, 4.887));
+  if (d == 6) return min(pbRing(p, vec2(0.0, -0.4), 0.44), pbArc(p, vec2(0.76, -0.4), 1.2, 1.92, 1.22));
+  if (d == 7) return min(pbSeg(p, vec2(-0.42, 0.86), vec2(0.42, 0.86)), pbSeg(p, vec2(0.42, 0.86), vec2(-0.12, -0.86)));
+  return min(pbRing(p, vec2(0.0, 0.46), 0.36), pbRing(p, vec2(0.0, -0.4), 0.44));
+}
+
+float poolBall(vec3 lp, float seed) {
+  int n = int(mod(floor(seed + 0.5), 16.0));
+  vec3 q = normalize(lp);
+  float v = n >= 9 ? 0.5 * smoothstep(0.5, 0.53, abs(q.y)) : 0.0;
+  vec2 uv = vec2(q.z >= 0.0 ? q.x : -q.x, q.y) / 0.44;
+  float disc = 1.0 - smoothstep(0.95, 1.0, length(uv));
+  if (n == 0 || disc <= 0.0) return n == 0 ? 0.5 : v;
+  float d = n < 10 ? pbDigit(n, uv / 0.56) : min(pbDigit(1, uv / 0.5 + vec2(0.52, 0.0)), pbDigit(n - 10, uv / 0.5 - vec2(0.42, 0.0)));
+  float ink = 1.0 - smoothstep(0.15, 0.19, d);
+  return mix(mix(v, 0.5, disc), 1.0, ink * disc);
+}
+
 vec3 ramp(float v, vec3 c0, vec3 c1, vec3 c2) {
   return v < 0.5 ? mix(c0, c1, v * 2.0) : mix(c1, c2, v * 2.0 - 1.0);
 }
@@ -85,7 +131,7 @@ vec4 evalTexture(int mat, int slot, Surface s) {
   vec4 t2 = matTexel(mat, base + 2);
   vec4 t3 = matTexel(mat, base + 3);
   vec3 p = texturePoint(int(t0.w + 0.5), t0.y, t1.w, s);
-  float v = textureScalar(kind, p, int(t0.z + 0.5), s);
+  float v = kind == T_POOLBALL ? poolBall(s.lp, t1.w) : textureScalar(kind, p, int(t0.z + 0.5), s);
   v = clamp((v - 0.5) * (1.0 + t2.w * 0.04) + 0.5, 0.0, 1.0);
   vec3 col = ramp(v, t1.rgb, t2.rgb, t3.rgb);
   if (kind == T_PSYCHEDELIC) col = v < 0.333 ? mix(t1.rgb, t2.rgb, v * 3.0) : (v < 0.666 ? mix(t2.rgb, t3.rgb, v * 3.0 - 1.0) : mix(t3.rgb, t1.rgb, v * 3.0 - 2.0));

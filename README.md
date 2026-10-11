@@ -40,13 +40,14 @@ example projects, four stills and four animations.
 - **Render:** a progressive GPU ray tracer that draws like Bryce — 16×16 down
   to 2×2 blocks, then anti-aliasing — with primitives, boolean groups, terrains
   and symmetrical lattices, stones, infinite planes, lights, shadows,
-  reflection, refraction, bump, 13 procedural textures and the Bryce sky with
+  reflection, refraction, bump, 14 procedural textures and the Bryce sky with
   clouds, haze, fog and stars. See [docs/rendering.md](docs/rendering.md).
 - **Editors:** Materials Lab (colour and value channels driven by three
   textures, preset library), Terrain Editor (elevation and filter tools, grid
   resolution, paint brush, height-map import and export), Sky & Fog palette,
   Object Attributes, Edit palette (resize / rotate / reposition, align,
-  randomize, land), Object Library, Document Setup.
+  randomize, land), Object Library (Landforms; Chess & Billiards: a Staunton
+  chess set, pieces, board, pool balls and rack), Document Setup.
 
 ### From Bryce 3D
 

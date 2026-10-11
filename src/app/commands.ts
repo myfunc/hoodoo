@@ -34,7 +34,7 @@ import { exportMovie } from './movie-export';
 import { promptInstall } from './pwa';
 import { openMovieDialog } from '../ui/labs/movie-dialog';
 import { compareLatest, takeSnapshot } from './snapshot-ops';
-import { createFromLibrary, frame } from './scene-ops';
+import { createFromLibrary, createGameItem, frame } from './scene-ops';
 import { canLinkPortals, createPortals, linkSelectedPortals } from './portal-ops';
 import { openAnimationSetup } from '../ui/labs/animation-setup';
 import { SettingsSection, openSettings } from '../ui/labs/settings-window';
@@ -168,7 +168,7 @@ export class Commands {
       [Action.PrevMaterial]: () => stepMaterial(ctx, StepDirection.Previous),
       [Action.NextMaterial]: () => stepMaterial(ctx, StepDirection.Next),
       [Action.EditObject]: () => this.editObject(),
-      [Action.ObjectLibrary]: () => openObjectLibrary(ctx.thumbs, (lib) => createFromLibrary(w, lib)),
+      [Action.ObjectLibrary]: () => openObjectLibrary(ctx.thumbs, { terrain: (lib) => createFromLibrary(w, lib), game: (item) => createGameItem(w, item) }),
       [Action.Randomize]: () => {
         const next = randomized(w.selectedObjects(), { ...RANDOMIZE, seed: randomSeed() });
         w.updateObjects(new Set(next.keys()), 'Randomize', (o) => next.get(o.id) ?? o);

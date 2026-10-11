@@ -1,5 +1,6 @@
 import type { UiContext } from '../ui/context';
 import type { CreateEntry } from '../assets/object.catalog';
+import type { GameItem } from '../assets/games.library';
 import { CompareOverlay } from '../ui/chrome/compare-overlay';
 import { SceneMenu } from '../ui/chrome/context-menu';
 import { ControlPanel } from '../ui/chrome/control-panel';
@@ -30,9 +31,9 @@ export class Shell {
   readonly menu: SceneMenu;
   private readonly workspace: HTMLElement;
 
-  constructor(ctx: UiContext, onCreate: (e: CreateEntry) => void) {
+  constructor(ctx: UiContext, onCreate: (e: CreateEntry) => void, onGame?: (item: GameItem) => void) {
     this.menubar = new MenuBar(ctx);
-    this.menu = new SceneMenu(ctx, onCreate);
+    this.menu = new SceneMenu(ctx, onCreate, onGame);
     const controls = new ControlPanel(ctx);
     const palette = new Palette(ctx, onCreate);
     const display = new DisplayBar(ctx);

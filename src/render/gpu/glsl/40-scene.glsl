@@ -54,7 +54,7 @@ bool boundHit(vec4 bound, vec3 ro, vec3 rd, float tmax) {
   return d >= 0.0 && -b - sqrt(d) < tmax;
 }
 
-// The one call site of the heavy intersections (terrain, SDF): FXC (Windows) inlines
+// The one call site of the heavy intersections (terrain, SDF, lathe): FXC (Windows) inlines
 // every call, so a second site would double the compile time.
 Span shapeSpan(Obj o, vec3 ro, vec3 rd) {
   vec3 lo = toLocalPoint(o, ro);
@@ -71,6 +71,7 @@ Span shapeSpan(Obj o, vec3 ro, vec3 rd) {
   if (k == K_TORUS || k == K_STONE) return marchSdf(k, lo, ld, o.params.y);
   if (k == K_TERRAIN || k == K_LATTICE) return terrainSpan(k == K_LATTICE, lo, ld, o.params.x, o.params.z);
   if (k == K_PORTAL) return portalSpan(lo, ld);
+  if (k == K_LATHE) return latheSpan(lo, ld, o.params.y);
   return NO_SPAN;
 }
 

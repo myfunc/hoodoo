@@ -41,4 +41,16 @@ describe('context menus', () => {
     items.at(-1)?.run?.();
     expect(ran).toEqual([Action.PreviewFeatures]);
   });
+
+  it('offer the Chess & Billiards category in the Create submenu', () => {
+    const ctx = { editor: new EditorStore(), isChecked: () => false, isEnabled: () => true, dispatch: () => undefined } as unknown as UiContext;
+    const made: string[] = [];
+    const create = new SceneMenu(ctx, () => undefined, (g) => made.push(g.name)).items(emptyEntries()).find((i) => i.items)!;
+    const games = create.items!.find((i) => i.label === 'Chess & Billiards')!;
+    expect(games.items!.map((i) => i.label)).toEqual(['Chess Set', 'Chess Board', 'White Pieces', 'Black Pieces', '', 'Pool Rack', 'Pool Balls']);
+    games.items!.find((i) => i.label === 'Black Pieces')!.items![0].run?.();
+    games.items!.find((i) => i.label === 'Pool Balls')!.items![9].run?.();
+    expect(made).toEqual(['Black King', '9 Ball']);
+    expect(new SceneMenu(ctx, () => undefined).items(emptyEntries()).find((i) => i.items)!.items!.some((i) => i.label === 'Chess & Billiards')).toBe(false);
+  });
 });
