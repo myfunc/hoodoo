@@ -1,6 +1,7 @@
 import type { UiContext } from '../ui/context';
 import type { CreateEntry } from '../assets/object.catalog';
 import { CompareOverlay } from '../ui/chrome/compare-overlay';
+import { SceneMenu } from '../ui/chrome/context-menu';
 import { ControlPanel } from '../ui/chrome/control-panel';
 import { DisplayBar } from '../ui/chrome/display-bar';
 import { MenuBar } from '../ui/chrome/menubar';
@@ -21,10 +22,13 @@ const PERCENT = 100;
 export class Shell {
   readonly root: HTMLElement;
   readonly menubar: MenuBar;
+  /** Right-click menus of the scene window and the scene list. */
+  readonly menu: SceneMenu;
   private readonly workspace: HTMLElement;
 
   constructor(ctx: UiContext, onCreate: (e: CreateEntry) => void) {
     this.menubar = new MenuBar(ctx);
+    this.menu = new SceneMenu(ctx, onCreate);
     const controls = new ControlPanel(ctx);
     const palette = new Palette(ctx, onCreate);
     const display = new DisplayBar(ctx);
@@ -43,7 +47,7 @@ export class Shell {
     });
     const timeline = new Timeline(ctx);
     const center = el('main', { cls: 'center' }, [palette.titles, palette.trayHost, ctx.view.root, timeline.el, display.el]);
-    const side = el('aside', { cls: 'side-panel' }, [new Properties(ctx).el, new Outliner(ctx).el, new SnapshotsPanel(ctx).el, new HistoryPanel(ctx).el]);
+    const side = el('aside', { cls: 'side-panel' }, [new Properties(ctx).el, new Outliner(ctx, this.menu).el, new SnapshotsPanel(ctx).el, new HistoryPanel(ctx).el]);
     this.workspace = el('div', { cls: 'workspace' }, [controls.el, center, side]);
     this.root = el('div', { cls: 'app' }, [this.menubar.el, this.workspace]);
     ctx.editor.events.on('changed', ({ state }) => this.workspace.classList.toggle('no-side', !state.sidePanel));

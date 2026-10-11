@@ -78,7 +78,9 @@ describe('nested groups', () => {
     expect(w.historyState().labels.length).toBe(steps + 1);
     expect(w.reparent({ objects: [], groups: [inner] }, null)).toBe(true);
     expect(parentOf(w, inner)).toBeNull();
-    // The outer group held only the inner one: it is gone with it.
+    // The outer group held only the inner one: it stays, empty, until it is deleted.
+    expect(groupIndex(w.scene).get(outer)?.parentId).toBeNull();
+    w.ungroupGroups(new Set([outer]));
     expect(groupIndex(w.scene).has(outer)).toBe(false);
   });
 
@@ -131,6 +133,73 @@ describe('nested groups', () => {
   });
 });
 
+describe('groups made in the Object Tree', () => {
+  const names = (w: World) => treeRows(w.scene).map((r) => [r.depth, r.group?.name ?? r.object?.name]);
+
+  it('New Group wraps a single item, or makes an empty group that stays', () => {
+    const { w, c, inner } = setup();
+    const solo = w.newGroup(ids(c))!;
+    expect(groupOf(w, c)).toBe(solo);
+    w.select([], SelectMode.Replace);
+    const empty = w.newGroup(new Set())!;
+    expect(w.historyState().labels.at(-1)).toBe('New group');
+    expect(names(w)).toEqual([[0, 'Group 1'], [1, 'a'], [1, 'b'], [0, 'Group 2'], [1, 'c'], [0, 'd'], [0, 'Group 3']]);
+    // Moving rows in and out never makes it vanish; Ungroup deletes it.
+    expect(w.reparent({ objects: [], groups: [inner] }, empty)).toBe(true);
+    expect(w.reparent({ objects: [], groups: [inner] }, null)).toBe(true);
+    expect(groupIndex(w.scene).has(empty)).toBe(true);
+    expect(roundTrip(w.scene).groups?.some((g) => g.id === empty)).toBe(true);
+    w.ungroupGroups(new Set([empty]));
+    expect(groupIndex(w.scene).has(empty)).toBe(false);
+    w.undo();
+    expect(groupIndex(w.scene).has(empty)).toBe(true);
+  });
+
+  it('nests an empty group inside another, folded parents included, up to the depth limit', () => {
+    const { w, inner } = setup();
+    const sub = w.newGroup(new Set(), inner)!;
+    expect(parentOf(w, sub)).toBe(inner);
+    expect(names(w).slice(0, 4)).toEqual([[0, 'Group 1'], [1, 'a'], [1, 'b'], [1, 'Group 2']]);
+    let at: GroupId | null = sub;
+    for (let i = 0; at && i < SCENE_LIMITS.groupDepth; i++) at = w.newGroup(new Set(), at);
+    expect(at).toBeNull();
+    expect(w.newGroup(new Set(), 'missing' as GroupId)).toBeNull();
+  });
+
+  it('deleting every object of a group deletes it and the groups inside; locked objects keep theirs', () => {
+    const { w, a, b, c, inner } = setup();
+    const outer = w.group(ids(a, b, c), true)!;
+    const sub = w.newGroup(new Set(), inner)!;
+    w.removeObjects(ids(a), 'Clear');
+    expect(groupIndex(w.scene).has(inner)).toBe(true);
+    w.removeObjects(ids(b), 'Clear');
+    expect([inner, sub].map((g) => groupIndex(w.scene).has(g))).toEqual([false, false]);
+    expect(groupOf(w, c)).toBe(outer);
+    w.updateObjects(ids(c), 'Lock', (o) => ({ ...o, locked: true }), true);
+    w.removeObjects(ids(c), 'Clear');
+    expect(groupIndex(w.scene).has(outer)).toBe(true);
+  });
+
+  it('dissolve one group by id and lift what it held', () => {
+    const { w, a, b, c, inner } = setup();
+    const outer = w.group(ids(a, b, c), true)!;
+    w.ungroupGroups(new Set([outer]));
+    expect(parentOf(w, inner)).toBeNull();
+    expect(groupOf(w, c)).toBeNull();
+    expect(groupOf(w, a)).toBe(inner);
+  });
+
+  it('keep flat deletion flat', () => {
+    const w = new World(emptyScene());
+    const [a, b, c] = ['a', 'b', 'c'].map(sphere);
+    w.addObjects([a, b, c], 'Create');
+    w.group(ids(a, b));
+    w.removeObjects(ids(a, b), 'Clear');
+    expect(w.scene.groups).toBeUndefined();
+    expect(w.scene.objects.map((o) => o.name)).toEqual(['c']);
+  });
+});
+
 describe('nested groups in files', () => {
   it('round-trip names, nesting and folding', () => {
     const { w, a, b, c, inner } = setup();
@@ -177,7 +246,7 @@ describe('nested groups in files', () => {
     expect(depth).toBeLessThanOrEqual(SCENE_LIMITS.groupDepth);
   });
 
-  it('drop junk entries, duplicates and empty groups; cap names and count', () => {
+  it('drop junk entries and duplicates, keep empty named groups; cap names and count', () => {
     const scene = deserializeScene(file([obj('a', 'g')], [
       null, 7, 'g', { id: '' }, { id: 'x'.repeat(SCENE_LIMITS.id + 1) },
       { id: 'g', name: 'n'.repeat(500), parentId: 42, collapsed: 'yes' },
@@ -185,7 +254,8 @@ describe('nested groups in files', () => {
       { id: 'empty', name: 'Nothing here' },
       { id: '__proto__', name: 'P', parentId: null },
     ]));
-    expect(scene.groups).toHaveLength(1);
+    // An id that names an Object property is just an id: groups live in arrays and Maps.
+    expect(scene.groups?.map((x) => x.id)).toEqual(['g', 'empty', '__proto__']);
     const g = scene.groups![0];
     expect(g.name).toHaveLength(SCENE_LIMITS.name);
     expect(g.parentId).toBeNull();

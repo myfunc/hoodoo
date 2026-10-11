@@ -16,6 +16,7 @@ import {
   MS_PER_SECOND, ORBIT_DEG_PER_PX, ORTHO_ZOOM, PICK_RADIUS_PX, PINCH_DOLLY, SWIPE_GAP_MS, TRACKPAD_ORBIT_DEG_PER_PX,
   TRACKPAD_PAN, WHEEL_DOLLY,
 } from './input.constants';
+import { installFileDrop } from './file-drop';
 import { type KeyDrag, PathKeys } from './path-keys';
 import { gizmoAxisAt, groundPoint, pickObject, surfacePoint } from './pick';
 import { ScrollClassifier, ScrollDevice } from './scroll-device';
@@ -49,6 +50,8 @@ export interface InputHooks {
   readonly onFocusPicked: (view: ViewKind, point: Vec3 | null) => void;
   /** The first trackpad swipe of the session: a chance to show the gestures. */
   readonly onTrackpad: () => void;
+  /** A right click (pressed and let go without dragging) at a screen point, on an object or on empty space. */
+  readonly onContextMenu: (clientX: number, clientY: number, target: ObjectId | null) => void;
 }
 
 interface Press {
@@ -71,6 +74,7 @@ interface Press {
  * Idle → Pressing → (MoveObjects | AxisDrag | BoxSelect) on the left button,
  * KeyPress → KeyDrag on a motion-path key square (path-keys.ts),
  * Orbit (right / Alt-left), Pan (middle / Space-left), Fly (right + WASD).
+ * A right press let go before it travels DRAG_THRESHOLD_PX is a right click: the context menu.
  * A band that holds key squares picks those keys; otherwise it selects objects.
  * Scrolling: a mouse wheel dollies; on a trackpad two fingers orbit (Shift or
  * Option: pan, Cmd: dolly) and a pinch zooms — in Safari a two-finger twist turns too.
@@ -93,6 +97,8 @@ export class ViewportInput {
   private gestureScale = 1;
   private gestureRotation = 0;
   private readonly keys: PathKeys;
+  /** A right press that has not travelled yet: letting go opens the context menu, the camera waits. */
+  private rightClick = false;
 
   constructor(
     private readonly el: HTMLElement,
@@ -124,7 +130,7 @@ export class ViewportInput {
     window.addEventListener('keydown', (e) => this.keyDown(e));
     window.addEventListener('keyup', (e) => this.keyUp(e));
     window.addEventListener('blur', () => this.held.clear());
-    this.installDrop();
+    installFileDrop(el, (files) => this.hooks.onDropFiles(files));
   }
 
   private local(e: { clientX: number; clientY: number }): { x: number; y: number } {
@@ -150,6 +156,7 @@ export class ViewportInput {
     if (e.button === BUTTON_RIGHT || (e.button === BUTTON_LEFT && e.altKey && !this.world.selection.size)) {
       this.press = { ...base, target: null, axis: -1 };
       this.state = isPerspective(cell.kind) ? Gesture.Orbit : Gesture.Pan;
+      this.rightClick = e.button === BUTTON_RIGHT;
       this.beginCameraGesture(cell, 'Camera trackball');
       if (e.button === BUTTON_RIGHT && isPerspective(cell.kind)) {
         this.flyArmed = true;
@@ -209,8 +216,8 @@ export class ViewportInput {
       case Gesture.KeyDrag: if (this.press?.keyDrag) this.keys.drag(this.press.keyDrag, x, y, e.altKey); break;
       case Gesture.BoxSelect: this.drawBox(p.x, p.y, x, y); break;
       case Gesture.Orbit:
-      case Gesture.Fly: this.orbitBy(p.cell, dx, dy); break;
-      case Gesture.Pan: this.panBy(p.cell, dx, dy); break;
+      case Gesture.Fly: if (!this.stillClick(p, x, y)) this.orbitBy(p.cell, dx, dy); break;
+      case Gesture.Pan: if (!this.stillClick(p, x, y)) this.panBy(p.cell, dx, dy); break;
       default: break;
     }
   }
@@ -227,7 +234,9 @@ export class ViewportInput {
         if (!p.shift) this.keys.set([]);
       }
     }
+    const menu = p && this.rightClick && (this.state === Gesture.Orbit || this.state === Gesture.Pan);
     this.finish();
+    if (p && menu) this.hooks.onContextMenu(e.clientX, e.clientY, this.pickAt(p.cell, p.x, p.y));
     // What lies under the pointer may have changed (a key moved, a selection): refresh the hover and its hint.
     this.updateHover(x, y);
   }
@@ -242,6 +251,13 @@ export class ViewportInput {
     this.stopFly();
     this.state = Gesture.Idle;
     this.press = null;
+    this.rightClick = false;
+  }
+
+  /** True while a right press is still within the click distance; past it, it is a camera drag for good. */
+  private stillClick(p: Press, x: number, y: number): boolean {
+    if (this.rightClick && Math.hypot(x - p.x, y - p.y) > DRAG_THRESHOLD_PX) this.rightClick = false;
+    return this.rightClick;
   }
 
   /** A click on an object or on empty space also drops the picked keys: Delete then means the objects. */
@@ -479,18 +495,5 @@ export class ViewportInput {
     cancelAnimationFrame(this.flyFrame);
     this.flyArmed = false;
     this.held.clear();
-  }
-
-  private installDrop(): void {
-    this.el.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      this.el.classList.add('is-dropping');
-    });
-    this.el.addEventListener('dragleave', () => this.el.classList.remove('is-dropping'));
-    this.el.addEventListener('drop', (e) => {
-      e.preventDefault();
-      this.el.classList.remove('is-dropping');
-      if (e.dataTransfer?.files.length) this.hooks.onDropFiles(e.dataTransfer.files);
-    });
   }
 }

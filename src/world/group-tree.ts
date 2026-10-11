@@ -46,13 +46,18 @@ export function chain(index: ReadonlyMap<GroupId, GroupNode>, id: GroupId | null
   return out;
 }
 
-/** The table worth keeping: groups that still hold objects and are not plain (or hold a group that is not). */
+/**
+ * The table worth keeping: groups that hold objects, and every named, nested or
+ * folded group even when empty (it stays until it is deleted), with the groups
+ * around them. A plain group needs an entry only while it holds a group.
+ */
 export function tidyGroups(objects: readonly SceneObject[], nodes: Iterable<GroupNode>): GroupNode[] {
   const index = new Map([...nodes].map((g) => [g.id, g]));
-  const used = new Set<GroupId>();
-  for (const o of objects) for (const g of chain(index, o.groupId)) used.add(g);
-  const parents = new Set([...used].map((g) => index.get(g)?.parentId));
-  return [...index.values()].filter((g) => used.has(g.id) && (!isPlain(g) || parents.has(g.id)));
+  const alive = new Set<GroupId>();
+  for (const o of objects) for (const g of chain(index, o.groupId)) alive.add(g);
+  for (const g of index.values()) if (!isPlain(g)) for (const up of chain(index, g.id)) alive.add(up);
+  const parents = new Set([...alive].map((g) => index.get(g)?.parentId));
+  return [...index.values()].filter((g) => alive.has(g.id) && (!isPlain(g) || parents.has(g.id)));
 }
 
 /** The scene with new objects and groups; no `groups` key when every group is plain. */
@@ -123,10 +128,10 @@ export function freshGroupName(scene: GroupedScene): string {
   return `${GROUP_NAME} ${n}`;
 }
 
-/** Groups the selection's items into a new group inside their common parent; null for fewer than two items. */
-export function grouped(scene: Scene, ids: ReadonlySet<ObjectId>, id: GroupId, name: string): Scene | null {
+/** Groups the selection's items into a new group inside their common parent; null for fewer than `least` items (Group needs two, New Group one). */
+export function grouped(scene: Scene, ids: ReadonlySet<ObjectId>, id: GroupId, name: string, least = 2): Scene | null {
   const items = coverItems(scene, ids);
-  if (items.objects.length + items.groups.length < 2) return null;
+  if (items.objects.length + items.groups.length < Math.max(least, 1)) return null;
   const index = groupIndex(scene);
   const moved = new Set(items.objects);
   const parents = [
@@ -138,18 +143,40 @@ export function grouped(scene: Scene, ids: ReadonlySet<ObjectId>, id: GroupId, n
   return checked(scene, scene.objects.map((o) => (moved.has(o.id) ? { ...o, groupId: id } : o)), index);
 }
 
+/** A new empty group inside `parent` (null: the top level); null when the parent is missing or a limit is reached. */
+export function withEmptyGroup(scene: Scene, id: GroupId, name: string, parent: GroupId | null): Scene | null {
+  const index = groupIndex(scene);
+  if (parent !== null && !index.has(parent)) return null;
+  if (index.size >= SCENE_LIMITS.groups || chain(index, parent).length >= SCENE_LIMITS.groupDepth) return null;
+  index.set(id, { id, name, parentId: parent, collapsed: false });
+  return withGroups(scene, scene.objects, index.values());
+}
+
 /** Dissolves the selected groups (or the groups of single selected objects); their children move up one level. */
 export function ungrouped(scene: Scene, ids: ReadonlySet<ObjectId>): Scene | null {
-  const index = groupIndex(scene);
   const items = coverItems(scene, ids);
   const gone = new Set(items.groups);
   const picked = new Set(items.objects);
   for (const o of scene.objects) if (picked.has(o.id) && o.groupId) gone.add(o.groupId);
-  if (!gone.size) return null;
+  return dissolved(scene, gone);
+}
+
+/** Dissolves the given groups, empty ones included; their children move up one level. Null when none exists. */
+export function dissolved(scene: Scene, gone: ReadonlySet<GroupId>): Scene | null {
+  const index = groupIndex(scene);
+  if (![...gone].some((g) => index.has(g))) return null;
   const lift = (g: GroupId | null): GroupId | null => chain(index, g).find((x) => !gone.has(x)) ?? null;
   const objects = scene.objects.map((o) => (o.groupId && gone.has(o.groupId) ? { ...o, groupId: lift(o.groupId) } : o));
   const nodes = [...index.values()].filter((g) => !gone.has(g.id)).map((g) => (g.parentId && gone.has(g.parentId) ? { ...g, parentId: lift(g.parentId) } : g));
   return withGroups(scene, objects, nodes);
+}
+
+/** The scene without the given objects; a group whose every object goes is deleted with them, the groups inside it too. */
+export function withoutObjects(scene: Scene, ids: ReadonlySet<ObjectId>): Scene {
+  const index = groupIndex(scene);
+  const whole = coverItems(scene, ids).groups;
+  const nodes = [...index.values()].filter((g) => !chain(index, g.id).some((x) => whole.includes(x)));
+  return withGroups(scene, scene.objects.filter((o) => !ids.has(o.id)), nodes);
 }
 
 /**
@@ -197,7 +224,7 @@ export function cloneGroups(index: ReadonlyMap<GroupId, GroupNode>, objects: rea
   return { map, nodes };
 }
 
-/** The scene list as a tree: groups first met where their first object stands, folded groups without children. */
+/** The scene list as a tree: groups first met where their first object stands, empty ones last, folded groups without children. */
 export function treeRows(scene: GroupedScene): TreeRow[] {
   const index = groupIndex(scene);
   const children = new Map<GroupId | null, (GroupId | SceneObject)[]>();
@@ -216,6 +243,11 @@ export function treeRows(scene: GroupedScene): TreeRow[] {
       members.set(g, list);
     });
     place(o.groupId, o);
+  }
+  // Empty groups stand after what their parent holds.
+  for (const g of index.keys()) {
+    const outward = chain(index, g);
+    outward.forEach((x, i) => place(outward[i + 1] ?? null, x));
   }
   const rows: TreeRow[] = [];
   const visit = (parent: GroupId | null, depth: number) => {

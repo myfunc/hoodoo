@@ -10,7 +10,12 @@ import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
 import { CREATE_PALETTE } from '../../assets/object.catalog';
 import { createIcon } from '../../render/icons';
 import { ChangeKind } from '../../world/world.events';
-import { type TreeItems, type TreeRow, coverItems, treeRows } from '../../world/group-tree';
+import { type TreeItems, type TreeRow, coverItems, groupIndex, treeRows } from '../../world/group-tree';
+import { Action } from '../../input/actions';
+import { ACTIONS } from '../../input/bindings';
+import { Feature, isFeatureOn } from '../../world/preview-features';
+import { type SceneMenu, SEPARATOR, actionItem, openContextMenu } from '../chrome/context-menu';
+import { Button } from '../kit/controls';
 import { iconCanvas } from '../chrome/icon-canvas';
 import { OutlinerDrag } from './outliner-drag';
 import { panelTitle } from './panel-title';
@@ -19,13 +24,15 @@ const ICON_PX = 18;
 /** Object Tree: indentation per level of nesting. */
 const INDENT_PX = 12;
 const ROOT_DROP_TEXT = 'Top level';
+const NEW_GROUP_TITLE = 'New group: around the selection, or an empty one to drag rows into';
 
 /**
  * Scene list (modern addition): each object with its little rendered icon, as on
  * the Create palette. Click selects, double-click renames, the eye hides, the
  * lock locks. Grouped objects sit on a bracket. With the Object Tree preview on,
  * groups are rows of their own: they fold, rename, hide and lock everything
- * inside, and rows dragged onto a group move into it.
+ * inside, and rows dragged onto a group move into it; + Group in the title makes
+ * a group, and a right click on a row opens its menu.
  */
 export class Outliner {
   readonly el: HTMLElement;
@@ -36,15 +43,30 @@ export class Outliner {
   private readonly groupRows = new Map<GroupId, HTMLElement>();
   private readonly drag: OutlinerDrag;
 
-  constructor(private readonly ctx: UiContext) {
+  constructor(private readonly ctx: UiContext, private readonly menu: SceneMenu) {
     this.body = el('div', { cls: 'panel-body outliner' });
-    this.el = el('div', { cls: 'panel grow' }, [panelTitle('Scene', GLYPH.cube), this.body]);
+    const add = new Button({ label: '+ Group', cls: 'panel-add', title: NEW_GROUP_TITLE, onClick: () => this.newGroup(() => ctx.dispatch(Action.NewGroup)) });
+    this.el = el('div', { cls: 'panel grow' }, [panelTitle('Scene', GLYPH.cube, add.el), this.body]);
+    const showAdd = () => { add.el.hidden = !this.tree; };
+    showAdd();
+    this.body.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (!(e.target as Element).closest('.outliner-row')) menu.openEmpty(e.clientX, e.clientY);
+    });
     this.drag = new OutlinerDrag(ctx.world, this.body, (under) => this.dropTarget(under), (id) => this.groupRows.get(id) ?? null, () => this.render());
     // Names, eyes and locks do not move with the playhead.
     ctx.world.events.on('changed', ({ kind }) => { if (kind !== ChangeKind.Time) this.schedule(); });
     ctx.world.events.on('selection', () => this.schedule());
-    ctx.editor.events.on('changed', ({ state, previous }) => { if (state.objectTree !== previous.objectTree) this.schedule(); });
+    ctx.editor.events.on('changed', ({ state, previous }) => {
+      if (state.features === previous.features) return;
+      showAdd();
+      this.schedule();
+    });
     this.render();
+  }
+
+  private get tree(): boolean {
+    return isFeatureOn(this.ctx.editor.state.features, Feature.ObjectTree);
   }
 
   private icon(o: SceneObject): HTMLCanvasElement {
@@ -73,7 +95,7 @@ export class Outliner {
     const sel = this.ctx.world.selection;
     const objects = this.ctx.world.scene.objects;
     for (const id of this.icons.keys()) if (!objects.some((o) => o.id === id)) this.icons.delete(id);
-    if (this.ctx.editor.state.objectTree) {
+    if (this.tree) {
       for (const row of treeRows(this.ctx.world.scene)) this.body.append(row.group ? this.groupRow(row.group, row) : this.treeObjectRow(row));
       this.body.append(el('div', { cls: 'outliner-root-drop', text: ROOT_DROP_TEXT }));
       return;
@@ -94,13 +116,22 @@ export class Outliner {
       this.ctx.world.select([o.id], mode);
     });
     row.addEventListener('dblclick', () => this.renameObject(o.id, name));
+    this.objectMenu(row, o.id);
     return row;
+  }
+
+  /** Right click on an object row: the object menu of the scene window; the row is selected first unless it is. */
+  private objectMenu(row: HTMLElement, id: ObjectId): void {
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      this.menu.openObject(e.clientX, e.clientY, id, [id]);
+    });
   }
 
   /** The eye and the lock; on a group row they act on everything inside. */
   private switches(members: readonly SceneObject[]): HTMLElement[] {
-    const hidden = members.every((o) => o.hidden);
-    const locked = members.every((o) => o.locked);
+    const hidden = members.length > 0 && members.every((o) => o.hidden);
+    const locked = members.length > 0 && members.every((o) => o.locked);
     const ids = new Set(members.map((o) => o.id));
     const eye = glyph(GLYPH.eye, GLYPH_BOX, `glyph${hidden ? '' : ' on'}`);
     const lock = glyph(GLYPH.lock, GLYPH_BOX, `glyph${locked ? ' on' : ''}`);
@@ -131,6 +162,7 @@ export class Outliner {
       this.ctx.world.select([o.id], e.shiftKey || e.metaKey || e.ctrlKey ? SelectMode.Toggle : SelectMode.Replace);
     });
     row.addEventListener('dblclick', () => this.renameObject(o.id, name));
+    this.objectMenu(row, o.id);
     this.draggable(row, { objects: [o.id], groups: [] });
     dropTargets.set(row, o.groupId);
     return row;
@@ -140,7 +172,7 @@ export class Outliner {
     const ids = r.members.map((o) => o.id);
     const sel = this.ctx.world.selection;
     const selected = ids.length > 0 && ids.every((id) => sel.has(id));
-    const hidden = r.members.every((o) => o.hidden);
+    const hidden = r.members.length > 0 && r.members.every((o) => o.hidden);
     const twisty = el('span', { cls: 'outliner-twisty' }, [glyph(g.collapsed ? GLYPH.triangleRight : GLYPH.triangleDown, GLYPH_BOX, 'twisty')]);
     const name = el('span', { cls: 'outliner-name', text: g.name });
     const row = el('div', { cls: `outliner-row tree is-group${selected ? ' is-selected' : ''}${hidden ? ' is-hidden' : ''}`, title: `${g.name} · ${ids.length} objects` }, [
@@ -163,10 +195,42 @@ export class Outliner {
       else this.ctx.world.select(ids, SelectMode.Add);
     });
     row.addEventListener('dblclick', () => this.rename(name, g.name, (value) => this.ctx.world.renameGroup(g.id, value)));
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      this.groupMenu(e.clientX, e.clientY, g, ids, name);
+    });
     this.draggable(row, { objects: [], groups: [g.id] });
     this.groupRows.set(g.id, row);
     dropTargets.set(row, g.id);
     return row;
+  }
+
+  /** Right click on a group row: what can be done to this group, whatever is selected. */
+  private groupMenu(x: number, y: number, g: GroupNode, ids: readonly ObjectId[], label: HTMLElement): void {
+    const w = this.ctx.world;
+    openContextMenu(x, y, [
+      { label: 'Rename', run: () => this.rename(label, g.name, (value) => w.renameGroup(g.id, value)) },
+      { label: ACTIONS[Action.Ungroup].label, run: () => w.ungroupGroups(new Set([g.id])) },
+      { label: 'Select Group', disabled: !ids.length, run: () => w.select(ids, SelectMode.Replace) },
+      { label: g.collapsed ? 'Unfold' : 'Fold', run: () => { w.setGroupCollapsed(g.id, !g.collapsed); this.render(); } },
+      SEPARATOR,
+      { label: 'New Group Inside', run: () => this.newGroup(() => { if (g.collapsed) w.setGroupCollapsed(g.id, false); w.newGroup(new Set(), g.id); }) },
+      SEPARATOR,
+      actionItem(this.ctx, Action.PreviewFeatures),
+    ]);
+  }
+
+  /** Makes a group, then starts typing its name on its row. */
+  private newGroup(make: () => void): void {
+    const before = new Set(groupIndex(this.ctx.world.scene).keys());
+    make();
+    const added = [...groupIndex(this.ctx.world.scene).values()].find((g) => !before.has(g.id));
+    if (!added) return;
+    this.render();
+    const label = this.groupRows.get(added.id)?.querySelector<HTMLElement>('.outliner-name');
+    if (!label) return;
+    label.scrollIntoView({ block: 'nearest' });
+    this.rename(label, added.name, (value) => this.ctx.world.renameGroup(added.id, value));
   }
 
   /** A row that is one of the selection's parts drags the whole selection; any other row (say, one object of a picked group) drags itself. */

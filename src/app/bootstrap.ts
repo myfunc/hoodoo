@@ -16,7 +16,8 @@ import { SnapshotStore } from '../ui/snapshot-store';
 import { showToast } from '../ui/panels/toast';
 import { Splash } from '../ui/chrome/splash';
 import { demoScene } from '../world/demo-scene';
-import { Feature, featureInUrl, loadPrefs, savePrefs } from '../io/prefs';
+import { loadPrefs, saveFeature, savePrefs, startFeatures } from '../io/prefs';
+import { PREVIEW_FEATURES, isFeatureOn } from '../world/preview-features';
 import { pickSceneFile } from '../io/project-file';
 import { StartWindow } from '../ui/chrome/start-window';
 import { emptyScene } from '../world/scene.defaults';
@@ -71,8 +72,15 @@ export async function startApp(root: HTMLElement): Promise<void> {
   const world = new World(shared ?? saved ?? demoScene());
   if (shared) history.replaceState(null, '', location.pathname);
   const editor = new EditorStore();
-  editor.update({ scroll: prefs.scroll, objectTree: prefs.objectTree || featureInUrl(Feature.ObjectTree) });
-  editor.events.on('changed', ({ state, previous }) => { if (state.objectTree !== previous.objectTree) savePrefs({ objectTree: state.objectTree }); });
+  editor.update({ scroll: prefs.scroll, features: startFeatures(prefs) });
+  // Only a switch the user flips is remembered: a feature on from ?flags= stays on for this visit only.
+  editor.events.on('changed', ({ state, previous }) => {
+    if (state.features === previous.features) return;
+    for (const { id } of PREVIEW_FEATURES) {
+      const on = isFeatureOn(state.features, id);
+      if (on !== isFeatureOn(previous.features, id)) saveFeature(id, on);
+    }
+  });
   const engine = new RayEngine(document.createElement('canvas'), false);
   const thumbs = new Thumbnailer(engine.ready);
   const view = new SceneView(world, editor, engine);
@@ -121,6 +129,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
     },
     onFocusPicked: (kind, point) => focusAt(ctx, kind, point),
     onTrackpad: () => showToast('Trackpad: two fingers orbit · Shift pans · pinch zooms · View › Scroll Gestures to change'),
+    onContextMenu: (x, y, target) => (target ? shell.menu.openObject(x, y, target, world.groupMembers(target)) : shell.menu.openEmpty(x, y)),
   });
   input.scroll.preference = editor.state.scroll;
   editor.events.on('changed', ({ state, previous }) => {
@@ -128,6 +137,8 @@ export async function startApp(root: HTMLElement): Promise<void> {
     input.scroll.preference = state.scroll;
     savePrefs({ scroll: state.scroll });
   });
+  // Ctrl/Cmd+P is the command palette: the browser's print dialog never opens, not even from a text field or a dialog.
+  window.addEventListener('keydown', (e) => { if (matchKey(e)?.action === Action.CommandPalette) e.preventDefault(); }, true);
   window.addEventListener('keydown', (e) => {
     if (isModalOpen() || isTyping(e)) return;
     if (e.key === KEY.Escape && commands?.closeMode()) {

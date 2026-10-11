@@ -87,7 +87,7 @@ example projects: four stills and four animations.
 6. Autosave, `.hoodoo` scene files, drag and drop to open.
 7. Share links that carry the whole scene.
 8. Tiled high-resolution PNG export and copy to clipboard.
-9. Command palette (Ctrl/Cmd+K) with every action and its shortcut.
+9. Command palette (Ctrl/Cmd+P or Ctrl/Cmd+K) with every action and its shortcut.
 10. Four-view layout and a free Director's View.
 11. Nine camera bookmarks.
 12. Height-map import and export, terrain paint brush.
@@ -100,6 +100,13 @@ example projects: four stills and four animations.
 19. **Start window** with a new scene, the last scene and example projects.
 20. **Trackpad gestures:** two fingers orbit, Shift pans, a pinch zooms, Safari's
     twist turns; a mouse wheel still dollies (View › Scroll Gestures to fix it).
+21. **Context menus:** right-click an object in the scene window or the scene
+    list for Group, Duplicate, Clear, Hide, Land, Materials Lab and more,
+    empty space for Paste, Select All and Create; right-drag still orbits.
+22. **Preview Features** (View › Preview Features…): unfinished features to try,
+    each with an Off | On switch that is remembered. The first is the Object
+    Tree: nested, named groups with + Group in the scene list, and a group
+    menu on right-click (rename, ungroup, fold, a new group inside).
 
 | Depth of field | Snapshot compare |
 |---|---|

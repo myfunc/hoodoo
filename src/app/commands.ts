@@ -34,6 +34,8 @@ import { openMovieDialog } from '../ui/labs/movie-dialog';
 import { compareLatest, takeSnapshot } from './snapshot-ops';
 import { createFromLibrary, frame } from './scene-ops';
 import { openAnimationSetup } from '../ui/labs/animation-setup';
+import { openPreviewFeatures } from '../ui/labs/preview-features';
+import { Feature, isFeatureOn } from '../world/preview-features';
 import { ScrollPreference } from '../input/scroll-device';
 import { isAnimated } from '../world/animation/pose';
 import { Player, addKey, clearAnimation, isAnimationOn, jumpKey, keyCamera, removeKey, setTimeline, stepFrames, toggleAnimation } from './timeline-ops';
@@ -89,7 +91,7 @@ export class Commands {
     const w = ctx.world;
     const e = ctx.editor;
     const sel = () => w.selection;
-    const toggle = (key: 'quad' | 'sidePanel' | 'depthCue' | 'grid' | 'gizmo' | 'snap' | 'liveRender' | 'motionPaths' | 'objectTree') => () => e.update({ [key]: !e.state[key] });
+    const toggle = (key: 'quad' | 'sidePanel' | 'depthCue' | 'grid' | 'gizmo' | 'snap' | 'liveRender' | 'motionPaths') => () => e.update({ [key]: !e.state[key] });
     this.handlers = {
       [Action.New]: () => w.replaceScene(emptyScene(), 'New scene'),
       [Action.StartWindow]: () => hooks.openStart(),
@@ -110,7 +112,7 @@ export class Commands {
       [Action.ToggleMotionPaths]: toggle('motionPaths'),
       [Action.SelectAllKeys]: () => selectAllKeys(ctx),
       [Action.DeleteKeys]: () => deleteSelectedKeys(ctx),
-      [Action.ToggleObjectTree]: toggle('objectTree'),
+      [Action.PreviewFeatures]: () => openPreviewFeatures(e),
       [Action.Open]: () => void this.open(),
       [Action.Save]: () => downloadScene(w.scene, DEFAULT_FILE_NAME),
       [Action.LoadDemo]: () => w.replaceScene(demoScene(), 'Open demo'),
@@ -137,8 +139,9 @@ export class Commands {
       [Action.SelectNone]: () => { w.select([], SelectMode.Replace); e.update({ selectedKeys: [] }); },
       [Action.CopyMaterial]: () => { const id = [...sel()][0]; if (id) { w.copyMaterial(id); ctx.toast('Material copied'); } },
       [Action.PasteMaterial]: () => w.pasteMaterial(sel()),
-      [Action.Group]: () => { if (!w.group(sel(), e.state.objectTree)) ctx.toast('Select two or more objects to group'); },
+      [Action.Group]: () => { if (!w.group(sel(), this.tree)) ctx.toast('Select two or more objects to group'); },
       [Action.Ungroup]: () => w.ungroup(sel()),
+      [Action.NewGroup]: () => w.newGroup(sel()),
       [Action.Land]: () => w.updateObjects(sel(), 'Land', (o) => landed(w.scene, o)),
       [Action.Attributes]: () => this.attributes(),
       [Action.EditMaterial]: () => this.materials(),
@@ -209,9 +212,11 @@ export class Commands {
     if (a === Action.EditObject || a === Action.Attributes) return w.selection.size === 1;
     if (a === Action.Delete && hasPickedKeys(this.ctx)) return true;
     if (a === Action.DeleteKeys) return hasPickedKeys(this.ctx);
+    if (a === Action.Ungroup) return w.selectedObjects().some((o) => o.groupId !== null);
     if (NEEDS_SELECTION.has(a)) return w.selection.size > 0;
     if (a === Action.StopRender) return this.ctx.view.isRendering;
     if (TIMELINE_ACTIONS.has(a)) return isAnimationOn(this.ctx);
+    if (a === Action.NewGroup) return this.tree;
     return true;
   }
 
@@ -233,9 +238,13 @@ export class Commands {
       [Action.PlayPause]: s.playing,
       [Action.ToggleLoop]: this.ctx.world.scene.animation.loop,
       [Action.ToggleMotionPaths]: s.motionPaths,
-      [Action.ToggleObjectTree]: s.objectTree,
     };
     return flags[a] ?? false;
+  }
+
+  /** The Object Tree preview: groups nest and have names. */
+  private get tree(): boolean {
+    return isFeatureOn(this.ctx.editor.state.features, Feature.ObjectTree);
   }
 
   openObject(id: ObjectId): void {

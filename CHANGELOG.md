@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.6.2 — 2026-10-11
+
+### Added
+- Context menus. Right-click an object in the scene window or in the scene
+  list: it is selected (unless it already is) and a menu offers Group,
+  Ungroup, New Group (Object Tree), Duplicate, Clear, Hide, Land, Materials
+  Lab, Object Attributes and, with animation on, Add Key and Select All Keys.
+  Right-click on empty space for Paste, Select All, Select None and a Create
+  submenu of primitives. A right press only opens the menu when let go
+  without moving, so right-drag orbiting and right-drag + WASD flying work
+  as before. Every item is the same command as in the menu bar, with its
+  shortcut and greyed when it cannot run.
+- Preview Features window (View › Preview Features…, also in the command
+  palette and every context menu): one row per unfinished feature with an
+  Off | On switch. A switch acts at once and is remembered; Cancel puts the
+  switches back. `?flags=` in the address still turns one on for one visit.
+- Object Tree: + Group in the Scene panel title makes a named group around the
+  selection (one object or group is enough) or an empty group when nothing is
+  selected, and starts typing its name. Right-click on a group row: Rename,
+  Ungroup, Select Group, Fold or Unfold, New Group Inside. Empty groups stay
+  until they are ungrouped, so rows can be dragged into them later; deleting
+  every object of a group deletes the group.
+
+### Changed
+- Ctrl/Cmd+P opens the command palette (Ctrl/Cmd+K and Ctrl/Cmd+/ still do);
+  the browser's print dialog no longer opens.
+- View › Object Tree (preview) is replaced by View › Preview Features…; a tree
+  switched on in 0.6.1 stays on.
+- Ungroup is greyed while the selection holds no grouped object.
+
 ## 0.6.1 — 2026-10-11
 
 ### Changed

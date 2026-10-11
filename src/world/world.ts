@@ -6,7 +6,7 @@ import { type GroupId, type ObjectId, newGroupId, newObjectId } from '../model/s
 import type { Animation, Camera, DocumentSetup, GroupNode, Material, OrthoView, Scene, SceneObject, Sky } from '../model/scene.types';
 import { frameTime, recordKeys } from './animation/keying';
 import { poseAt } from './animation/pose';
-import { type TreeItems, cloneGroups, familyOf, freshGroupName, groupIndex, grouped, reparented, ungrouped, withGroup, withGroups } from './group-tree';
+import { type TreeItems, cloneGroups, dissolved, familyOf, freshGroupName, groupIndex, grouped, reparented, ungrouped, withEmptyGroup, withGroup, withGroups, withoutObjects } from './group-tree';
 import { History } from './history';
 import { limitBreach } from './scene-limits';
 import { COPY_SUFFIX, DUPLICATE_OFFSET, HISTORY_LIMIT } from './world.constants';
@@ -120,10 +120,11 @@ export class World {
     this.select(objects.map((o) => o.id), SelectMode.Replace);
   }
 
+  /** Locked objects stay; a group that loses every object goes with them. */
   removeObjects(ids: ReadonlySet<ObjectId>, label: string): void {
-    const objects = this.scene.objects.filter((o) => !ids.has(o.id) || o.locked);
-    if (objects.length === this.scene.objects.length) return;
-    this.commit(label, { ...this.scene, objects }, ChangeKind.Objects);
+    const gone = new Set(this.scene.objects.filter((o) => ids.has(o.id) && !o.locked).map((o) => o.id));
+    if (!gone.size) return;
+    this.commit(label, withoutObjects(this.scene, gone), ChangeKind.Objects);
     this.pruneSelection();
   }
 
@@ -186,6 +187,24 @@ export class World {
   /** Dissolves the selected groups; what they held moves up one level (to the top in a flat scene). */
   ungroup(ids: ReadonlySet<ObjectId>): void {
     const next = ungrouped(this.scene, ids);
+    if (next) this.commit('Ungroup', next, ChangeKind.Objects);
+  }
+
+  /**
+   * Object Tree: a named group around the selection (one item is enough), or an
+   * empty group inside `parent` when nothing is selected. Empty groups stay until
+   * they are deleted (Ungroup), so they can be filled by dragging rows in.
+   */
+  newGroup(ids: ReadonlySet<ObjectId>, parent: GroupId | null = null): GroupId | null {
+    const id = newGroupId();
+    const name = freshGroupName(this.scene);
+    const next = ids.size ? grouped(this.scene, ids, id, name, 1) : withEmptyGroup(this.scene, id, name, parent);
+    return next && this.commit('New group', next, ChangeKind.Objects) ? id : null;
+  }
+
+  /** Dissolves these groups, empty ones included; what they held moves up one level. */
+  ungroupGroups(groups: ReadonlySet<GroupId>): void {
+    const next = dissolved(this.scene, groups);
     if (next) this.commit('Ungroup', next, ChangeKind.Objects);
   }
 

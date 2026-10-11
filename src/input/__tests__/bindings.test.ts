@@ -16,6 +16,13 @@ describe('bindings', () => {
     expect(matchKey(key('KeyQ'))?.action).toBe(Action.QuadView);
   });
 
+  it('opens the command palette with Ctrl/Cmd+P, Ctrl/Cmd+K and Ctrl/Cmd+/', () => {
+    for (const code of ['KeyP', 'KeyK', 'Slash']) {
+      expect(matchKey(key(code, { ctrlKey: true, metaKey: true }))?.action, code).toBe(Action.CommandPalette);
+    }
+    expect(matchKey(key('KeyP'))?.action).toBe(Action.ToggleLiveRender);
+  });
+
   it('never binds one chord to two actions', () => {
     const seen = new Map<string, Action>();
     for (const [action, info] of Object.entries(ACTIONS) as [Action, (typeof ACTIONS)[Action]][]) {

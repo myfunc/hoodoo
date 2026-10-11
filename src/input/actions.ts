@@ -24,6 +24,7 @@ export enum Action {
   PasteMaterial = 'paste-material',
   Group = 'group',
   Ungroup = 'ungroup',
+  NewGroup = 'new-group',
   Land = 'land',
   Attributes = 'attributes',
   EditMaterial = 'edit-material',
@@ -89,7 +90,7 @@ export enum Action {
   DeleteKeys = 'delete-keys',
   Bookmark = 'bookmark',
   SaveBookmark = 'save-bookmark',
-  ToggleObjectTree = 'toggle-object-tree',
+  PreviewFeatures = 'preview-features',
 }
 
 /** Actions that take a numeric argument (bookmark slots). */

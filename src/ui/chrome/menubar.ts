@@ -1,8 +1,8 @@
 import { Action } from '../../input/actions';
-import { ACTIONS, shortcutOf } from '../../input/bindings';
 import type { UiContext } from '../context';
 import { el } from '../kit/dom';
 import { type MenuItem, closeMenu, openMenu } from '../kit/controls';
+import { SEPARATOR, actionItem } from './context-menu';
 import { APP_NAME } from '../strings';
 import { MENUS, type MenuEntry, SEP } from './menu-layout';
 
@@ -40,16 +40,6 @@ export class MenuBar {
   }
 
   private items(entries: readonly MenuEntry[]): MenuItem[] {
-    return entries.map((e) =>
-      e === SEP
-        ? { label: '', separator: true }
-        : {
-            label: ACTIONS[e].label,
-            hint: shortcutOf(e),
-            checked: this.ctx.isChecked(e),
-            disabled: !this.ctx.isEnabled(e),
-            run: () => this.ctx.dispatch(e),
-          },
-    );
+    return entries.map((e) => (e === SEP ? SEPARATOR : actionItem(this.ctx, e)));
   }
 }

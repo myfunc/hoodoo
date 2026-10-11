@@ -310,10 +310,15 @@ export interface MenuItem {
   readonly disabled?: boolean;
   readonly separator?: boolean;
   readonly run?: () => void;
+  /** A submenu that opens to the side while the pointer is on the item. */
+  readonly items?: readonly MenuItem[];
 }
 
 /** The one open pop-up menu and its outside-click listener. */
 const menuState: { node: HTMLElement | null; away: ((e: Event) => void) | null } = { node: null, away: null };
+/** Space kept between a menu and the window edge, and the lift of a submenu to line up with its item. */
+const MENU_EDGE_PX = 4;
+const SUBMENU_LIFT_PX = 4;
 
 export function closeMenu(): void {
   menuState.node?.remove();
@@ -322,21 +327,41 @@ export function closeMenu(): void {
   menuState.away = null;
 }
 
-/** Pop-up menu at a screen point; closes on pick, outside click or Escape. */
-export function openMenu(x: number, y: number, items: readonly MenuItem[]): void {
-  closeMenu();
+/** Puts a menu at a screen point, inside the window; `flipX` is where it goes when it does not fit to the right. */
+function placeMenu(menu: HTMLElement, x: number, y: number, flipX = window.innerWidth): void {
+  const r = menu.getBoundingClientRect();
+  const fits = x + r.width + MENU_EDGE_PX <= window.innerWidth;
+  menu.style.left = `${Math.max(MENU_EDGE_PX, fits ? x : Math.min(flipX - r.width, window.innerWidth - r.width - MENU_EDGE_PX))}px`;
+  menu.style.top = `${Math.max(MENU_EDGE_PX, Math.min(y, window.innerHeight - r.height - MENU_EDGE_PX))}px`;
+}
+
+/** One menu panel; a submenu panel is appended inside its parent, so an outside click closes all of them. */
+function menuPanel(items: readonly MenuItem[]): HTMLElement {
   const menu = el('div', { cls: 'ui-menu', attrs: { role: 'menu' } });
+  let sub: HTMLElement | null = null;
   for (const it of items) {
     if (it.separator) {
       menu.append(el('div', { cls: 'ui-menu-sep' }));
       continue;
     }
-    const row = el('div', { cls: `ui-menu-item${it.disabled ? ' is-disabled' : ''}${it.checked ? ' is-checked' : ''}`, attrs: { role: 'menuitem' } }, [
+    const nested = !!it.items?.length;
+    const row = el('div', { cls: `ui-menu-item${it.disabled ? ' is-disabled' : ''}${it.checked ? ' is-checked' : ''}${nested ? ' has-submenu' : ''}`, attrs: { role: 'menuitem' } }, [
       el('span', { cls: 'ui-menu-check', text: it.checked ? '•' : '' }),
       el('span', { cls: 'ui-menu-label', text: it.label }),
-      el('span', { cls: 'ui-menu-hint', text: it.hint ?? '' }),
+      el('span', { cls: 'ui-menu-hint', text: nested ? '' : (it.hint ?? '') }, [nested ? glyph(GLYPH.triangleRight, GLYPH_BOX, 'ui-menu-arrow') : null]),
     ]);
-    if (!it.disabled) {
+    row.addEventListener('pointerenter', () => {
+      if (sub?.dataset.owner === it.label) return;
+      sub?.remove();
+      sub = null;
+      if (!nested || it.disabled) return;
+      sub = menuPanel(it.items ?? []);
+      sub.dataset.owner = it.label;
+      menu.append(sub);
+      const r = row.getBoundingClientRect();
+      placeMenu(sub, r.right, r.top - SUBMENU_LIFT_PX, r.left);
+    });
+    if (!it.disabled && !nested) {
       row.addEventListener('click', (e) => {
         e.stopPropagation();
         closeMenu();
@@ -345,10 +370,18 @@ export function openMenu(x: number, y: number, items: readonly MenuItem[]): void
     }
     menu.append(row);
   }
+  return menu;
+}
+
+/**
+ * Pop-up menu at a screen point; closes on pick, outside click or Escape. Near the
+ * right edge it slides left, or with `flipX` (a context menu) opens to the left of that point.
+ */
+export function openMenu(x: number, y: number, items: readonly MenuItem[], flipX?: number): void {
+  closeMenu();
+  const menu = menuPanel(items);
   document.body.append(menu);
-  const r = menu.getBoundingClientRect();
-  menu.style.left = `${Math.min(x, window.innerWidth - r.width - 4)}px`;
-  menu.style.top = `${Math.min(y, window.innerHeight - r.height - 4)}px`;
+  placeMenu(menu, x, y, flipX);
   menuState.node = menu;
   const away = (e: Event) => {
     if (menuState.node && !menuState.node.contains(e.target as Node)) closeMenu();

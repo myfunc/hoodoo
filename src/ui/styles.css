@@ -630,3 +630,23 @@ input { font: inherit; }
 .menubar-title { cursor: pointer; }
 .menubar-title:hover { color: var(--teal-dark); }
 @media (max-width: 720px) { .start-body { grid-template-columns: 1fr; } .start-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* context menus (ui/chrome/context-menu.ts): submenus open to the side */
+.ui-menu-item.has-submenu .ui-menu-hint { display: flex; align-items: center; }
+.ui-menu-arrow { width: 10px; height: 10px; fill: currentColor; }
+/* Scene panel: + Group (Object Tree preview) */
+.panel-title .ui-button.panel-add { height: 16px; padding: 0 6px; font: bold 10px/14px var(--font-ui); white-space: nowrap; }
+.panel-title .ui-button.panel-add[hidden] { display: none; }
+/* Off | On and other compact switches: a segmented strip */
+.ui-choice.segmented { flex-wrap: nowrap; gap: 0; border: 1px solid #8a8985; border-radius: 3px; overflow: hidden; }
+.segmented .ui-dot { display: none; }
+.segmented .ui-toggle { padding: 1px 8px; font: bold 10px/14px var(--font-ui); color: #5f5e59; background: linear-gradient(#fbfbfa, #d3d2ce); }
+.segmented .ui-toggle + .ui-toggle { border-left: 1px solid #8a8985; }
+.segmented .ui-toggle:hover { color: #2f2f2d; }
+.segmented .ui-toggle.is-on { color: #fff; background: linear-gradient(#5fb8b8, var(--teal) 60%, var(--teal-dark)); box-shadow: inset 0 1px 2px rgba(0,0,0,0.25); }
+/* Preview Features window (ui/labs/preview-features.ts) */
+.preview-list { display: grid; grid-template-columns: auto 1fr auto; gap: 8px 14px; align-items: center; padding: 4px 0 6px; }
+.preview-note { grid-column: 1 / -1; color: var(--ink-soft); white-space: nowrap; }
+.preview-row { display: contents; }
+.preview-name { font: 800 13px var(--font-title); white-space: nowrap; }
+.preview-about { color: var(--ink-soft); white-space: nowrap; }

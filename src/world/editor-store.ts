@@ -3,6 +3,7 @@ import { ViewKind } from '../model/scene.enums';
 import type { Camera } from '../model/scene.types';
 import { ScrollPreference } from './world.enums';
 import type { KeyRef } from './animation/key-selection';
+import type { FeatureFlags } from './preview-features';
 import { DEFAULT_CAMERA } from './scene.defaults';
 
 export enum PaletteTab {
@@ -51,8 +52,8 @@ export interface EditorState {
   readonly selectedKeys: readonly KeyRef[];
   /** Four Views: Wire or Render per pane; a pane not listed draws wires. */
   readonly quadModes: Readonly<Partial<Record<ViewKind, PaneMode>>>;
-  /** Preview: groups nest and the scene list is a tree. */
-  readonly objectTree: boolean;
+  /** Preview features that are on (the Object Tree…): world/preview-features.ts. */
+  readonly features: FeatureFlags;
 }
 
 export const IDLE_HINT: Hint = { title: 'Ready', text: 'Point at any control to see what it does' };
@@ -80,7 +81,7 @@ export const INITIAL_EDITOR: EditorState = {
   motionPaths: true,
   selectedKeys: [],
   quadModes: { [ViewKind.Camera]: PaneMode.Render },
-  objectTree: false,
+  features: {},
 };
 
 export interface EditorEvents {
