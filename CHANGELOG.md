@@ -1,5 +1,64 @@
 # Changelog
 
+## 0.7.0 — 2026-10-11
+
+### Added
+- Portals, a preview feature (Settings › Preview Features, or `?flags=portals`):
+  Create Portal Pair (an icon at the end of the Create palette, Objects ›
+  Create Portal Pair, the Create submenu of the right-click menu) puts a blue
+  and an orange oval under the camera's aim, facing it. Look into one and you
+  see out of the other, in the live view and the final render: the view
+  follows when either portal moves, turns, grows or is animated, and two
+  portals facing each other make a tunnel that fades out after ten passes.
+  The rim takes the portal's material; portals cast no shadow. Deleting one
+  leaves the other leading nowhere (its window goes dark); Duplicate of both
+  makes a new pair, of one a portal leading nowhere; Objects › Link Two
+  Portals pairs any two. Off, the feature leaves no trace in the interface; a
+  scene with portals still shows them and offers to turn Portals on.
+- Mirror and Gold Mirror materials: full reflection without diffuse light or ambient glow.
+- Resize and rotate in the scene window: the selection's move handles gain a
+  small cube on each axis (drag to stretch along it; Shift stretches evenly,
+  Alt keeps the far side still), a pale square that resizes evenly (Alt keeps
+  the base on its floor) and three thin rings that turn the selection about X,
+  Y or Z (Shift turns in 15° steps). The rings are faint until the pointer
+  comes near. One object works along its own axes, several and groups along
+  the world axes through their centre, as with the Edit palette. Hovering a
+  handle lights it, names it in the hint line and sets the cursor; a press
+  anywhere else still selects and moves. Each drag is one undo step, keyed on
+  the timeline when animation is on, and works in every view and Four Views
+  pane.
+- Settings window: the Hoodoo title is now the app menu (About, Settings…,
+  Preview Features…, Start Window…, Install as App…), and Settings… opens from
+  it, from View, from the command palette and with Ctrl/Cmd+, (not the
+  browser's). Sections on the left: General (start window, welcome splash,
+  autosave), Interface (scene panel, hint line, snap grid step, how long messages stay),
+  Navigation (scroll gestures, orbit speed, walk speed), Render (live preview, live
+  quality Fast | Full | Detailed, rays per pixel) and Preview Features. A
+  choice acts at once and is remembered in the browser; OK keeps the choices,
+  Cancel puts back what they were, Reset to Defaults sets them all back.
+- Live quality, Fast | Full | Detailed, in the display bar under the scene
+  window (and in Settings › Render; the two follow each other). It sets what
+  the live view traces while you move something or play the animation. Fast
+  is the 0.6.3 picture: one reflection, hard shadows. Full is the finished
+  tracer with soft shadows and every bounce, at a slightly smaller size and
+  grainier while it moves. Detailed traces glass and mirrors twice as deep,
+  and while the camera holds still it averages frames, so a glass cylinder
+  you resize or an animated scene shows its refraction and the reflections of
+  reflections within a few frames, without trails behind moving objects. All
+  three hold 60 fps; Detailed also settles at the deeper bounces.
+
+### Changed
+- Preview features leave no trace while they are off: with the Object Tree
+  off, New Group is gone from the Objects menu, the command palette and the
+  right-click menus (it was greyed before) and + Group stays hidden; switching
+  a feature on only adds. Preview Features is a section of Settings; View ›
+  Preview Features… opens it there.
+- The scene panel, live preview, rays per pixel and scroll gestures are
+  remembered between visits as you left them.
+- With Autosave off nothing is written to the browser and the next visit
+  opens the demo; the copy from before is kept and returns when Autosave is
+  turned on again.
+
 ## 0.6.3 — 2026-10-11
 
 ### Added

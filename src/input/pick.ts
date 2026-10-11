@@ -2,6 +2,8 @@ import { type Vec3, add, scale } from '../core/vec3';
 import type { ObjectId } from '../model/scene.ids';
 import type { Scene } from '../model/scene.types';
 import { nearestWire } from '../render/wire/picking';
+import { EVEN_AXIS, GizmoKind, type GizmoPart, nearestRingPoint } from '../render/wire/gizmo';
+import { GIZMO } from '../render/wire/wire.constants';
 import type { Frame, GizmoHandles, SegmentIndex } from '../render/wire/wireframe';
 import { type ViewBasis, rayAt } from '../world/camera-math';
 import { type RayHit, raycast } from '../world/raycast';
@@ -68,8 +70,32 @@ export function surfacePoint(scene: Scene, v: Pick<PickView, 'basis' | 'frame'>,
   return hit && Number.isFinite(hit.t) ? hit.point : null;
 }
 
-/** The move-handle axis whose tip is under a point, or -1. */
-export function gizmoAxisAt(g: GizmoHandles | null, x: number, y: number, radius: number): number {
-  if (!g) return -1;
-  return g.tips.findIndex((t) => t !== null && Math.hypot(t[0] - x, t[1] - y) <= radius);
+/**
+ * The handle under a point, or null. Small handles win over the long rings, the
+ * even square first, then the cubes and the move tips; rings count only while
+ * they show (`near`).
+ */
+export function gizmoPartAt(g: GizmoHandles | null, x: number, y: number, radius: number, ringRadius: number, near: boolean): GizmoPart | null {
+  if (!g) return null;
+  const at = (p: readonly [number, number] | null) => p !== null && Math.hypot(p[0] - x, p[1] - y) <= radius;
+  if (at(g.even)) return { kind: GizmoKind.Resize, axis: EVEN_AXIS };
+  const cube = g.cubes.findIndex(at);
+  if (cube >= 0) return { kind: GizmoKind.Resize, axis: cube };
+  const tip = g.tips.findIndex(at);
+  if (tip >= 0) return { kind: GizmoKind.Move, axis: tip };
+  if (!near) return null;
+  let best: GizmoPart | null = null;
+  let bestD = ringRadius;
+  g.rings.forEach((r, axis) => {
+    const d = r ? nearestRingPoint(r, x, y).distance : Infinity;
+    if (d <= bestD) {
+      bestD = d;
+      best = { kind: GizmoKind.Rotate, axis };
+    }
+  });
+  return best;
 }
+
+/** The pointer is close enough to the handles for the rotate rings to show. */
+export const nearGizmo = (g: GizmoHandles | null, x: number, y: number): boolean =>
+  !!g && Math.hypot(g.origin[0] - x, g.origin[1] - y) <= g.ringRadius + GIZMO.ringNearPx;

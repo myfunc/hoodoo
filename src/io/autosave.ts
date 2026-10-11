@@ -40,6 +40,11 @@ export class Autosave {
     this.timer = window.setTimeout(() => this.write(scene), DEBOUNCE_MS);
   }
 
+  /** Drops a write that is waiting (Autosave switched off). */
+  cancel(): void {
+    window.clearTimeout(this.timer);
+  }
+
   clear(): void {
     localStorage.removeItem(KEY);
   }

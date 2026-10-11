@@ -269,6 +269,16 @@ const metals: Material[] = [
     colors: { diffuse: h('#1d8c8c'), ambient: h('#0a3434') },
     values: { diffusion: 70, ambience: 15, specularity: 100, metallicity: 80, reflection: 40 },
   }),
+  material({
+    name: 'Mirror',
+    colors: { diffuse: h('#ffffff') },
+    values: { diffusion: 0, ambience: 0, specularity: 100, metallicity: 100, reflection: 100 },
+  }),
+  material({
+    name: 'Gold Mirror',
+    colors: { diffuse: h('#e8b23a') },
+    values: { diffusion: 0, ambience: 0, specularity: 100, metallicity: 100, reflection: 100 },
+  }),
 ];
 
 const basic: Material[] = [

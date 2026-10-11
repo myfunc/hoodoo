@@ -16,6 +16,8 @@ export interface ActionInfo {
 }
 
 export enum MenuName {
+  /** The app menu under the Hoodoo title. */
+  App = 'Hoodoo',
   File = 'File',
   Edit = 'Edit',
   Objects = 'Objects',
@@ -69,6 +71,8 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.Randomize]: { label: 'Randomize', menu: MenuName.Objects, chords: [] },
   [Action.HideSelected]: { label: 'Hide Selection', menu: MenuName.Objects, chords: [c('KeyH')] },
   [Action.ShowAll]: { label: 'Show All', menu: MenuName.Objects, chords: [c('KeyH', { alt: true })] },
+  [Action.CreatePortals]: { label: 'Create Portal Pair', menu: MenuName.Objects, chords: [] },
+  [Action.LinkPortals]: { label: 'Link Two Portals', menu: MenuName.Objects, chords: [] },
   [Action.FrameSelected]: { label: 'Frame Selection', menu: MenuName.View, chords: [c('KeyF')] },
   [Action.FrameAll]: { label: 'Frame Scene', menu: MenuName.View, chords: [c('KeyF', { shift: true })] },
   [Action.ViewCamera]: { label: 'Camera View', menu: MenuName.View, chords: [c('Digit1', { alt: true }), c('Numpad0')] },
@@ -83,6 +87,7 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.ToggleGizmo]: { label: 'Move Handles', menu: MenuName.View, chords: [c('KeyT')] },
   [Action.ToggleSnap]: { label: 'Snap to Grid', menu: MenuName.View, chords: [c('KeyS', { alt: true })] },
   [Action.PreviewFeatures]: { label: 'Preview Features…', menu: MenuName.View, chords: [] },
+  [Action.Settings]: { label: 'Settings…', menu: MenuName.App, chords: [c('Comma', M)] },
   [Action.ResetCamera]: { label: 'Reset Camera', menu: MenuName.View, chords: [c('Home')] },
   [Action.PickFocus]: { label: 'Pick Focus Point', menu: MenuName.View, chords: [c('KeyF', { alt: true })] },
   [Action.CameraFromView]: { label: 'Camera to Director', menu: MenuName.View, chords: [] },

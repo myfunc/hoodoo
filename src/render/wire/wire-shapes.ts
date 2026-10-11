@@ -1,5 +1,6 @@
 import type { Vec3 } from '../../core/vec3';
 import { ShapeKind } from '../../model/scene.enums';
+import { PORTAL_WINDOW } from '../../world/portals';
 import type { SceneObject, TerrainData } from '../../model/scene.types';
 import { PLANE_EXTENT } from '../../world/bounds';
 
@@ -148,6 +149,9 @@ function build(o: SceneObject): Lines {
     }
     case ShapeKind.Disk:
       circle(out, 1, 0); out.push([-1, 0, 0], [1, 0, 0], [0, 0, -1], [0, 0, 1]);
+      break;
+    case ShapeKind.Portal:
+      circle(out, 1, 0, 'z'); circle(out, PORTAL_WINDOW, 0, 'z');
       break;
     case ShapeKind.Square:
       out.push([-1, 0, -1], [1, 0, -1], [1, 0, -1], [1, 0, 1], [1, 0, 1], [-1, 0, 1], [-1, 0, 1], [-1, 0, -1], [-1, 0, 0], [1, 0, 0], [0, 0, -1], [0, 0, 1]);

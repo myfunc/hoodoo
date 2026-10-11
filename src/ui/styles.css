@@ -144,6 +144,7 @@ input { font: inherit; }
 .tray-icon:hover canvas { transform: translateY(-2px) scale(1.06); }
 .tray-icon:active canvas { transform: translateY(1px); }
 .tray-gap { flex: none; width: 10px; }
+.tray-icon[hidden], .tray-gap[hidden] { display: none; }
 .tray-group { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 0 6px; }
 .tray-group-label { font-size: 9px; color: var(--ink-soft); white-space: nowrap; }
 .tray .ui-dial { width: 132px; }
@@ -293,6 +294,12 @@ input { font: inherit; }
 .display-bar .status { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .display-bar .sep { width: 1px; height: 16px; background: rgba(0,0,0,0.15); box-shadow: 1px 0 0 var(--hi); }
 .display-bar .grow { flex: 1; }
+/* Live quality Fast | Full | Detailed (ui/chrome/display-bar.ts); a narrow window packs the bar tighter so it still fits. */
+.display-bar .live-quality .ui-toggle { padding: 1px 6px; }
+@media (max-width: 1240px) {
+  .display-bar { gap: 3px; padding: 0 6px; }
+  .display-bar .live-quality .ui-toggle { padding: 1px 4px; }
+}
 
 /* ---------- side panel (modern additions), dressed as Bryce palettes ---------- */
 .side-panel {
@@ -532,6 +539,10 @@ input { font: inherit; }
   opacity: 0; transition: opacity 160ms;
 }
 .toast.is-visible { opacity: 1; }
+/* An offer (ui/panels/offer-toast.ts): one line with a button, a step above the plain toast. */
+.toast.offer { pointer-events: auto; display: flex; align-items: center; gap: 10px; white-space: nowrap; transform: translate(-50%, -36px); }
+.toast.offer .ui-button { font-size: 12px; padding: 2px 10px; color: #222; }
+.toast.offer .offer-close { background: none; border: 0; box-shadow: none; color: #aaa; padding: 0 2px; }
 /* With animation on, toasts sit above the timeline so they never hide its keys (bar 50px + gap + display bar). */
 body:has(.animation-on) .toast { bottom: calc(var(--displaybar-h) + 66px); }
 
@@ -686,6 +697,7 @@ body:has(.animation-on) .toast { bottom: calc(var(--displaybar-h) + 66px); }
 .start-foot { display: flex; justify-content: flex-start; margin-top: 12px; color: var(--ink-soft); }
 .menubar-title { cursor: pointer; }
 .menubar-title:hover { color: var(--teal-dark); }
+.menubar-title.is-open { background: #2c2c8a; color: #fff; }
 @media (max-width: 720px) {
   .start-group-head { flex-wrap: wrap; }
   .start-recent-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -705,9 +717,5 @@ body:has(.animation-on) .toast { bottom: calc(var(--displaybar-h) + 66px); }
 .segmented .ui-toggle + .ui-toggle { border-left: 1px solid #8a8985; }
 .segmented .ui-toggle:hover { color: #2f2f2d; }
 .segmented .ui-toggle.is-on { color: #fff; background: linear-gradient(#5fb8b8, var(--teal) 60%, var(--teal-dark)); box-shadow: inset 0 1px 2px rgba(0,0,0,0.25); }
-/* Preview Features window (ui/labs/preview-features.ts) */
-.preview-list { display: grid; grid-template-columns: auto 1fr auto; gap: 8px 14px; align-items: center; padding: 4px 0 6px; }
-.preview-note { grid-column: 1 / -1; color: var(--ink-soft); white-space: nowrap; }
-.preview-row { display: contents; }
-.preview-name { font: 800 13px var(--font-title); white-space: nowrap; }
-.preview-about { color: var(--ink-soft); white-space: nowrap; }
+/* Settings › Interface › Hint line: Hidden (the window itself: ui/labs/settings-window.css) */
+.app.no-hint-line .controls .hint { visibility: hidden; }

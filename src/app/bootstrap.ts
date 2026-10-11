@@ -15,11 +15,12 @@ import type { UiContext } from '../ui/context';
 import { isModalOpen } from '../ui/kit/dialog';
 import { installSurfaces } from '../ui/kit/texture';
 import { SnapshotStore } from '../ui/snapshot-store';
-import { showToast } from '../ui/panels/toast';
+import { setMessageTime, showToast } from '../ui/panels/toast';
 import { Splash } from '../ui/chrome/splash';
 import { demoScene } from '../world/demo-scene';
-import { loadPrefs, saveFeature, savePrefs, startFeatures } from '../io/prefs';
+import { REMEMBERED, loadPrefs, rememberedOf, saveFeature, savePrefs, startFeatures } from '../io/prefs';
 import { PREVIEW_FEATURES, isFeatureOn } from '../world/preview-features';
+import { changeSetting, onSetting, settingsFrom } from '../world/settings';
 import { pickSceneFile } from '../io/project-file';
 import { StartWindow } from '../ui/chrome/start-window';
 import { SCENE_NAME, START } from '../ui/strings';
@@ -35,11 +36,14 @@ import { RecentTracker } from './recent-ops';
 import { focusAt } from './lens-ops';
 import { installPwa } from './pwa';
 import { createFromPalette } from './scene-ops';
+import { offerPortals } from './portal-ops';
 import { Shell } from './shell';
 import '../ui/styles.css';
 
 const logger = Logger.create('App');
 const IMAGE_TYPE = /^image\//;
+/** Our shortcuts that the browser would otherwise take (print, its settings): never passed on, even from a text field. */
+const BROWSER_KEYS: ReadonlySet<Action | undefined> = new Set([Action.CommandPalette, Action.Settings]);
 const REPEATABLE: ReadonlySet<Action> = new Set([Action.Undo, Action.Redo, Action.ZoomIn, Action.ZoomOut, Action.PrevFrame, Action.NextFrame, Action.PrevMaterial, Action.NextMaterial]);
 const THUMB = { width: 160, height: 100, quality: 0.7 } as const;
 /** ?start=0 skips the start window; ?start=1 shows it even to browser automation. */
@@ -68,17 +72,26 @@ export async function startApp(root: HTMLElement): Promise<void> {
   const autosave = new Autosave();
   const recent = new RecentScenes();
   const prefs = loadPrefs();
+  const settings = settingsFrom(prefs);
   const params = new URLSearchParams(location.search);
   const startParam = params.get('start');
   const shared = await sceneFromHash(location.hash).catch((error) => {
     logger.warn('share link unreadable', {}, error);
     return null;
   });
-  const saved = autosave.load();
+  // With Autosave off the browser's copy is left alone and the visit starts fresh.
+  const saved = settings.autosave ? autosave.load() : null;
   const world = new World(shared ?? saved ?? demoScene());
   if (shared) history.replaceState(null, '', location.pathname);
   const editor = new EditorStore();
-  editor.update({ scroll: prefs.scroll, features: startFeatures(prefs) });
+  editor.update({ ...rememberedOf(prefs), features: startFeatures(prefs), settings });
+  // The Settings window's choices and the remembered editor state (scene panel, live preview…) outlive the visit.
+  editor.events.on('changed', ({ state, previous }) => {
+    if (state.settings !== previous.settings) savePrefs(state.settings);
+    if (REMEMBERED.some((key) => state[key] !== previous[key])) savePrefs(rememberedOf(state));
+  });
+  setMessageTime(settings.messageTime);
+  onSetting(editor, 'messageTime', setMessageTime);
   // Only a switch the user flips is remembered: a feature on from ?flags= stays on for this visit only.
   editor.events.on('changed', ({ state, previous }) => {
     if (state.features === previous.features) return;
@@ -122,7 +135,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
     start = new StartWindow({
       recent: () => recent.list,
       currentId: tracker.currentId,
-      showAtStartup: loadPrefs().showStart,
+      showAtStartup: editor.state.settings.showStart,
       onNew: () => {
         world.load(emptyScene(), 'New scene');
         tracker.begin(SCENE_NAME.untitled);
@@ -137,7 +150,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
       onRecent: openRecent,
       onForget: (e) => recent.remove(e.id),
       onContinue: () => undefined,
-      onShowAtStartup: (v) => savePrefs({ showStart: v }),
+      onShowAtStartup: (v) => changeSetting(editor, 'showStart', v),
     });
     start.open();
   };
@@ -150,8 +163,8 @@ export async function startApp(root: HTMLElement): Promise<void> {
   const wantsStart = !shared && startParam !== START_PARAM.skip && (prefs.showStart || askedStart);
   // The start window opens under the fading splash, so the two cross-fade.
   const openStartSoon = () => void recent.ready.then(openStart);
-  if (!navigator.webdriver) document.body.append(new Splash(engine, () => { if (wantsStart) openStartSoon(); }).el);
-  else if (wantsStart && askedStart) openStartSoon();
+  if (!navigator.webdriver && settings.splash) document.body.append(new Splash(engine, () => { if (wantsStart) openStartSoon(); }).el);
+  else if (wantsStart && (askedStart || !navigator.webdriver)) openStartSoon();
   const input = new ViewportInput(view.root, world, editor, view, {
     onOpenObject: (id) => commands?.openObject(id),
     onDropFiles: (files) => {
@@ -167,10 +180,10 @@ export async function startApp(root: HTMLElement): Promise<void> {
   editor.events.on('changed', ({ state, previous }) => {
     if (state.scroll === previous.scroll) return;
     input.scroll.preference = state.scroll;
-    savePrefs({ scroll: state.scroll });
   });
   // Ctrl/Cmd+P is the command palette: the browser's print dialog never opens, not even from a text field or a dialog.
-  window.addEventListener('keydown', (e) => { if (matchKey(e)?.action === Action.CommandPalette) e.preventDefault(); }, true);
+  // Ctrl/Cmd+, opens Settings rather than the browser's own.
+  window.addEventListener('keydown', (e) => { if (BROWSER_KEYS.has(matchKey(e)?.action)) e.preventDefault(); }, true);
   window.addEventListener('keydown', (e) => {
     if (isModalOpen() || isTyping(e)) return;
     if (e.key === KEY.Escape && commands?.closeMode()) {
@@ -191,8 +204,10 @@ export async function startApp(root: HTMLElement): Promise<void> {
   autosave.written = (_scene, text, thumb) => tracker.autosaved(text, thumb);
   view.events.on('progress', (p) => { if (!p.active && p.fraction >= 1) tracker.rendered(); });
   view.events.on('live', (s) => { if (!s.moving && s.samples >= s.target) tracker.rendered(); });
-  world.events.on('changed', ({ scene }) => autosave.schedule(scene));
+  world.events.on('changed', ({ scene }) => { if (editor.state.settings.autosave) autosave.schedule(scene); });
+  onSetting(editor, 'autosave', (on) => (on ? autosave.schedule(world.scene) : autosave.cancel()));
   world.events.on('refused', ({ reason }) => showToast(reason));
+  offerPortals(world, editor);
   for (const canvas of [view.root.querySelector('canvas'), thumbs.engine.canvas]) {
     canvas?.addEventListener('webglcontextlost', (e) => {
       e.preventDefault();

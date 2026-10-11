@@ -7,6 +7,7 @@ import type { GroupId } from '../../model/scene.ids';
 import type { Material, Scene, SceneObject, Sky } from '../../model/scene.types';
 import { boxSphere, objectMatrix, worldBox } from '../../world/bounds';
 import { INFINITE_KINDS, LIGHT_KINDS, TERRAIN_KINDS } from '../../world/objects.factory';
+import { portalPartners } from '../../world/portals';
 import { field, resample } from '../../world/terrain/heightfield';
 import {
   CLOUD_BASE_HEIGHT, CLOUD_HEIGHT_RANGE, DEG, DIAL, FLAG_HAS_MODIFIERS, FLAG_NO_SHADOW, FLAG_OPAQUE, LIGHT_FALLOFF_SCALE,
@@ -45,7 +46,7 @@ const MAT_AT = { diffuse: 0, ambient: T, specular: 2 * T, transparent: 3 * T, ex
 const TEX_STRIDE = 4 * T;
 const TEX_AT = { header: 0, color0: T, color1: 2 * T, color2: 3 * T } as const;
 /** Float offsets of the texels in an object row (see 40-scene.glsl). */
-const OBJ_AT = { header: 3 * T, params: 4 * T, bound: 5 * T } as const;
+const OBJ_AT = { header: 3 * T, params: 4 * T, bound: 5 * T, portal: 6 * T } as const;
 
 const terrainIds = new WeakMap<Float32Array, number>();
 let nextTerrainId = 1;
@@ -125,6 +126,9 @@ export function packScene(scene: Scene): PackedScene {
   const materials = new Float32Array(Math.max(solids.length, 1) * ROW_MAT);
   const terrains = packTerrains(solids);
   let terrainLayer = 0;
+  // A portal's partner by row (+1, 0 for none): the window leads there (70-portals.glsl).
+  const rowOf = new Map(solids.map((o, i) => [o.id, i + 1]));
+  const partners = portalPartners(solids);
   solids.forEach((o, i) => {
     const base = i * ROW_OBJ;
     const inv = invert(objectMatrix(o));
@@ -132,11 +136,13 @@ export function packScene(scene: Scene): PackedScene {
     const group = o.groupId ? groups.get(o.groupId) ?? 0 : 0;
     let flags = 0;
     if (o.boolean === BooleanMode.Positive && o.groupId && modified.has(o.groupId)) flags |= FLAG_HAS_MODIFIERS;
-    if (o.kind === ShapeKind.WaterPlane) flags |= FLAG_NO_SHADOW;
+    if (o.kind === ShapeKind.WaterPlane || o.kind === ShapeKind.Portal) flags |= FLAG_NO_SHADOW;
     if (o.material.values.transparency === 0 && o.material.valueSources.transparency === ChannelSource.Flat) flags |= FLAG_OPAQUE;
     out4(objects, base + OBJ_AT.header, o.kind, o.boolean, group, flags);
     const layer = TERRAIN_KINDS.has(o.kind) ? terrainLayer++ : 0;
     out4(objects, base + OBJ_AT.params, layer, o.shapeParam, terrains.res, 0);
+    const partner = partners.get(o.id);
+    if (partner) out4(objects, base + OBJ_AT.portal, rowOf.get(partner) ?? 0, 0, 0, 0);
     if (INFINITE_KINDS.has(o.kind)) out4(objects, base + OBJ_AT.bound, 0, 0, 0, -1);
     else {
       const s = boxSphere(worldBox(o));

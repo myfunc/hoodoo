@@ -1,5 +1,7 @@
 // Interaction profile: drags an object or orbits the camera in the live view and reports frame times.
-// Usage: node tools/perf-interact.mjs <url> [demo|waltz] [drag|orbit] [ms]
+// Usage: node tools/perf-interact.mjs <url> [demo|waltz] [drag|orbit|play] [ms]
+//   play runs the scene's animation (waltz) instead of a mouse gesture;
+//   QUALITY=fast|full|detailed sets the live quality (Settings › Live quality);
 //   DPR=2 for a retina screen; W=2560 H=1440 for a bigger window (a stand-in for a slower GPU);
 //   SHOTS=<prefix> saves <prefix>-moving.png and <prefix>-settled.png of the picture.
 // Prints median / p95 / p99 / max of the requestAnimationFrame deltas while the gesture runs, the
@@ -23,8 +25,9 @@ const page = await browser.newPage();
 await page.setViewport({ width: W, height: H, deviceScaleFactor: DPR });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.evaluateOnNewDocument(() => {
+await page.evaluateOnNewDocument((quality) => {
   localStorage.clear();
+  if (quality) localStorage.setItem('hoodoo.prefs.v1', JSON.stringify({ liveQuality: quality }));
   const w = window;
   w.__rec = null;
   let last = 0;
@@ -37,7 +40,7 @@ await page.evaluateOnNewDocument(() => {
   new PerformanceObserver((l) => {
     for (const e of l.getEntries()) if (w.__rec) w.__rec.long.push(Math.round(e.duration));
   }).observe({ type: 'longtask', buffered: false });
-});
+}, process.env.QUALITY ?? '');
 const url = new URL(base);
 url.searchParams.set('start', scene === 'demo' ? '0' : '1');
 await page.goto(url.href, { waitUntil: 'load' });
@@ -75,7 +78,7 @@ const at = await page.evaluate((g) => {
   const box = view.root.getBoundingClientRect();
   const cx = cell.frame.x + cell.frame.w / 2;
   const cy = cell.frame.y + cell.frame.h / 2;
-  if (g !== 'drag') return { x: box.left + cx, y: box.top + cy, name: '' };
+  if (g !== 'drag') return { x: box.left + cx, y: box.top + cy, name: g === 'play' ? 'animation' : '' };
   let best = null;
   for (const o of world.scene.objects) {
     world.select([o.id], 'replace');
@@ -103,9 +106,16 @@ if (!at) throw new Error('nothing to drag');
 await new Promise((r) => setTimeout(r, 1500));
 
 const button = gesture === 'orbit' ? 'right' : 'left';
+const play = gesture === 'play';
+const playPause = async () => {
+  await page.keyboard.down('Shift');
+  await page.keyboard.press('Space');
+  await page.keyboard.up('Shift');
+};
 await page.mouse.move(at.x, at.y);
-await page.mouse.down({ button });
+if (!play) await page.mouse.down({ button });
 await page.evaluate(() => { window.__rec = { frames: [], long: [], pictures: [] }; window.__live = []; window.__changes = 0; });
+if (play) await playPause();
 const t0 = Date.now();
 // A real mouse reports faster than the screen refreshes and the browser hands the page one move
 // per frame; moves are sent without waiting for each round trip so the page sees that rate.
@@ -122,12 +132,13 @@ await new Promise((resolve) => {
     const a = (t / PERIOD_MS) * Math.PI * 2;
     const x = at.x + Math.sin(a) * RADIUS;
     const y = at.y + (1 - Math.cos(a)) * RADIUS * 0.5;
-    cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button, buttons }).catch(() => undefined);
+    if (!play) cdp.send('Input.dispatchMouseEvent', { type: 'mouseMoved', x, y, button, buttons }).catch(() => undefined);
   }, 1000 / MOVE_HZ);
 });
-await page.mouse.move(at.x, at.y);
+if (!play) await page.mouse.move(at.x, at.y);
 const moving = await page.evaluate(() => { const r = { ...window.__rec, live: window.__live, changes: window.__changes }; window.__rec = { frames: [], long: [], pictures: [] }; window.__live = []; return r; });
-await page.mouse.up({ button });
+if (play) await playPause();
+else await page.mouse.up({ button });
 await new Promise((r) => setTimeout(r, SETTLE_MS));
 const settle = await page.evaluate(() => { const r = { ...window.__rec, live: window.__live }; window.__rec = null; return r; });
 if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
@@ -180,7 +191,7 @@ function scales(live) {
   const used = [...new Set(live.map((l) => l[0].toFixed(2)))];
   return { changes, used: used.slice(0, 12), readoutFps: live.at(-1)?.[1] ?? 0 };
 }
-const label = `${scene} ${gesture} ${W}×${H} DPR ${DPR}`;
+const label = `${scene} ${gesture} ${W}×${H} DPR ${DPR}${process.env.QUALITY ? ` ${process.env.QUALITY}` : ''}`;
 console.log(JSON.stringify({
   label, target: at.name, changesPerS: Math.round(moving.changes / (Number(ms) / 1000)),
   picture: stats(gaps(moving.pictures)),

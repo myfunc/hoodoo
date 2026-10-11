@@ -3,8 +3,9 @@ import { type Vec3, add, cross, dot, normalize, scale, sub } from '../../core/ve
 import { BooleanMode } from '../../model/scene.enums';
 import type { ObjectId } from '../../model/scene.ids';
 import type { Scene, SceneObject } from '../../model/scene.types';
-import { boxSphere, objectMatrix, unionBox, worldBox } from '../../world/bounds';
+import { objectMatrix } from '../../world/bounds';
 import type { ViewBasis } from '../../world/camera-math';
+import { type GizmoHandles, type GizmoPart, drawGizmo } from './gizmo';
 import { WIRE, FAMILY_COLORS } from './wire.constants';
 import { drawsInWorldUnits, wireLines } from './wire-shapes';
 
@@ -22,25 +23,17 @@ export interface WireOptions {
   readonly depthCue: boolean;
   readonly grid: boolean;
   readonly gizmo: boolean;
-  readonly gizmoHover: number;
+  readonly gizmoHover: GizmoPart | null;
+  /** The pointer is near the handles: the rotate rings show. */
+  readonly gizmoNear: boolean;
   readonly shadeOutside: boolean;
   readonly overRender: boolean;
 }
 
-export interface GizmoHandles {
-  readonly origin: readonly [number, number];
-  /** Screen end points of the X, Y, Z axes; null when an axis points at the viewer. */
-  readonly tips: readonly ([number, number] | null)[];
-  readonly worldOrigin: Vec3;
-  readonly worldAxes: readonly Vec3[];
-  /** World length of each drawn axis. */
-  readonly axisLength: number;
-}
+export type { GizmoHandles } from './gizmo';
 
 /** Screen-space segments drawn for each object, kept for picking. */
 export type SegmentIndex = Map<ObjectId, Float32Array>;
-
-const AXES: readonly Vec3[] = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
 
 export class WireProjector {
   constructor(readonly basis: ViewBasis, readonly frame: Frame) {}
@@ -136,7 +129,7 @@ export function drawWireframe(g: CanvasRenderingContext2D, scene: Scene, proj: W
   }
   g.globalAlpha = 1;
   g.setLineDash([]);
-  const gizmo = opts.gizmo ? drawGizmo(g, scene, proj, opts) : null;
+  const gizmo = opts.gizmo ? drawGizmo(g, scene.objects.filter((o) => opts.selection.has(o.id) && !o.hidden), proj, { hover: opts.gizmoHover, near: opts.gizmoNear }) : null;
   if (opts.shadeOutside) shadeOutside(g, proj.frame);
   return { segments, gizmo };
 }
@@ -183,36 +176,6 @@ function drawHorizon(g: CanvasRenderingContext2D, proj: WireProjector): void {
   g.moveTo(0, a[1] - slope * a[0]);
   g.lineTo(w, a[1] + slope * (w - a[0]));
   g.stroke();
-}
-
-function drawGizmo(g: CanvasRenderingContext2D, scene: Scene, proj: WireProjector, opts: WireOptions): GizmoHandles | null {
-  const selected = scene.objects.filter((o) => opts.selection.has(o.id) && !o.hidden);
-  const box = unionBox(selected.map(worldBox));
-  if (!box) return null;
-  const center = boxSphere(box).center;
-  const v = proj.view(center);
-  if (!proj.basis.ortho && v[2] < WIRE.nearPlane) return null;
-  const o = proj.screen(v);
-  const ppu = proj.pixelsPerUnitAt(center);
-  const len = WIRE.gizmoPixels / ppu;
-  const tips = AXES.map((axis, i) => {
-    const tip = proj.screen(proj.view(add(center, scale(axis, len))));
-    const dx = tip[0] - o[0];
-    const dy = tip[1] - o[1];
-    if (Math.hypot(dx, dy) < WIRE.gizmoHandle * 2) return null;
-    g.strokeStyle = opts.gizmoHover === i ? WIRE.gizmoHover : WIRE.gizmo[i];
-    g.fillStyle = g.strokeStyle;
-    g.lineWidth = 2;
-    g.beginPath();
-    g.moveTo(o[0], o[1]);
-    g.lineTo(tip[0], tip[1]);
-    g.stroke();
-    g.beginPath();
-    g.arc(tip[0], tip[1], WIRE.gizmoHandle, 0, Math.PI * 2);
-    g.fill();
-    return tip;
-  });
-  return { origin: o, tips, worldOrigin: center, worldAxes: AXES, axisLength: len };
 }
 
 function shadeOutside(g: CanvasRenderingContext2D, f: Frame): void {

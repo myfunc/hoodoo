@@ -267,7 +267,8 @@ function optionalGroupTransform(t: unknown): Transform | null {
   }
 }
 
-const isId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= SCENE_LIMITS.id;
+/** An object or group id: a short non-empty string. */
+export const isId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= SCENE_LIMITS.id;
 
 /**
  * The group table of a file: well-formed entries only, the first of each id.

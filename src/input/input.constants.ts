@@ -1,6 +1,8 @@
 /** Mouse and keyboard feel of the scene window. */
 export const PICK_RADIUS_PX = 6;
 export const GIZMO_PICK_PX = 9;
+/** How close to a rotate ring a press grabs it: the rings are long, so they pick tighter than the handles. */
+export const RING_PICK_PX = 5;
 export const DRAG_THRESHOLD_PX = 4;
 export const ORBIT_DEG_PER_PX = 0.35;
 export const LOOK_DEG_PER_PX = 0.2;

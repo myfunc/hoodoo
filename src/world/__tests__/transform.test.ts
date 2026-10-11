@@ -2,13 +2,22 @@ import { describe, expect, it } from 'vitest';
 import { createEntry } from '../../assets/object.catalog';
 import { createObject } from '../objects.factory';
 import { emptyScene } from '../scene.defaults';
-import { AlignMode, aligned, landed, replicas, resized } from '../transform-ops';
+import { AlignMode, aligned, landed, moved, replicas, resized } from '../transform-ops';
 import { newObjectId } from '../../model/scene.ids';
 import { worldBox } from '../bounds';
 
 const sphere = (x: number, y: number) => createObject(createEntry('sphere'), { seed: 1, position: [x, y, 0] });
 
 describe('transform operations', () => {
+  it('snap moved positions to the chosen step, keeping the default and unsnapped moves', () => {
+    const start = sphere(0, 0);
+    const delta = [0.7, 1.3, -0.7] as const;
+    expect(moved(start, delta, true).transform.position).toEqual([0.5, 1.5, -0.5]);
+    expect(moved(start, delta, true, 0.25).transform.position).toEqual([0.75, 1.25, -0.75]);
+    expect(moved(start, delta, true, 2).transform.position).toEqual([0, 2, -0]);
+    expect(moved(start, delta, false, 2).transform.position).toEqual(delta);
+  });
+
   it('lands an object on the ground', () => {
     const s = sphere(0, 5);
     const out = landed({ ...emptyScene(), objects: [s] }, s);

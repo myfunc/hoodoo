@@ -7,20 +7,21 @@ import { boxSphere, unionBox, worldBox } from './bounds';
 import { eulerOf } from './group-transform';
 import { INFINITE_KINDS } from './objects.factory';
 import { raycast } from './raycast';
+import { DEFAULT_SNAP_GRID } from './settings';
 
 /** Pure transform operations; World applies their results as one command. */
-export const SNAP_STEP = 0.5;
+export const SNAP_STEP = DEFAULT_SNAP_GRID;
 const MIN_SIZE = 0.01;
 const LAND_FROM = 1000;
 const DOWN: Vec3 = [0, -1, 0];
 
-export const snap = (v: number, step = SNAP_STEP): number => Math.round(v / step) * step;
+export const snap = (v: number, step: number = SNAP_STEP): number => Math.round(v / step) * step;
 
 export const withTransform = (o: SceneObject, t: Partial<Transform>): SceneObject => ({ ...o, transform: { ...o.transform, ...t } });
 
-export function moved(o: SceneObject, delta: Vec3, snapToGrid: boolean): SceneObject {
+export function moved(o: SceneObject, delta: Vec3, snapToGrid: boolean, step: number = SNAP_STEP): SceneObject {
   const p = add(o.transform.position, delta);
-  return withTransform(o, { position: snapToGrid ? [snap(p[0]), snap(p[1]), snap(p[2])] : p });
+  return withTransform(o, { position: snapToGrid ? [snap(p[0], step), snap(p[1], step), snap(p[2], step)] : p });
 }
 
 /** Scales sizes and spreads positions about the common centre, like Bryce's Resize tool. */

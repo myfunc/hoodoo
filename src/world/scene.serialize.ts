@@ -2,11 +2,12 @@ import { CREATE_PALETTE } from '../assets/object.catalog';
 import { DEFAULT_SKY } from '../assets/sky.presets';
 import { material } from '../model/material.factory';
 import { type GroupId, asGroupId, asObjectId, newObjectId } from '../model/scene.ids';
-import { BooleanMode, type ViewKind } from '../model/scene.enums';
+import { BooleanMode, ShapeKind, type ViewKind } from '../model/scene.enums';
 import type { Animation, Material, Scene, SceneObject, Sky, TerrainData } from '../model/scene.types';
 import { tidyGroups } from './group-tree';
 import { localOf, placed } from './group-pose';
 import { LIGHT_KINDS, TERRAIN_KINDS } from './objects.factory';
+import { tidyPairs } from './portals';
 import { BOOKMARK_SLOTS, DEFAULT_CAMERA, DEFAULT_DOCUMENT, DEFAULT_VIEWS, EMPTY_ANIMATION } from './scene.defaults';
 import * as check from './scene.validate';
 import { SceneFileError } from './scene.validate';
@@ -147,6 +148,7 @@ function reviveObject(o: SerializedObject, seen: Set<string>): SceneObject {
     terrain: TERRAIN_KINDS.has(kind) ? terrain : null,
     light: LIGHT_KINDS.has(kind) ? check.light(o.light) : null,
     shapeParam: typeof o.shapeParam === 'number' && Number.isFinite(o.shapeParam) ? o.shapeParam : (CREATE_PALETTE.find((e) => e.kind === kind)?.shapeParam ?? 0),
+    ...(kind === ShapeKind.Portal && check.isId(o.pair) ? { pair: asObjectId(o.pair) } : {}),
   };
 }
 
@@ -161,7 +163,7 @@ export function deserializeScene(raw: unknown): Scene {
   checkSize(s.objects);
   const seen = new Set<string>();
   const bookmarks = Array.from({ length: BOOKMARK_SLOTS }, (_, i) => s.bookmarks?.[i] ?? null);
-  const objects = capBooleans(s.objects.map((o) => reviveObject(o, seen)));
+  const objects = tidyPairs(capBooleans(s.objects.map((o) => reviveObject(o, seen))));
   const groups = tidyGroups(objects, check.groupTable(s.groups));
   const camera = check.camera(s.camera, DEFAULT_CAMERA);
   // Version 1: a Hoodoo 3D scene opens with its timeline on and soft shadows; a Hoodoo 2

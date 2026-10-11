@@ -1,13 +1,13 @@
-import { type CreateEntry, createEntry } from '../../assets/object.catalog';
+import { type CreateEntry, PORTAL_ENTRY, createEntry } from '../../assets/object.catalog';
 import { Action } from '../../input/actions';
 import { ACTIONS, shortcutOf } from '../../input/bindings';
 import type { ObjectId } from '../../model/scene.ids';
 import { PathLoop, loopTracks, pathLoopOf } from '../../world/animation/loops';
-import { Feature, isFeatureOn } from '../../world/preview-features';
 import { SelectMode } from '../../world/world';
 import type { UiContext } from '../context';
 import { type MenuItem, openMenu } from '../kit/controls';
 import { type MenuEntry, SEP } from './menu-layout';
+import { actionShown, shownEntries } from '../feature-gate';
 
 /** The Create submenu of the empty-space menu. */
 export const CREATE = 'create' as const;
@@ -16,9 +16,8 @@ export type ContextEntry = MenuEntry | typeof CREATE;
 /** What the Create submenu offers: the everyday primitives of the Create palette. */
 const CREATE_IDS = ['sphere', 'cube', 'cylinder', 'cone', 'pyramid', 'torus', 'terrain', 'radial'] as const;
 
-/** What changes the object menu: the Object Tree preview, the scene's animation switch. */
+/** What changes the object menu: the scene's animation switch and paths (preview features: ui/feature-gate.ts). */
 export interface MenuFacts {
-  readonly tree: boolean;
   readonly animation: boolean;
   /** The selection's paths: an open one offers Close Path Loop, closed ones Open Path. */
   readonly loop?: PathLoop;
@@ -27,7 +26,7 @@ export interface MenuFacts {
 /** Right-click on an object, in the scene window or the scene list. */
 export function objectEntries(f: MenuFacts): ContextEntry[] {
   return [
-    Action.Group, Action.Ungroup, ...(f.tree ? [Action.NewGroup] : []), SEP,
+    Action.Group, Action.Ungroup, Action.NewGroup, SEP,
     Action.Duplicate, Action.Delete, Action.HideSelected, Action.Land, SEP,
     Action.ChooseMaterial, Action.EditMaterial, Action.Attributes,
     ...(f.animation ? [SEP, Action.AddKey, Action.SelectAllKeys] : []),
@@ -60,7 +59,7 @@ export class SceneMenu {
 
   get facts(): MenuFacts {
     const w = this.ctx.world;
-    return { tree: isFeatureOn(this.ctx.editor.state.features, Feature.ObjectTree), animation: w.scene.animation.enabled, loop: pathLoopOf(w.scene.animation, loopTracks(w.scene, w.selection)) };
+    return { animation: w.scene.animation.enabled, loop: pathLoopOf(w.scene.animation, loopTracks(w.scene, w.selection)) };
   }
 
   /** The object menu; an object outside the selection is selected first (with `pick`: its family, or the row itself). */
@@ -74,14 +73,20 @@ export class SceneMenu {
   }
 
   items(entries: readonly ContextEntry[]): MenuItem[] {
-    return entries.map((e) => {
+    return shownEntries(entries, this.ctx.editor.state.features, SEP).map((e) => {
       if (e === SEP) return SEPARATOR;
-      if (e === CREATE) return { label: 'Create', items: CREATE_IDS.map((id) => this.create(createEntry(id))) };
+      if (e === CREATE) return { label: 'Create', items: [...CREATE_IDS.map((id) => this.create(createEntry(id))), ...this.previewCreates()] };
       return actionItem(this.ctx, e);
     });
   }
 
   private create(entry: CreateEntry): MenuItem {
     return { label: entry.label, run: () => this.onCreate(entry) };
+  }
+
+  /** Creates of preview features that are on: the Portal Pair. */
+  private previewCreates(): MenuItem[] {
+    if (!actionShown(this.ctx.editor.state.features, Action.CreatePortals)) return [];
+    return [{ label: PORTAL_ENTRY.label, run: () => this.ctx.dispatch(Action.CreatePortals) }];
   }
 }

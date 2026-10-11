@@ -10,17 +10,20 @@ import noise from './glsl/10-noise.glsl?raw';
 import textures from './glsl/20-textures.glsl?raw';
 import shapes from './glsl/30-shapes.glsl?raw';
 import terrain from './glsl/35-terrain.glsl?raw';
+import portalShape from './glsl/38-portal-shape.glsl?raw';
 import sceneGlsl from './glsl/40-scene.glsl?raw';
 import sky from './glsl/50-sky.glsl?raw';
 import shade from './glsl/60-shade.glsl?raw';
+import portals from './glsl/70-portals.glsl?raw';
 import main from './glsl/90-main.glsl?raw';
 import blitFrag from './glsl/blit.glsl?raw';
+import temporalFrag from './glsl/temporal.glsl?raw';
 import fullscreen from './glsl/fullscreen.vert.glsl?raw';
 import { MAT_TEXELS, OBJ_TEXELS } from './render.constants';
 import { NOISE_SIZE, bakeNoise } from './noise-texture';
 import { type PackedScene, packScene, skyUniforms } from './scene-packer';
 
-const TRACE_SOURCE = [header, noise, textures, shapes, terrain, sceneGlsl, sky, shade, main].join('\n');
+const TRACE_SOURCE = [header, noise, textures, shapes, terrain, portalShape, sceneGlsl, sky, shade, portals, main].join('\n');
 const COLD_FLAG = 'cold';
 const HEADER_END = 'out vec4 fragColor;';
 
@@ -82,6 +85,17 @@ export interface BlitRequest {
   readonly fade?: number;
 }
 
+/** A new moving frame over the last one (temporal.glsl): both in the bottom-left `width`×`height` of their targets. */
+export interface HistoryRequest {
+  readonly fresh: Target;
+  readonly history: Target;
+  readonly into: Target;
+  readonly width: number;
+  readonly height: number;
+  /** Share of the (clamped) last frame the result keeps. */
+  readonly keep: number;
+}
+
 /** A compiled trace program and the scene and view versions its uniforms hold. */
 interface TraceProgram {
   readonly program: WebGLProgram;
@@ -103,6 +117,8 @@ export class RayEngine {
   private fastStarted = false;
   private readonly blit: WebGLProgram;
   private readonly bu: Uniforms;
+  private readonly temporal: WebGLProgram;
+  private readonly tu: Uniforms;
   /** Resolves when the trace program is compiled and has drawn once (seconds on Windows). */
   readonly ready: Promise<void>;
   private stageNow = EngineStage.Queued;
@@ -132,6 +148,8 @@ export class RayEngine {
     this.floatInternal = blend32 ? gl.RGBA32F : floatOk ? gl.RGBA16F : gl.RGBA8;
     this.blit = linkProgram(gl, fullscreen, blitFrag);
     this.bu = new Uniforms(gl, this.blit);
+    this.temporal = linkProgram(gl, fullscreen, temporalFrag);
+    this.tu = new Uniforms(gl, this.temporal);
     this.ready = this.prepare(after);
     this.ready.catch((error: unknown) => this.logger.error('trace program unavailable', { stage: this.stageNow }, error));
     this.objectsTex = dataTexture(gl);
@@ -375,6 +393,26 @@ export class RayEngine {
     u.i('uHasPrev', b.prev ? 1 : 0);
     u.i('uChecker', b.checker ? 1 : 0);
     u.f('uFade', b.fade ?? 1);
+    gl.bindVertexArray(this.vao);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  }
+
+  /** Writes `fresh` with `keep` of `history` into `into` (the live view's Detailed quality under a still camera). */
+  blendHistory(r: HistoryRequest): void {
+    const gl = this.gl;
+    gl.useProgram(this.temporal);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, r.into.fbo);
+    gl.viewport(0, 0, r.width, r.height);
+    gl.disable(gl.BLEND);
+    gl.activeTexture(gl.TEXTURE0 + UNIT_CUR);
+    gl.bindTexture(gl.TEXTURE_2D, r.fresh.tex);
+    gl.activeTexture(gl.TEXTURE0 + UNIT_PREV);
+    gl.bindTexture(gl.TEXTURE_2D, r.history.tex);
+    const u = this.tu;
+    u.i('uFresh', UNIT_CUR);
+    u.i('uHistory', UNIT_PREV);
+    u.f('uSize', r.width, r.height);
+    u.f('uKeep', r.keep);
     gl.bindVertexArray(this.vao);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
   }

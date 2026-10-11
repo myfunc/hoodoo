@@ -47,6 +47,9 @@ vec4 radiance(vec3 ro, vec3 rd) {
 #else
   int steps = (uMaxBounces + 1) * (1 + (uLightCount + 1) * SHADOW_DEPTH) + 1;
 #endif
+  // Passes through portals (70-portals.glsl) are not bounces: they get steps of their own.
+  int portals = 0;
+  steps += PORTAL_DEPTH;
   for (int step = 0; step < steps + uLoopGuard; step++) {
     if (!shadow) {
       for (; nextLight < uLightCount; nextLight++) {
@@ -131,6 +134,7 @@ vec4 radiance(vec3 ro, vec3 rd) {
       break;
     }
     vec4 atm = atmosphere(ro, rd, h.t);
+    if (ob.kind == K_PORTAL && portalPass(h.obj, wp, atm, mt.diffuse, ro, rd, thr, col, portals, pathDone)) continue;
     float surfW = (1.0 - mt.transparency) * (1.0 - mt.reflection);
     col += thr * atm.a * atm.rgb;
     if (surfW > 0.002) {

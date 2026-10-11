@@ -14,6 +14,7 @@ import { RealtimeRenderer, type RealtimeStatus } from './gpu/realtime';
 import { FINAL_BOUNCES, PREVIEW_BOUNCES, PREVIEW_SAMPLES } from './gpu/render.constants';
 import { type Frame, type GizmoHandles, type SegmentIndex, WireProjector, drawWireframe } from './wire/wireframe';
 import { type KeyHandle, drawMotionPaths } from './wire/motion-paths';
+import { type GizmoPart, samePart } from './wire/gizmo';
 
 /** One drawable view inside the scene window (one in single view, four in quad view). */
 export interface ViewCell {
@@ -59,7 +60,9 @@ const VIEW_LABELS: Readonly<Record<ViewKind, string>> = {
 
 export interface Hover {
   readonly object: ObjectId | null;
-  readonly gizmoAxis: number;
+  /** The selection's handle under the pointer, and whether the pointer is near enough for the rings. */
+  readonly gizmo: GizmoPart | null;
+  readonly near: boolean;
 }
 
 /**
@@ -84,7 +87,7 @@ export class SceneView {
   private cellsCache: ViewCell[] = [];
   private drawQueued = false;
   private renderLoop = false;
-  private hoverState: Hover = { object: null, gizmoAxis: -1 };
+  private hoverState: Hover = { object: null, gizmo: null, near: false };
   private rendered = false;
   private pendingRender: boolean | null = null;
   private width = 0;
@@ -107,8 +110,10 @@ export class SceneView {
     this.renderer = new ProgressiveRenderer(engine);
     this.realtime = new RealtimeRenderer(engine);
     this.realtime.target = editor.state.renderSamples;
+    this.realtime.quality = editor.state.settings.liveQuality;
     this.quadLive = new QuadLive(engine);
     this.quadLive.target = editor.state.renderSamples;
+    this.quadLive.quality = editor.state.settings.liveQuality;
     new ResizeObserver(() => this.resize()).observe(this.root);
     world.events.on('changed', ({ kind }) => this.onSceneChanged(kind));
     world.events.on('selection', () => this.requestDraw());
@@ -128,7 +133,8 @@ export class SceneView {
   }
 
   set hover(h: Hover) {
-    if (h.object === this.hoverState.object && h.gizmoAxis === this.hoverState.gizmoAxis) return;
+    const was = this.hoverState;
+    if (h.object === was.object && h.near === was.near && samePart(h.gizmo, was.gizmo)) return;
     this.hoverState = h;
     this.requestDraw();
   }
@@ -247,6 +253,10 @@ export class SceneView {
     if (s.renderSamples !== prev.renderSamples) {
       this.realtime.target = s.renderSamples;
       this.quadLive.target = s.renderSamples;
+    }
+    if (s.settings.liveQuality !== prev.settings.liveQuality) {
+      this.realtime.quality = s.settings.liveQuality;
+      this.quadLive.quality = s.settings.liveQuality;
     }
     this.root.classList.toggle('quad', s.quad);
     this.root.classList.toggle('is-picking', s.pickingFocus);
@@ -415,7 +425,8 @@ export class SceneView {
         depthCue: s.depthCue,
         grid: s.grid && !overRender,
         gizmo: s.gizmo,
-        gizmoHover: this.hoverState.gizmoAxis,
+        gizmoHover: this.hoverState.gizmo,
+        gizmoNear: this.hoverState.near,
         shadeOutside: true,
         overRender,
       });

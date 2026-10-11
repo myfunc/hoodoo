@@ -42,7 +42,7 @@ function planetInRing() {
   const basis = cameraBasis(scene.camera, W / H);
   const frame = { x: 0, y: 0, w: W, h: H };
   const { segments } = drawWireframe(nullContext(), scene, new WireProjector(basis, frame), {
-    selection: new Set(), hover: null, depthCue: false, grid: false, gizmo: false, gizmoHover: -1, shadeOutside: false, overRender: false,
+    selection: new Set(), hover: null, depthCue: false, grid: false, gizmo: false, gizmoHover: null, gizmoNear: false, shadeOutside: false, overRender: false,
   });
   const view: PickView = { basis, frame, segments };
   /** Screen point of an object-space point of the ring (its centreline is at radius 1 - tube). */

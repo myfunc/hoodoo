@@ -35,8 +35,10 @@ import { promptInstall } from './pwa';
 import { openMovieDialog } from '../ui/labs/movie-dialog';
 import { compareLatest, takeSnapshot } from './snapshot-ops';
 import { createFromLibrary, frame } from './scene-ops';
+import { canLinkPortals, createPortals, linkSelectedPortals } from './portal-ops';
 import { openAnimationSetup } from '../ui/labs/animation-setup';
-import { openPreviewFeatures } from '../ui/labs/preview-features';
+import { SettingsSection, openSettings } from '../ui/labs/settings-window';
+import { actionShown } from '../ui/feature-gate';
 import { Feature, isFeatureOn } from '../world/preview-features';
 import { ScrollPreference } from '../input/scroll-device';
 import { isAnimated } from '../world/animation/pose';
@@ -125,7 +127,8 @@ export class Commands {
       [Action.DeleteKeys]: () => deleteSelectedKeys(ctx),
       [Action.ClosePathLoop]: () => setPathLoop(ctx, true),
       [Action.OpenPath]: () => setPathLoop(ctx, false),
-      [Action.PreviewFeatures]: () => openPreviewFeatures(e),
+      [Action.PreviewFeatures]: () => openSettings(e, SettingsSection.PreviewFeatures),
+      [Action.Settings]: () => openSettings(e),
       [Action.Open]: () => void this.open(),
       [Action.Save]: () => { downloadScene(w.scene, DEFAULT_FILE_NAME); hooks.sceneSaved?.(); },
       [Action.LoadDemo]: () => { w.replaceScene(demoScene(), 'Open demo'); hooks.sceneOpened?.(SCENE_NAME.demo, false); },
@@ -156,6 +159,8 @@ export class Commands {
       [Action.Group]: () => { if (!w.group(sel(), this.tree)) ctx.toast('Select two or more objects to group'); },
       [Action.Ungroup]: () => w.ungroup(sel()),
       [Action.NewGroup]: () => w.newGroup(sel()),
+      [Action.CreatePortals]: () => createPortals(w),
+      [Action.LinkPortals]: () => linkSelectedPortals(w),
       [Action.Land]: () => w.updateObjects(sel(), 'Land', (o) => landed(w.scene, o)),
       [Action.Attributes]: () => this.attributes(),
       [Action.EditMaterial]: () => this.materials(),
@@ -197,7 +202,7 @@ export class Commands {
       [Action.SkyLibrary]: () => openSkyLibrary(ctx.thumbs, (s) => w.setSky({ ...s.sky, softShadows: w.scene.sky.softShadows }, `Sky: ${s.name}`), () => undefined),
       [Action.MaterialLibrary]: () => this.materials(),
       [Action.CommandPalette]: () => openCommandPalette(ctx),
-      [Action.Shortcuts]: () => openShortcuts(),
+      [Action.Shortcuts]: () => openShortcuts(e.state.features),
       [Action.About]: () => openAbout(),
       [Action.SourceCode]: () => openSource(),
       [Action.InstallApp]: () => void promptInstall(),
@@ -224,6 +229,8 @@ export class Commands {
 
   isEnabled(a: Action): boolean {
     const w = this.ctx.world;
+    // A preview feature that is off has no commands (ui/feature-gate.ts): not from a key either.
+    if (!actionShown(this.ctx.editor.state.features, a)) return false;
     if (a === Action.Undo) return w.canUndo();
     if (a === Action.Redo) return w.canRedo();
     if (a === Action.Paste) return w.hasClipboard();
@@ -235,7 +242,7 @@ export class Commands {
     if (a === Action.StopRender) return this.ctx.view.isRendering;
     if (a === Action.ClosePathLoop || a === Action.OpenPath) return isAnimationOn(this.ctx) && canLoopPath(this.ctx, a === Action.ClosePathLoop);
     if (TIMELINE_ACTIONS.has(a)) return isAnimationOn(this.ctx);
-    if (a === Action.NewGroup) return this.tree;
+    if (a === Action.LinkPortals) return canLinkPortals(w);
     return true;
   }
 

@@ -1,5 +1,6 @@
 import type { Scene } from '../../model/scene.types';
 import type { ViewBasis } from '../../world/camera-math';
+import { LiveQuality } from '../../world/world.enums';
 import type { RayEngine } from './engine';
 import { type Target, createTarget, deleteTarget } from './gl';
 import { RealtimeRenderer, type RealtimeStatus } from './realtime';
@@ -71,6 +72,7 @@ export class QuadLive<K> {
   private height = 0;
   private scale = 1;
   private samples = 16;
+  private qualityNow = LiveQuality.Fast;
   /** The composite changed without a new frame (a pane left or moved): present it once. */
   private dirty = false;
 
@@ -87,6 +89,12 @@ export class QuadLive<K> {
   set target(samples: number) {
     this.samples = samples;
     for (const p of this.panes.values()) p.renderer.target = samples;
+  }
+
+  /** What every pane traces while things move (RealtimeRenderer.quality). */
+  set quality(q: LiveQuality) {
+    this.qualityNow = q;
+    for (const p of this.panes.values()) p.renderer.quality = q;
   }
 
   /** Canvas size in CSS pixels and how many pixels each one gets. */
@@ -121,6 +129,7 @@ export class QuadLive<K> {
       if (!pane) {
         pane = { renderer: new RealtimeRenderer(this.engine, false), port };
         pane.renderer.target = this.samples;
+        pane.renderer.quality = this.qualityNow;
         this.panes.set(job.key, pane);
         moved = true;
       } else if (!samePort(pane.port, port)) {

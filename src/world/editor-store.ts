@@ -4,6 +4,7 @@ import type { Camera } from '../model/scene.types';
 import { ScrollPreference } from './world.enums';
 import type { KeyRef } from './animation/key-selection';
 import type { FeatureFlags } from './preview-features';
+import { DEFAULT_SETTINGS, type Settings } from './settings';
 import { DEFAULT_CAMERA } from './scene.defaults';
 
 export enum PaletteTab {
@@ -54,6 +55,8 @@ export interface EditorState {
   readonly quadModes: Readonly<Partial<Record<ViewKind, PaneMode>>>;
   /** Preview features that are on (the Object Tree…): world/preview-features.ts. */
   readonly features: FeatureFlags;
+  /** Personal settings from the Settings window (live quality…): world/settings.ts. */
+  readonly settings: Settings;
 }
 
 export const IDLE_HINT: Hint = { title: 'Ready', text: 'Point at a control for help' };
@@ -82,6 +85,7 @@ export const INITIAL_EDITOR: EditorState = {
   selectedKeys: [],
   quadModes: { [ViewKind.Camera]: PaneMode.Render },
   features: {},
+  settings: DEFAULT_SETTINGS,
 };
 
 export interface EditorEvents {

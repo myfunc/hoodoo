@@ -112,6 +112,7 @@ vec2 parametricUv(int kind, vec3 lp) {
     vec3 q = normalize(lp);
     return vec2(atan(q.z, q.x) / TAU + 0.5, acos(clamp(q.y, -1.0, 1.0)) / PI);
   }
+  if (kind == K_PORTAL) return lp.xy * 0.5 + 0.5;
   return lp.xz * 0.5 + 0.5;
 }
 
@@ -122,7 +123,7 @@ Surface surfaceAt(int obj, vec3 wp, vec3 n) {
 }
 
 bool isThin(int kind) {
-  return kind == K_DISK || kind == K_SQUARE || kind == K_WATER || kind == K_GROUND || kind == K_CLOUDPLANE;
+  return kind == K_DISK || kind == K_SQUARE || kind == K_WATER || kind == K_GROUND || kind == K_CLOUDPLANE || kind == K_PORTAL;
 }
 
 vec3 lightTerm(Mat mt, vec3 n, vec3 v, vec3 l, vec3 lc) {

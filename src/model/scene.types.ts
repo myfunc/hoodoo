@@ -84,6 +84,11 @@ export interface SceneObject {
   readonly light: LightData | null;
   /** Shape seed for stones; ratio of the tube for tori. */
   readonly shapeParam: number;
+  /**
+   * A portal's partner: what you see through one portal is what the other faces.
+   * Only a mutual link counts (world/portals.ts); absent on everything else.
+   */
+  readonly pair?: ObjectId;
 }
 
 /**

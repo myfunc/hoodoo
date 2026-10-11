@@ -5,6 +5,7 @@ import type { ViewCell } from '../render/viewport';
 import { boxSphere, unionBox, worldBox } from '../world/bounds';
 import { translateLocal } from '../world/camera-math';
 import type { EditorStore } from '../world/editor-store';
+import { WalkSpeed } from '../world/settings';
 import type { World } from '../world/world';
 import { FLY_KEYS, WALK_KEYS } from './bindings';
 import { MAX_FLY_DT, MS_PER_SECOND } from './input.constants';
@@ -12,6 +13,8 @@ import { approach, panSpeed, settled, walkIntent, walkSpeed } from './walk-math'
 
 /** The undo step of a keyboard walk in the Camera view. */
 const WALK_LABEL = 'Camera walk';
+/** Settings › Navigation › Walk speed: a factor on the speed that follows the scene's size. */
+const WALK_PACE: Readonly<Record<WalkSpeed, number>> = { [WalkSpeed.Slow]: 0.5, [WalkSpeed.Normal]: 1, [WalkSpeed.Fast]: 2 };
 
 export const cameraOf = (world: World, editor: EditorStore, cell: ViewCell): Camera =>
   cell.kind === ViewKind.Director ? editor.state.director : world.scene.camera;
@@ -88,7 +91,8 @@ export class CameraWalk {
       this.radius = box ? boxSphere(box).radius : 0;
     }
     const ortho = cell.basis.ortho;
-    const speed = ortho ? panSpeed(this.world.scene.views[cell.kind].span, this.fast) : walkSpeed(this.radius, this.fast);
+    const pace = WALK_PACE[this.editor.state.settings.walkSpeed];
+    const speed = pace * (ortho ? panSpeed(this.world.scene.views[cell.kind].span, this.fast) : walkSpeed(this.radius, this.fast));
     const intent = walkIntent(this.held, flying ? FLY_KEYS : WALK_KEYS);
     this.velocity = approach(this.velocity, scale(intent, speed), dt);
     if (length(intent) === 0 && settled(this.velocity, speed)) {

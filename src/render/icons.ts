@@ -87,6 +87,9 @@ const OWN_MATERIALS: Readonly<Record<string, Material>> = {
   }),
 };
 
+/** The Portal Pair icon: the oval turned toward VIEW_FROM.angled. */
+const PORTAL_ICON_TURN: Vec3 = [0, 26, 0];
+
 const materialOf = (key: string): Material => OWN_MATERIALS[key] ?? presetMaterial(key);
 
 function camera(from: Vec3, fov: number) {
@@ -125,7 +128,9 @@ export function createIcon(e: CreateEntry): IconSpec {
   if (e.kind === ShapeKind.SpotLight) return spec(SPOT_ICON.map(build), from);
   const s = e.size;
   const k = ICON_FIT / Math.max(s[0], s[1], s[2]);
-  return spec([build({ entry: e.id, size: [s[0] * k, s[1] * k, s[2] * k], mat: e.kind === ShapeKind.Stone ? 'Granite' : TEAL })], from);
+  // A portal stands up facing +Z: turned most of the way to the camera so its window shows.
+  const rotation = e.kind === ShapeKind.Portal ? PORTAL_ICON_TURN : undefined;
+  return spec([build({ entry: e.id, size: [s[0] * k, s[1] * k, s[2] * k], mat: e.kind === ShapeKind.Stone ? 'Granite' : TEAL, rotation })], from);
 }
 
 /** Materials Lab preview: the material on a sphere over a checker floor under a soft sky. */

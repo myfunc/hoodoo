@@ -5,11 +5,16 @@ import { openInfo } from '../ui/labs/setup-dialogs';
 import { splashArtNow } from '../ui/chrome/splash';
 import { APP_NAME, APP_TAGLINE, APP_VERSION } from '../ui/strings';
 import { SOURCE_URL } from './app.constants';
+import { actionShown } from '../ui/feature-gate';
+import type { FeatureFlags } from '../world/preview-features';
 
 const MOUSE: readonly [string, string][] = [
   ['Click a wireframe', 'Select (Shift adds, groups select together)'],
   ['Drag a selected object', 'Slide on the ground; Alt+drag lifts it'],
-  ['Drag a coloured handle', 'Move along X, Y or Z'],
+  ['Drag a handle ball', 'Move along X, Y or Z'],
+  ['Drag a handle cube', 'Stretch along it (Shift: evenly, Alt: from the far side)'],
+  ['Drag the pale square', 'Resize evenly (Alt: keep the base)'],
+  ['Drag a ring', 'Turn about its axis (Shift: 15° steps)'],
   ['Drag on empty space', 'Box-select'],
   ['Right-drag / Alt-drag', 'Trackball the camera'],
   ['W A S D, R / C over the scene', 'Walk the camera, rise and sink (Shift = faster); flat views pan'],
@@ -26,7 +31,7 @@ const QOL: readonly string[] = [
   'Unlimited undo with a clickable History panel',
   'Live ray-traced preview while you edit (P)',
   'Orbit, pan, dolly, WASD walk and fly navigation; Z+drag quick resize',
-  'Move handles with snapping, numeric Attributes panel',
+  'Move, resize and rotate handles in the scene, numeric Attributes panel',
   'Scene outliner: rename, hide, lock',
   'Autosave, .hoodoo files, drag-and-drop to open',
   'Share a whole scene as a link',
@@ -43,14 +48,15 @@ const QOL: readonly string[] = [
   'Works offline and installs as an app',
 ];
 
-export function openShortcuts(): void {
-  const groups = [MenuName.File, MenuName.Edit, MenuName.Objects, MenuName.View, MenuName.Render, MenuName.Palette, MenuName.Help];
+/** Help › Keyboard Shortcuts: the keys of every menu (not of preview features that are off) and the mouse. */
+export function openShortcuts(flags: FeatureFlags): void {
+  const groups = [MenuName.App, MenuName.File, MenuName.Edit, MenuName.Objects, MenuName.View, MenuName.Render, MenuName.Palette, MenuName.Help];
   const cols = el('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 230px)', gap: '4px 18px', maxHeight: '60vh', overflowY: 'auto' } });
   for (const g of groups) {
     cols.append(el('div', { cls: 'stone-section-title', text: g, style: { gridColumn: '1 / -1' } }));
     for (const a of Object.values(Action)) {
       const info = ACTIONS[a];
-      if (info.menu !== g || !info.chords.length) continue;
+      if (info.menu !== g || !info.chords.length || !actionShown(flags, a)) continue;
       cols.append(el('div', { style: { display: 'flex', justifyContent: 'space-between', gap: '8px' } }, [el('span', { text: info.label }), el('b', { text: shortcutOf(a) })]));
     }
   }

@@ -55,6 +55,14 @@ function planeT(o: Vec3, d: Vec3, finite: boolean, round: boolean): number {
   return t;
 }
 
+/** A portal: the oval in the local XY plane. */
+function portalT(o: Vec3, d: Vec3): number {
+  if (Math.abs(d[2]) < PARALLEL_EPS) return Infinity;
+  const t = -o[2] / d[2];
+  const p = add(o, scale(d, t));
+  return t > 0 && p[0] * p[0] + p[1] * p[1] <= 1 ? t : Infinity;
+}
+
 function terrainT(obj: SceneObject, o: Vec3, d: Vec3): number {
   const t = obj.terrain;
   if (!t) return Infinity;
@@ -108,6 +116,7 @@ function objectT(obj: SceneObject, origin: Vec3, dir: Vec3): number {
     case ShapeKind.Cone: return coneT(o, d);
     case ShapeKind.Pyramid: return pyramidT(o, d);
     case ShapeKind.Torus: return torusT(o, d, obj.shapeParam);
+    case ShapeKind.Portal: return portalT(o, d);
     default: return cubeT(o, d);
   }
 }

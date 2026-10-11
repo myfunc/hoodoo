@@ -14,7 +14,7 @@ import type { World } from '../world/world';
 import { FRAME_MARGIN, MAX_PIVOT_DISTANCE } from './app.constants';
 
 /** Where new objects appear: under the point the camera looks at (Bryce used the world centre). */
-function dropPoint(camera: Camera): [number, number] {
+export function dropPoint(camera: Camera): [number, number] {
   const p = pivotOf(camera);
   const d = Math.hypot(p[0], p[2]);
   return d > MAX_PIVOT_DISTANCE ? [0, 0] : [p[0], p[2]];

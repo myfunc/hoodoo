@@ -96,6 +96,9 @@ export enum Action {
   ChooseMaterial = 'choose-material',
   PrevMaterial = 'prev-material',
   NextMaterial = 'next-material',
+  Settings = 'settings',
+  CreatePortals = 'create-portals',
+  LinkPortals = 'link-portals',
 }
 
 /** Actions that take a numeric argument (bookmark slots). */

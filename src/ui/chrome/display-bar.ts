@@ -4,8 +4,10 @@ import { shortcutOf } from '../../input/bindings';
 import type { RenderProgress } from '../../render/gpu/progressive';
 import type { RealtimeStatus } from '../../render/gpu/realtime';
 import { RENDER_SAMPLE_CHOICES } from '../../world/editor-store';
+import { changeSetting } from '../../world/settings';
+import { LiveQuality } from '../../world/world.enums';
 import { type UiContext, hintOn } from '../context';
-import { Button, Select } from '../kit/controls';
+import { Button, Choice, Select } from '../kit/controls';
 import { el, glyph } from '../kit/dom';
 import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
 import { VIEW_NAMES } from '../strings';
@@ -37,12 +39,20 @@ const TOGGLES: Partial<Record<Action, { mark: readonly string[]; title: string; 
   [Action.ToggleAnimation]: { mark: GLYPH.film, title: 'Animation', text: 'Timeline with keys, play, movies' },
 };
 
+/** Live quality segments: what moving frames trace (render/gpu/live-quality.ts); hints fit the narrow hint line. */
+const QUALITIES: readonly { value: LiveQuality; label: string; text: string }[] = [
+  { value: LiveQuality.Fast, label: 'Fast', text: 'Moving: one reflection, sharp' },
+  { value: LiveQuality.Full, label: 'Full', text: 'Moving: finished look, grainy' },
+  { value: LiveQuality.Detailed, label: 'Detailed', text: 'Moving: glass traced deep' },
+];
+
 /** Bottom strip under the scene window: view, display toggles (Bryce-style marks) and render status. */
 export class DisplayBar {
   readonly el: HTMLElement;
   private readonly status: HTMLElement;
   private readonly toggles: ToggleButton[] = [];
   private readonly viewSelect: Select<ViewKind>;
+  private readonly quality: Choice<LiveQuality>;
   private readonly undo: Button;
   private readonly redo: Button;
 
@@ -59,6 +69,13 @@ export class DisplayBar {
       title: 'Anti-aliasing quality of Render',
       onChange: (n) => ctx.editor.update({ renderSamples: n }),
     });
+    this.quality = new Choice<LiveQuality>({
+      items: QUALITIES,
+      value: ctx.editor.state.settings.liveQuality,
+      cls: 'segmented live-quality',
+      onChange: (q) => changeSetting(ctx.editor, 'liveQuality', q),
+    });
+    QUALITIES.forEach((q, i) => hintOn(ctx, this.quality.el.children[i] as HTMLElement, { title: `Live ${q.label}`, text: q.text }));
     this.undo = new Button({ cls: 'ghost', title: `Undo (${shortcutOf(Action.Undo)})`, content: glyph(GLYPH.undo, GLYPH_BOX), onClick: () => ctx.dispatch(Action.Undo) });
     this.redo = new Button({ cls: 'ghost', title: `Redo (${shortcutOf(Action.Redo)})`, content: glyph(GLYPH.redo, GLYPH_BOX), onClick: () => ctx.dispatch(Action.Redo) });
     this.status = el('span', { cls: 'status' });
@@ -70,6 +87,7 @@ export class DisplayBar {
       this.toggle(Action.QuadView),
       el('div', { cls: 'sep' }),
       this.toggle(Action.ToggleLiveRender),
+      this.quality.el,
       samples.el,
       el('div', { cls: 'sep' }),
       this.toggle(Action.ToggleAnimation),
@@ -89,6 +107,7 @@ export class DisplayBar {
     ctx.editor.events.on('changed', ({ state }) => {
       this.viewSelect.set(state.view);
       samples.set(state.renderSamples);
+      this.quality.set(state.settings.liveQuality);
       this.sync();
     });
     ctx.world.events.on('history', () => this.sync());

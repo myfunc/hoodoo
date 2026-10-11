@@ -1,21 +1,33 @@
 import { Logger } from '../core/log';
+import { type EditorState, INITIAL_EDITOR, RENDER_SAMPLE_CHOICES } from '../world/editor-store';
 import { Feature, type FeatureFlags, PREVIEW_FEATURES } from '../world/preview-features';
+import { DEFAULT_SETTINGS, type Settings, settingsFrom } from '../world/settings';
 import { ScrollPreference } from '../world/world.enums';
 
-/** Settings that outlive a session: what scrolling does, whether the start window opens, preview features. */
-export interface Prefs {
-  readonly scroll: ScrollPreference;
-  readonly showStart: boolean;
-  /** Preview features switched on in the Preview Features window. */
+/** Editor state kept as you left it between visits; the Settings window shows it too. */
+export const REMEMBERED = ['scroll', 'renderSamples', 'sidePanel', 'liveRender'] as const;
+export type Remembered = Pick<EditorState, (typeof REMEMBERED)[number]>;
+
+/** Settings that outlive a session: the Settings window's (world/settings.ts), the remembered editor state, preview features. */
+export interface Prefs extends Settings, Remembered {
+  /** Preview features switched on in the Settings window. */
   readonly features: readonly Feature[];
 }
 
 const KEY = 'hoodoo.prefs.v1';
-const DEFAULTS: Prefs = { scroll: ScrollPreference.Auto, showStart: true, features: [] };
+const DEFAULTS: Prefs = { ...DEFAULT_SETTINGS, ...rememberedOf(INITIAL_EDITOR), features: [] };
 const FLAGS_PARAM = 'flags';
 const SCROLLS: ReadonlySet<unknown> = new Set(Object.values(ScrollPreference));
+const SAMPLES: ReadonlySet<unknown> = new Set(RENDER_SAMPLE_CHOICES);
 const KNOWN: ReadonlySet<unknown> = new Set(PREVIEW_FEATURES.map((f) => f.id));
 const logger = Logger.create('Prefs');
+
+/** The part of the editor state that is remembered. */
+export function rememberedOf(s: Remembered): Remembered {
+  return { scroll: s.scroll, renderSamples: s.renderSamples, sidePanel: s.sidePanel, liveRender: s.liveRender };
+}
+
+const flag = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback);
 
 /** Stored features: known ids only; 0.6.1 kept the Object Tree as `objectTree: true`. */
 function featuresOf(raw: Record<string, unknown>): Feature[] {
@@ -27,8 +39,11 @@ export function loadPrefs(): Prefs {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) ?? '{}') as Record<string, unknown>;
     return {
+      ...settingsFrom(raw),
       scroll: SCROLLS.has(raw.scroll) ? (raw.scroll as ScrollPreference) : DEFAULTS.scroll,
-      showStart: typeof raw.showStart === 'boolean' ? raw.showStart : DEFAULTS.showStart,
+      renderSamples: SAMPLES.has(raw.renderSamples) ? (raw.renderSamples as number) : DEFAULTS.renderSamples,
+      sidePanel: flag(raw.sidePanel, DEFAULTS.sidePanel),
+      liveRender: flag(raw.liveRender, DEFAULTS.liveRender),
       features: featuresOf(raw),
     };
   } catch (error) {

@@ -1,10 +1,12 @@
 import type { Scene } from '../../model/scene.types';
 import { type ViewBasis, sameBasis } from '../../world/camera-math';
+import { LiveQuality } from '../../world/world.enums';
 import type { RayEngine } from './engine';
 import { type Target, createTarget, deleteTarget } from './gl';
 import { GpuFence } from './gpu-fence';
 import { GpuTimer } from './gpu-timer';
 import { jitter } from './halton';
+import { LIVE_MODES, type LiveMode, raysWorth } from './live-quality';
 import { MOTION_SCALE, MotionScale } from './motion-scale';
 
 /** Real-time viewport tuning. */
@@ -13,7 +15,6 @@ export const REALTIME = {
   idleFrameMs: 14,
   /** No change for this long counts as "still": full resolution and accumulation. */
   settleMs: 140,
-  bounces: 4,
   /** Settling dissolves from the last moving frame into the average over this many samples. */
   fadeSamples: 4,
   /** Untimed browsers: pixels per strip until the fence shows what the GPU keeps up with. */
@@ -42,31 +43,45 @@ export interface PresentTarget {
 const MS_PER_S = 1000;
 const FPS_SMOOTHING = 0.1;
 const CENTER = 0.5;
-/** Cost of a preview pixel against a full tracer pixel (measured on the examples), for the first guess. */
-const PREVIEW_COST = 0.8;
+/** Moving frames number their rays from here on (the noise seed), wrapping before floats lose integers. */
+const RAY_INDEX_WRAP = 1 << 20;
 
 /**
  * READ ME — the live viewport. While things move, every change gets one whole
- * preview frame: the interaction variant of the tracer (one reflection, no noise)
- * at a size `MotionScale` keeps steady, filtered up to the view. Once still for
- * `settleMs` it accumulates the full tracer at full resolution, one ray per pixel
- * per frame, until `target` samples, dissolving from the last preview frame over
- * the first few samples so the switch does not flash. A fence keeps the GPU queue
- * one strip deep, so slow GPUs get a slower picture, never a frozen page.
+ * moving frame at a size `MotionScale` keeps steady, filtered up to the view; what
+ * that frame traces is the `quality` (live-quality.ts): the interaction variant of
+ * the tracer (Fast), the full tracer (Full), or the full tracer twice as deep,
+ * averaged over frames while the camera holds still (Detailed).
+ * Once still for `settleMs` it accumulates the full tracer at full resolution, one
+ * ray per pixel per frame, until `target` samples, dissolving from the last moving
+ * frame over the first few samples so the switch does not flash. A fence keeps the
+ * GPU queue one strip deep, so slow GPUs get a slower picture, never a frozen page.
  *
  * Several renderers can share one canvas (Four Views): each then draws into its
  * `output` rectangle, and `share` splits the frame budget between them.
  */
 export class RealtimeRenderer {
   private accum: Target | null = null;
-  /** The last moving frame: 8-bit (the tracer's output is clamped) and filtered when shown larger. */
+  /** The last moving frame: half float (it averages rays) and filtered when shown larger. */
   private preview: Target | null = null;
   private previewScale = 0;
+  /** Detailed under a still camera: the new rays, and the frame the result goes to (made on first use). */
+  private fresh: Target | null = null;
+  private back: Target | null = null;
   /** The scene or view changed since the last preview frame. */
   private previewDue = false;
   /** A preview frame is on the GPU and nobody has checked whether it made the next animation frame. */
   private previewPending = false;
   private previewLate = false;
+  /** What the preview frame is worth in independent rays (Full and Detailed keep adding while nothing changes). */
+  private previewRays = 0;
+  /** The view and time of the last preview frame: Detailed builds on it while the camera holds still. */
+  private previewBasis: ViewBasis | null = null;
+  private previewAt = 0;
+  /** Noise seed of the next ray in a reused frame, so each frame adds new rays rather than the same ones. */
+  private rayIndex = 0;
+  private qualityNow = LiveQuality.Fast;
+  private mode: LiveMode = LIVE_MODES[LiveQuality.Fast];
   /** The preview program was ready at the last preview frame. */
   private fastSeen = false;
   private width = 0;
@@ -85,7 +100,9 @@ export class RealtimeRenderer {
   private readonly timer: GpuTimer;
   private readonly previewTimer: GpuTimer;
   private readonly fence: GpuFence;
-  private readonly motion = new MotionScale();
+  private readonly previewFormat: number;
+  /** One size control per quality: each learns what its own frames cost. */
+  private readonly motions = new Map<LiveQuality, MotionScale>();
   target = 16;
   /** How many renderers split the GPU frame budget. */
   share = 1;
@@ -97,6 +114,8 @@ export class RealtimeRenderer {
     this.timer = new GpuTimer(engine.gl);
     this.previewTimer = new GpuTimer(engine.gl);
     this.fence = new GpuFence(engine.gl);
+    const gl = engine.gl;
+    this.previewFormat = engine.floatInternal === gl.RGBA8 ? gl.RGBA8 : gl.RGBA16F;
     engine.prepareFast();
   }
 
@@ -109,7 +128,11 @@ export class RealtimeRenderer {
     this.width = width;
     this.height = height;
     this.accum = this.engine.createTarget(width, height);
-    this.preview = createTarget(gl, width, height, gl.RGBA8, gl.LINEAR);
+    deleteTarget(gl, this.fresh);
+    deleteTarget(gl, this.back);
+    this.fresh = null;
+    this.back = null;
+    this.preview = createTarget(gl, width, height, this.previewFormat, gl.LINEAR);
     this.previewScale = 0;
     this.previewDue = true;
     this.restart();
@@ -121,14 +144,36 @@ export class RealtimeRenderer {
     this.basis = null;
     this.hasImage = false;
     this.previewScale = 0;
+    this.previewBasis = null;
+    this.restart();
+  }
+
+  get quality(): LiveQuality {
+    return this.qualityNow;
+  }
+
+  /** What moving frames trace; a choice with another bounce depth starts the settled picture over. */
+  set quality(q: LiveQuality) {
+    if (q === this.qualityNow) return;
+    const depthChanged = LIVE_MODES[q].bounces !== this.mode.bounces;
+    this.qualityNow = q;
+    this.mode = LIVE_MODES[q];
+    this.previewTimer.reset();
+    this.previewBasis = null;
+    // The next moving frame starts afresh rather than adding rays of another kind to this one.
+    this.previewDue = true;
+    if (!depthChanged || !this.scene) return;
+    // Shown as a change: one moving frame of the new kind, then the settled average again.
+    this.lastChange = performance.now();
     this.restart();
   }
 
   dispose(): void {
-    deleteTarget(this.engine.gl, this.accum);
-    deleteTarget(this.engine.gl, this.preview);
+    for (const t of [this.accum, this.preview, this.fresh, this.back]) deleteTarget(this.engine.gl, t);
     this.accum = null;
     this.preview = null;
+    this.fresh = null;
+    this.back = null;
     this.width = 0;
     this.height = 0;
     this.reset();
@@ -178,8 +223,9 @@ export class RealtimeRenderer {
       this.sceneDirty = false;
     }
     if (this.moving) {
-      // Between changes in a drag the GPU rests; the last preview frame stays up.
-      if (this.previewDue) this.drawPreview();
+      // Between changes in a drag the last preview frame stays up: Fast rests the GPU, the others refine it.
+      if (this.previewDue) this.drawPreview(false);
+      else if (this.mode.refine && this.motion.scale === this.previewScale) this.drawPreview(true);
       return true;
     }
     if (this.converged) return false;
@@ -192,7 +238,7 @@ export class RealtimeRenderer {
     const [jx, jy] = jitter(this.samples);
     this.timer.measure((rowEnd - rowStart) * w, () => this.engine.traceRows({
       target: this.accum!, width: w, height: h, offsetX: 0, offsetY: 0, block: 1, rowStart, rowEnd,
-      jitterX: jx, jitterY: jy, sample: this.samples, bounces: REALTIME.bounces, transparentBg: false,
+      jitterX: jx, jitterY: jy, sample: this.samples, bounces: this.mode.bounces, transparentBg: false,
       blend: 1 / (this.samples + 1),
     }));
     this.fence.mark();
@@ -225,24 +271,48 @@ export class RealtimeRenderer {
     });
   }
 
-  /** One whole frame of the interaction preview at the steady moving size. */
-  private drawPreview(): void {
+  /**
+   * One whole moving frame at the steady moving size. `refine`: nothing changed since the last
+   * one, so its rays add to that average. A change under a still camera traces into `fresh` and
+   * keeps `mode.keep` of the last frame, clamped so moved objects leave no trail (Detailed); any
+   * other change starts the frame afresh.
+   */
+  private drawPreview(refine: boolean): void {
+    const mode = this.mode;
+    const motion = this.motion;
     const budget = MOTION_SCALE.frameMs / this.share;
-    // No preview frame measured yet: the first one is sized from what the full tracer costs here.
-    if (this.previewTimer.costPerPixel === 0 && this.timer.costPerPixel > 0) this.motion.measured(this.timer.costPerPixel * PREVIEW_COST, this.width * this.height, budget);
-    const scale = this.motion.scale;
+    // No moving frame measured yet: the first one is sized from what the full tracer costs here.
+    if (this.previewTimer.costPerPixel === 0 && this.timer.costPerPixel > 0) motion.measured(this.timer.costPerPixel * mode.cost, this.width * this.height, budget);
+    const scale = motion.scale;
     const w = Math.max(1, Math.round(this.width * scale));
     const h = Math.max(1, Math.round(this.height * scale));
+    const now = performance.now();
+    const still = !refine && mode.keep > 0 && scale === this.previewScale && now - this.previewAt < REALTIME.settleMs
+      && this.previewBasis !== null && sameBasis(this.previewBasis, this.basis!);
+    const keep = still ? mode.keep : 0;
+    const into = still ? this.historyTargets()[0] : this.preview!;
+    // A fresh frame seeds its noise the same way every time, so a drag shows no flicker; reused ones need new rays.
+    const seeded = still || (refine && mode.keep > 0);
+    const seed = seeded ? this.rayIndex : refine ? this.previewRays : 0;
+    const [jx, jy] = mode.fast ? [CENTER, CENTER] : jitter(seed);
     this.engine.setView({ ...this.basis!, aspect: w / h });
-    this.previewTimer.measure(w * h, () => this.engine.traceRows({
-      target: this.preview!, width: w, height: h, offsetX: 0, offsetY: 0, block: 1, rowStart: 0, rowEnd: h,
-      jitterX: CENTER, jitterY: CENTER, sample: 0, bounces: REALTIME.bounces, transparentBg: false, blend: 1, fast: true,
-    }));
+    this.previewTimer.measure(w * h, () => {
+      this.engine.traceRows({
+        target: into, width: w, height: h, offsetX: 0, offsetY: 0, block: 1, rowStart: 0, rowEnd: h,
+        jitterX: jx, jitterY: jy, sample: seed, bounces: mode.bounces, transparentBg: false,
+        blend: refine ? 1 / (this.previewRays + 1) : 1, fast: mode.fast,
+      });
+      if (still) this.keepHistory(w, h, keep);
+    });
     this.fence.mark();
+    if (seeded) this.rayIndex = (this.rayIndex + 1) % RAY_INDEX_WRAP;
+    this.previewRays = refine ? this.previewRays + 1 : raysWorth(this.previewRays, keep);
     this.previewPending = true;
     this.previewLate = false;
     this.previewDue = false;
     this.previewScale = scale;
+    this.previewBasis = this.basis;
+    this.previewAt = now;
     this.samples = 0;
     this.rowsDone = 0;
     this.hasImage = true;
@@ -250,15 +320,43 @@ export class RealtimeRenderer {
     this.present();
   }
 
+  /** The targets a still-camera frame needs: the new rays, and the one the result goes to. */
+  private historyTargets(): [Target, Target] {
+    if (!this.fresh || !this.back) {
+      const gl = this.engine.gl;
+      this.fresh = createTarget(gl, this.width, this.height, this.previewFormat, gl.NEAREST);
+      this.back = createTarget(gl, this.width, this.height, this.previewFormat, gl.LINEAR);
+    }
+    return [this.fresh, this.back];
+  }
+
+  /** The new rays over `keep` of the last frame, into `back`, which then becomes the shown frame. */
+  private keepHistory(w: number, h: number, keep: number): void {
+    const [fresh, back] = this.historyTargets();
+    this.engine.blendHistory({ fresh, history: this.preview!, into: back, width: w, height: h, keep });
+    this.back = this.preview;
+    this.preview = back;
+  }
+
+  /** The size control of the current quality. */
+  private get motion(): MotionScale {
+    let m = this.motions.get(this.qualityNow);
+    if (!m) {
+      m = new MotionScale();
+      this.motions.set(this.qualityNow, m);
+    }
+    return m;
+  }
+
   /** Once per preview frame, tells the size control how it went: its measured cost, or whether it was late. */
   private paceMotion(): void {
     if (!this.previewPending) return;
     this.previewPending = false;
-    // Until the preview program is compiled these frames use the full tracer: smaller, then growing back
+    // Until the preview program is compiled Fast frames use the full tracer: smaller, then growing back
     // once the cheaper program's own cost is measured.
     if (this.engine.fastReady !== this.fastSeen) {
       this.fastSeen = this.engine.fastReady;
-      this.previewTimer.reset();
+      if (this.mode.fast) this.previewTimer.reset();
       return;
     }
     if (this.previewTimer.available) this.motion.measured(this.previewTimer.costPerPixel, this.width * this.height, MOTION_SCALE.frameMs / this.share);

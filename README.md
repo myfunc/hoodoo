@@ -98,7 +98,10 @@ example projects, four stills and four animations.
    scale the selection about its centre (a wheel notch is 10%). Alt, Shift and Cmd
    keep their scroll meanings. Randomize runs from the Objects menu and the Edit
    palette only.
-4. Move handles with grid snapping and a numeric Attributes panel.
+4. Handles on the selection: balls move along an axis (with grid snapping),
+   cubes stretch along it (Shift evenly, Alt from the far side), the pale square
+   resizes evenly (Alt keeps the base) and rings turn about an axis (Shift in
+   15° steps); plus a numeric Attributes panel.
 5. Scene outliner: select, rename, hide, lock.
 6. Autosave, `.hoodoo` scene files, drag and drop to open.
 7. Share links that carry the whole scene.
@@ -119,13 +122,18 @@ example projects, four stills and four animations.
 21. **Context menus:** right-click an object in the scene window or the scene
     list for Group, Duplicate, Clear, Hide, Land, Materials Lab and more,
     empty space for Paste, Select All and Create; right-drag still orbits.
-22. **Preview Features** (View › Preview Features…): unfinished features to try,
-    each with an Off | On switch that is remembered. The first is the Object
+22. **Preview Features** (Settings › Preview Features, also View › Preview
+    Features…): unfinished features to try, each with an On | Off switch that is
+    remembered; one that is off leaves no trace in the interface. The first is the Object
     Tree: nested, named groups with + Group in the scene list, and a group
     menu on right-click (rename, ungroup, fold, a new group inside).
 23. **Material menu:** the material name in Attributes (or right-click › Choose
     Material…) opens rendered preset balls by family; hover previews on the
     selection, click applies. ↑ / ↓ step the selection through the presets.
+24. **Settings** (Hoodoo › Settings…, Ctrl/Cmd+,): start window and splash,
+    autosave, scene panel, hint line, message time, scroll gestures, walk speed,
+    live preview and its quality, rays per pixel. Choices act at once and are
+    remembered in the browser; Reset to Defaults puts them all back.
 
 | Depth of field | Snapshot compare |
 |---|---|

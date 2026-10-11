@@ -10,3 +10,10 @@ export enum ScrollPreference {
   Wheel = 'wheel',
   Trackpad = 'trackpad',
 }
+
+/** How hard the live picture works while you edit: the renderer reads it from the settings (Settings › Render). */
+export enum LiveQuality {
+  Fast = 'fast',
+  Full = 'full',
+  Detailed = 'detailed',
+}

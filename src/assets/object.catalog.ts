@@ -50,6 +50,19 @@ export const CREATE_PALETTE: readonly CreateEntry[] = [
   { id: 'spot', label: 'Spotlight', kind: ShapeKind.SpotLight, size: [0.3, 0.3, 0.3], material: 'Glow White', family: Family.Orange, shapeParam: 0 },
 ];
 
+/**
+ * The preview feature Portals: offered beside the palette only while the feature
+ * is on (ui/chrome/create-tray.ts); it makes a linked pair (world/portals.ts).
+ * Half-extents: an oval two units wide and three tall, a thin slab deep.
+ */
+export const PORTAL_ENTRY: CreateEntry = { id: 'portal', label: 'Portal Pair', kind: ShapeKind.Portal, size: [1, 1.5, 0.1], material: 'Glow White', family: Family.Teal, shapeParam: 0 };
+
+/** Every entry, the palette's and the preview features'. */
+const ALL_ENTRIES: readonly CreateEntry[] = [...CREATE_PALETTE, PORTAL_ENTRY];
+
+/** The entry that makes objects of this kind: the outliner draws its icon. */
+export const entryOfKind = (kind: ShapeKind): CreateEntry => ALL_ENTRIES.find((e) => e.kind === kind) ?? CREATE_PALETTE[0];
+
 export const DEFAULT_LIGHT: LightData = { color: h('#fff2d8'), intensity: 60, cone: 25, falloff: 40 };
 
 export const DEFAULT_TERRAIN_RESOLUTION = 128;
@@ -74,7 +87,7 @@ export const DEFAULT_LATTICE: TerrainRecipe = {
 };
 
 export const createEntry = (id: string): CreateEntry => {
-  const entry = CREATE_PALETTE.find((e) => e.id === id);
+  const entry = ALL_ENTRIES.find((e) => e.id === id);
   if (!entry) throw new Error(`Unknown create entry: ${id}`);
   return entry;
 };

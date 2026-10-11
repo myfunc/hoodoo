@@ -12,6 +12,7 @@ import { IDENTITY } from './group-transform';
 import { type TreeItems, cloneGroups, coverItems, dissolved, familyOf, freshGroupName, groupIndex, grouped, reparented, ungrouped, withEmptyGroup, withGroup, withGroups, withoutObjects } from './group-tree';
 import { History } from './history';
 import { limitBreach } from './scene-limits';
+import { relinkCopies } from './portals';
 import { COPY_SUFFIX, DUPLICATE_OFFSET, HISTORY_LIMIT } from './world.constants';
 import { ChangeKind, type WorldEvents } from './world.events';
 import { SelectMode } from './world.enums';
@@ -364,7 +365,7 @@ export class World {
       locked: false,
       transform: { ...o.transform, position: add(o.transform.position, offset) },
     }));
-    return { objects, groups: nodes };
+    return { objects: relinkCopies(source, objects), groups: nodes };
   }
 
   private pose(kind: ChangeKind): void {

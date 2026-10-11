@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Feature, PREVIEW_FEATURES } from '../../world/preview-features';
-import { featureInUrl, loadPrefs, saveFeature, savePrefs, startFeatures } from '../prefs';
+import { INITIAL_EDITOR } from '../../world/editor-store';
+import { DEFAULT_SETTINGS, MessageTime, OrbitSpeed, SNAP_GRID_STEPS, WalkSpeed } from '../../world/settings';
+import { LiveQuality, ScrollPreference } from '../../world/world.enums';
+import { featureInUrl, loadPrefs, rememberedOf, saveFeature, savePrefs, startFeatures } from '../prefs';
 
 const KEY = 'hoodoo.prefs.v1';
 
@@ -63,5 +66,39 @@ describe('preview features', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     data.set(KEY, '{broken');
     expect(loadPrefs().features).toEqual([]);
+  });
+});
+
+describe('settings', () => {
+  let data: Map<string, string>;
+  beforeEach(() => { data = stubStorage(); });
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+  it('start from the defaults: live quality Fast, the editor as it opens', () => {
+    expect(loadPrefs()).toMatchObject({ ...DEFAULT_SETTINGS, ...rememberedOf(INITIAL_EDITOR) });
+    expect(loadPrefs().liveQuality).toBe(LiveQuality.Fast);
+  });
+
+  it('persist orbit speed and snap grid and reject unsupported stored values', () => {
+    for (const orbitSpeed of Object.values(OrbitSpeed)) {
+      for (const snapGrid of SNAP_GRID_STEPS) {
+        savePrefs({ orbitSpeed, snapGrid });
+        expect(loadPrefs()).toMatchObject({ orbitSpeed, snapGrid });
+      }
+    }
+    data.set(KEY, JSON.stringify({ orbitSpeed: 'turbo', snapGrid: 0 }));
+    expect(loadPrefs()).toMatchObject({ orbitSpeed: OrbitSpeed.Normal, snapGrid: 0.5 });
+    data.set(KEY, JSON.stringify({ orbitSpeed: 2, snapGrid: '0.5' }));
+    expect(loadPrefs()).toMatchObject({ orbitSpeed: OrbitSpeed.Normal, snapGrid: 0.5 });
+  });
+
+  it('keep what was saved and drop values that are not allowed', () => {
+    savePrefs({ liveQuality: LiveQuality.Detailed, walkSpeed: WalkSpeed.Fast, autosave: false, renderSamples: 64, sidePanel: false });
+    expect(loadPrefs()).toMatchObject({ liveQuality: LiveQuality.Detailed, walkSpeed: WalkSpeed.Fast, autosave: false, renderSamples: 64, sidePanel: false });
+    data.set(KEY, JSON.stringify({ liveQuality: 'ultra', walkSpeed: 3, autosave: 'no', renderSamples: 5, messageTime: MessageTime.Long, scroll: ScrollPreference.Wheel, showStart: false }));
+    expect(loadPrefs()).toMatchObject({
+      liveQuality: LiveQuality.Fast, walkSpeed: WalkSpeed.Normal, autosave: true, renderSamples: INITIAL_EDITOR.renderSamples,
+      messageTime: MessageTime.Long, scroll: ScrollPreference.Wheel, showStart: false,
+    });
   });
 });

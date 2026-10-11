@@ -1,10 +1,11 @@
-import { Action } from '../../input/actions';
+import { MenuName } from '../../input/bindings';
 import type { UiContext } from '../context';
 import { el } from '../kit/dom';
 import { type MenuItem, closeMenu, openMenu } from '../kit/controls';
 import { SEPARATOR, actionItem } from './context-menu';
 import { APP_NAME } from '../strings';
 import { MENUS, type MenuEntry, SEP } from './menu-layout';
+import { shownEntries } from '../feature-gate';
 
 export class MenuBar {
   readonly el: HTMLElement;
@@ -12,11 +13,11 @@ export class MenuBar {
 
   constructor(private readonly ctx: UiContext) {
     this.doc = el('span', { cls: 'menubar-doc' });
-    const title = el('span', { cls: 'menubar-title', text: APP_NAME, title: 'Start window: a new scene, a file or an example' });
-    title.addEventListener('click', () => ctx.dispatch(Action.StartWindow));
-    this.el = el('div', { cls: 'menubar' }, [title]);
+    this.el = el('div', { cls: 'menubar' });
+    // The Hoodoo title is the app menu (About, Settings, Start Window); the others follow it.
     for (const menu of MENUS) {
-      const head = el('span', { cls: 'menubar-item', text: menu.name });
+      const app = menu.name === MenuName.App;
+      const head = el('span', app ? { cls: 'menubar-title', text: APP_NAME, title: 'About, Settings and the start window' } : { cls: 'menubar-item', text: menu.name });
       head.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -40,6 +41,6 @@ export class MenuBar {
   }
 
   private items(entries: readonly MenuEntry[]): MenuItem[] {
-    return entries.map((e) => (e === SEP ? SEPARATOR : actionItem(this.ctx, e)));
+    return shownEntries(entries, this.ctx.editor.state.features, SEP).map((e) => (e === SEP ? SEPARATOR : actionItem(this.ctx, e)));
   }
 }

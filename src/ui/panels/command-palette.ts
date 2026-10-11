@@ -2,6 +2,8 @@ import { KEY } from '../../core/keys';
 import { Action } from '../../input/actions';
 import { ACTIONS, shortcutOf } from '../../input/bindings';
 import type { UiContext } from '../context';
+import { actionShown } from '../feature-gate';
+import type { FeatureFlags } from '../../world/preview-features';
 import { clearChildren, el } from '../kit/dom';
 
 const HIDDEN: ReadonlySet<Action> = new Set([Action.CommandPalette, Action.Bookmark, Action.SaveBookmark]);
@@ -22,6 +24,10 @@ export function fuzzyScore(query: string, text: string): number {
   return gaps + (t.startsWith(q) ? 0 : 1);
 }
 
+/** The commands the palette offers: all but the hidden ones and those of preview features that are off. */
+export const paletteActions = (flags: FeatureFlags): Action[] =>
+  (Object.keys(ACTIONS) as Action[]).filter((a) => !HIDDEN.has(a) && actionShown(flags, a));
+
 /** Ctrl/Cmd+K: type to find any command; shows its shortcut. */
 export function openCommandPalette(ctx: UiContext): void {
   if (document.querySelector('.cmdk')) return;
@@ -30,7 +36,7 @@ export function openCommandPalette(ctx: UiContext): void {
   const box = el('div', { cls: 'cmdk' }, [input, list]);
   let rows: Action[] = [];
   let active = 0;
-  const all = (Object.keys(ACTIONS) as Action[]).filter((a) => !HIDDEN.has(a));
+  const all = paletteActions(ctx.editor.state.features);
   const close = () => {
     box.remove();
     document.removeEventListener('pointerdown', away, true);

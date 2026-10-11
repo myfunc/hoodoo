@@ -30,7 +30,8 @@ skipping.
   down to 2×2 sweeping down the picture, then anti-aliasing passes with Halton
   jitter. Strip sizes follow the measured GPU time (`EXT_disjoint_timer_query_webgl2`).
 - **Live** (`realtime.ts`, the default): while the scene or camera moves, every
-  change gets one whole *preview frame* (below); once nothing has changed for
+  change gets one whole *preview frame* (below; what it traces is the live
+  quality); once nothing has changed for
   140 ms it accumulates the full tracer at full resolution, one ray per pixel
   per frame, to the chosen rays per pixel.
 
@@ -111,6 +112,67 @@ the scene and window; on a slower GPU they get smaller, not slower.
 Every strip of GPU work is followed by a fence, and nothing new is queued until
 the GPU has finished it, so a slow GPU gives a slower picture instead of a
 frozen page.
+
+## Live quality
+
+What a moving frame traces is a choice, Fast | Full | Detailed, in the display
+bar and in Settings › Render (`liveQuality`, src/world/settings.ts). The modes
+are one table, `LIVE_MODES` in `src/render/gpu/live-quality.ts`; every mode
+keeps the steady size and the 10 ms budget above, each with its own
+`MotionScale`, so a mode's size is learned from its own frames.
+
+- **Fast** (the default) is the preview described above: one noiseless
+  reflection, hard shadows. Glass looks milky while it moves: the ray that
+  enters it only looks up the sky on its way out.
+- **Full** draws moving frames with the full tracer: soft shadows, the lens,
+  four bounces with the stochastic mirror-or-glass choice. One ray per change
+  is grainy on glass and mirrors; when a change does not come in the next
+  frame (an animation's own frames, a pause in a drag) the moving frame keeps
+  averaging rays at its size.
+- **Detailed** traces eight bounces, moving and settled, so light goes through
+  both walls of a glass cylinder, into the water's reflection of it and back.
+  While the camera holds still (an object is dragged or resized, an animation
+  plays without a camera path) each new frame keeps three quarters of the last
+  one. The last frame is first clamped to the colours of the 3×3 pixels around
+  it in the new frame (`temporal.glsl`, the usual temporal anti-aliasing
+  clamp): where something moved the old colour falls outside that range and is
+  dropped, so moving edges leave no trail, while noise, whose neighbours spread
+  wide, averages out over about seven frames. The new rays go to their own
+  target and the blend to a second one, which then becomes the shown frame;
+  the two extra targets exist only once Detailed is used. A moving camera
+  starts every frame afresh, as in Full.
+
+Animation playback goes through the same path: each frame the player sets is a
+change, so it is drawn in the chosen mode.
+
+Two rays a frame at a 24 ms budget (30 fps) were tried for Detailed: pictures
+were somewhat larger (0.50–0.69 of full size against 0.44–0.56), but the
+interval was 33 ms with a p95 of 50 ms and no visibly cleaner glass, against
+60 fps with the frame reuse. One ray at 60 fps was kept.
+
+Time between pictures shown (median / p95 / max, frames over 33 ms) and the size
+of moving frames, 8 s runs, `tools/perf-interact.mjs` with `QUALITY=` (drag,
+orbit, and `play` for Moon Waltz) and a glass cylinder (Clear Glass values,
+radius breathing 0.3–1.5 by hand each frame, or by keys while playing) over the
+water of the opening scene, MacBook (Apple silicon, Chrome), production build,
+1440×900 at DPR 2:
+
+| Scenario | Fast | Full | Detailed |
+|---|---|---|---|
+| Opening scene, drag | 16.7 / 18.2 / 27 ms, 0 of 476; 0.50–0.69 | 16.7 / 18.2 / 28 ms, 0 of 476; 0.56–0.63 | 16.7 / 18.2 / 28 ms, 0 of 477; 0.56 |
+| Opening scene, orbit | 16.7 / 18.3 / 34 ms, 4 of 473; 0.44–0.88 | 16.7 / 18.4 / 34 ms, 1 of 475; 0.56–0.75 | 16.7 / 18.3 / 33 ms, 0 of 476; 0.56–0.75 |
+| Moon Waltz playing | 66.6 / 68.1 / 69 ms *; 0.69–0.94 | 16.7 / 18.2 / 66 ms, 1 of 471; 0.75–0.94 | 16.7 / 18.3 / 68 ms, 3 of 469; 0.69–0.94 |
+| Glass cylinder resized | 16.7 / 18.2 / 34 ms, 1 of 479; 0.63–0.75 | 16.7 / 18.3 / 33 ms, 0 of 484; 0.50–0.63 | 16.7 / 18.5 / 32 ms, 0 of 484; 0.50–0.56 |
+| Glass cylinder playing | 66.7 / 68.4 / 69 ms *; 0.56–0.69 | 16.7 / 18.2 / 19 ms, 0 of 477; 0.50 | 16.7 / 18.3 / 33 ms, 0 of 476; 0.50 |
+| Opening scene, drag, 2560×1440 | 16.7 / 18.3 / 27 ms, 0 of 476; 0.38 | 16.8 / 18.3 / 27 ms, 0 of 477; 0.38 | 16.7 / 18.1 / 46 ms, 2 of 474; 0.31–0.38 |
+
+\* Both animations run at 15 frames a second, and Fast draws only when the
+scene changes; Full and Detailed refine the frame in between.
+
+At DPR 1 every mode holds 60 fps in the same runs (p95 18.0–18.4 ms, at most one
+frame over 33 ms in 476), Fast at full size, Full and Detailed at 0.75–1.
+Animation-frame deltas stayed at 16.7 / 16.8 ms and there were no long tasks in
+any run.
 
 ## Keeping the shader quick to compile
 

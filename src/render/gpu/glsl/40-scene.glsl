@@ -70,6 +70,7 @@ Span shapeSpan(Obj o, vec3 ro, vec3 rd) {
   if (k == K_WATER || k == K_GROUND || k == K_CLOUDPLANE) return flatSpan(lo, ld, false, true);
   if (k == K_TORUS || k == K_STONE) return marchSdf(k, lo, ld, o.params.y);
   if (k == K_TERRAIN || k == K_LATTICE) return terrainSpan(k == K_LATTICE, lo, ld, o.params.x, o.params.z);
+  if (k == K_PORTAL) return portalSpan(lo, ld);
   return NO_SPAN;
 }
 

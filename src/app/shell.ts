@@ -15,6 +15,7 @@ import { HistoryPanel } from '../ui/panels/history-panel';
 import { Outliner } from '../ui/panels/outliner';
 import { Properties } from '../ui/panels/properties';
 import { SnapshotsPanel } from '../ui/panels/snapshots-panel';
+import { onSetting } from '../world/settings';
 
 const PERCENT = 100;
 
@@ -55,6 +56,10 @@ export class Shell {
     this.root = el('div', { cls: 'app' }, [this.menubar.el, this.workspace]);
     ctx.editor.events.on('changed', ({ state }) => this.workspace.classList.toggle('no-side', !state.sidePanel));
     this.workspace.classList.toggle('no-side', !ctx.editor.state.sidePanel);
+    // Settings › Interface › Hint line.
+    const syncHintLine = () => this.root.classList.toggle('no-hint-line', !ctx.editor.state.settings.hintLine);
+    onSetting(ctx.editor, 'hintLine', syncHintLine);
+    syncHintLine();
     // The timeline shows while the scene's animation is on.
     const syncAnimation = () => this.root.classList.toggle('animation-on', ctx.world.scene.animation.enabled);
     ctx.world.events.on('changed', syncAnimation);

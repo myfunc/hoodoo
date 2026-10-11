@@ -7,13 +7,14 @@ import type { UiContext } from '../context';
 import { clearChildren, el, glyph } from '../kit/dom';
 import { SCENE_LIMITS } from '../../world/scene.validate';
 import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
-import { CREATE_PALETTE } from '../../assets/object.catalog';
+import { entryOfKind } from '../../assets/object.catalog';
 import { createIcon } from '../../render/icons';
 import { ChangeKind } from '../../world/world.events';
 import { type TreeItems, type TreeRow, coverItems, groupIndex, treeRows } from '../../world/group-tree';
 import { Action } from '../../input/actions';
 import { ACTIONS } from '../../input/bindings';
 import { Feature, isFeatureOn } from '../../world/preview-features';
+import { showWhile } from '../feature-gate';
 import { type SceneMenu, SEPARATOR, actionItem, openContextMenu } from '../chrome/context-menu';
 import { Button } from '../kit/controls';
 import { iconCanvas } from '../chrome/icon-canvas';
@@ -47,8 +48,7 @@ export class Outliner {
     this.body = el('div', { cls: 'panel-body outliner' });
     const add = new Button({ label: '+ Group', cls: 'panel-add', title: NEW_GROUP_TITLE, onClick: () => this.newGroup(() => ctx.dispatch(Action.NewGroup)) });
     this.el = el('div', { cls: 'panel grow' }, [panelTitle('Scene', GLYPH.cube, add.el), this.body]);
-    const showAdd = () => { add.el.hidden = !this.tree; };
-    showAdd();
+    showWhile(ctx.editor, Feature.ObjectTree, add.el);
     this.body.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       if (!(e.target as Element).closest('.outliner-row')) menu.openEmpty(e.clientX, e.clientY);
@@ -59,7 +59,6 @@ export class Outliner {
     ctx.world.events.on('selection', () => this.schedule());
     ctx.editor.events.on('changed', ({ state, previous }) => {
       if (state.features === previous.features) return;
-      showAdd();
       this.schedule();
     });
     this.render();
@@ -72,7 +71,7 @@ export class Outliner {
   private icon(o: SceneObject): HTMLCanvasElement {
     const cached = this.icons.get(o.id);
     if (cached && cached.kind === o.kind) return cached.canvas;
-    const entry = CREATE_PALETTE.find((e) => e.kind === o.kind) ?? CREATE_PALETTE[0];
+    const entry = entryOfKind(o.kind);
     const canvas = iconCanvas(this.ctx.thumbs, createIcon(entry), ICON_PX);
     canvas.className = 'outliner-icon';
     this.icons.set(o.id, { kind: o.kind, canvas });

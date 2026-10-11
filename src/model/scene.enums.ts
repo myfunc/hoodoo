@@ -17,6 +17,8 @@ export enum ShapeKind {
   CloudPlane = 14,
   RadialLight = 15,
   SpotLight = 16,
+  /** Preview feature Portals: an oval that leads to its partner (world/portals.ts). */
+  Portal = 17,
 }
 
 /** Bryce 2 object attributes: neutral objects ignore booleans; the rest act inside a group. */
