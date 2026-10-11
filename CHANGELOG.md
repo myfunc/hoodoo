@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.6.1 — 2026-10-11
+
+### Changed
+- Four Views: every pane has a Wire | Render switch in its corner. Render shows
+  the live ray-traced picture of that view, Top, Front and Side included, under
+  the wires; Camera starts on Render, the rest on Wire, and the choice holds
+  for the session. Rendered panes share the frame budget, so dragging stays
+  smooth.
+- History is a timeline: a notch per step, a handle on the current one,
+  undo and redo at its ends. Click or drag along it to travel; point at it to
+  read a step. Long histories thin the notches instead of wrapping.
+
+### Added
+- Object Tree (preview): View › Object Tree, or `?flags=tree` in the address.
+  Groups nest: Group puts whole groups and objects into a new group inside
+  their common parent, Ungroup moves what a group held up one level. The
+  scene list becomes a tree with folding triangles, group names (double-click
+  to rename), an eye and a lock for everything inside, and drag and drop: drop
+  rows onto a group to move them in, onto the Top level strip to move them
+  out; each drop is one undo step. Clicking any member in the scene window
+  selects its outermost group with everything inside. Files keep the nesting
+  in a `groups` table that is written only when groups nest or have names, so
+  flat scenes save exactly as before and older files open unchanged.
+- Key selection. Click a key square on a motion path or a key on the timeline
+  ruler to select it, Shift-click to add or remove one; a band dragged from
+  empty space in the scene window selects the key squares inside it (with no
+  square inside it selects objects as before), and Shift-drag on the ruler
+  boxes keys there. Selected keys turn yellow in both places. Dragging a
+  selected square moves all selected keys of that path together, one undo step.
+  Animation › Select All Keys (Alt+Shift+A) takes every key shown: of the
+  selected objects, or of everything animated, camera and sky included, when
+  nothing is selected. Delete or Backspace then removes the selected keys
+  (Animation › Delete Selected Keys) as one undo step; objects are deleted
+  only while no key is selected. Selecting other objects drops the key
+  selection.
+- Motion paths are labelled: the owner's name (an object, or Camera) sits by
+  the first key, the camera's route is dashed longer, and pointing at a key
+  square names it in the hint line with its time.
+
+### Fixed
+- A click in the scene window picks the object whose surface is under the
+  pointer rather than a wire merely passing nearby: the planet inside a thin
+  ring is picked, not the ring. A wire still picks its object where nothing
+  solid is under the pointer or where that object shows in front, and
+  picking and Land follow the real shape of tori, cylinders, cones and
+  pyramids instead of their boxes.
+
 ## 0.6.0 — 2026-10-11
 
 ### Changed

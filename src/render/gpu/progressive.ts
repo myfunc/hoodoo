@@ -74,6 +74,8 @@ export class ProgressiveRenderer {
   }
 
   resize(width: number, height: number): void {
+    // Four Views may have resized the shared canvas since.
+    this.engine.sizeCanvas(width, height);
     if (width === this.width && height === this.height) return;
     const gl = this.engine.gl;
     deleteTarget(gl, this.accum);
@@ -85,8 +87,6 @@ export class ProgressiveRenderer {
     const half = (n: number) => Math.max(1, Math.ceil(n / 2));
     this.blockA = this.engine.createTarget(half(width), half(height));
     this.blockB = this.engine.createTarget(half(width), half(height));
-    this.engine.canvas.width = width;
-    this.engine.canvas.height = height;
     this.hasImage = false;
     this.passes = [];
   }

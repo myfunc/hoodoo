@@ -85,8 +85,11 @@ export enum Action {
   AnimationSetup = 'animation-setup',
   ClearAnimation = 'clear-animation',
   ToggleMotionPaths = 'toggle-motion-paths',
+  SelectAllKeys = 'select-all-keys',
+  DeleteKeys = 'delete-keys',
   Bookmark = 'bookmark',
   SaveBookmark = 'save-bookmark',
+  ToggleObjectTree = 'toggle-object-tree',
 }
 
 /** Actions that take a numeric argument (bookmark slots). */

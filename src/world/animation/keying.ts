@@ -12,7 +12,7 @@ import type { Animation, Key, Scene, SceneObject } from '../../model/scene.types
 /** Key times sit on frames: two keys closer than half a frame are the same key. */
 export const frameTime = (t: number, fps: number): number => Math.round(t * fps) / fps;
 
-const sameTime = (a: number, b: number, fps: number): boolean => Math.abs(a - b) < 0.5 / fps;
+export const sameTime = (a: number, b: number, fps: number): boolean => Math.abs(a - b) < 0.5 / fps;
 
 /** The keys with `value` set at `time`, replacing a key on the same frame. */
 export function withKey<T>(keys: readonly Key<T>[], time: number, value: T, fps: number): Key<T>[] {

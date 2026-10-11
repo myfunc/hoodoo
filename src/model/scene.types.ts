@@ -79,6 +79,19 @@ export interface SceneObject {
   readonly shapeParam: number;
 }
 
+/**
+ * A group in the Object Tree: groups nest, objects point at their innermost group.
+ * A group objects point at that has no entry here is a plain top-level group,
+ * as every group was before the tree.
+ */
+export interface GroupNode {
+  readonly id: GroupId;
+  readonly name: string;
+  readonly parentId: GroupId | null;
+  /** Folded in the scene list. */
+  readonly collapsed: boolean;
+}
+
 export interface CloudSettings {
   readonly cumulus: boolean;
   readonly stratus: boolean;
@@ -165,6 +178,8 @@ export interface Scene {
   /** With animation on, the animated values of `objects`, `camera` and `sky` are the pose at the playhead. */
   readonly animation: Animation;
   readonly objects: readonly SceneObject[];
+  /** Named and nested groups (world/group-tree); absent when every group is plain. */
+  readonly groups?: readonly GroupNode[];
   readonly camera: Camera;
   readonly sky: Sky;
   readonly document: DocumentSetup;

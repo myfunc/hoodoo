@@ -3,9 +3,10 @@ import { Logger } from '../core/log';
 import { add } from '../core/vec3';
 import type { ViewKind } from '../model/scene.enums';
 import { type GroupId, type ObjectId, newGroupId, newObjectId } from '../model/scene.ids';
-import type { Animation, Camera, DocumentSetup, Material, OrthoView, Scene, SceneObject, Sky } from '../model/scene.types';
+import type { Animation, Camera, DocumentSetup, GroupNode, Material, OrthoView, Scene, SceneObject, Sky } from '../model/scene.types';
 import { frameTime, recordKeys } from './animation/keying';
 import { poseAt } from './animation/pose';
+import { type TreeItems, cloneGroups, familyOf, freshGroupName, groupIndex, grouped, reparented, ungrouped, withGroup, withGroups } from './group-tree';
 import { History } from './history';
 import { limitBreach } from './scene-limits';
 import { COPY_SUFFIX, DUPLICATE_OFFSET, HISTORY_LIMIT } from './world.constants';
@@ -31,6 +32,7 @@ export class World {
   private gesture: string | null = null;
   private gestureOpened = false;
   private clipboard: readonly SceneObject[] = [];
+  private clipboardGroups: ReadonlyMap<GroupId, GroupNode> = new Map();
   private materialClipboard: Material | null = null;
   private playhead = 0;
 
@@ -110,8 +112,11 @@ export class World {
     this.gestureOpened = false;
   }
 
-  addObjects(objects: readonly SceneObject[], label: string): void {
-    if (!this.commit(label, { ...this.scene, objects: [...this.scene.objects, ...objects] }, ChangeKind.Objects)) return;
+  /** `groups` are new groups the objects point at (copies of nested groups). */
+  addObjects(objects: readonly SceneObject[], label: string, groups: readonly GroupNode[] = []): void {
+    const all = [...this.scene.objects, ...objects];
+    const next = groups.length ? withGroups(this.scene, all, [...(this.scene.groups ?? []), ...groups]) : { ...this.scene, objects: all };
+    if (!this.commit(label, next, ChangeKind.Objects)) return;
     this.select(objects.map((o) => o.id), SelectMode.Replace);
   }
 
@@ -161,38 +166,62 @@ export class World {
     this.commit(camera ? 'Save camera' : 'Clear camera', { ...this.scene, bookmarks }, ChangeKind.Views);
   }
 
-  group(ids: ReadonlySet<ObjectId>): GroupId | null {
+  /**
+   * Bryce's Group: the selected objects form one flat group. With `nested` (the
+   * Object Tree preview) whole groups in the selection go inside the new group,
+   * which sits in their common parent.
+   */
+  group(ids: ReadonlySet<ObjectId>, nested = false): GroupId | null {
+    if (nested) {
+      const id = newGroupId();
+      const next = grouped(this.scene, ids, id, freshGroupName(this.scene));
+      return next && this.commit('Group', next, ChangeKind.Objects) ? id : null;
+    }
     if (ids.size < 2) return null;
     const groupId = newGroupId();
     this.updateObjects(ids, 'Group', (o) => ({ ...o, groupId }), true);
     return groupId;
   }
 
+  /** Dissolves the selected groups; what they held moves up one level (to the top in a flat scene). */
   ungroup(ids: ReadonlySet<ObjectId>): void {
-    const groups = new Set(this.scene.objects.filter((o) => ids.has(o.id)).map((o) => o.groupId));
-    const members = new Set(this.scene.objects.filter((o) => o.groupId && groups.has(o.groupId)).map((o) => o.id));
-    this.updateObjects(members, 'Ungroup', (o) => ({ ...o, groupId: null }), true);
+    const next = ungrouped(this.scene, ids);
+    if (next) this.commit('Ungroup', next, ChangeKind.Objects);
   }
 
-  /** Selecting one member of a group selects the whole family, like Bryce. */
+  /** Selecting one member of a group selects the whole family, like Bryce: the outermost group with all inside. */
   groupMembers(id: ObjectId): ObjectId[] {
-    const obj = this.object(id);
-    if (!obj?.groupId) return [id];
-    return this.scene.objects.filter((o) => o.groupId === obj.groupId).map((o) => o.id);
+    return familyOf(this.scene, id);
+  }
+
+  /** Moves objects and groups into a group, or to the top level with null; false when refused (a loop, too deep). */
+  reparent(items: TreeItems, target: GroupId | null): boolean {
+    const next = reparented(this.scene, items, target);
+    return next !== null && this.commit(target ? 'Move into group' : 'Move out of groups', next, ChangeKind.Objects);
+  }
+
+  renameGroup(id: GroupId, name: string): void {
+    this.commit('Rename group', withGroup(this.scene, id, { name }), ChangeKind.Objects);
+  }
+
+  /** Folding a group in the scene list is navigation: it amends the current entry quietly, so the render keeps refining. */
+  setGroupCollapsed(id: GroupId, collapsed: boolean): void {
+    this.history.amend(withGroup(this.scene, id, { collapsed }));
   }
 
   duplicate(ids: ReadonlySet<ObjectId>, label = 'Duplicate'): void {
-    const copies = this.cloneObjects(this.scene.objects.filter((o) => ids.has(o.id)));
-    if (copies.length) this.addObjects(copies, label);
+    const { objects, groups } = this.cloneObjects(this.scene.objects.filter((o) => ids.has(o.id)), groupIndex(this.scene));
+    if (objects.length) this.addObjects(objects, label, groups);
   }
 
   copy(ids: ReadonlySet<ObjectId>): void {
     this.clipboard = this.scene.objects.filter((o) => ids.has(o.id));
+    this.clipboardGroups = groupIndex(this.scene);
   }
 
   paste(): void {
-    const copies = this.cloneObjects(this.clipboard);
-    if (copies.length) this.addObjects(copies, 'Paste');
+    const { objects, groups } = this.cloneObjects(this.clipboard, this.clipboardGroups);
+    if (objects.length) this.addObjects(objects, 'Paste', groups);
   }
 
   hasClipboard(): boolean {
@@ -253,24 +282,19 @@ export class World {
     return { labels: this.history.labels, position: this.history.position };
   }
 
-  private cloneObjects(source: readonly SceneObject[]): SceneObject[] {
-    const groupMap = new Map<GroupId, GroupId>();
+  /** Copies go into fresh groups that mirror the groups around the originals. */
+  private cloneObjects(source: readonly SceneObject[], index: ReadonlyMap<GroupId, GroupNode>): { objects: SceneObject[]; groups: GroupNode[] } {
+    const { map, nodes } = cloneGroups(index, source, newGroupId);
     const offset = [DUPLICATE_OFFSET, 0, DUPLICATE_OFFSET] as const;
-    return source.map((o) => {
-      let groupId: GroupId | null = null;
-      if (o.groupId) {
-        groupId = groupMap.get(o.groupId) ?? newGroupId();
-        groupMap.set(o.groupId, groupId);
-      }
-      return {
-        ...o,
-        id: newObjectId(),
-        name: o.name.endsWith(COPY_SUFFIX) ? o.name : o.name + COPY_SUFFIX,
-        groupId,
-        locked: false,
-        transform: { ...o.transform, position: add(o.transform.position, offset) },
-      };
-    });
+    const objects = source.map((o) => ({
+      ...o,
+      id: newObjectId(),
+      name: o.name.endsWith(COPY_SUFFIX) ? o.name : o.name + COPY_SUFFIX,
+      groupId: o.groupId ? (map.get(o.groupId) ?? null) : null,
+      locked: false,
+      transform: { ...o.transform, position: add(o.transform.position, offset) },
+    }));
+    return { objects, groups: nodes };
   }
 
   private pose(kind: ChangeKind): void {

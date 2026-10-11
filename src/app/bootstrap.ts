@@ -16,7 +16,7 @@ import { SnapshotStore } from '../ui/snapshot-store';
 import { showToast } from '../ui/panels/toast';
 import { Splash } from '../ui/chrome/splash';
 import { demoScene } from '../world/demo-scene';
-import { loadPrefs, savePrefs } from '../io/prefs';
+import { Feature, featureInUrl, loadPrefs, savePrefs } from '../io/prefs';
 import { pickSceneFile } from '../io/project-file';
 import { StartWindow } from '../ui/chrome/start-window';
 import { emptyScene } from '../world/scene.defaults';
@@ -71,7 +71,8 @@ export async function startApp(root: HTMLElement): Promise<void> {
   const world = new World(shared ?? saved ?? demoScene());
   if (shared) history.replaceState(null, '', location.pathname);
   const editor = new EditorStore();
-  editor.update({ scroll: prefs.scroll });
+  editor.update({ scroll: prefs.scroll, objectTree: prefs.objectTree || featureInUrl(Feature.ObjectTree) });
+  editor.events.on('changed', ({ state, previous }) => { if (state.objectTree !== previous.objectTree) savePrefs({ objectTree: state.objectTree }); });
   const engine = new RayEngine(document.createElement('canvas'), false);
   const thumbs = new Thumbnailer(engine.ready);
   const view = new SceneView(world, editor, engine);

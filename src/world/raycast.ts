@@ -5,6 +5,7 @@ import type { ObjectId } from '../model/scene.ids';
 import type { Scene, SceneObject } from '../model/scene.types';
 import { objectMatrix } from './bounds';
 import { INFINITE_KINDS, LIGHT_KINDS } from './objects.factory';
+import { coneT, cubeT, cylinderT, pyramidT, torusT } from './ray-shapes';
 import { sample } from './terrain/heightfield';
 
 export interface RayHit {
@@ -103,11 +104,11 @@ function objectT(obj: SceneObject, origin: Vec3, dir: Vec3): number {
     case ShapeKind.Terrain:
     case ShapeKind.Lattice:
       return terrainT(obj, o, d);
-    default: {
-      const [a, b] = boxSpan(o, d);
-      if (a > b || b < 0) return Infinity;
-      return a > 0 ? a : b;
-    }
+    case ShapeKind.Cylinder: return cylinderT(o, d);
+    case ShapeKind.Cone: return coneT(o, d);
+    case ShapeKind.Pyramid: return pyramidT(o, d);
+    case ShapeKind.Torus: return torusT(o, d, obj.shapeParam);
+    default: return cubeT(o, d);
   }
 }
 
@@ -117,7 +118,7 @@ export interface RaycastOptions {
   readonly skip?: ReadonlySet<ObjectId>;
 }
 
-/** CPU ray cast for picking and Land-on-surface; booleans are ignored. */
+/** CPU ray cast for picking and Land-on-surface, true to each shape's surface; booleans are ignored. */
 export function raycast(scene: Scene, origin: Vec3, dir: Vec3, opts: RaycastOptions): RayHit | null {
   let best: RayHit | null = null;
   for (const obj of scene.objects) {

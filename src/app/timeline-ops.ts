@@ -1,5 +1,6 @@
 import type { Animation } from '../model/scene.types';
 import type { UiContext } from '../ui/context';
+import { type KeyRef, allKeyRefs, liveKeyRefs, withoutKeys } from '../world/animation/key-selection';
 import { allKeyTimes, frameTime, hasKeyAt, withDuration, withKey, withoutKey } from '../world/animation/keying';
 import { EMPTY_ANIMATION } from '../world/scene.defaults';
 
@@ -92,6 +93,40 @@ export function setTimeline(ctx: UiContext, patch: { duration?: number; fps?: nu
 export function clearAnimation(ctx: UiContext): void {
   const a = anim(ctx);
   ctx.world.setAnimation({ ...EMPTY_ANIMATION, enabled: a.enabled, duration: a.duration, fps: a.fps, loop: a.loop }, 'Clear all keys');
+}
+
+export const hasPickedKeys = (ctx: UiContext): boolean => ctx.editor.state.selectedKeys.length > 0;
+
+/** Picks every key shown: of the selected objects, or of every animated object, the camera and the sky. */
+export function selectAllKeys(ctx: UiContext): void {
+  const refs = allKeyRefs(anim(ctx), ctx.world.selectedObjects().map((o) => o.id));
+  if (!refs.length) ctx.toast('No keys to select');
+  ctx.editor.update({ selectedKeys: refs });
+}
+
+/** Deletes the picked keys in one undo step; an object track left without keys goes with them. */
+export function deleteSelectedKeys(ctx: UiContext): void {
+  const refs = ctx.editor.state.selectedKeys;
+  if (!refs.length) return;
+  ctx.world.setAnimation(withoutKeys(anim(ctx), refs), refs.length === 1 ? 'Delete key' : 'Delete keys');
+  if (ctx.editor.state.selectedKeys.length) ctx.editor.update({ selectedKeys: [] });
+}
+
+/** Keeps the picked keys honest: dropped when the object selection changes, pruned when keys vanish. */
+export function keepKeySelection(ctx: UiContext): void {
+  let selection = [...ctx.world.selection];
+  const drop = (refs: readonly KeyRef[]) => {
+    if (refs !== ctx.editor.state.selectedKeys) ctx.editor.update({ selectedKeys: refs });
+  };
+  ctx.world.events.on('selection', ({ ids }) => {
+    const changed = ids.size !== selection.length || selection.some((id) => !ids.has(id));
+    selection = [...ids];
+    if (changed && ctx.editor.state.selectedKeys.length) drop([]);
+  });
+  ctx.world.events.on('changed', () => {
+    const picked = ctx.editor.state.selectedKeys;
+    if (picked.length) drop(liveKeyRefs(anim(ctx), picked));
+  });
 }
 
 /**

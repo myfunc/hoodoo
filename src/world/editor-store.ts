@@ -2,12 +2,19 @@ import { Bus } from '../core/bus';
 import { ViewKind } from '../model/scene.enums';
 import type { Camera } from '../model/scene.types';
 import { ScrollPreference } from './world.enums';
+import type { KeyRef } from './animation/key-selection';
 import { DEFAULT_CAMERA } from './scene.defaults';
 
 export enum PaletteTab {
   Create = 'create',
   Edit = 'edit',
   Sky = 'sky',
+}
+
+/** How a Four Views pane draws: wires only, or the live ray-traced picture under them. */
+export enum PaneMode {
+  Wire = 'wire',
+  Render = 'render',
 }
 
 export interface Hint {
@@ -40,6 +47,12 @@ export interface EditorState {
   readonly playing: boolean;
   /** Animation: dotted paths of animated objects in the wireframe. */
   readonly motionPaths: boolean;
+  /** Animation: keys picked on the motion paths or the ruler (cleared when the object selection changes). */
+  readonly selectedKeys: readonly KeyRef[];
+  /** Four Views: Wire or Render per pane; a pane not listed draws wires. */
+  readonly quadModes: Readonly<Partial<Record<ViewKind, PaneMode>>>;
+  /** Preview: groups nest and the scene list is a tree. */
+  readonly objectTree: boolean;
 }
 
 export const IDLE_HINT: Hint = { title: 'Ready', text: 'Point at any control to see what it does' };
@@ -65,6 +78,9 @@ export const INITIAL_EDITOR: EditorState = {
   scroll: ScrollPreference.Auto,
   playing: false,
   motionPaths: true,
+  selectedKeys: [],
+  quadModes: { [ViewKind.Camera]: PaneMode.Render },
+  objectTree: false,
 };
 
 export interface EditorEvents {
@@ -94,6 +110,8 @@ export class EditorStore {
     this.update({ hint });
   }
 }
+
+export const paneMode = (s: EditorState, kind: ViewKind): PaneMode => s.quadModes[kind] ?? PaneMode.Wire;
 
 /** The camera a perspective view looks through: the scene camera or the free director camera. */
 export const isPerspective = (v: ViewKind): boolean => v === ViewKind.Camera || v === ViewKind.Director;

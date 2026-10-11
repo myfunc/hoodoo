@@ -6,6 +6,7 @@ interface Measure {
   readonly objects: number;
   readonly terrainSamples: number;
   readonly booleanMembers: number;
+  readonly groups: number;
 }
 
 function measure(scene: Scene): Measure {
@@ -15,13 +16,14 @@ function measure(scene: Scene): Measure {
     if (o.terrain) samples += o.terrain.resolution * o.terrain.resolution;
     if (o.groupId && (o.boolean === BooleanMode.Negative || o.boolean === BooleanMode.Intersect)) members.set(o.groupId, (members.get(o.groupId) ?? 0) + 1);
   }
-  return { objects: scene.objects.length, terrainSamples: samples, booleanMembers: Math.max(0, ...members.values()) };
+  return { objects: scene.objects.length, terrainSamples: samples, booleanMembers: Math.max(0, ...members.values()), groups: scene.groups?.length ?? 0 };
 }
 
 const MESSAGES: Readonly<Record<keyof Measure, string>> = {
   objects: `A scene holds at most ${SCENE_LIMITS.objects} objects`,
   terrainSamples: 'The terrains would be too large together: lower a terrain grid or remove one',
   booleanMembers: `A group can have at most ${SCENE_LIMITS.booleanMembers} Negative or Intersect members`,
+  groups: `A scene holds at most ${SCENE_LIMITS.groups} named or nested groups`,
 };
 
 /**

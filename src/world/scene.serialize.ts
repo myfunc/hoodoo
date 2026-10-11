@@ -4,6 +4,7 @@ import { material } from '../model/material.factory';
 import { type GroupId, asGroupId, asObjectId, newObjectId } from '../model/scene.ids';
 import { BooleanMode, type ViewKind } from '../model/scene.enums';
 import type { Animation, Material, Scene, SceneObject, Sky, TerrainData } from '../model/scene.types';
+import { tidyGroups } from './group-tree';
 import { LIGHT_KINDS, TERRAIN_KINDS } from './objects.factory';
 import { BOOKMARK_SLOTS, DEFAULT_CAMERA, DEFAULT_DOCUMENT, DEFAULT_VIEWS, EMPTY_ANIMATION } from './scene.defaults';
 import * as check from './scene.validate';
@@ -15,6 +16,8 @@ export { SceneFileError };
  * Scene file format. Heights are quantised to 16 bits and base64-encoded,
  * which keeps a 128² terrain near 44 KB of text. Version 2 keeps the animation
  * switch and soft shadows in the scene; version 1 named a studio instead.
+ * A `groups` table appears only when groups nest or have names (the Object
+ * Tree); older readers still see each object's innermost group.
  */
 export const SCENE_FORMAT = 'hoodoo-scene';
 export const SCENE_VERSION = 2;
@@ -68,15 +71,18 @@ function decodeHeights(s: SerializedTerrain): TerrainData {
 }
 
 export function serializeScene(scene: Scene): SceneFile {
+  const { groups, ...rest } = scene;
+  const table = tidyGroups(scene.objects, groups ?? []);
   return {
     format: SCENE_FORMAT,
     version: SCENE_VERSION,
     scene: {
-      ...scene,
+      ...rest,
       objects: scene.objects.map((o) => ({
         ...o,
         terrain: o.terrain ? { resolution: o.terrain.resolution, heights16: encodeHeights(o.terrain) } : null,
       })),
+      ...(table.length ? { groups: table } : {}),
     },
   };
 }
@@ -149,6 +155,7 @@ export function deserializeScene(raw: unknown): Scene {
   const seen = new Set<string>();
   const bookmarks = Array.from({ length: BOOKMARK_SLOTS }, (_, i) => s.bookmarks?.[i] ?? null);
   const objects = capBooleans(s.objects.map((o) => reviveObject(o, seen)));
+  const groups = tidyGroups(objects, check.groupTable(s.groups));
   const camera = check.camera(s.camera, DEFAULT_CAMERA);
   // Version 1: a Hoodoo 3D scene opens with its timeline on and soft shadows; a Hoodoo 2
   // scene (or one from before the studios) is a still with crisp shadows.
@@ -159,6 +166,7 @@ export function deserializeScene(raw: unknown): Scene {
   return {
     animation: v1 && !motion ? EMPTY_ANIMATION : check.animation(s.animation, motion ? V1_MOTION_ANIMATION : EMPTY_ANIMATION, ids, camera, sky),
     objects,
+    ...(groups.length ? { groups } : {}),
     camera,
     sky,
     document: check.documentSetup(s.document, DEFAULT_DOCUMENT),

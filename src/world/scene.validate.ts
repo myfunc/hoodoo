@@ -3,7 +3,8 @@ import type { Vec3 } from '../core/vec3';
 import { VALUE_LIMITS } from '../model/material.factory';
 import type { Rgb } from '../core/color';
 import { BooleanMode, ChannelSource, ColorChannel, Family, ShapeKind, SkyMode, TextureKind, TextureMapping, ValueChannel } from '../model/scene.enums';
-import type { Animation, Camera, CloudSettings, DocumentSetup, Key, LightData, OrthoView, ProceduralTexture, Sky, Transform } from '../model/scene.types';
+import { asGroupId } from '../model/scene.ids';
+import type { Animation, Camera, CloudSettings, DocumentSetup, GroupNode, Key, LightData, OrthoView, ProceduralTexture, Sky, Transform } from '../model/scene.types';
 
 /**
  * Guards for scene data that arrives from outside (files, share links, autosave):
@@ -13,7 +14,9 @@ export class SceneFileError extends Error {}
 
 export const TERRAIN_RES = { min: 2, max: 512 } as const;
 /** Limits for files and links from elsewhere: enough for any real scene, too little to hang a browser. */
-export const SCENE_LIMITS = { objects: 400, terrainSamples: 4194304, booleanMembers: 24, name: 80, id: 64, keysPerTrack: 600 } as const;
+export const SCENE_LIMITS = { objects: 400, terrainSamples: 4194304, booleanMembers: 24, name: 80, id: 64, keysPerTrack: 600, groups: 400, groupDepth: 16 } as const;
+/** What a group is called until it is renamed. */
+export const GROUP_NAME = 'Group';
 const MAX_COORD = 1e6;
 const MIN_SIZE = 1e-4;
 
@@ -225,4 +228,38 @@ export function animation(v: unknown, d: Animation, objectIds: ReadonlySet<strin
     camera: keys(r.camera, duration, (c) => camera(c, cam)),
     sky: keys(r.sky, duration, (s) => sky(s, skyDefault)),
   };
+}
+
+const isId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length <= SCENE_LIMITS.id;
+
+/**
+ * The group table of a file: well-formed entries only, the first of each id.
+ * A missing parent makes a top-level group; a loop or a chain deeper than
+ * groupDepth is cut at the link that breaks it, so every chain ends at the top.
+ */
+export function groupTable(v: unknown): GroupNode[] {
+  if (!Array.isArray(v)) return [];
+  const nodes = new Map<string, GroupNode>();
+  for (const raw of v.slice(0, SCENE_LIMITS.groups)) {
+    const r = (raw ?? {}) as Partial<Record<keyof GroupNode, unknown>>;
+    if (!isId(r.id) || nodes.has(r.id)) continue;
+    const id = asGroupId(r.id);
+    nodes.set(id, { id, name: label(r.name, GROUP_NAME) || GROUP_NAME, parentId: isId(r.parentId) ? asGroupId(r.parentId) : null, collapsed: r.collapsed === true });
+  }
+  const parent = new Map([...nodes.values()].map((n) => [n.id as string, n.parentId && nodes.has(n.parentId) ? n.parentId : null]));
+  for (const id of parent.keys()) {
+    const seen = new Set([id]);
+    let at = id;
+    for (let depth = 1; ; depth++) {
+      const up = parent.get(at) ?? null;
+      if (up === null) break;
+      if (seen.has(up) || depth >= SCENE_LIMITS.groupDepth) {
+        parent.set(at, null);
+        break;
+      }
+      seen.add(up);
+      at = up;
+    }
+  }
+  return [...nodes.values()].map((n) => ({ ...n, parentId: parent.get(n.id) ?? null }));
 }

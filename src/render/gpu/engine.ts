@@ -69,6 +69,9 @@ export interface BlitRequest {
   readonly split: number;
   readonly checker: boolean;
   readonly into: Target | null;
+  /** Viewport origin inside `into` (pixels, rows from the bottom); 0 when omitted. */
+  readonly left?: number;
+  readonly bottom?: number;
   readonly width: number;
   readonly height: number;
 }
@@ -213,8 +216,18 @@ export class RayEngine {
     return createTarget(gl, width, height, this.floatInternal, linear ? gl.LINEAR : gl.NEAREST);
   }
 
-  /** Uploads the scene data; uniforms are applied at the next trace (the program may still be compiling). */
+  /** Sets the canvas's pixel size; a no-op when it already has it (assigning clears the canvas). */
+  sizeCanvas(width: number, height: number): void {
+    if (this.canvas.width !== width) this.canvas.width = width;
+    if (this.canvas.height !== height) this.canvas.height = height;
+  }
+
+  /**
+   * Uploads the scene data; uniforms are applied at the next trace (the program may still be compiling).
+   * The same snapshot is uploaded once, so several views of one scene share the upload.
+   */
   setScene(scene: Scene): void {
+    if (this.sceneState?.scene === scene) return;
     const gl = this.gl;
     const p = packScene(scene);
     this.packed = p;
@@ -304,7 +317,7 @@ export class RayEngine {
     const gl = this.gl;
     gl.useProgram(this.blit);
     gl.bindFramebuffer(gl.FRAMEBUFFER, b.into ? b.into.fbo : null);
-    gl.viewport(0, 0, b.width, b.height);
+    gl.viewport(b.left ?? 0, b.bottom ?? 0, b.width, b.height);
     gl.activeTexture(gl.TEXTURE0 + UNIT_CUR);
     gl.bindTexture(gl.TEXTURE_2D, b.cur.tex);
     gl.activeTexture(gl.TEXTURE0 + UNIT_PREV);

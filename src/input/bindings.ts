@@ -77,6 +77,7 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.ToggleGrid]: { label: 'Ground Grid', menu: MenuName.View, chords: [c('KeyG', { alt: true })] },
   [Action.ToggleGizmo]: { label: 'Move Handles', menu: MenuName.View, chords: [c('KeyT')] },
   [Action.ToggleSnap]: { label: 'Snap to Grid', menu: MenuName.View, chords: [c('KeyS', { alt: true })] },
+  [Action.ToggleObjectTree]: { label: 'Object Tree (preview)', menu: MenuName.View, chords: [] },
   [Action.ResetCamera]: { label: 'Reset Camera', menu: MenuName.View, chords: [c('Home')] },
   [Action.PickFocus]: { label: 'Pick Focus Point', menu: MenuName.View, chords: [c('KeyF', { alt: true })] },
   [Action.CameraFromView]: { label: 'Camera to Director', menu: MenuName.View, chords: [] },
@@ -115,6 +116,9 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.KeyCamera]: { label: 'Animate Camera (key it here)', menu: MenuName.Animation, chords: [c('KeyK', { shift: true })] },
   [Action.ToggleLoop]: { label: 'Loop Playback', menu: MenuName.Animation, chords: [] },
   [Action.ToggleMotionPaths]: { label: 'Show Motion Paths', menu: MenuName.Animation, chords: [] },
+  [Action.SelectAllKeys]: { label: 'Select All Keys', menu: MenuName.Animation, chords: [c('KeyA', { alt: true, shift: true })] },
+  // Delete and Backspace (Action.Delete) remove the picked keys while any are picked.
+  [Action.DeleteKeys]: { label: 'Delete Selected Keys', menu: MenuName.Animation, chords: [] },
   [Action.AnimationSetup]: { label: 'Animation Setup…', menu: MenuName.Animation, chords: [] },
   [Action.ClearAnimation]: { label: 'Clear All Keys', menu: MenuName.Animation, chords: [] },
   [Action.Bookmark]: { label: 'Go to Camera Bookmark', menu: MenuName.View, chords: [] },

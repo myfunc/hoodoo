@@ -167,7 +167,20 @@ input { font: inherit; }
 .scene-window .gl-view { image-rendering: pixelated; }
 .scene-window .wire-view { inset: 0; width: 100%; height: 100%; }
 .scene-window.is-picking { cursor: crosshair; }
-.scene-window.quad .gl-view { display: none; }
+/* Four Views pane modes (ui/chrome/pane-modes.ts): Wire | Render in each pane's top-right corner */
+.pane-modes { position: absolute; inset: 0; pointer-events: none; }
+.pane-modes[hidden] { display: none; }
+.ui-choice.pane-mode {
+  position: absolute; transform: translateX(-100%); flex-wrap: nowrap; gap: 0; pointer-events: auto;
+  border: 1px solid #8a8985; border-radius: 3px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,0.18);
+}
+.pane-mode .ui-dot { display: none; }
+.pane-mode .ui-toggle {
+  padding: 1px 6px; font: bold 9px/12px var(--font-ui); color: #5f5e59; background: linear-gradient(rgba(251,251,250,0.92), rgba(211,210,206,0.92));
+}
+.pane-mode .ui-toggle + .ui-toggle { border-left: 1px solid #8a8985; }
+.pane-mode .ui-toggle:hover { color: #2f2f2d; }
+.pane-mode .ui-toggle.is-on { color: #fff; background: linear-gradient(#5fb8b8, var(--teal) 60%, var(--teal-dark)); box-shadow: inset 0 1px 2px rgba(0,0,0,0.25); }
 .scene-progress {
   position: absolute; left: 0; bottom: 0; height: 3px; background: var(--teal); transition: width 80ms linear; pointer-events: none;
 }
@@ -316,6 +329,21 @@ input { font: inherit; }
 .outliner-row .glyph { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; opacity: 0.3; }
 .outliner-row .glyph:hover { opacity: 0.7; }
 .outliner-row .glyph.on { opacity: 0.85; color: var(--teal-dark); }
+/* Object Tree preview: rows indent per level, groups fold, rows drag onto a group. */
+.outliner-row.tree { grid-template-columns: 12px 18px minmax(0, 1fr) 16px 16px; }
+.outliner-twisty { display: flex; align-items: center; justify-content: center; height: 100%; }
+.outliner-twisty .twisty { width: 11px; height: 11px; fill: var(--ink-soft); }
+.outliner-twisty:hover .twisty { fill: var(--ink); }
+.outliner-group-icon { display: flex; justify-content: center; }
+.outliner-group-icon .group-mark { width: 14px; height: 14px; stroke: var(--teal-dark); fill: rgba(27,94,94,0.12); stroke-width: 2; stroke-linejoin: round; }
+.outliner-row.is-group .outliner-name { color: var(--ink); font-weight: bold; }
+.outliner-row.is-group.is-selected .outliner-name { color: var(--select); }
+.outliner.is-dragging, .outliner.is-dragging .outliner-row { cursor: grabbing; }
+.outliner-row.is-dragged { opacity: 0.4; }
+.outliner-row.is-drop-target { background: rgba(27,94,94,0.16); box-shadow: inset 0 0 0 1px var(--teal-dark); }
+.outliner-root-drop { display: none; height: 21px; margin-top: 4px; align-items: center; justify-content: center; border: 1px dashed rgba(0,0,0,0.3); border-radius: 2px; color: var(--ink-faint); white-space: nowrap; }
+.outliner.is-dragging .outliner-root-drop { display: flex; }
+.outliner.is-drop-root .outliner-root-drop { border-color: var(--teal-dark); color: var(--teal-dark); background: rgba(27,94,94,0.12); }
 
 /* attributes (ui/panels/properties.ts) */
 .props-grid { display: grid; grid-template-columns: 24px repeat(3, 1fr); gap: 3px 4px; align-items: center; }
@@ -334,17 +362,31 @@ input { font: inherit; }
 .lens-title { display: flex; align-items: center; gap: 5px; }
 .lens-title .glyph { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2.2; }
 
-/* history pebbles (ui/panels/history-panel.ts) */
-.pebbles { display: flex; flex-wrap: wrap; gap: 3px; max-height: 92px; overflow-y: auto; padding: 1px; }
-.pebble {
-  width: 20px; height: 20px; padding: 0; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer;
-  border: 1px solid #8a8985; background: radial-gradient(circle at 35% 30%, #fbfbfa, #c4c3bf 75%); box-shadow: 0 1px 1px rgba(0,0,0,0.2); color: #5a5955;
+/* history timeline (ui/panels/history-panel.ts): undo · rail of steps · redo, caption under it */
+.history-strip { display: flex; align-items: center; gap: 4px; }
+.history-strip .ui-button.mark-chip { width: 20px; height: 18px; flex: none; }
+.history-strip .ui-button.mark-chip .glyph { width: 12px; height: 12px; }
+.history-rail { position: relative; flex: 1; min-width: 0; height: 22px; cursor: pointer; touch-action: none; }
+.history-track { position: absolute; inset: 0 7px; }
+.history-track::before {
+  content: ''; position: absolute; left: 0; right: 0; top: 10px; height: 2px; border-radius: 1px;
+  background: #a3a29e; box-shadow: inset 0 1px 0 rgba(0,0,0,0.2), 0 1px 0 var(--hi);
 }
-.pebble:hover { color: var(--teal-dark); border-color: var(--teal-dark); }
-.pebble .glyph { width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 2.4; stroke-linejoin: round; }
-.pebble.is-current { background: radial-gradient(circle at 35% 30%, #8fe0e0, var(--teal) 55%, var(--teal-dark)); color: #fff; border-color: var(--teal-dark); box-shadow: 0 0 0 2px rgba(43,138,138,0.25), 0 1px 2px rgba(0,0,0,0.3); }
-.pebble.is-future { background: none; border-style: dashed; color: var(--ink-faint); box-shadow: none; }
-.pebble-caption { margin-top: 4px; font-size: 10px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.history-fill { position: absolute; left: 0; top: 10px; height: 2px; border-radius: 1px; background: var(--teal); }
+.history-notches { position: absolute; inset: 0; }
+.history-notch { position: absolute; top: 6px; width: 1px; height: 10px; margin-left: -0.5px; background: #5f5e59; }
+.history-notch.is-future { background: var(--ink-faint); opacity: 0.6; }
+.history-rail:hover .history-notch { height: 12px; top: 5px; }
+.history-handle {
+  position: absolute; top: 3px; width: 14px; height: 16px; margin-left: -7px; border-radius: 3px; pointer-events: none;
+  display: flex; align-items: center; justify-content: center; color: #fff;
+  border: 1px solid var(--teal-dark); background: linear-gradient(#8fe0e0, var(--teal) 55%, var(--teal-dark));
+  box-shadow: 0 0 0 2px rgba(43,138,138,0.2), 0 1px 2px rgba(0,0,0,0.3);
+}
+.history-handle .glyph { width: 9px; height: 9px; stroke: currentColor; fill: none; stroke-width: 2.6; stroke-linejoin: round; }
+.history-caption { display: flex; gap: 6px; margin: 2px 31px 0; font-size: 10px; color: var(--ink-soft); white-space: nowrap; }
+.history-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.history-count { flex: none; color: var(--ink-faint); }
 
 /* the stone chips with marks: display bar, boolean modes */
 .ui-button.mark-chip {

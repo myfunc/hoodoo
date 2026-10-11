@@ -37,6 +37,7 @@ import { openAnimationSetup } from '../ui/labs/animation-setup';
 import { ScrollPreference } from '../input/scroll-device';
 import { isAnimated } from '../world/animation/pose';
 import { Player, addKey, clearAnimation, isAnimationOn, jumpKey, keyCamera, removeKey, setTimeline, stepFrames, toggleAnimation } from './timeline-ops';
+import { deleteSelectedKeys, hasPickedKeys, keepKeySelection, selectAllKeys } from './timeline-ops';
 
 type Handler = (arg?: number) => void;
 
@@ -49,6 +50,7 @@ export interface CommandHooks {
 const TIMELINE_ACTIONS: ReadonlySet<Action> = new Set([
   Action.PlayPause, Action.FirstFrame, Action.LastFrame, Action.PrevFrame, Action.NextFrame, Action.PrevKey, Action.NextKey,
   Action.AddKey, Action.RemoveKey, Action.KeyCamera, Action.ToggleLoop, Action.AnimationSetup, Action.ClearAnimation, Action.ToggleMotionPaths,
+  Action.SelectAllKeys, Action.DeleteKeys,
 ]);
 
 const SCROLL_OF: Partial<Record<Action, ScrollPreference>> = {
@@ -83,10 +85,11 @@ export class Commands {
 
   constructor(private readonly ctx: UiContext, hooks: CommandHooks) {
     this.player = new Player(ctx);
+    keepKeySelection(ctx);
     const w = ctx.world;
     const e = ctx.editor;
     const sel = () => w.selection;
-    const toggle = (key: 'quad' | 'sidePanel' | 'depthCue' | 'grid' | 'gizmo' | 'snap' | 'liveRender' | 'motionPaths') => () => e.update({ [key]: !e.state[key] });
+    const toggle = (key: 'quad' | 'sidePanel' | 'depthCue' | 'grid' | 'gizmo' | 'snap' | 'liveRender' | 'motionPaths' | 'objectTree') => () => e.update({ [key]: !e.state[key] });
     this.handlers = {
       [Action.New]: () => w.replaceScene(emptyScene(), 'New scene'),
       [Action.StartWindow]: () => hooks.openStart(),
@@ -105,6 +108,9 @@ export class Commands {
       [Action.AnimationSetup]: () => openAnimationSetup(w.scene.animation, (s) => setTimeline(ctx, s)),
       [Action.ClearAnimation]: () => clearAnimation(ctx),
       [Action.ToggleMotionPaths]: toggle('motionPaths'),
+      [Action.SelectAllKeys]: () => selectAllKeys(ctx),
+      [Action.DeleteKeys]: () => deleteSelectedKeys(ctx),
+      [Action.ToggleObjectTree]: toggle('objectTree'),
       [Action.Open]: () => void this.open(),
       [Action.Save]: () => downloadScene(w.scene, DEFAULT_FILE_NAME),
       [Action.LoadDemo]: () => w.replaceScene(demoScene(), 'Open demo'),
@@ -125,12 +131,13 @@ export class Commands {
       [Action.Paste]: () => w.paste(),
       [Action.Duplicate]: () => w.duplicate(sel()),
       [Action.Replicate]: () => this.replicate(),
-      [Action.Delete]: () => w.removeObjects(sel(), 'Clear'),
+      // Picked keys go first: objects are cleared only when no key is picked.
+      [Action.Delete]: () => (hasPickedKeys(ctx) ? deleteSelectedKeys(ctx) : w.removeObjects(sel(), 'Clear')),
       [Action.SelectAll]: () => w.selectAll(),
-      [Action.SelectNone]: () => w.select([], SelectMode.Replace),
+      [Action.SelectNone]: () => { w.select([], SelectMode.Replace); e.update({ selectedKeys: [] }); },
       [Action.CopyMaterial]: () => { const id = [...sel()][0]; if (id) { w.copyMaterial(id); ctx.toast('Material copied'); } },
       [Action.PasteMaterial]: () => w.pasteMaterial(sel()),
-      [Action.Group]: () => { if (!w.group(sel())) ctx.toast('Select two or more objects to group'); },
+      [Action.Group]: () => { if (!w.group(sel(), e.state.objectTree)) ctx.toast('Select two or more objects to group'); },
       [Action.Ungroup]: () => w.ungroup(sel()),
       [Action.Land]: () => w.updateObjects(sel(), 'Land', (o) => landed(w.scene, o)),
       [Action.Attributes]: () => this.attributes(),
@@ -200,6 +207,8 @@ export class Commands {
     if (a === Action.Redo) return w.canRedo();
     if (a === Action.Paste) return w.hasClipboard();
     if (a === Action.EditObject || a === Action.Attributes) return w.selection.size === 1;
+    if (a === Action.Delete && hasPickedKeys(this.ctx)) return true;
+    if (a === Action.DeleteKeys) return hasPickedKeys(this.ctx);
     if (NEEDS_SELECTION.has(a)) return w.selection.size > 0;
     if (a === Action.StopRender) return this.ctx.view.isRendering;
     if (TIMELINE_ACTIONS.has(a)) return isAnimationOn(this.ctx);
@@ -224,6 +233,7 @@ export class Commands {
       [Action.PlayPause]: s.playing,
       [Action.ToggleLoop]: this.ctx.world.scene.animation.loop,
       [Action.ToggleMotionPaths]: s.motionPaths,
+      [Action.ToggleObjectTree]: s.objectTree,
     };
     return flags[a] ?? false;
   }

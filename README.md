@@ -61,8 +61,13 @@ example projects: four stills and four animations.
   overshoot of dials and colours); a looping track that ends where it began
   flows through the seam. Drag a key on the ruler to retime it.
 - **Motion paths:** every animated object shows its route as a dotted line with
-  a square per key, and the camera's route shows in the other views. Drag a
-  square to reshape the path (Alt lifts it).
+  a square per key and its owner's name by the first one, and the camera's
+  route shows in the other views. Drag a square to reshape the path (Alt lifts
+  it).
+- **Key selection:** click squares or ruler keys (Shift adds), or drag a band:
+  in the scene window a band that holds key squares selects those keys,
+  otherwise objects. Selected keys move together and Delete removes them;
+  Select All Keys is Alt+Shift+A.
 - **Camera moves** start with *Animate Camera* (Shift+K), so looking around
   never keys the camera by accident.
 - **Soft shadows:** a Sky & Fog dial from 0 (Bryce 2's crisp shadows, the

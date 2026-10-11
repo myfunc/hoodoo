@@ -33,6 +33,14 @@ export interface RealtimeStatus {
   readonly moving: boolean;
 }
 
+/** Where finished frames go when the renderer is one of several sharing the canvas (Four Views). */
+export interface PresentTarget {
+  readonly into: Target;
+  /** Pixel origin inside `into`, rows counted from the bottom. */
+  readonly left: number;
+  readonly bottom: number;
+}
+
 const MS_PER_S = 1000;
 const FPS_SMOOTHING = 0.1;
 const SCALE_EPS = 1e-3;
@@ -43,6 +51,9 @@ const SCALE_EPS = 1e-3;
  * sized by measured GPU time, once still it accumulates at full resolution until
  * `target` samples. A fence keeps the GPU queue one strip deep, so slow GPUs
  * get a slower picture, never a frozen page.
+ *
+ * Several renderers can share one canvas (Four Views): each then draws into its
+ * `output` rectangle, and `share` splits the frame budget between them.
  */
 export class RealtimeRenderer {
   private accum: Target | null = null;
@@ -63,21 +74,41 @@ export class RealtimeRenderer {
   private readonly timer: GpuTimer;
   private readonly fence: GpuFence;
   target = 16;
+  /** How many renderers split the GPU frame budget. */
+  share = 1;
+  /** Null: frames go to the whole canvas. */
+  output: PresentTarget | null = null;
 
-  constructor(private readonly engine: RayEngine) {
+  /** `ownsCanvas`: the renderer sizes the engine's canvas to its image (false when it draws into `output`). */
+  constructor(private readonly engine: RayEngine, private readonly ownsCanvas = true) {
     this.timer = new GpuTimer(engine.gl);
     this.fence = new GpuFence(engine.gl);
   }
 
   resize(width: number, height: number): void {
+    if (this.ownsCanvas) this.engine.sizeCanvas(width, height);
     if (width === this.width && height === this.height) return;
     deleteTarget(this.engine.gl, this.accum);
     this.width = width;
     this.height = height;
     this.accum = this.engine.createTarget(width, height);
-    this.engine.canvas.width = width;
-    this.engine.canvas.height = height;
     this.restart();
+  }
+
+  /** Forgets the picture: the next `update` starts a new average even for the same scene and view. */
+  reset(): void {
+    this.scene = null;
+    this.basis = null;
+    this.hasImage = false;
+    this.restart();
+  }
+
+  dispose(): void {
+    deleteTarget(this.engine.gl, this.accum);
+    this.accum = null;
+    this.width = 0;
+    this.height = 0;
+    this.reset();
   }
 
   /** Scene or camera changed: start a new average. */
@@ -153,9 +184,10 @@ export class RealtimeRenderer {
 
   present(w = Math.round(this.width * this.renderedScale), h = Math.round(this.height * this.renderedScale)): void {
     if (!this.accum || !this.hasImage) return;
+    const out = this.output;
     this.engine.present({
       cur: this.accum, curScale: [w / this.accum.width, h / this.accum.height], prev: null, prevScale: [1, 1],
-      split: 1, checker: false, into: null, width: this.width, height: this.height,
+      split: 1, checker: false, into: out?.into ?? null, left: out?.left, bottom: out?.bottom, width: this.width, height: this.height,
     });
   }
 
@@ -173,14 +205,14 @@ export class RealtimeRenderer {
     const cost = this.timer.costPerPixel;
     if (cost <= 0) return Math.max(REALTIME.minScale, this.renderedScale || REALTIME.startScale);
     const full = cost * this.width * this.height;
-    const ideal = Math.sqrt(REALTIME.movingFrameMs / full);
+    const ideal = Math.sqrt(REALTIME.movingFrameMs / this.share / full);
     const stepped = Math.round(Math.min(1, ideal) / REALTIME.scaleStep) * REALTIME.scaleStep;
     return Math.min(1, Math.max(REALTIME.minScale, stepped));
   }
 
   private rowsPerTick(w: number, h: number): number {
     const cost = this.timer.costPerPixel;
-    const budgetMs = this.moving ? REALTIME.movingFrameMs : REALTIME.idleFrameMs;
+    const budgetMs = (this.moving ? REALTIME.movingFrameMs : REALTIME.idleFrameMs) / this.share;
     if (cost > 0) return Math.max(1, Math.min(h, Math.floor(budgetMs / cost / w)));
     // No timers: grow while the fence is free at each tick, shrink is handled by waiting on it.
     this.stripPixels = Math.min(w * h, this.stripPixels * REALTIME.growth);
