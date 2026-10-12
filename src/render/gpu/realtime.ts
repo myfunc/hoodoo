@@ -9,6 +9,7 @@ import { jitter } from './halton';
 import { DEFAULT_LIVE_BOUNCES } from '../../world/render-setup';
 import { LIVE_MODES, type LiveMode, liveBounces, raysWorth } from './live-quality';
 import { MOTION_SCALE, MotionScale } from './motion-scale';
+import { STRIP_PACE, StripPacer } from './strip-pacer';
 import type { RealtimeStatus, ViewRenderer } from './view-renderer';
 
 /** Real-time viewport tuning. */
@@ -19,11 +20,11 @@ export const REALTIME = {
   settleMs: 140,
   /** Settling dissolves from the last moving frame into the average over this many samples. */
   fadeSamples: 4,
-  /** Untimed browsers: pixels per strip until the fence shows what the GPU keeps up with. */
-  startStripPixels: 60000,
-  minStripPixels: 4000,
-  growth: 1.25,
-  shrink: 0.6,
+  /**
+   * A moving frame whose GPU time (the fence: the whole frame, not only the trace the timer sees)
+   * ran over this many frame budgets was too big, whatever the timer said.
+   */
+  lateBudgets: 2,
 } as const;
 
 export type { RealtimeStatus } from './view-renderer';
@@ -91,11 +92,13 @@ export class RealtimeRenderer implements ViewRenderer {
   private lastChange = 0;
   private samples = 0;
   private rowsDone = 0;
-  private stripPixels: number = REALTIME.startStripPixels;
+  /** The size of the settled picture's strips. */
+  private readonly pacer = new StripPacer();
+  /** Pixels of the last moving frame, for its cost by the fence. */
+  private previewPixels = 0;
   private fps = 0;
   private lastFrameEnd = 0;
   private hasImage = false;
-  private waited = false;
   private readonly timer: GpuTimer;
   private readonly previewTimer: GpuTimer;
   private readonly fence: GpuFence;
@@ -113,8 +116,8 @@ export class RealtimeRenderer implements ViewRenderer {
     this.timer = new GpuTimer(engine.gl);
     this.previewTimer = new GpuTimer(engine.gl);
     this.fence = new GpuFence(engine.gl);
-    const gl = engine.gl;
-    this.previewFormat = engine.floatInternal === gl.RGBA8 ? gl.RGBA8 : gl.RGBA16F;
+    // The format the engine warms the trace programs up for (RayEngine.warmUp).
+    this.previewFormat = engine.halfInternal;
     engine.prepareFast();
   }
 
@@ -177,6 +180,9 @@ export class RealtimeRenderer implements ViewRenderer {
     if (depth === this.depth) return;
     this.depth = depth;
     this.previewBasis = null;
+    // Deeper or shallower rays cost another amount: the strips find their size again.
+    this.timer.reset();
+    this.pacer.restart();
     if (!this.scene) return;
     // Shown as a change: one moving frame of the new kind, then the settled average again.
     this.lastChange = performance.now();
@@ -224,18 +230,17 @@ export class RealtimeRenderer implements ViewRenderer {
     if (!this.accum || !this.preview || !this.scene || !this.basis) return false;
     if (!this.engine.isReady) return true;
     if (this.fence.busy) {
-      if (!this.waited && this.timer.costPerPixel === 0) this.stripPixels = Math.max(REALTIME.minStripPixels, this.stripPixels * REALTIME.shrink);
-      this.waited = true;
       if (this.previewPending) this.previewLate = true;
       return true;
     }
-    this.waited = false;
     this.timer.poll();
     this.previewTimer.poll();
+    this.pacer.finished(this.fence.elapsed, this.stripBudget);
     this.paceMotion();
     if (this.sceneDirty) {
       this.engine.setScene(this.scene);
       this.sceneDirty = false;
+      this.pacer.restart();
     }
     if (this.moving) {
       // Between changes in a drag the last preview frame stays up: Fast rests the GPU, the others refine it.
@@ -256,7 +261,9 @@ export class RealtimeRenderer implements ViewRenderer {
       jitterX: jx, jitterY: jy, sample: this.samples, bounces: this.depth, transparentBg: false,
       blend: 1 / (this.samples + 1),
     }));
+    this.pacer.queued((rowEnd - rowStart) * w);
     this.fence.mark();
+    this.fence.watch(StripPacer.watchMs(this.stripBudget), STRIP_PACE.watchStepMs);
     this.rowsDone += rowEnd - rowStart;
     if (this.rowsDone >= h) {
       this.rowsDone = 0;
@@ -295,7 +302,7 @@ export class RealtimeRenderer implements ViewRenderer {
   private drawPreview(refine: boolean): void {
     const mode = this.mode;
     const motion = this.motion;
-    const budget = MOTION_SCALE.frameMs / this.share;
+    const budget = this.motionBudget;
     // No moving frame measured yet: the first one is sized from what the full tracer costs here.
     if (this.previewTimer.costPerPixel === 0 && this.timer.costPerPixel > 0) motion.measured(this.timer.costPerPixel * mode.cost, this.width * this.height, budget);
     const scale = motion.scale;
@@ -319,7 +326,9 @@ export class RealtimeRenderer implements ViewRenderer {
       });
       if (still) this.keepHistory(w, h, keep);
     });
+    this.previewPixels = w * h;
     this.fence.mark();
+    this.fence.watch(StripPacer.watchMs(this.motionBudget), STRIP_PACE.watchStepMs);
     if (seeded) this.rayIndex = (this.rayIndex + 1) % RAY_INDEX_WRAP;
     this.previewRays = refine ? this.previewRays + 1 : raysWorth(this.previewRays, keep);
     this.previewPending = true;
@@ -363,7 +372,12 @@ export class RealtimeRenderer implements ViewRenderer {
     return m;
   }
 
-  /** Once per preview frame, tells the size control how it went: its measured cost, or whether it was late. */
+  /**
+   * Once per preview frame, tells the size control how it went: its measured cost, or whether it was
+   * late. Late is the frame still on the GPU at the next animation frame, or a fence time over
+   * `lateBudgets` budgets: then the frame counts at its fence time, which also holds what the timer
+   * does not see (the page's own drawing on a GPU that shows it, a timer that reads low).
+   */
   private paceMotion(): void {
     if (!this.previewPending) return;
     this.previewPending = false;
@@ -374,8 +388,25 @@ export class RealtimeRenderer implements ViewRenderer {
       if (this.mode.fast) this.previewTimer.reset();
       return;
     }
-    if (this.previewTimer.available) this.motion.measured(this.previewTimer.costPerPixel, this.width * this.height, MOTION_SCALE.frameMs / this.share);
-    else this.motion.paced(this.previewLate);
+    const budget = this.motionBudget;
+    const elapsed = this.fence.elapsed;
+    const overran = elapsed !== null && elapsed > budget * REALTIME.lateBudgets;
+    if (!this.previewTimer.available) {
+      this.motion.paced(this.previewLate || overran);
+      return;
+    }
+    const seen = overran && this.previewPixels > 0 ? elapsed / this.previewPixels : 0;
+    this.motion.measured(Math.max(this.previewTimer.costPerPixel, seen), this.width * this.height, budget);
+  }
+
+  /** GPU time of one moving frame, this renderer's share of it. */
+  private get motionBudget(): number {
+    return MOTION_SCALE.frameMs / this.share;
+  }
+
+  /** GPU time of one strip of the settled picture, this renderer's share of it. */
+  private get stripBudget(): number {
+    return REALTIME.idleFrameMs / this.share;
   }
 
   private countFrame(): void {
@@ -393,12 +424,8 @@ export class RealtimeRenderer implements ViewRenderer {
     this.rowsDone = 0;
   }
 
+  /** Rows of the next strip: what the pacer allows for the strip budget (strip-pacer.ts). */
   private rowsPerTick(w: number, h: number): number {
-    const cost = this.timer.costPerPixel;
-    const budgetMs = REALTIME.idleFrameMs / this.share;
-    if (cost > 0) return Math.max(1, Math.min(h, Math.floor(budgetMs / cost / w)));
-    // No timers: grow while the fence is free at each tick, shrink is handled by waiting on it.
-    this.stripPixels = Math.min(w * h, this.stripPixels * REALTIME.growth);
-    return Math.max(1, Math.floor(Math.max(REALTIME.minStripPixels, this.stripPixels) / w));
+    return Math.max(1, Math.min(h, Math.floor(this.pacer.next(this.timer.costPerPixel, this.stripBudget) / w)));
   }
 }

@@ -1,0 +1,46 @@
+/* Play › Portals & Triggers… (ui/labs/portals-triggers.ts): a list in the stone dress.
+   One line per item, square corners, colours from the theme variables only. */
+.portals-triggers .tool-body { width: 460px; }
+.tool-window.is-docked.portals-triggers .tool-body { width: auto; }
+.pt-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pt-actions { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.pt-grow { flex: 1; }
+.pt-actions .ui-button { white-space: nowrap; }
+.pt-actions .ui-button[hidden] { display: none; }
+.pt-section { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.pt-section[hidden] { display: none; }
+.pt-heading { display: flex; align-items: center; gap: 6px; margin: 2px 0 3px; }
+.pt-count { color: var(--ink-faint); font: 10px var(--font-ui); }
+.pt-empty, .pt-foot { color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pt-foot { color: var(--ink-faint); font-size: 10px; }
+
+/* A row: lamp or mark, names, then the row's buttons. */
+.pt-row {
+  display: grid; grid-template-columns: 14px minmax(0, 1fr) max-content max-content max-content; align-items: center; gap: 6px;
+  height: 22px; padding: 0 2px 0 4px; border-radius: 0; cursor: pointer;
+}
+.pt-row.pt-zone { grid-template-columns: 14px minmax(0, 1fr) max-content max-content; }
+.pt-row:hover { background: var(--light-35); }
+.pt-row.is-selected { background: var(--row-selected); }
+.pt-names { display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; overflow: hidden; }
+.pt-name { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-shadow: var(--name-emboss); }
+.pt-name:hover { text-decoration: underline; }
+.pt-name.is-selected { color: var(--select); font-weight: bold; }
+.pt-link { flex: none; color: var(--ink-soft); }
+.pt-portal:not(.is-linked) .pt-link { color: var(--ink-faint); font-style: italic; }
+.pt-extra { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--ink-faint); font-size: 10px; }
+.pt-rename { width: 120px; height: 18px; }
+
+/* A linked pair's lamp is lit; a zone shows its shape. */
+.pt-lamp {
+  justify-self: center; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--shade-05); box-shadow: inset 0 1px 1px var(--lo), 0 1px 0 var(--hi);
+}
+.pt-lamp.is-on { background: var(--teal); box-shadow: 0 0 4px var(--teal), inset 0 1px 0 var(--hi); }
+.pt-mark { display: inline-flex; justify-content: center; }
+.pt-mark .glyph { width: 12px; height: 12px; stroke: var(--ink-soft); fill: none; stroke-width: 2; stroke-dasharray: 3 2; }
+
+.pt-row .ui-button.pt-chip { height: 18px; padding: 0 6px; font-size: 10px; white-space: nowrap; }
+.pt-row .ui-button.mark-chip.pt-remove { width: 18px; height: 18px; }
+.pt-row .ui-button.mark-chip.pt-remove .glyph { width: 9px; height: 9px; }
+.pt-row .ui-button.mark-chip.pt-remove:hover { color: var(--select); }

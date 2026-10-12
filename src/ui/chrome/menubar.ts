@@ -31,6 +31,8 @@ export class MenuBar {
         setTimeout(() => document.addEventListener('pointerdown', clear, true));
       });
       this.el.append(head);
+      // A menu whose every item belongs to preview features that are off leaves no trace either.
+      if (!app) this.hideWhenEmpty(head, menu.items);
     }
     this.el.append(el('span', { cls: 'menubar-spacer' }), this.doc);
     document.addEventListener('keydown', () => closeMenu());
@@ -38,6 +40,12 @@ export class MenuBar {
 
   set docInfo(text: string) {
     this.doc.textContent = text;
+  }
+
+  private hideWhenEmpty(head: HTMLElement, entries: readonly MenuEntry[]): void {
+    const sync = () => { head.hidden = this.items(entries).length === 0; };
+    sync();
+    this.ctx.editor.events.on('changed', ({ state, previous }) => { if (state.features !== previous.features) sync(); });
   }
 
   private items(entries: readonly MenuEntry[]): MenuItem[] {

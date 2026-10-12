@@ -1,0 +1,4 @@
+/* The display bar (ui/chrome/display-bar.ts) keeps what does not fit inside its own column:
+   on a narrow window it scrolls sideways (wheel or trackpad) instead of running under the side panel. */
+.display-bar { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+.display-bar::-webkit-scrollbar { display: none; }

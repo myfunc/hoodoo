@@ -4,11 +4,13 @@
 #
 # The app paints textures into data: and blob: images, registers its own service
 # worker (through the Trusted Types policy "hoodoo-sw") and talks to nothing else.
+# It frames only its own /api/human page (the cloud's anti-bot check, worker/pages.ts),
+# which carries its own policy; /api/* answers come from the Worker, not this file.
 # Play's physics engine is WebAssembly bundled with the app: 'wasm-unsafe-eval'
 # lets it compile; script eval stays forbidden.
 
 /*
-  Content-Security-Policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; media-src 'self'; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; require-trusted-types-for 'script'; trusted-types hoodoo-sw
+  Content-Security-Policy: default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: blob:; media-src 'self'; font-src 'self'; connect-src 'self'; frame-src 'self'; manifest-src 'self'; worker-src 'self'; object-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'none'; require-trusted-types-for 'script'; trusted-types hoodoo-sw
   Cross-Origin-Opener-Policy: same-origin
   Cross-Origin-Resource-Policy: same-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=(), midi=(), display-capture=(), accelerometer=(), gyroscope=(), magnetometer=()

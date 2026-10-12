@@ -17,13 +17,15 @@ export interface Prefs extends Settings, Remembered {
   readonly features: readonly Feature[];
   /** Comments left there on preview features (world/feature-notes.ts): kept and exported, never a site default. */
   readonly featureNotes: FeatureNotes;
+  /** The first-visit hint about Help › Tutorial Book was shown (ui/labs/tutorial-book-hint.ts). */
+  readonly tutorialSeen: boolean;
 }
 
 const KEY = 'hoodoo.prefs.v1';
 /** Marks an exported settings file (Settings › Export…). */
 const EXPORT_KIND = 'hoodoo-settings';
 const EXPORT_INDENT = 2;
-const DEFAULTS: Prefs = { ...DEFAULT_SETTINGS, ...rememberedOf(INITIAL_EDITOR), features: [], featureNotes: {} };
+const DEFAULTS: Prefs = { ...DEFAULT_SETTINGS, ...rememberedOf(INITIAL_EDITOR), features: [], featureNotes: {}, tutorialSeen: false };
 const FLAGS_PARAM = 'flags';
 const SCROLLS: ReadonlySet<unknown> = new Set(Object.values(ScrollPreference));
 const SAMPLES: ReadonlySet<unknown> = new Set(RENDER_SAMPLE_CHOICES);
@@ -56,6 +58,7 @@ export function prefsFrom(raw: Record<string, unknown>): Prefs {
     liveRender: flag(raw.liveRender, DEFAULTS.liveRender),
     features: featuresOf(raw),
     featureNotes: notesFrom(raw.featureNotes),
+    tutorialSeen: flag(raw.tutorialSeen, DEFAULTS.tutorialSeen),
   };
 }
 

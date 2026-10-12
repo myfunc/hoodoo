@@ -1,5 +1,52 @@
 # Changelog
 
+## 0.12.0 — 2026-10-12
+
+### Added
+- Sky colours as a toy in Sky & Fog: a Base tile (click picks a colour, a drag
+  turns the hue and light of the whole sky at once, the wheel nudges it), six
+  Moods built from the base in OKLCH (Calm, Dusk, Pastel, Deep, Split, Mono):
+  hover one to see the sky in the scene, click to keep it. Drag one colour chip
+  onto another to copy it; the wheel over a chip turns its hue, Shift+wheel its
+  light. *Haze = Horiz* keeps haze and fog in the horizon's colour. Every edit
+  is one undo step.
+- Your own skies: *Save sky* in the tray, and Sky & Fog ▾ › My skies to name,
+  save, use and delete them; they stay in this browser. Picking a preset in
+  that window shows it in the scene before you accept it.
+- Portals and trigger zones have their own Play menu instead of sitting in
+  Objects.
+- Portals & Triggers window: list, select, rename, link or unlink, delete, and
+  jump to Setup for every portal pair and trigger zone.
+- Render View and Render Options buttons on the bottom bar.
+- Materials Lab: the A B C columns read as texture slots, each slot names the
+  channels it drives, and Use for… or a hollow dot connects texture B or C in
+  one click.
+- Help › Tutorial Book…: eight step-by-step recipes, a screenshot per step with
+  a red box on what to click, and the result to expect. Try it opens a fresh
+  scene for step 1 and docks the book beside it; click any picture to see it
+  larger. New visitors get a one-time hint pointing to it.
+- Cloud preview feature: sign in with Google and keep your scenes, animation
+  included, in the cloud (File › Save to Cloud…, Open from Cloud…); Publish to
+  Gallery with a thumbnail, sorted New or Top, open any post as a copy; likes,
+  dislikes and reports with a Cloudflare Turnstile check and per-user limits;
+  a Moderation page for moderators.
+- Render Options shows which GPU the browser draws with.
+
+### Fixed
+- An endless ground or sea meets the sky without a line, with or without haze
+  and fog. Ground fog also veils the sky near the horizon, in the fog's colour.
+- Checkerboards no longer shimmer into moire toward the horizon; far squares
+  blend to their mean colour.
+- Turning on the game look or another live quality no longer stalls the
+  browser while GPU code is built: every program is warmed on the targets it
+  really draws into.
+- Render View and the live view keep each GPU job near one frame, even right
+  after a change of scene or options.
+- A render preset change with Render View off no longer resizes the live
+  picture.
+- The bottom bar scrolls sideways on narrow windows instead of sliding under
+  the side panel.
+
 ## 0.11.2 — 2026-10-12
 
 ### Added

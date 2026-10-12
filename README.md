@@ -84,13 +84,35 @@ brush, height-map import and export), infinite water, ground and cloud planes,
 and the Bryce sky: sun or moon, clouds, haze, fog, stars and soft shadows.
 *Surprise Me* (Alt+Shift+N) builds a whole landscape from one seed.
 
+Sky colours are a toy: pick one Base colour and hover the six Moods (Calm,
+Dusk, Pastel, Deep, Split, Mono) to try a whole sky made from it, click to
+keep one, drag the Base to turn every hue at once, and drag one colour chip
+onto another to copy it. *Haze = Horiz* keeps haze and fog in the horizon's
+colour, and *Save sky* keeps your own skies under Sky & Fog ▾ › My skies.
+
 ### Portals (preview)
 
 ![A blue portal on the table shows the chessboard from the far side, where its orange partner stands](docs/images/portals.jpg)
 
-Turn Portals on in View › Preview Features…: *Create Portal Pair* puts a
+Turn Portals on in View › Preview Features…: *Play › Create Portal Pair* puts a
 blue and an orange oval in the scene, and looking into one you see out of the
-other — live and in the final render.
+other — live and in the final render. *Play › Portals & Triggers…* lists every
+portal pair and trigger zone to select, rename, link and set up.
+
+### Tutorial Book
+
+Help › Tutorial Book… has step-by-step recipes (sunset over water, a rock on
+a hill, a glass ball on checkers, a camera fly-by and more): a picture per step
+with a red box on what to click, and the result to expect. *Try it* opens a
+fresh scene beside the book. `node tools/make-tutorials.mjs <dev url>` takes
+the pictures again from the running app.
+
+### Cloud (preview)
+
+Turn Cloud on in View › Preview Features… to sign in with Google, keep scenes
+in the cloud, publish them to a shared Gallery with likes and reports, and
+moderate it. It runs on a Cloudflare Worker with D1; see
+[docs/cloud.md](docs/cloud.md) to host your own.
 
 ### Live ray tracing
 

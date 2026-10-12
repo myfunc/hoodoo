@@ -1,0 +1,21 @@
+{
+  // The cloud Worker (worker/) and its tests: `npx tsc --noEmit -p worker`.
+  // Workers speak the web platform (fetch, crypto.subtle, FormData), so the DOM
+  // library types it; the tests run in Node (node:sqlite stands in for D1).
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["./**/*.ts", "../src/io/cloud/cloud-contract.ts"]
+}

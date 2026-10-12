@@ -5,6 +5,7 @@ import type { ViewBasis } from '../../world/camera-math';
 import { EngineStage } from './engine.enums';
 import { type Target, GlError, Uniforms, createTarget, dataTexture, deleteTarget, linkProgram, linkProgramAsync, uploadFloatRows } from './gl';
 import { GpuFence } from './gpu-fence';
+import { gpuName } from './gpu-name';
 import blitFrag from './glsl/blit.glsl?raw';
 import temporalFrag from './glsl/temporal.glsl?raw';
 import fullscreen from './glsl/fullscreen.vert.glsl?raw';
@@ -19,8 +20,10 @@ const COLD_FLAG = 'cold';
 /**
  * Profiling aid: `?cold` makes the source unique so the driver cannot reuse a build
  * from an earlier visit (tools/perf.mjs). One nonce per page: engines share the build.
+ * The nonce is used (90-main.glsl), or the translator would drop it and macOS would
+ * serve the Metal build it keeps for every program it has seen.
  */
-const COLD_NONCE = new URLSearchParams(location.search).has(COLD_FLAG) ? `const float COLD_NONCE = ${Math.random()};` : '';
+const COLD_NONCE = new URLSearchParams(location.search).has(COLD_FLAG) ? `#define COLD_NONCE ${Math.random()}` : '';
 const FINAL_SOURCE = withDefines(TRACE_SOURCE, COLD_NONCE);
 /** The interaction preview: the same tracer without its second trace (90-main.glsl). */
 const FAST_SOURCE = withDefines(FINAL_SOURCE, FAST_DEFINE);
@@ -39,6 +42,8 @@ const UNIT_PREV = 1;
 const SCAN_BINDING = 0;
 const SCAN_BLOCK = 'GameScan';
 const SCAN_BYTES = MAX_OBJECTS * 2 * TEXEL_FLOATS * Float32Array.BYTES_PER_ELEMENT;
+/** Any blend weight: a warm-up draw with blending on only has to blend. */
+const WARM_BLEND = 0.5;
 
 /** One trace call: which pixels of which image, at what block size and sample. */
 export interface TraceRequest {
@@ -115,6 +120,13 @@ export interface HistoryRequest {
   readonly keep: number;
 }
 
+/** Which program a warm-up prepares (engine.ts warmUp). */
+enum Variant {
+  Final,
+  Fast,
+  Game,
+}
+
 /** A compiled trace program and the scene and view versions its uniforms hold. */
 interface TraceProgram {
   readonly program: WebGLProgram;
@@ -130,6 +142,10 @@ interface TraceProgram {
 export class RayEngine {
   readonly gl: WebGL2RenderingContext;
   readonly floatInternal: number;
+  /** The live view's moving frames and the game's colour: half float (they average a few rays), 8-bit without float targets. */
+  readonly halfInternal: number;
+  /** The GPU this context draws with, short (gpu-name.ts); '' when the browser does not tell. */
+  readonly gpu: string;
   private readonly logger = Logger.create('RayEngine');
   private trace: TraceProgram | null = null;
   private fast: TraceProgram | null = null;
@@ -166,12 +182,14 @@ export class RayEngine {
 
   /** `after`: start compiling once that settles, so a second engine reuses the browser's compiled copy. */
   constructor(readonly canvas: HTMLCanvasElement, preserve: boolean, after: Promise<unknown> = Promise.resolve()) {
-    const gl = canvas.getContext('webgl2', { antialias: false, alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: preserve });
+    // A ray tracer wants the faster of two GPUs (laptops; browsers that let a page choose).
+    const gl = canvas.getContext('webgl2', { antialias: false, alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: preserve, powerPreference: 'high-performance' });
     if (!gl) throw new GlError('WebGL2 is not available');
     this.gl = gl;
     const floatOk = !!gl.getExtension('EXT_color_buffer_float');
     const blend32 = floatOk && !!gl.getExtension('EXT_float_blend');
     this.floatInternal = blend32 ? gl.RGBA32F : floatOk ? gl.RGBA16F : gl.RGBA8;
+    this.halfInternal = this.floatInternal === gl.RGBA8 ? gl.RGBA8 : gl.RGBA16F;
     this.blit = linkProgram(gl, fullscreen, blitFrag);
     this.bu = new Uniforms(gl, this.blit);
     this.temporal = linkProgram(gl, fullscreen, temporalFrag);
@@ -197,7 +215,8 @@ export class RayEngine {
     this.scanBuffer = scan;
     gl.bindBufferBase(gl.UNIFORM_BUFFER, SCAN_BINDING, scan);
     gl.bufferData(gl.UNIFORM_BUFFER, SCAN_BYTES, gl.DYNAMIC_DRAW);
-    this.logger.info('engine created', { float: this.floatInternal === gl.RGBA32F ? '32F' : '16F' });
+    this.gpu = gpuName(gl);
+    this.logger.info('engine created', { float: this.floatInternal === gl.RGBA32F ? '32F' : '16F', gpu: this.gpu });
   }
 
   get isReady(): boolean {
@@ -237,7 +256,7 @@ export class RayEngine {
       this.logger.info('trace program linked', { ms: Math.round(performance.now() - started) });
       this.setStage(EngineStage.WarmingUp);
       const uniforms = new Uniforms(gl, program);
-      await this.warmUp(program, uniforms);
+      await this.warmUp(program, uniforms, Variant.Final);
       this.trace = { program, u: uniforms, sceneVersion: -1, viewVersion: -1 };
       this.compileTime = performance.now() - started;
       this.setStage(EngineStage.Ready);
@@ -261,7 +280,7 @@ export class RayEngine {
   prepareFast(): void {
     if (this.fastStarted) return;
     this.fastStarted = true;
-    this.compileVariant(FAST_SOURCE, 'preview', (p) => { this.fast = p; })
+    this.compileVariant(FAST_SOURCE, Variant.Fast, 'preview', (p) => { this.fast = p; })
       .catch((error: unknown) => this.logger.warn('preview program unavailable, moving frames use the full tracer', {}, error));
   }
 
@@ -279,38 +298,60 @@ export class RayEngine {
     this.gameStarted = true;
     this.prepareFast();
     const bindScan = (program: WebGLProgram) => this.gl.uniformBlockBinding(program, this.gl.getUniformBlockIndex(program, SCAN_BLOCK), SCAN_BINDING);
-    this.compileVariant(GAME_SOURCE, 'game', (p) => { this.game = p; }, bindScan)
+    this.compileVariant(GAME_SOURCE, Variant.Game, 'game', (p) => { this.game = p; }, bindScan)
       .catch((error: unknown) => this.logger.warn('game program unavailable, Play draws with the preview program', {}, error));
   }
 
   /** Compiles a variant of the tracer once the main program is ready, sets it up, warms it up and hands it over. */
-  private async compileVariant(source: string, name: string, done: (p: TraceProgram) => void, setup?: (p: WebGLProgram) => void): Promise<void> {
+  private async compileVariant(source: string, variant: Variant, name: string, done: (p: TraceProgram) => void, setup?: (p: WebGLProgram) => void): Promise<void> {
     await this.ready;
     const started = performance.now();
     const program = await linkProgramAsync(this.gl, fullscreen, source);
     setup?.(program);
     const uniforms = new Uniforms(this.gl, program);
-    await this.warmUp(program, uniforms);
+    await this.warmUp(program, uniforms, variant);
     done({ program, u: uniforms, sceneVersion: -1, viewVersion: -1 });
     this.logger.info(`${name} program compiled`, { ms: Math.round(performance.now() - started) });
   }
 
   /**
-   * One 1×1 draw, awaited through a fence: drivers build the GPU code on the first
-   * draw, and doing it here keeps that wait off the page (a blocking call such as a
-   * canvas copy would otherwise freeze it for seconds on Windows).
+   * 1×1 draws into every kind of target the program will draw into, awaited through a fence:
+   * drivers build the GPU code on the first draw of each, and doing it here keeps that wait off
+   * the page and out of the user's first drag (a blocking call such as a canvas copy would
+   * otherwise freeze it for seconds on Windows). Each kind matters: ANGLE on Metal builds the
+   * code again for every target format with blending on or off (about 0.4 s each on an M4 for
+   * this shader, the whole browser waiting), and on Direct3D for every set of outputs, so the
+   * game variant, with two outputs, is warmed up on a two-output target: warmed on one it would
+   * be compiled twice, the second time in the middle of the first frame of Play.
    */
-  private async warmUp(program: WebGLProgram, u: Uniforms): Promise<void> {
+  private async warmUp(program: WebGLProgram, u: Uniforms, variant: Variant): Promise<void> {
     const gl = this.gl;
-    const target = this.createTarget(1, 1);
+    // The targets first: making one binds its texture, which must not stay bound to a sampler the draw reads.
+    const targets: { target: Target; blends: readonly boolean[] }[] = variant === Variant.Game
+      ? [{ target: this.createGameTarget(1, 1), blends: [false] }]
+      : variant === Variant.Fast
+        ? [{ target: createTarget(gl, 1, 1, this.halfInternal, gl.LINEAR), blends: [false] }]
+        : [
+          { target: this.createTarget(1, 1), blends: [false, true] },
+          { target: createTarget(gl, 1, 1, this.halfInternal, gl.LINEAR), blends: [false, true] },
+        ];
     gl.useProgram(program);
     this.bindData(u);
     u.f('uResolution', 1, 1);
     u.f('uBlock', 1);
-    gl.bindFramebuffer(gl.FRAMEBUFFER, target.fbo);
     gl.viewport(0, 0, 1, 1);
     gl.bindVertexArray(this.vao);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    gl.blendColor(0, 0, 0, WARM_BLEND);
+    gl.blendFunc(gl.CONSTANT_ALPHA, gl.ONE_MINUS_CONSTANT_ALPHA);
+    for (const { target, blends } of targets) {
+      gl.bindFramebuffer(gl.FRAMEBUFFER, target.fbo);
+      for (const blend of blends) {
+        if (blend) gl.enable(gl.BLEND);
+        else gl.disable(gl.BLEND);
+        gl.drawArrays(gl.TRIANGLES, 0, 3);
+      }
+    }
+    gl.disable(gl.BLEND);
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     const fence = new GpuFence(gl);
     fence.mark();
@@ -318,7 +359,10 @@ export class RayEngine {
       if (gl.isContextLost()) throw new GlError('The graphics context was lost while preparing the ray tracer');
       await new Promise((r) => requestAnimationFrame(r));
     }
-    deleteTarget(gl, target);
+    for (const { target } of targets) {
+      if ('aux' in target) this.deleteGameTarget(target as GameTarget);
+      else deleteTarget(gl, target);
+    }
   }
 
   get droppedObjects(): number {
@@ -333,8 +377,7 @@ export class RayEngine {
   /** A target for `game` trace requests: HDR colour (half float) and the first hit (full float where it can). */
   createGameTarget(width: number, height: number): GameTarget {
     const gl = this.gl;
-    const colorFormat = this.floatInternal === gl.RGBA8 ? gl.RGBA8 : gl.RGBA16F;
-    const t = createTarget(gl, width, height, colorFormat, gl.NEAREST);
+    const t = createTarget(gl, width, height, this.halfInternal, gl.NEAREST);
     const aux = createTarget(gl, width, height, this.floatInternal, gl.NEAREST);
     gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, aux.tex, 0);

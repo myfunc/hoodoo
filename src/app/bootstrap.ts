@@ -31,6 +31,7 @@ import { shortcutOf } from '../input/bindings';
 import { EditorStore } from '../world/editor-store';
 import { World } from '../world/world';
 import { installAutomationHooks } from './automation-hooks';
+import { offerTutorialBook } from '../ui/labs/tutorial-book-hint';
 import { Commands } from './commands';
 import { RecentTracker } from './recent-ops';
 import { focusAt } from './lens-ops';
@@ -225,6 +226,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
     });
   }
   installAutomationHooks(world, view, thumbs);
+  offerTutorialBook(ctx);
   installPwa();
   logger.info('started', { objects: world.scene.objects.length, shared: !!shared });
   // Live mode renders by itself; the classic mode starts with one Bryce-style render.

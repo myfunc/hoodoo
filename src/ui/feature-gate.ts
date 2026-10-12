@@ -15,14 +15,28 @@ export const FEATURE_ACTIONS: Readonly<Record<Feature, readonly Action[]>> = {
   [Feature.Play]: [Action.Play, Action.CreateTriggerZone],
   // Sandbox has no editor commands: it is what Play carries (src/play/sandbox).
   [Feature.Sandbox]: [],
+  [Feature.Cloud]: [Action.CloudOpen, Action.CloudSave, Action.CloudPublish, Action.CloudGallery, Action.CloudAccount],
 };
+
+/** Actions that serve several features (the Portals & Triggers window): there while any of them is on. */
+export const SHARED_ACTIONS: Readonly<Partial<Record<Action, readonly Feature[]>>> = {
+  [Action.PortalsTriggers]: [Feature.Portals, Feature.Play],
+};
+
+/** A feature's actions: its own and the ones it shares. */
+export const featureActions = (f: Feature): Action[] => [
+  ...FEATURE_ACTIONS[f],
+  ...(Object.entries(SHARED_ACTIONS) as [Action, readonly Feature[]][]).filter(([, fs]) => fs.includes(f)).map(([a]) => a),
+];
 
 const OWNER = new Map<Action, Feature>(
   (Object.entries(FEATURE_ACTIONS) as [Feature, readonly Action[]][]).flatMap(([f, actions]) => actions.map((a) => [a, f] as const)),
 );
 
-/** Whether an action exists now: it belongs to no preview feature, or to one that is on. */
+/** Whether an action exists now: it belongs to no preview feature, or to one that is on (to any of its features, when shared). */
 export function actionShown(flags: FeatureFlags, a: Action): boolean {
+  const shared = SHARED_ACTIONS[a];
+  if (shared) return shared.some((f) => isFeatureOn(flags, f));
   const feature = OWNER.get(a);
   return feature === undefined || isFeatureOn(flags, feature);
 }

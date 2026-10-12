@@ -277,7 +277,8 @@ resumes the others. An object moved by a clip or a moving behaviour is
 kinematic: it carries the player and pushes props. A group's clip moves its
 members: the group's transform moves and they follow (behaviours too).
 
-**Trigger zones** (Objects › Create Trigger Zone, with Play on). A cube or a
+**Trigger zones** (Play › Create Trigger Zone, with Play on; the window
+Play › Portals & Triggers… lists them with the portals). A cube or a
 sphere named Trigger Zone, drawn as a dashed wireframe, never rendered, never
 solid, not picked by clicks in the picture (click its wires). Each rule is a
 sentence: When [Player | Any physical | Object…] [enters | leaves | stays],

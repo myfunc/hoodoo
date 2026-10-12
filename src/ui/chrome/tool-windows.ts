@@ -11,13 +11,15 @@ import { MaterialsLab } from '../labs/materials-lab';
 import { TerrainEditor } from '../labs/terrain-editor';
 import { RenderOptionsTool } from '../labs/render-options';
 import { PreviewFeaturesTool } from '../labs/preview-window';
+import { PortalsTriggersTool } from '../labs/portals-triggers';
+import { TutorialBookTool } from '../labs/tutorial-book';
 import './dock.css';
 
 /** Floating windows stack above the scene and below the modal veil (z-index 500). */
 const FLOAT_Z = 450;
 /** Pop-ups that take Esc for themselves. */
 const POPUPS = '.ui-menu, .ui-picker, .mm';
-const ORDER: readonly ToolId[] = [ToolId.RenderOptions, ToolId.Attributes, ToolId.Materials, ToolId.Terrain, ToolId.PreviewFeatures];
+const ORDER: readonly ToolId[] = [ToolId.RenderOptions, ToolId.Attributes, ToolId.Materials, ToolId.Terrain, ToolId.PreviewFeatures, ToolId.PortalsTriggers, ToolId.TutorialBook];
 
 const BUILD: Readonly<Record<ToolId, (ctx: UiContext) => ToolContent>> = {
   [ToolId.Attributes]: (ctx) => new AttributesTool(ctx),
@@ -25,6 +27,8 @@ const BUILD: Readonly<Record<ToolId, (ctx: UiContext) => ToolContent>> = {
   [ToolId.Terrain]: (ctx) => new TerrainEditor(ctx),
   [ToolId.RenderOptions]: (ctx) => new RenderOptionsTool(ctx),
   [ToolId.PreviewFeatures]: (ctx) => new PreviewFeaturesTool(ctx),
+  [ToolId.PortalsTriggers]: (ctx) => new PortalsTriggersTool(ctx),
+  [ToolId.TutorialBook]: (ctx) => new TutorialBookTool(ctx),
 };
 
 interface Entry {

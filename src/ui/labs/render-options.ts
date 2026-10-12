@@ -20,6 +20,8 @@ import { FINAL_DEPTH_ABOUT, depthDial, sceneDepth } from './reflection-rows';
 import './render-options.css';
 
 const PERCENT = 100;
+/** Laptops with two GPUs often give the browser the slower one: the system's graphics settings pick it. */
+const GPU_HINT = 'The graphics card drawing the scene; pick the faster one in system graphics settings';
 const OFF_ON = [{ value: false, label: 'Off' }, { value: true, label: 'On' }] as const;
 
 interface Item<T> {
@@ -134,6 +136,7 @@ export class RenderOptionsTool implements ToolContent {
         { name: 'Live preview', hint: `The scene renders itself while you edit (${shortcutOf(Action.ToggleLiveRender)})`, control: this.liveOn.el },
         { name: 'Quality', hint: 'What the live picture traces while you move', control: this.quality.el },
         { name: 'Bounces', hint: 'Mirror and glass bounces of the live picture; a personal setting', control: this.liveDepth.el },
+        { name: 'GPU', hint: GPU_HINT, control: el('span', { cls: 'ro-gpu', text: ctx.view.engine.gpu || 'Not reported' }) },
       ]),
       el('div', { cls: 'ro-heading', text: 'Render View' }),
       this.rows([

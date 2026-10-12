@@ -22,6 +22,14 @@
 // another point of it and worth its share of the light. Nesting
 // the shadow loop inside the light and bounce loops instead made FXC (Chrome and
 // Edge on Windows) spend 36 s compiling this shader.
+// A surface seen edge-on stretches the footprint at most 1 / GRAZING_MIN times; textures take
+// the square root of it (between the narrow and the long side), bumps all of it.
+#define GRAZING_MIN 0.02
+// The footprint of one pixel (20-textures.glsl): its world size per unit of distance, and in an
+// orthographic view the width it has at any distance. main() sets both.
+float gPixelAngle = 0.0;
+float gOrthoFoot = 0.0;
+
 #ifdef GAME_TRACE
 // Hits after this many bounces are lit without shadow rays.
 #define GAME_SHADOW_BOUNCES 1
@@ -29,9 +37,6 @@
 #define GAME_MIN_THROUGHPUT 0.02
 // The HDR output's ceiling: the sun disc and its glints stay finite for the bloom.
 #define GAME_HDR_MAX 64.0
-// A surface seen edge-on stretches the footprint at most 1 / GRAZING_MIN times; textures take
-// the square root of it (between the narrow and the long side), bumps all of it.
-#define GRAZING_MIN 0.02
 // The first hit of the path: distance (0: the sky), object + 1 (negative for infinite planes), octahedral normal.
 vec4 gFirst = vec4(0);
 
@@ -142,12 +147,10 @@ vec4 radiance(vec3 ro, vec3 rd) {
     vec3 ng = n;
     Mat mt;
     if (shaded) {
-#ifdef GAME_TRACE
       if (!shadow) {
         gStretch = 1.0 / max(abs(dot(h.n, d)), GRAZING_MIN);
-        gFoot = (gPathT + h.t) * uPixelAngle * sqrt(gStretch);
+        gFoot = (gOrthoFoot + (gPathT + h.t) * gPixelAngle) * sqrt(gStretch);
       }
-#endif
       Surface sf = surfaceAt(h.obj, wp, n);
       mt = evalMaterial(h.obj, sf, n, !shadow);
     }
@@ -174,14 +177,14 @@ vec4 radiance(vec3 ro, vec3 rd) {
 
     if (!hit) {
       if (bounce == 0 && uTransparentBg == 1) return vec4(0);
-      col += thr * skyColor(rd);
+      col += thr * mix(skyColor(rd), uFogColor, skyFog(ro, rd));
       break;
     }
 #ifdef GAME_TRACE
     // Infinite planes (sea, ground, cloud layer) are marked negative: their horizon is no outline.
     if (bounce == 0 && portals == 0) gFirst = vec4(h.t, float(h.obj + 1) * (ob.bound.w < 0.0 ? -1.0 : 1.0), octEncode(ng));
-    gPathT += h.t;
 #endif
+    gPathT += h.t;
     vec4 atm = atmosphere(ro, rd, h.t);
     if (ob.kind == K_PORTAL && portalPass(h.obj, wp, atm, mt.diffuse, ro, rd, thr, col, portals, pathDone)) continue;
     float surfW = (1.0 - mt.transparency) * (1.0 - mt.reflection);
@@ -251,6 +254,14 @@ vec4 radiance(vec3 ro, vec3 rd) {
 }
 
 void main() {
+#ifdef GAME_TRACE
+  gPixelAngle = uPixelAngle;
+#else
+  // One traced pixel (a block in Bryce's coarse passes): its angle, or its width when orthographic.
+  float pixel = 2.0 * uHalfH * uBlock / uResolution.y;
+  gPixelAngle = uOrtho == 1 ? 0.0 : pixel;
+  gOrthoFoot = uOrtho == 1 ? pixel : 0.0;
+#endif
   vec2 pix = uOffset + (gl_FragCoord.xy - 0.5) * uBlock + uJitter * uBlock;
   seedRng(pix, uSample);
   vec2 ndc = pix / uResolution * 2.0 - 1.0;
@@ -274,6 +285,10 @@ void main() {
 #endif
   }
   vec4 c = radiance(ro, rd);
+#ifdef COLD_NONCE
+  // ?cold (engine.ts): a branch no pixel takes, different on every visit, in every variant.
+  if (uJitter.x == COLD_NONCE) c.rgb = vec3(0);
+#endif
 #ifdef GAME_TRACE
   // HDR, unclipped: the game renderer's bloom and tone curve take it from here.
   fragColor = vec4(min(c.rgb, vec3(GAME_HDR_MAX)), 1.0);

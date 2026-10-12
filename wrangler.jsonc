@@ -1,13 +1,29 @@
 // Cloudflare Workers config for the public instance at https://hoodoo.myfunc.io/.
-// Static assets only: no Worker code runs, dist/ is served as is with the
-// headers from public/_headers. To host your own copy, change the route (or drop
-// it and set "workers_dev": true for a free *.workers.dev address).
+// dist/ is served as is with the headers from public/_headers; only /api/* runs
+// the Worker in worker/ (the cloud: sign-in, cloud saves, the Gallery; docs/cloud.md).
+// To host your own copy, change the route (or drop it and set "workers_dev": true
+// for a free *.workers.dev address) and make your own D1 database and KV namespace.
 {
   "name": "hoodoo",
+  "main": "worker/index.ts",
   "compatibility_date": "2026-10-01",
-  "assets": { "directory": "./dist" },
+  "assets": { "directory": "./dist", "binding": "ASSETS", "run_worker_first": ["/api/*"] },
   "routes": [{ "pattern": "hoodoo.myfunc.io", "custom_domain": true }],
   // One canonical address: no duplicate copies on workers.dev or preview URLs.
   "workers_dev": false,
-  "preview_urls": false
+  "preview_urls": false,
+  // `npx wrangler dev`: the API on http://localhost:8787 under its own name (dev sign-in needs localhost), docs/cloud.md.
+  "dev": { "port": 8787, "host": "localhost:8787", "upstream_protocol": "http" },
+  // Accounts, saves, posts, votes, reports, rate limits. Schema: migrations/ (wrangler d1 migrations apply hoodoo-cloud --remote).
+  "d1_databases": [{ "binding": "DB", "database_name": "hoodoo-cloud", "database_id": "0c854441-3679-4e2a-ba31-137368e3e1dc", "migrations_dir": "migrations" }],
+  // Scene files and pictures. R2 is preferred once it is enabled on the account: add
+  // "r2_buckets": [{ "binding": "FILES", "bucket_name": "hoodoo-cloud-files" }]; files already in KV stay readable.
+  "kv_namespaces": [{ "binding": "FILES_KV", "id": "408fe519a0e04ff7b31965ebe4248846" }],
+  // Public settings. Secrets (TURNSTILE_SECRET, MODERATORS) are set with `wrangler secret put`;
+  // local values live in .dev.vars (see .dev.vars.example).
+  "vars": {
+    // OAuth client ID from Google Cloud (docs/cloud.md); empty: Google sign-in is off.
+    "GOOGLE_CLIENT_ID": "",
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFU1-iXb5Qrf47xd"
+  }
 }

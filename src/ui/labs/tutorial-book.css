@@ -1,0 +1,87 @@
+/* Tutorial Book (ui/labs/tutorial-book.ts): the recipe list, and a page of screenshots with red marks over them.
+   Colours come from the theme variables, except the marks and the zoom veil: they lie on screenshots, the same in every theme. */
+.tutorial-book, .tb-zoom {
+  --tb-mark: #ff2626; --tb-mark-ink: #fff; --tb-mark-halo: rgba(255, 255, 255, 0.9); --tb-mark-shadow: rgba(0, 0, 0, 0.45);
+  --tb-veil: rgba(10, 10, 12, 0.78);
+}
+.tutorial-book.is-floating .tb-body { width: min(900px, calc(100vw - 56px)); height: min(680px, calc(100vh - var(--menubar-h) - 64px)); }
+.tb-body { display: grid; grid-template-columns: 176px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 14px; min-height: 0; }
+
+/* The recipes: a list on the left. */
+.tb-nav {
+  display: flex; flex-direction: column; gap: 2px; padding: 4px; align-self: start; min-width: 0;
+  border: 1px solid var(--edge); background: var(--shade-05); box-shadow: inset 1px 1px 0 var(--lo), 1px 1px 0 var(--hi);
+}
+.tb-nav-row {
+  display: flex; align-items: center; gap: 7px; padding: 5px 6px; min-width: 0; border: 0; border-radius: 0; background: none;
+  cursor: pointer; color: var(--ink); text-align: left; font: 12px var(--font-ui); white-space: nowrap;
+}
+.tb-nav-row:hover { background: var(--light-40); }
+.tb-nav-row:focus-visible { outline: 1px dotted var(--ink); outline-offset: -2px; }
+.tb-nav-row.is-picked { background: var(--accent-face); color: var(--accent-ink); box-shadow: var(--pressed); }
+.tb-nav-name { overflow: hidden; text-overflow: ellipsis; }
+.tb-num {
+  flex: none; min-width: 18px; padding: 0 4px; box-sizing: border-box; text-align: center;
+  font: bold 10px/17px var(--font-ui); color: var(--accent-ink); background: var(--teal);
+}
+.tb-nav-row.is-picked .tb-num { background: var(--accent-ink); color: var(--teal); }
+
+/* The page: title and Try it, the goal, the steps, the result. It scrolls; the list stays. */
+.tb-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; }
+.ui-select.tb-pick { display: none; flex: none; }
+.tb-page { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; display: flex; flex-direction: column; gap: 16px; padding-right: 8px; }
+.tb-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.tb-title {
+  flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font: 800 17px var(--font-title); color: var(--heading-ink); text-shadow: var(--emboss);
+}
+.ui-button.tb-try { flex: none; padding: 0 16px; font-weight: bold; }
+.tb-goal { margin-top: -12px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tb-step { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tb-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.tb-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: bold 12px var(--font-ui); }
+.tb-result .tb-num { background: var(--ink); color: var(--field); }
+.tb-result .tb-text { font-weight: normal; }
+
+/* A screenshot and its marks; the marks are drawn here so they stay sharp at any size. */
+.tb-shot {
+  position: relative; line-height: 0; cursor: zoom-in;
+  border: 1px solid var(--edge-dark); background: var(--shade-05); box-shadow: 1px 1px 0 var(--hi);
+}
+.tb-shot img { display: block; width: 100%; height: auto; }
+.tb-shot:focus-visible { outline: 2px solid var(--teal); outline-offset: 1px; }
+.tb-shot.is-missing img { visibility: hidden; }
+.tb-shot.is-missing::after {
+  content: 'No picture yet: tools/make-tutorials.mjs takes it'; position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center; line-height: normal; color: var(--ink-faint); font: 11px var(--font-ui);
+}
+.tb-mark {
+  position: absolute; box-sizing: border-box; pointer-events: none;
+  border: 3px solid var(--tb-mark); box-shadow: 0 0 0 2px var(--tb-mark-halo), 0 0 8px 2px var(--tb-mark-shadow);
+}
+.tb-mark-tag {
+  position: absolute; padding: 0 5px;
+  font: bold 12px/18px var(--font-ui); color: var(--tb-mark-ink); background: var(--tb-mark); box-shadow: 0 0 0 2px var(--tb-mark-halo);
+  white-space: nowrap;
+}
+/* The number sits outside the box, on the side tutorial-book.ts found room on. */
+.tb-mark.tag-above .tb-mark-tag { left: -3px; bottom: calc(100% + 3px); }
+.tb-mark.tag-below .tb-mark-tag { left: -3px; top: calc(100% + 3px); }
+.tb-mark.tag-left .tb-mark-tag { right: calc(100% + 3px); top: -3px; }
+.tb-mark.tag-right .tb-mark-tag { left: calc(100% + 3px); top: -3px; }
+
+/* A picture shown larger over everything (a click or Esc puts it back). */
+.tb-zoom { position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; background: var(--tb-veil); cursor: zoom-out; }
+.tb-shot.is-large { display: inline-block; cursor: zoom-out; border-color: #000; }
+.tb-shot.is-large img { width: auto; max-width: 94vw; max-height: 90vh; }
+
+/* Docked in the left panel: a drop-down picks the recipe, the page takes the column. */
+.tool-window.is-docked.tutorial-book .tool-body { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; }
+.tool-window.is-docked .tb-body { flex: 1; grid-template-columns: minmax(0, 1fr); }
+.tool-window.is-docked .tb-nav { display: none; }
+.tool-window.is-docked .ui-select.tb-pick { display: flex; }
+.tool-window.is-docked .tb-page { gap: 12px; padding-right: 4px; }
+.tool-window.is-docked .tb-title { font-size: 14px; }
+.tool-window.is-docked .tb-mark { border-width: 2px; }
+.tool-window.is-docked .tb-mark-tag { font-size: 10px; line-height: 14px; padding: 0 3px; }
+.tool-window.is-docked .tb-text { font-size: 11px; }

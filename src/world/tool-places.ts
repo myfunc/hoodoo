@@ -18,6 +18,10 @@ export enum ToolId {
   RenderOptions = 'render',
   /** View › Preview Features… (ui/labs/preview-window.ts). */
   PreviewFeatures = 'preview-features',
+  /** Play › Portals & Triggers… (ui/labs/portals-triggers.ts). */
+  PortalsTriggers = 'portals-triggers',
+  /** Help › Tutorial Book… (ui/labs/tutorial-book.ts). */
+  TutorialBook = 'tutorial-book',
 }
 
 /** Where a tool window lives: docked in the left column, or floating with its top-left corner at x, y (CSS px). */

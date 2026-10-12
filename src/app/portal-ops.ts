@@ -1,6 +1,7 @@
 import { showOffer } from '../ui/panels/offer-toast';
 import type { EditorStore } from '../world/editor-store';
-import { createPortalPair, hasPortals, isPortal, linkPortals, nextPairOrdinal } from '../world/portals';
+import { linkPortalIds } from '../world/logic-items';
+import { createPortalPair, hasPortals, isPortal, nextPairOrdinal } from '../world/portals';
 import { Feature, isFeatureOn, withFeature } from '../world/preview-features';
 import { ChangeKind } from '../world/world.events';
 import type { World } from '../world/world';
@@ -28,9 +29,7 @@ export function canLinkPortals(world: World): boolean {
 export function linkSelectedPortals(world: World): void {
   const sel = world.selectedObjects();
   if (!canLinkPortals(world)) return;
-  const next = new Map(linkPortals(world.scene.objects, sel[0].id, sel[1].id).map((o) => [o.id, o]));
-  const changed = new Set(world.scene.objects.filter((o) => next.get(o.id) !== o).map((o) => o.id));
-  world.updateObjects(changed, 'Link Portals', (o) => next.get(o.id) ?? o, true);
+  linkPortalIds(world, sel[0].id, sel[1].id);
 }
 
 /**

@@ -11,6 +11,8 @@ const ASSET_REF = /(?:src|href)="\.?\/?(assets\/[^"]+)"/g;
 const MAX_ASSETS = 40;
 /** On a bad connection the page falls back to the cached copy after this long. */
 const NETWORK_TIMEOUT_MS = 4000;
+/** The cloud API's root on the origin (src/io/cloud/cloud-contract.ts). */
+const API_PATH = '/api/';
 
 const scopePath = new URL(self.registration.scope).pathname;
 
@@ -79,6 +81,8 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
   if (request.method !== 'GET' || url.origin !== self.location.origin || !url.pathname.startsWith(scopePath)) return;
+  // The cloud API (worker/) is live and private: never cached, and its pages are not the app shell.
+  if (url.pathname.startsWith(API_PATH)) return;
   // Video asks for byte ranges; a partial (206) response cannot be cached, so the browser fetches those itself.
   if (request.headers.has('range')) return;
   if (ASSET.test(url.pathname)) event.respondWith(cacheFirst(request));

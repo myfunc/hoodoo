@@ -134,12 +134,10 @@ vec2 parametricUv(int kind, vec3 lp) {
 Surface surfaceAt(int obj, vec3 wp, vec3 n) {
   Obj o = loadObj(obj);
   vec3 lp = toLocalPoint(o, wp);
-#ifdef GAME_TRACE
-  // Local units per world unit along the surface, for the texture level of detail (20-textures.glsl).
+  // Local units per world unit along the surface, for the texture footprint (20-textures.glsl).
   vec3 t1 = normalize(cross(n, abs(n.y) < 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0)));
   gLocalScale = max(length(toLocalDir(o, t1)), length(toLocalDir(o, cross(n, t1))));
   gLocalNormal = normalize(toLocalDir(o, n));
-#endif
   return Surface(wp, lp, n, parametricUv(o.kind, lp));
 }
 

@@ -1,0 +1,29 @@
+/* Sky & Fog colours (ui/chrome/sky-palette.ts): the Base tile, mood chips and colour chips. */
+.sky-palette { display: flex; align-items: center; gap: 2px; }
+.sky-base {
+  width: 40px; height: 40px; border: 1px solid var(--well-edge); box-shadow: 1px 1px 0 var(--hi);
+  cursor: move; touch-action: none;
+}
+.sky-moods { display: flex; gap: 3px; }
+.sky-mood {
+  position: relative; width: 14px; height: 40px; border: 1px solid var(--well-edge); box-shadow: 1px 1px 0 var(--hi);
+  cursor: pointer; transition: transform 80ms;
+}
+.sky-mood:hover { transform: translateY(-2px); }
+.sky-mood.is-picked { outline: 2px solid var(--select); outline-offset: 1px; }
+.sky-mood-sun { position: absolute; left: 4px; top: 8px; width: 5px; height: 5px; border-radius: 50%; box-shadow: 0 0 3px rgba(255, 255, 255, 0.6); }
+.sky-chip-col { display: flex; flex-direction: column; gap: 3px; padding: 0 6px; }
+.sky-chips { display: grid; grid-template-columns: repeat(4, auto); gap: 3px 6px; }
+.sky-chip-cell { display: inline-flex; align-items: center; gap: 4px; }
+.sky-chip {
+  width: 18px; height: 14px; border: 1px solid var(--edge-dark); box-shadow: 1px 1px 0 var(--hi);
+  cursor: grab; touch-action: none;
+}
+.sky-chip:active { cursor: grabbing; }
+.sky-chip.is-drop { outline: 2px solid var(--select); outline-offset: 1px; }
+.sky-chip-label { font-size: 9px; color: var(--ink-soft); white-space: nowrap; }
+.sky-chip-ghost {
+  position: fixed; z-index: 1000; width: 18px; height: 14px; margin: -7px 0 0 -9px; pointer-events: none;
+  border: 1px solid #000; box-shadow: 2px 3px 4px rgba(0, 0, 0, 0.45);
+}
+.sky-palette .ui-toggle { font-size: 9px; }

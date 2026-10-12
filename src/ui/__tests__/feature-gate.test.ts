@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { Action } from '../../input/actions';
-import { ACTIONS } from '../../input/bindings';
+import { ACTIONS, MenuName } from '../../input/bindings';
 import { EditorStore } from '../../world/editor-store';
 import { Feature, type FeatureFlags, PREVIEW_FEATURES } from '../../world/preview-features';
 import { emptyEntries, objectEntries } from '../chrome/context-menu';
 import { MENUS, SEP } from '../chrome/menu-layout';
-import { FEATURE_ACTIONS, actionShown, shownEntries, showWhile } from '../feature-gate';
+import { FEATURE_ACTIONS, SHARED_ACTIONS, actionShown, featureActions, shownEntries, showWhile } from '../feature-gate';
 import { paletteActions } from '../panels/command-palette';
 
 const ALL_ON: FeatureFlags = Object.fromEntries(PREVIEW_FEATURES.map((f) => [f.id, true]));
@@ -40,6 +40,20 @@ describe('preview features in the interface', () => {
     expect(actionShown({}, Action.NewGroup)).toBe(true);
     expect(shownEntries<Action | typeof SEP>([Action.NewGroup], {}, SEP)).toEqual([Action.NewGroup]);
     expect(offered(ALL_ON).has(Action.NewGroup)).toBe(true);
+  });
+
+  it('a shared action shows while any of its features is on', () => {
+    expect(actionShown({}, Action.PortalsTriggers)).toBe(false);
+    expect(actionShown({ [Feature.Portals]: true }, Action.PortalsTriggers)).toBe(true);
+    expect(actionShown({ [Feature.Play]: true }, Action.PortalsTriggers)).toBe(true);
+    expect(offered({}).has(Action.PortalsTriggers)).toBe(false);
+    for (const f of SHARED_ACTIONS[Action.PortalsTriggers] ?? []) expect(featureActions(f)).toContain(Action.PortalsTriggers);
+  });
+
+  it('a menu whose items all belong to features that are off has none left', () => {
+    const play = MENUS.find((m) => m.name === MenuName.Play);
+    expect(play && shownEntries(play.items, {}, SEP)).toEqual([]);
+    expect(MENUS.find((m) => m.name === MenuName.Objects)?.items).not.toContain(Action.CreateTriggerZone);
   });
 
   it('menus lose the hidden items without doubled or dangling separators', () => {

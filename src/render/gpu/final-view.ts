@@ -7,6 +7,7 @@ import { GpuFence } from './gpu-fence';
 import { GpuTimer } from './gpu-timer';
 import { CENTER_JITTER, jitter } from './halton';
 import { REALTIME } from './realtime';
+import { STRIP_PACE, StripPacer } from './strip-pacer';
 import type { RealtimeStatus, ViewRenderer } from './view-renderer';
 
 /** Shadow rays per light and ray for each Soft shadows choice; 0 draws soft shadows hard. */
@@ -45,9 +46,10 @@ export const remainingMs = (samples: number, target: number, passMs: number): nu
  * READ ME — Render View: the scene window shows the final render, refining in
  * place. Each pass traces one ray through every pixel of the picture at the
  * options' size and adds it to the average, up to `target` rays a pixel. Passes
- * are cut into strips of about one animation frame of GPU time, with a fence
- * keeping one strip in flight, so the page stays responsive however slow a pass
- * is; a cheap pass runs several times a frame.
+ * are cut into strips of about one animation frame of GPU time (StripPacer: the
+ * timer's prediction, held to what the fence saw the last strip take), with a
+ * fence keeping one strip in flight, so the page and the browser stay responsive
+ * however slow a pass is; a cheap pass runs several times a frame.
  *
  * Any change (an orbit, a drag, a frame of playback, an option) starts the
  * average over. The first pass of a picture is always finished, with the scene
@@ -84,8 +86,8 @@ export class FinalView implements ViewRenderer {
   private passMs = 0;
   private fps = 0;
   private lastShown = 0;
-  private stripPixels: number = REALTIME.startStripPixels;
-  private waited = false;
+  /** How much one tick may trace (strip-pacer.ts). */
+  private readonly pacer = new StripPacer();
   private readonly timer: GpuTimer;
   private readonly fence: GpuFence;
   private rays = DEFAULT_VIEW_CUSTOM.samples;
@@ -116,6 +118,9 @@ export class FinalView implements ViewRenderer {
     const resized = o.scale !== this.opts.scale;
     this.opts = o;
     this.target = o.samples;
+    // Another size, depth or shadow count costs another amount a pixel: find the strip size again.
+    this.timer.reset();
+    this.pacer.restart();
     if (resized && this.viewW > 0) this.allocate();
     this.changed = true;
     this.lastChange = performance.now();
@@ -168,17 +173,14 @@ export class FinalView implements ViewRenderer {
   tick(): boolean {
     if (!this.accum || !(this.nextScene && this.nextBasis)) return false;
     if (!this.engine.isReady) return true;
-    if (this.fence.busy) {
-      if (!this.waited && this.timer.costPerPixel === 0) this.stripPixels = Math.max(REALTIME.minStripPixels, this.stripPixels * REALTIME.shrink);
-      this.waited = true;
-      return true;
-    }
-    this.waited = false;
+    if (this.fence.busy) return true;
     this.timer.poll();
+    this.pacer.finished(this.fence.elapsed, REALTIME.idleFrameMs);
     this.measure();
     if (this.rowsDone === 0 && this.changed) this.begin();
     if (this.samples >= this.target) return false;
-    const work = planTick(this.budget(), this.width, this.height, this.rowsDone, this.target - this.samples);
+    const budget = this.pacer.next(this.timer.costPerPixel, REALTIME.idleFrameMs);
+    const work = planTick(budget, this.width, this.height, this.rowsDone, this.target - this.samples);
     this.engine.setScene(this.scene!);
     this.engine.setView(this.view());
     if (work.passes > 0) {
@@ -197,7 +199,9 @@ export class FinalView implements ViewRenderer {
         this.shown();
       }
     }
+    this.pacer.queued(work.passes > 0 ? work.passes * this.width * this.height : work.rows * this.width);
     this.fence.mark();
+    this.fence.watch(StripPacer.watchMs(REALTIME.idleFrameMs), STRIP_PACE.watchStepMs);
     return true;
   }
 
@@ -217,6 +221,8 @@ export class FinalView implements ViewRenderer {
 
   /** Takes up the latest scene, view and options: a new picture. */
   private begin(): void {
+    // Another scene may cost more a pixel: the first strips are small again.
+    if (this.nextScene !== this.scene) this.pacer.restart();
     this.scene = this.nextScene;
     this.basis = this.nextBasis;
     this.changed = false;
@@ -266,22 +272,14 @@ export class FinalView implements ViewRenderer {
     this.present();
   }
 
-  /** Pixels one tick may trace: one animation frame's GPU budget, or a strip grown while the fence keeps up. */
-  private budget(): number {
-    const cost = this.timer.costPerPixel;
-    if (cost > 0) return REALTIME.idleFrameMs / cost;
-    this.stripPixels = Math.min(this.width * this.height, this.stripPixels * REALTIME.growth);
-    return Math.max(REALTIME.minStripPixels, this.stripPixels);
-  }
-
   private allocate(): void {
     const gl = this.engine.gl;
     deleteTarget(gl, this.accum);
     this.width = Math.max(1, Math.round(this.viewW * this.opts.scale));
     this.height = Math.max(1, Math.round(this.viewH * this.opts.scale));
-    // The canvas is the traced size: the average is shown pixel for pixel and the page scales it up.
+    // The canvas is the traced size (resize sets it): the average is shown pixel for pixel and the
+    // page scales it up. Not here: options change while another renderer owns the canvas.
     this.accum = this.engine.createTarget(this.width, this.height);
-    this.engine.sizeCanvas(this.width, this.height);
     this.hasImage = false;
     this.changed = true;
     this.rowsDone = 0;

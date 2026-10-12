@@ -15,6 +15,7 @@
 .ro-heading { margin-top: 6px; font: 800 12px var(--font-title); color: var(--heading-ink); text-shadow: var(--emboss); white-space: nowrap; }
 .ro-heading.is-first { margin-top: 0; }
 .ro-rows .ui-choice.is-idle { opacity: 0.45; }
+.ro-gpu { min-width: 0; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ro-about { color: var(--ink-soft); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ro-speed {
   padding: 3px 6px; border: 1px solid var(--lo); border-radius: 0; box-shadow: inset 1px 1px 0 var(--lo), 1px 1px 0 var(--hi);

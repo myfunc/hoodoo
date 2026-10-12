@@ -1,13 +1,15 @@
-import { type Rgb, hsvToRgb } from '../../core/color';
+import { hsvToRgb } from '../../core/color';
 import { randomSeed } from '../../core/rng';
 import { rollSky } from './sky-roll';
+import { SkyPalette } from './sky-palette';
+import { MySkies, freeSkyName } from '../../io/sky-presets-store';
 import { SkyMode } from '../../model/scene.enums';
 import type { CloudSettings, Sky } from '../../model/scene.types';
 import { skyPreview } from '../../render/icons';
 import { hasKeyAt } from '../../world/animation/keying';
 import { ChangeKind } from '../../world/world.events';
 import { type UiContext, hintOn } from '../context';
-import { ColorSwatch, rgbToHsv } from '../kit/color-picker';
+import { rgbToHsv } from '../kit/color-picker';
 import { Toggle } from '../kit/controls';
 import { el, onDrag } from '../kit/dom';
 import { HINTS } from '../strings';
@@ -108,22 +110,11 @@ const MODES: readonly { mode: SkyMode; label: string }[] = [
   { mode: SkyMode.AtmosphereOff, label: 'Off' },
 ];
 
-const COLORS: readonly { key: keyof Sky | 'cloud'; label: string }[] = [
-  { key: 'skyColor', label: 'Sky' },
-  { key: 'horizonColor', label: 'Horiz' },
-  { key: 'sunColor', label: 'Sun' },
-  { key: 'ambientColor', label: 'Amb' },
-  { key: 'hazeColor', label: 'Haze' },
-  { key: 'fogColor', label: 'Fog' },
-  { key: 'cloud', label: 'Cloud' },
-];
-
-/** The Sky & Fog palette: Bryce's draggable atmosphere thumbnails, colour swatches and the sun ball. */
+/** The Sky & Fog palette: Bryce's draggable atmosphere thumbnails, the colour palette (sky-palette.ts) and the sun ball. */
 export class SkyTray {
   readonly el: HTMLElement;
   private readonly thumbCanvases: { canvas: HTMLCanvasElement; value: HTMLElement; thumb: DragThumb }[] = [];
   private readonly modeCanvases: { canvas: HTMLCanvasElement; mode: SkyMode; node: HTMLElement }[] = [];
-  private readonly swatches: { key: string; swatch: ColorSwatch }[] = [];
   private readonly toggles: { get: (s: Sky) => boolean; t: Toggle }[] = [];
   private readonly sun: HTMLCanvasElement;
   private timer = 0;
@@ -135,11 +126,12 @@ export class SkyTray {
       el('div', { cls: 'tray-gap' }),
       ...THUMBS.map((t) => this.dragThumb(t)),
       el('div', { cls: 'tray-gap' }),
-      this.colorGroup(),
+      new SkyPalette(ctx).el,
       el('div', { cls: 'tray-gap' }),
       this.sunGroup(),
       this.toggleGroup(),
       this.diceGroup(),
+      this.saveGroup(),
     ]);
     ctx.world.events.on('changed', ({ kind }) => {
       if (kind === ChangeKind.Sky || kind === ChangeKind.Time || kind === ChangeKind.All) this.schedule();
@@ -193,7 +185,6 @@ export class SkyTray {
     const s = this.sky;
     for (const t of this.thumbCanvases) t.value.textContent = t.thumb.value(s);
     for (const m of this.modeCanvases) m.node.style.outline = m.mode === s.mode ? PICKED_OUTLINE : 'none';
-    for (const sw of this.swatches) sw.swatch.set(sw.key === 'cloud' ? s.clouds.color : (s[sw.key as keyof Sky] as Rgb));
     for (const t of this.toggles) t.t.set(t.get(s));
     this.drawSun();
   }
@@ -227,31 +218,6 @@ export class SkyTray {
     hintOn(this.ctx, node, t.hint);
     this.thumbCanvases.push({ canvas, value, thumb: t });
     return el('div', { cls: 'tray-group', style: { paddingBottom: '10px' } }, [node]);
-  }
-
-  private colorGroup(): HTMLElement {
-    const grid = el('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(4, auto)', gap: '3px 6px' } });
-    for (const c of COLORS) {
-      const swatch = new ColorSwatch({
-        value: c.key === 'cloud' ? this.sky.clouds.color : (this.sky[c.key] as Rgb),
-        label: c.label,
-        onInput: (v) => this.setColor(c.key, v, false),
-        onCommit: (v) => this.setColor(c.key, v, true),
-      });
-      this.swatches.push({ key: c.key, swatch });
-      grid.append(swatch.el);
-    }
-    hintOn(this.ctx, grid, HINTS.skyColors);
-    return grid;
-  }
-
-  private setColor(key: string, v: Rgb, final: boolean): void {
-    const s = this.sky;
-    const next = key === 'cloud' ? withClouds(s, { color: v }) : { ...s, [key]: v };
-    this.ctx.world.beginGesture('Sky colour');
-    this.ctx.world.setSky(next, 'Sky colour');
-    if (final) this.ctx.world.endGesture();
-    // beginGesture is idempotent for the same label, so a picker drag stays one undo step.
   }
 
   private sunGroup(): HTMLElement {
@@ -320,6 +286,25 @@ export class SkyTray {
     this.renderThumb(canvas, this.sky);
     node.addEventListener('click', () => this.ctx.world.setSky(rollSky(this.sky, randomSeed()), 'Randomize sky'));
     hintOn(this.ctx, node, HINTS.dice);
+    return node;
+  }
+
+  /** Keeps the sky as it is now among your own presets (Sky & Fog ▾ › My skies). */
+  private saveGroup(): HTMLElement {
+    const canvas = el('canvas', { attrs: { width: '80', height: '80' } });
+    const node = el('div', { cls: 'tray-tool', style: { cursor: 'pointer' } }, [canvas, el('span', { cls: 'tray-tool-label', text: 'Save sky' })]);
+    const paint = () => this.renderThumb(canvas, this.sky);
+    paint();
+    this.ctx.world.events.on('changed', ({ kind }) => {
+      if (kind === ChangeKind.Sky) window.setTimeout(paint, REFRESH_MS);
+    });
+    node.addEventListener('click', () => {
+      const skies = new MySkies();
+      const name = freeSkyName(skies.all);
+      skies.save(name, this.sky);
+      this.ctx.toast(`Saved as "${name}" · Sky & Fog ▾ › My skies`);
+    });
+    hintOn(this.ctx, node, HINTS.saveSky);
     return node;
   }
 }

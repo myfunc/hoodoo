@@ -39,16 +39,16 @@ export class GpuFence {
   }
 
   /**
-   * Looks at the fence every `WATCH_MS` for up to `forMs` after the mark, so `elapsed` is measured
-   * to about a millisecond. The timers are all set at once: a chain of them would be stretched
-   * to 4 ms apart by the browser's limit on nested timers.
+   * Looks at the fence every `stepMs` (a millisecond by default) for up to `forMs` after the mark,
+   * so `elapsed` is measured to about that. The timers are all set at once: a chain of them would
+   * be stretched to 4 ms apart by the browser's limit on nested timers.
    */
-  watch(forMs: number): void {
+  watch(forMs: number, stepMs: number = WATCH_MS): void {
     this.stopWatching();
     const look = () => {
       if (!this.busy) this.stopWatching();
     };
-    for (let t = WATCH_MS; t <= forMs; t += WATCH_MS) this.looks.push(window.setTimeout(look, t));
+    for (let t = stepMs; t <= forMs; t += stepMs) this.looks.push(window.setTimeout(look, t));
   }
 
   private stopWatching(): void {

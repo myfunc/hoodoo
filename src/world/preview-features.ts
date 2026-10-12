@@ -9,6 +9,7 @@ export enum Feature {
   Portals = 'portals',
   Play = 'play',
   Sandbox = 'sandbox',
+  Cloud = 'cloud',
 }
 
 export interface FeatureInfo {
@@ -40,6 +41,11 @@ export const PREVIEW_FEATURES: readonly FeatureInfo[] = [
     id: Feature.Sandbox, name: 'Sandbox', since: '0.11.0', needs: Feature.Play,
     about: 'Physics Gun, spawn menu and undo in Play, Garry’s Mod style',
     adds: ['In Play: the Physics Gun on 1', 'The weapon strip and notices'],
+  },
+  {
+    id: Feature.Cloud, name: 'Cloud', since: '0.12.0',
+    about: 'Sign in with Google, keep scenes in the cloud and share them in a public Gallery',
+    adds: ['Likes, dislikes and reports in the Gallery', 'Moderation for moderators'],
   },
 ];
 

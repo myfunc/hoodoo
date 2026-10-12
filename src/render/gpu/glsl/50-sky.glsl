@@ -1,4 +1,12 @@
 // Bryce-style atmosphere: gradient dome, sun or moon, cumulus/stratus layer, haze and ground fog.
+// World distance around which surfaces fade into the sky at the horizon (atmosphere()): past
+// any scene, so only the rows just below the horizon reach it (2.7 % at 100, 63 % at 600).
+#define FAR_FADE 600.0
+// Below this much the far fade is skipped (closer than about FAR_FADE / 20).
+#define FAR_FADE_MIN 0.002
+// Ground fog: its thinnest layer, and the density of the Fog dial at 100.
+#define FOG_MIN_HEIGHT 0.05
+#define FOG_DENSITY 0.35
 #define SKY_SOFT 0
 #define SKY_DARKER 1
 #define SKY_CUSTOM 2
@@ -103,21 +111,48 @@ vec3 skyColor(vec3 rd) {
   return col;
 }
 
+// How much of the ground fog a ray from ro crosses on its way out of the scene: the whole
+// layer is crossed at and below the horizon, so the sky meets fogged ground in the fog's colour.
+float skyFog(vec3 ro, vec3 rd) {
+  if (uFogParams.x <= 0.0 || skyMode() == SKY_OFF) return 0.0;
+  float k = 1.0 / max(uFogParams.y, FOG_MIN_HEIGHT);
+  float dy = rd.y * k;
+  if (dy <= 1e-4) return 1.0;
+  return 1.0 - exp(-exp(-ro.y * k) / dy * uFogParams.x * FOG_DENSITY);
+}
+
+// The sky drawn just above the horizon in rd's direction (skyColor and skyFog): the horizon
+// colour, the sun's glow and the haze band, or the fog wherever there is any.
+vec3 horizonSky(vec3 rd) {
+  if (uFogParams.x > 0.0) return uFogColor;
+  vec3 level = vec3(rd.x, 0.0, rd.z);
+  float len = length(level);
+  vec3 col = uHorizonColor + (len > 1e-6 ? sunGlow(level / len) : vec3(0));
+  return mix(col, uHazeColor, uSkyParams.z * 0.85);
+}
+
 // Aerial perspective for a surface at distance t along rd from ro: returns the veil colour, alpha = amount.
+// Past about FAR_FADE every surface also fades into horizonSky(), so an endless ground or sea meets
+// the sky without a seam whatever the haze and fog (both alone stop short of the last rows).
 vec4 atmosphere(vec3 ro, vec3 rd, float t) {
   if (skyMode() == SKY_OFF) return vec4(0);
+  float far = t / FAR_FADE;
+  far = 1.0 - exp(-far * far);
   float haze = 1.0 - exp(-t * uSkyParams.z * uSkyParams.z * 0.012);
   float fogAmt = 0.0;
   if (uFogParams.x > 0.0) {
-    float H = max(uFogParams.y, 0.05);
-    float k = 1.0 / H;
+    float k = 1.0 / max(uFogParams.y, FOG_MIN_HEIGHT);
     float dy = rd.y * k;
     float optical = abs(dy) < 1e-4 ? t * exp(-ro.y * k) : exp(-ro.y * k) * (1.0 - exp(-t * dy)) / dy;
-    fogAmt = 1.0 - exp(-max(optical, 0.0) * uFogParams.x * 0.35);
+    fogAmt = 1.0 - exp(-max(optical, 0.0) * uFogParams.x * FOG_DENSITY);
   }
-  vec3 veil = mix(uHazeColor, uFogColor, fogAmt / max(fogAmt + haze, 1e-4));
+  // Fog over the haze, as on the sky (skyColor, then skyFog): far fogged ground meets it in the fog's colour.
   float a = clamp(1.0 - (1.0 - haze) * (1.0 - fogAmt), 0.0, 1.0);
-  return vec4(veil, a);
+  vec3 veil = (uHazeColor * haze * (1.0 - fogAmt) + uFogColor * fogAmt) / max(a, 1e-4);
+  if (far < FAR_FADE_MIN) return vec4(veil, a);
+  // Haze and fog first, then the far fade over them: one veil of the combined amount.
+  float total = 1.0 - (1.0 - a) * (1.0 - far);
+  return vec4((veil * a * (1.0 - far) + horizonSky(rd) * far) / total, total);
 }
 
 #ifdef GAME_TRACE

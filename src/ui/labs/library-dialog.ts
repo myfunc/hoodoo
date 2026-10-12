@@ -3,12 +3,17 @@ import { SKY_LIBRARY, type SkyPreset } from '../../assets/sky.presets';
 import { libraryPreview, objectsPreview, skyPreview } from '../../render/icons';
 import { GAME_ROWS, type GameItem, GameItemKind } from '../../assets/games.library';
 import { buildGameItem } from '../../world/game-sets';
-import { Choice } from '../kit/controls';
+import { Button, Choice } from '../kit/controls';
+import { MySkies, SKY_NAME_MAX, freeSkyName } from '../../io/sky-presets-store';
+import type { Sky } from '../../model/scene.types';
+import { KEY } from '../../core/keys';
+import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
 import type { Vec3 } from '../../core/vec3';
 import type { Thumbnailer } from '../../render/thumbs';
 import { createEntry } from '../../assets/object.catalog';
 import { createObject } from '../../world/objects.factory';
-import { el } from '../kit/dom';
+import { el, glyph } from '../kit/dom';
+import './library-dialog.css';
 import { Dialog, DialogStyle } from '../kit/dialog';
 
 const CELL_W = 96;
@@ -131,20 +136,55 @@ export function openObjectLibrary(thumbs: Thumbnailer, pick: LibraryPick): void 
   dialog.d.open();
 }
 
-/** Sky & Fog presets: pick one to replace the atmosphere. */
-export function openSkyLibrary(thumbs: Thumbnailer, onPick: (s: SkyPreset) => void, onPreview: (s: SkyPreset | null) => void): void {
+/** Sky & Fog presets: Hoodoo's own or the ones you saved; pick one to replace the atmosphere. */
+enum SkyShelf {
+  Presets = 'presets',
+  Mine = 'mine',
+}
+const SKY_SHELVES: readonly { value: SkyShelf; label: string }[] = [
+  { value: SkyShelf.Presets, label: 'Presets' },
+  { value: SkyShelf.Mine, label: 'My skies' },
+];
+let lastSkyShelf = SkyShelf.Presets;
+
+export function openSkyLibrary(thumbs: Thumbnailer, current: Sky, onPick: (s: SkyPreset) => void, onPreview: (s: SkyPreset | null) => void): void {
   let picked: SkyPreset | null = null;
   const dialog: { d?: Dialog } = {};
-  const body = grid(SKY_LIBRARY, (s) => s.name, (s) => s.name, (s, c) => {
+  const mine = new MySkies();
+  const close = () => { dialog.d?.close(); if (picked) onPick(picked); };
+  const choose = (s: SkyPreset) => { picked = s; onPreview(s); };
+  const draw = (s: SkyPreset, c: HTMLCanvasElement) => {
     const spec = skyPreview(s.sky);
     thumbs.enqueue({ ...spec, basis: { ...spec.basis, aspect: CELL_W / CELL_H }, width: CELL_W * 2, height: CELL_H * 2, samples: SAMPLES, bounces: 2, transparent: false, into: c });
-  }, (s) => { picked = s; onPreview(s); }, () => { dialog.d?.close(); if (picked) onPick(picked); });
+  };
+  const holder = el('div');
+  const minePage = (): HTMLElement => {
+    const name = el('input', { cls: 'ui-number sky-save-name', attrs: { value: freeSkyName(mine.all), spellcheck: 'false', maxlength: String(SKY_NAME_MAX), 'aria-label': 'Name' } }) as HTMLInputElement;
+    const save = () => { mine.save(name.value, current); show(SkyShelf.Mine); };
+    name.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === KEY.Enter) save(); });
+    const head = el('div', { cls: 'sky-save-row' }, [name, new Button({ label: 'Save current sky', onClick: save }).el]);
+    if (!mine.all.length) return el('div', {}, [head, el('div', { cls: 'sky-save-empty', text: 'Nothing saved yet. Name the sky you have now and save it.' })]);
+    const cells = grid(mine.all, (s) => s.name, (s) => `${s.name} · double-click to use`, draw, choose, close);
+    mine.all.forEach((s, i) => {
+      const remove = new Button({ cls: 'sky-remove', title: `Delete ${s.name}`, content: glyph(GLYPH.cross, GLYPH_BOX), onClick: (e) => { e.stopPropagation(); mine.remove(s.name); show(SkyShelf.Mine); } });
+      (cells.children[i] as HTMLElement).classList.add('sky-cell');
+      cells.children[i].append(remove.el);
+    });
+    return el('div', {}, [head, cells]);
+  };
+  const show = (shelf: SkyShelf) => {
+    lastSkyShelf = shelf;
+    picked = null;
+    holder.replaceChildren(shelf === SkyShelf.Mine ? minePage() : grid(SKY_LIBRARY, (s) => s.name, (s) => s.name, draw, choose, close));
+  };
+  const strip = new Choice({ cls: 'segmented library-categories', items: SKY_SHELVES, value: lastSkyShelf, onChange: show });
   dialog.d = new Dialog({
     title: 'Sky & Fog Presets',
     style: DialogStyle.Lab,
-    body,
+    body: el('div', {}, [strip.el, holder]),
     onOk: () => { if (picked) onPick(picked); },
     onCancel: () => onPreview(null),
   });
+  show(lastSkyShelf);
   dialog.d.open();
 }

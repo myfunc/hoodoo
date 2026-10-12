@@ -32,13 +32,10 @@ struct Surface {
 
 vec4 matTexel(int mat, int t) { return texelFetch(uMaterials, ivec2(t, mat), 0); }
 
-#ifdef GAME_TRACE
-// Texture level of detail (the game variant): what is finer than a traced pixel fades to its
-// mean instead of flickering from frame to frame, and costs nothing. radiance() sets the
-// footprint, the world size of a pixel at the hit (wider where the surface turns away);
-// surfaceAt sets how many local units one world unit along the surface is, and the local normal.
-#define DETAIL_CELL 0.5
-#define DETAIL_OCTAVE 1.02
+// The footprint, in every variant: radiance() sets the world size of a pixel at the hit (wider
+// where the surface turns away); surfaceAt sets how many local units one world unit along the
+// surface is, and the local normal. The checkerboard averages over it, so its far squares turn
+// grey instead of breaking into moire near the horizon.
 #define PARAMETRIC_UNITS 2.0
 #define CHECKER_MIN_WIDTH 1e-3
 float gFoot = 0.0;
@@ -52,13 +49,6 @@ vec3 gLocalNormal = vec3(0, 1, 0);
 float gTexFoot = 0.0;
 vec3 gTexAxes = vec3(0);
 
-// Octaves a fractal keeps when a texture unit is `foot` wide: a cell of octave i is 2.03^-i
-// wide, and one narrower than two footprints would alias.
-float detailFor(float foot) { return clamp(log2(DETAIL_CELL / max(foot, 1e-6)) / DETAIL_OCTAVE + 1.0, 0.0, 8.0); }
-
-// 1 while a feature `size` texture units wide spans two footprints or more, 0 once it spans one.
-float featureKeep(float size) { return clamp(size / max(gTexFoot, 1e-6) - 1.0, 0.0, 1.0); }
-
 // A checkerboard box-filtered over `w` along each axis (after Inigo Quilez): squares smaller
 // than a pixel turn grey instead of flickering. An axis the surface does not move along
 // (w about 0, often exactly on a square's edge) keeps its plain sign.
@@ -69,6 +59,19 @@ float checkerFiltered(vec3 p, vec3 w) {
   vec3 i = mix(plain, clamp(box, -1.0, 1.0), step(vec3(CHECKER_MIN_WIDTH), w));
   return 0.5 - 0.5 * i.x * i.y * i.z;
 }
+
+#ifdef GAME_TRACE
+// Texture level of detail (the game variant): what is finer than a traced pixel fades to its
+// mean instead of flickering from frame to frame, and costs nothing.
+#define DETAIL_CELL 0.5
+#define DETAIL_OCTAVE 1.02
+
+// Octaves a fractal keeps when a texture unit is `foot` wide: a cell of octave i is 2.03^-i
+// wide, and one narrower than two footprints would alias.
+float detailFor(float foot) { return clamp(log2(DETAIL_CELL / max(foot, 1e-6)) / DETAIL_OCTAVE + 1.0, 0.0, 8.0); }
+
+// 1 while a feature `size` texture units wide spans two footprints or more, 0 once it spans one.
+float featureKeep(float size) { return clamp(size / max(gTexFoot, 1e-6) - 1.0, 0.0, 1.0); }
 #else
 float featureKeep(float size) { return 1.0; }
 #endif
@@ -108,11 +111,7 @@ float textureScalar(int kind, vec3 p, int octaves, Surface s) {
   }
   if (kind == T_CLOUDS) return smoothstep(0.42, 0.85, n * 0.5 + 0.5);
   if (kind == T_WOOD) return smoothstep(0.0, 0.8, fract(length(p.xz) + n * 0.3));
-#ifdef GAME_TRACE
   if (kind == T_CHECKER) return checkerFiltered(p, gTexAxes);
-#else
-  if (kind == T_CHECKER) return mod(floor(p.x) + floor(p.y) + floor(p.z), 2.0);
-#endif
   if (kind == T_SPOTS) return 1.0 - smoothstep(0.15, 0.55, v.x);
   if (kind == T_PSYCHEDELIC) return fract(n * 2.2 + p.y * 0.15);
   if (kind == T_ALTITUDE) return clamp(s.lp.y * 0.5 + 0.5 + n * 0.12, 0.0, 1.0);
@@ -186,16 +185,16 @@ vec4 evalTexture(int mat, int slot, Surface s) {
   vec4 t3 = matTexel(mat, base + 3);
   int mapping = int(t0.w + 0.5);
   vec3 p = texturePoint(mapping, t0.y, t1.w, s);
-#ifdef GAME_TRACE
   float unit = mapping == MAP_WORLD ? 1.0 : (mapping == MAP_OBJECT ? gLocalScale : PARAMETRIC_UNITS * gLocalScale);
   gTexFoot = gFoot * t0.y * unit;
   vec3 axisN = mapping == MAP_WORLD ? s.n : gLocalNormal;
   // A flat pattern changes only along the surface: no blur across it.
   gTexAxes = mapping == MAP_PARAMETRIC ? vec3(gTexFoot, gTexFoot, 0.0) : gTexFoot * sqrt(max(1.0 - axisN * axisN, 0.0));
-#endif
   float v = kind == T_POOLBALL ? poolBall(s.lp, t1.w) : (isSheen(kind) ? sheenScalar(kind, t0.y, s.wp, s.lp, s.n) : textureScalar(kind, p, int(t0.z + 0.5), s));
   v = clamp((v - 0.5) * (1.0 + t2.w * 0.04) + 0.5, 0.0, 1.0);
   vec3 col = isSheen(kind) ? sheenColor(kind, v, t0.y, s.lp, t1.rgb, t2.rgb, t3.rgb) : ramp(v, t1.rgb, t2.rgb, t3.rgb);
+  // A checkerboard is its two end colours: where squares blur together it is their mean, not the ramp's middle.
+  if (kind == T_CHECKER) col = mix(t1.rgb, t3.rgb, v);
   if (kind == T_PSYCHEDELIC) col = v < 0.333 ? mix(t1.rgb, t2.rgb, v * 3.0) : (v < 0.666 ? mix(t2.rgb, t3.rgb, v * 3.0 - 1.0) : mix(t3.rgb, t1.rgb, v * 3.0 - 2.0));
   return vec4(col, v);
 }

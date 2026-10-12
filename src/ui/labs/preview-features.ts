@@ -5,7 +5,7 @@ import { loadPrefs, savePrefs } from '../../io/prefs';
 import { type FeatureNotes, NOTE_LIMITS, noteCount, noteTime, notesText, withNote, withoutNote } from '../../world/feature-notes';
 import { Feature, type FeatureFlags, type FeatureInfo, featureInfo, isFeatureOn, withFeature } from '../../world/preview-features';
 import { type UiContext, hintOn } from '../context';
-import { FEATURE_ACTIONS } from '../feature-gate';
+import { featureActions } from '../feature-gate';
 import { Button, Choice } from '../kit/controls';
 import { clearChildren, el, glyph } from '../kit/dom';
 import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
@@ -21,6 +21,7 @@ const TRY: Readonly<Record<Feature, { action: Action; label: string; hint: strin
   [Feature.Portals]: { action: Action.CreatePortals, label: 'Add a pair', hint: 'Adds a linked pair of portals to the scene' },
   [Feature.Play]: { action: Action.Play, label: 'Play now', hint: 'Walk the scene from the camera; Esc leaves' },
   [Feature.Sandbox]: { action: Action.Play, label: 'Play now', hint: 'Play with the Physics Gun on 1; Esc leaves' },
+  [Feature.Cloud]: { action: Action.CloudGallery, label: 'Open Gallery', hint: 'Browse the public Gallery; sign in to save and post' },
 };
 
 /**
@@ -112,7 +113,7 @@ export function commentCount(m: PreviewModel, f: Feature): HTMLElement {
 
 /** Its menu commands and its other additions, one short line each. */
 export function addsLines(info: FeatureInfo): string[] {
-  const commands = FEATURE_ACTIONS[info.id].map((a) => {
+  const commands = featureActions(info.id).map((a) => {
     const key = shortcutOf(a);
     return `${ACTIONS[a].menu} › ${ACTIONS[a].label.replace(/:.*/, '')}${key ? ` (${key})` : ''}`;
   });

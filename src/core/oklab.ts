@@ -50,6 +50,15 @@ export function rgbToOklab(c: Rgb): Lab {
   return apply(LAB_FROM_LMS, lms.map(Math.cbrt) as unknown as Lab);
 }
 
+/** How far outside 0..1 a colour may stray and still count as displayable. */
+const GAMUT_SLACK = 1e-4;
+
+/** True when the colour exists on screen as it is, without clipping a channel. */
+export function oklabInGamut(lab: Lab): boolean {
+  const rgb = apply(RGB_FROM_LMS, apply(LMS_FROM_LAB, lab).map((x) => x * x * x) as unknown as Lab);
+  return rgb.every((c) => c >= -GAMUT_SLACK && c <= 1 + GAMUT_SLACK);
+}
+
 /** Back to a display colour; what falls outside the gamut is clipped to 0..1. */
 export function oklabToRgb(lab: Lab): Rgb {
   const lms = apply(LMS_FROM_LAB, lab).map((x) => x * x * x) as unknown as Lab;

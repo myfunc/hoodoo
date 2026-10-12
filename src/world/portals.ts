@@ -81,6 +81,12 @@ export function linkPortals(objects: readonly SceneObject[], a: ObjectId, b: Obj
   });
 }
 
+/** Portal `id` and whatever led to it or from it lead nowhere. */
+export function unlinkPortals(objects: readonly SceneObject[], id: ObjectId): SceneObject[] {
+  const partner = objects.find((o) => o.id === id)?.pair;
+  return objects.map((o) => (o.pair !== undefined && (o.id === id || o.pair === id || o.id === partner) ? withoutPair(o) : o));
+}
+
 function withoutPair(o: SceneObject): SceneObject {
   const { pair: _pair, ...rest } = o;
   return rest;

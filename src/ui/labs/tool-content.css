@@ -47,6 +47,20 @@
 .lab-channels.lab-dots-head { gap: 0 10px; }
 .tool-window.is-docked .lab-channels { grid-template-columns: 100px minmax(0, 1fr) 58px; gap: 4px 6px; }
 .lab-dots { display: flex; gap: 6px; }
+/* The dot columns read as texture slots: "Texture" then A B C over the dots; an empty slot's dot is hollow. */
+.lab-dots-head { cursor: help; }
+.lab-dots-caption { justify-self: end; font-weight: bold; letter-spacing: 0.04em; text-transform: uppercase; }
+.lab-slot-letters span { width: 14px; text-align: center; font: 800 10px var(--font-title); color: var(--lab-hot); }
+.ui-dialog-lab .lab-dots .ui-toggle.is-empty .ui-dot { background: none; box-shadow: inset 0 0 0 1px var(--lab-soft); opacity: 0.55; }
+.ui-dialog-lab .lab-dots .ui-toggle.is-empty:hover .ui-dot { opacity: 1; }
+/* A texture slot: its heading names the channels it drives, Use for… picks them. */
+.lab-texture { display: flex; flex-direction: column; gap: 4px; padding: 6px 0; border-top: 1px solid var(--lab-edge); }
+.lab-slot-head { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+.lab-slot-head .lab-slot-name { margin: 0; flex: none; }
+.lab-slot-use { flex: 1; min-width: 0; color: var(--lab-hot); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lab-slot-use.is-unused { color: var(--lab-soft); font-style: italic; }
+.ui-dialog-lab .ui-button.lab-use-for { flex: none; height: 18px; padding: 0 8px; font-size: 10px; white-space: nowrap; }
+.lab-slot-body { display: grid; gap: 8px; }
 
 /* Terrain Editor */
 .terrain-columns { display: flex; gap: 16px; }

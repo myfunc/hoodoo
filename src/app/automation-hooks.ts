@@ -13,11 +13,15 @@ import { ViewKind } from '../model/scene.enums';
 import { createObject } from '../world/objects.factory';
 import { emptyScene } from '../world/scene.defaults';
 import type { World } from '../world/world';
+import { worldBox } from '../world/bounds';
+import { WireProjector } from '../render/wire/wireframe';
 
 const BENCH_W = 1280;
 const BENCH_H = 960;
 const BENCH_FRAMES = 12;
 const BENCH_IDLE_POLL_MS = 100;
+/** Corners of a box as 0/1 picks of min and max per axis. */
+const BOX_CORNERS = [0, 1, 2, 3, 4, 5, 6, 7].map((i) => [i & 1, (i >> 1) & 1, (i >> 2) & 1] as const);
 
 interface Spec {
   readonly entry: string;
@@ -26,9 +30,31 @@ interface Spec {
   readonly material?: string;
 }
 
+interface PageRect {
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+/** Page CSS pixels of world points as the main view draws them; null before the view is laid out or when one is behind the eye. */
+function pagePoints(view: SceneView, points: readonly Vec3[]): [number, number][] | null {
+  const cell = view.mainCell();
+  if (!cell) return null;
+  const at = view.root.getBoundingClientRect();
+  const proj = new WireProjector(view.basisFor(cell.kind, cell.frame.w / cell.frame.h), cell.frame);
+  const local = points.map((p) => proj.view(p));
+  if (!proj.basis.ortho && local.some((v) => v[2] <= 0)) return null;
+  return local.map((v) => {
+    const [x, y] = proj.screen(v);
+    return [at.left + x, at.top + y];
+  });
+}
+
 /**
  * window.__hoodoo for scripted checks (tools/*.mjs, benchmarks): ready flag, render
- * status, scene summary, a GPU benchmark and a test-scene builder.
+ * status, scene summary, a GPU benchmark, a test-scene builder, and where objects
+ * and the move handles sit on the page (tools/make-tutorials.mjs clicks them).
  */
 export function installAutomationHooks(world: World, view: SceneView, thumbs: Thumbnailer): void {
   const w = window as unknown as Record<string, unknown>;
@@ -44,6 +70,26 @@ export function installAutomationHooks(world: World, view: SceneView, thumbs: Th
     bench: async (width = BENCH_W, height = BENCH_H, frames = BENCH_FRAMES) => {
       while (view.isRendering || thumbs.pending > 0) await new Promise((r) => setTimeout(r, BENCH_IDLE_POLL_MS));
       return benchFrames(thumbs.engine, thumbs.target(width, height), world.scene, view.basisFor(ViewKind.Camera, width / height), frames);
+    },
+    /** The page rectangle (CSS px) of the first object called `name`, from its world box; null if none or behind the eye. */
+    screenBox: (name: string): PageRect | null => {
+      const o = world.scene.objects.find((x) => x.name === name);
+      if (!o) return null;
+      const b = worldBox(o);
+      const pts = pagePoints(view, BOX_CORNERS.map(([i, j, k]) => [i ? b.max[0] : b.min[0], j ? b.max[1] : b.min[1], k ? b.max[2] : b.min[2]]));
+      if (!pts) return null;
+      const xs = pts.map((p) => p[0]);
+      const ys = pts.map((p) => p[1]);
+      return { x: Math.min(...xs), y: Math.min(...ys), w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+    },
+    /** Page points (CSS px) of the selection's move handles: the centre and the X, Y, Z arrow tips (null when edge-on). */
+    gizmo: () => {
+      const cell = view.mainCell();
+      const g = cell?.gizmo;
+      if (!cell || !g) return null;
+      const at = view.root.getBoundingClientRect();
+      const page = (p: readonly [number, number] | null) => (p ? [at.left + p[0], at.top + p[1]] : null);
+      return { origin: page(g.origin), tips: g.tips.map(page) };
     },
     /** Builds a test scene from plain specs and a sky preset name. */
     stage: (specs: readonly Spec[], sky: string) => {

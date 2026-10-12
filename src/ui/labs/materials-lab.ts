@@ -7,15 +7,16 @@ import type { ObjectId } from '../../model/scene.ids';
 import type { Material, ProceduralTexture } from '../../model/scene.types';
 import { materialPreview } from '../../render/icons';
 import { materialTargets } from '../../world/tool-places';
-import type { UiContext } from '../context';
+import { type UiContext, hintOn } from '../context';
 import { ColorSwatch } from '../kit/color-picker';
-import { Button, Dial, Select } from '../kit/controls';
+import { Button, Dial, type MenuItem, Select, openMenu } from '../kit/controls';
 import { DialogStyle } from '../kit/dialog';
 import { clearChildren, el } from '../kit/dom';
 import type { ToolContent } from '../kit/tool-window';
 import { LiveEdit } from './live-edit';
 import { randomMaterial } from './material-randomizer';
-import { TexturePanel } from './texture-panel';
+import { TexturePanel, newTexture } from './texture-panel';
+import { CHANNEL_SHORT, type Channel, SLOT_NAMES, SLOT_SOURCES, channelsFrom, sourceOf, withSource, withoutSource } from './texture-labels';
 import './tool-content.css';
 
 const PREVIEW_W = 240;
@@ -26,8 +27,7 @@ const PRESET_PX = 44;
 const PRESET_SAMPLES = 3;
 const PREVIEW_DEBOUNCE_MS = 90;
 const MAX_DPR = 2;
-const SOURCES = [ChannelSource.TexA, ChannelSource.TexB, ChannelSource.TexC] as const;
-const SOURCE_NAMES = ['A', 'B', 'C'] as const;
+const SLOT_HINT = { title: 'Texture A, B, C', text: 'Which texture drives each channel; click the lit dot again for the flat value' } as const;
 const LABEL = 'Materials Lab';
 const NO_TARGET = 'Select an object to dress it';
 
@@ -48,21 +48,30 @@ const VALUE_LABELS: Readonly<Record<ValueChannel, string>> = {
   [ValueChannel.Bump]: 'Bump Height',
 };
 
-/** A, B, C option dots of one channel row; clicking the lit dot returns the channel to its flat value. */
-function sourceDots(current: ChannelSource, onPick: (s: ChannelSource) => void): HTMLElement {
-  const row = el('div', { cls: 'lab-dots' });
-  const dots = SOURCES.map((src, i) => {
-    const d = el('div', { cls: `ui-toggle${current === src ? ' is-on' : ''}`, title: `Drive from texture ${SOURCE_NAMES[i]}` }, [el('span', { cls: 'ui-dot' })]);
-    d.addEventListener('click', () => {
-      const next = current === src ? ChannelSource.Flat : src;
-      current = next;
-      dots.forEach((x, j) => x.classList.toggle('is-on', SOURCES[j] === next));
-      onPick(next);
-    });
+const CHANNEL_LABELS: Readonly<Record<Channel, string>> = { ...COLOR_LABELS, ...VALUE_LABELS };
+
+/** Which texture slots hold a texture. */
+type Filled = readonly [boolean, boolean, boolean];
+
+/** One dot's line: what a click does there. */
+function dotTitle(label: string, slot: number, lit: boolean, filled: boolean): string {
+  const name = `Texture ${SLOT_NAMES[slot]}`;
+  if (lit) return `${label} from ${name}: click for the flat value`;
+  return filled ? `Drive ${label} from ${name}` : `${name} is empty: click adds one and drives ${label} from it`;
+}
+
+/**
+ * A, B, C option dots of one channel row: the lit one is the texture that drives it;
+ * clicking it again returns the channel to its flat value. An empty slot's dot is hollow.
+ */
+function sourceDots(label: string, current: ChannelSource, filled: Filled, onPick: (s: ChannelSource) => void): HTMLElement {
+  const dots = SLOT_SOURCES.map((src, i) => {
+    const lit = current === src;
+    const d = el('div', { cls: `ui-toggle${lit ? ' is-on' : ''}${filled[i] ? '' : ' is-empty'}`, title: dotTitle(label, i, lit, filled[i]) }, [el('span', { cls: 'ui-dot' })]);
+    d.addEventListener('click', () => onPick(lit ? ChannelSource.Flat : src));
     return d;
   });
-  row.append(...dots);
-  return row;
+  return el('div', { cls: 'lab-dots' }, dots);
 }
 
 /**
@@ -85,6 +94,7 @@ export class MaterialsLab implements ToolContent {
   private readonly preview: HTMLCanvasElement;
   private readonly grid: HTMLElement;
   private readonly textures: HTMLElement;
+  private panels: TexturePanel[] = [];
   private readonly presetGrid: HTMLElement;
   private readonly name: HTMLElement;
   private readonly note: HTMLElement;
@@ -118,7 +128,7 @@ export class MaterialsLab implements ToolContent {
       this.presetGrid,
     ]);
     const right = el('div', { cls: 'lab-main' }, [
-      el('div', { cls: 'lab-channels lab-dots-head' }, [el('span'), el('span'), el('span', { cls: 'lab-note', text: '  A    B    C' })]),
+      this.slotHeads(),
       this.grid,
       this.textures,
     ]);
@@ -180,6 +190,7 @@ export class MaterialsLab implements ToolContent {
 
   private build(): void {
     const m = this.draft;
+    const filled = m.textures.map((t) => t !== null) as unknown as Filled;
     this.name.textContent = m.name;
     clearChildren(this.grid);
     for (const ch of COLOR_CHANNELS) {
@@ -188,7 +199,7 @@ export class MaterialsLab implements ToolContent {
         onInput: (v) => this.setColor(ch, v),
         onCommit: (v) => this.setColor(ch, v),
       });
-      this.grid.append(el('span', { text: COLOR_LABELS[ch] }), sw.el, sourceDots(m.colorSources[ch], (s) => this.update({ ...this.draft, colorSources: { ...this.draft.colorSources, [ch]: s } })));
+      this.grid.append(el('span', { text: COLOR_LABELS[ch] }), sw.el, sourceDots(COLOR_LABELS[ch], m.colorSources[ch], filled, (s) => this.setSource(ch, s)));
     }
     for (const ch of VALUE_CHANNELS) {
       const dial = new Dial({
@@ -199,10 +210,14 @@ export class MaterialsLab implements ToolContent {
         title: ch === ValueChannel.Refraction ? '100 = no bending, 133 water, 152 glass, 240 diamond' : VALUE_LABELS[ch],
         onInput: (v) => { if (v !== this.draft.values[ch]) this.update({ ...this.draft, values: { ...this.draft.values, [ch]: v } }); },
       });
-      this.grid.append(el('span', { text: VALUE_LABELS[ch] }), dial.el, sourceDots(m.valueSources[ch], (s) => this.update({ ...this.draft, valueSources: { ...this.draft.valueSources, [ch]: s } })));
+      this.grid.append(el('span', { text: VALUE_LABELS[ch] }), dial.el, sourceDots(VALUE_LABELS[ch], m.valueSources[ch], filled, (s) => this.setSource(ch, s)));
     }
     clearChildren(this.textures);
-    m.textures.forEach((t, slot) => this.textures.append(new TexturePanel(slot, t, this.ctx.thumbs, (next) => this.setTexture(slot, next)).el));
+    this.panels = m.textures.map((t, slot) => new TexturePanel(slot, t, this.ctx.thumbs, (next) => this.setTexture(slot, next), {
+      channels: this.slotChannels(slot),
+      pick: (anchor) => this.useMenu(slot, anchor),
+    }));
+    this.textures.append(...this.panels.map((p) => p.el));
     this.schedulePreview();
   }
 
@@ -211,10 +226,57 @@ export class MaterialsLab implements ToolContent {
     if (v[0] !== was[0] || v[1] !== was[1] || v[2] !== was[2]) this.update({ ...this.draft, colors: { ...this.draft.colors, [ch]: v } });
   }
 
+  /**
+   * A slot's texture changed. Added or removed, the dots and headings are built again;
+   * removed, the channels it drove go back to their flat values.
+   */
   private setTexture(slot: number, t: ProceduralTexture | null): void {
+    const was = this.draft.textures[slot];
     const textures = [...this.draft.textures] as [ProceduralTexture | null, ProceduralTexture | null, ProceduralTexture | null];
     textures[slot] = t;
-    this.update({ ...this.draft, textures });
+    const next = { ...this.draft, textures };
+    if ((was === null) === (t === null)) {
+      this.update(next);
+      return;
+    }
+    this.replace(t ? next : withoutSource(next, SLOT_SOURCES[slot]));
+  }
+
+  /** A channel picks its source; picking an empty slot puts a new texture there first. */
+  private setSource(ch: Channel, source: ChannelSource): void {
+    const slot = SLOT_SOURCES.indexOf(source as (typeof SLOT_SOURCES)[number]);
+    if (slot >= 0 && !this.draft.textures[slot]) {
+      const textures = [...this.draft.textures] as [ProceduralTexture | null, ProceduralTexture | null, ProceduralTexture | null];
+      textures[slot] = newTexture();
+      this.replace(withSource({ ...this.draft, textures }, ch, source));
+      return;
+    }
+    this.replace(withSource(this.draft, ch, source));
+  }
+
+  /** The channels a slot drives, by their short names. */
+  private slotChannels(slot: number): string[] {
+    return channelsFrom(this.draft, SLOT_SOURCES[slot]).map((ch) => CHANNEL_SHORT[ch]);
+  }
+
+  /** Use for…: every channel, the ones this slot drives checked; a pick drives it from here, or back to flat. */
+  private useMenu(slot: number, anchor: HTMLElement): void {
+    const source = SLOT_SOURCES[slot];
+    const item = (ch: Channel): MenuItem => {
+      const on = sourceOf(this.draft, ch) === source;
+      return { label: CHANNEL_LABELS[ch], checked: on, run: () => this.setSource(ch, on ? ChannelSource.Flat : source) };
+    };
+    const r = anchor.getBoundingClientRect();
+    openMenu(r.left, r.bottom, [...COLOR_CHANNELS.map(item), { label: '', separator: true }, ...VALUE_CHANNELS.map(item)]);
+  }
+
+  /** The heading over the dot columns: they read as texture slots A, B, C. */
+  private slotHeads(): HTMLElement {
+    const letters = el('div', { cls: 'lab-dots lab-slot-letters' }, SLOT_NAMES.map((n) => el('span', { text: n, title: `Texture ${n}` })));
+    const head = el('div', { cls: 'lab-channels lab-dots-head' }, [el('span'), el('span', { cls: 'lab-note lab-dots-caption', text: 'Texture' }), letters]);
+    hintOn(this.ctx, head, SLOT_HINT);
+    head.title = `${SLOT_HINT.title}: ${SLOT_HINT.text}`;
+    return head;
   }
 
   private schedulePreview(): void {

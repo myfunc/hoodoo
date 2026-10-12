@@ -216,15 +216,21 @@ export class World {
     this.show({ ...base, objects: base.objects.map((o) => (ids.has(o.id) && !o.locked ? fn(o) : o)) });
   }
 
+  /** Shows `sky` unrecorded like previewMaterial (the sky palette's hover); endPreview puts the recorded sky back. */
+  previewSky(sky: Sky): void {
+    const base = (this.previewBase ??= this.scene);
+    this.show({ ...base, sky }, ChangeKind.Sky);
+  }
+
   endPreview(): void {
     const base = this.previewBase;
     this.previewBase = null;
-    if (base) this.show(base);
+    if (base) this.show(base, base.sky === this.scene.sky ? ChangeKind.Objects : ChangeKind.Sky);
   }
 
-  private show(scene: Scene): void {
+  private show(scene: Scene, kind = ChangeKind.Objects): void {
     this.history.amend(scene);
-    this.events.emit('changed', { scene, kind: ChangeKind.Objects });
+    this.events.emit('changed', { scene, kind });
   }
 
   /** A locked sun keeps its direction (world/rig). */

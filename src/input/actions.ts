@@ -105,11 +105,21 @@ export enum Action {
   CreatePortals = 'create-portals',
   LinkPortals = 'link-portals',
   CreateTriggerZone = 'create-trigger-zone',
+  /** Play › Portals & Triggers…: the window that lists the scene's portal pairs and trigger zones. */
+  PortalsTriggers = 'portals-triggers',
+  /** Help › Tutorial Book…: recipes with a picture per step (ui/labs/tutorial-book.ts). */
+  TutorialBook = 'tutorial-book',
   Play = 'play',
   /** G: a keyboard Move of the selection; inside it R rotates and S sizes (input/key-transform.ts). */
   MoveSelection = 'move-selection',
   RotateSelection = 'rotate-selection',
   SizeSelection = 'size-selection',
+  /** File › cloud commands (Cloud preview feature, ui/cloud/cloud-ui.ts). */
+  CloudOpen = 'cloud-open',
+  CloudSave = 'cloud-save',
+  CloudPublish = 'cloud-publish',
+  CloudGallery = 'cloud-gallery',
+  CloudAccount = 'cloud-account',
 }
 
 /** Actions that take a numeric argument (bookmark slots). */

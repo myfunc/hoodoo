@@ -36,6 +36,8 @@ export const GLYPH = {
   depthCue: ['M3 6h18', 'M6 11h12', 'M9 16h6', 'M11 20h2'],
   handles: ['M6 18V5', 'M6 18h13', 'M6 18l-3.5 3.5', 'M3.5 7.5L6 5l2.5 2.5', 'M16.5 15.5L19 18l-2.5 2.5'],
   snap: ['M6 4v7a6 6 0 0 0 12 0V4', 'M6 4h3v7a3 3 0 0 0 6 0V4h3', 'M6 8h3M15 8h3'],
+  /** Render View: a framed picture, a hill and the sun, as the final render shows. */
+  picture: ['M3 5h18v14H3z', 'M3 16l5-5 4 4 3-3 6 6', 'M16 9h.01'],
   /** Render Options: two sliders. */
   sliders: ['M4 7h16M4 17h16', 'M9 4v6M15 14v6'],
   frame: ['M4 9V4h5', 'M15 4h5v5', 'M20 15v5h-5', 'M9 20H4v-5', 'M9 9h6v6H9z'],

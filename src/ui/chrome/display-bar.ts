@@ -12,6 +12,7 @@ import { pictureLine } from './picture-readout';
 import { showWhile } from '../feature-gate';
 import { Feature } from '../../world/preview-features';
 import '../labs/render-options.css';
+import './display-bar.css';
 
 const MS_PER_S = 1000;
 const PERCENT = 100;
@@ -39,12 +40,14 @@ const TOGGLES: Partial<Record<Action, { mark: readonly string[]; title: string; 
   [Action.ToggleSidePanel]: { mark: GLYPH.panel, title: 'Scene Panel', text: 'Attributes, scene list, snapshots and history' },
   [Action.MaximizeView]: { mark: GLYPH.maximize, title: 'Maximize View', text: 'The scene window alone; again brings the panels back' },
   [Action.ToggleAnimation]: { mark: GLYPH.film, title: 'Animation', text: 'Timeline with keys, play, movies' },
+  [Action.ToggleRenderView]: { mark: GLYPH.picture, title: 'Render View', text: 'The final render in the scene window, refining in place' },
 };
 
 /**
  * Bottom strip under the scene window: the panels' toggles at its ends, undo, the
- * view, display marks, zoom, the timeline, the status, and Play on its own. How the
- * picture renders lives on the left panel's Render page (ui/labs/render-options.ts).
+ * view, display marks, zoom, the timeline, the status with Render View and the
+ * Render page beside it, and Play on its own. How the picture renders lives on the
+ * left panel's Render page (ui/labs/render-options.ts).
  */
 export class DisplayBar {
   readonly el: HTMLElement;
@@ -87,6 +90,10 @@ export class DisplayBar {
       this.tool(Action.FrameSelected, GLYPH.frame, 'Frame Selection', 'Fit the selection in the view'),
       el('div', { cls: 'grow' }),
       this.status,
+      // The picture's two switches by the status line that reports on it; view modes such as Play stay apart.
+      el('div', { cls: 'sep' }),
+      this.toggle(Action.ToggleRenderView),
+      this.tool(Action.RenderOptions, GLYPH.sliders, 'Render Options', 'The Render page: live preview, quality, final render'),
       ...this.playGroup(),
       el('div', { cls: 'sep' }),
       this.toggle(Action.MaximizeView),
@@ -97,8 +104,18 @@ export class DisplayBar {
       this.sync();
     });
     ctx.world.events.on('history', () => this.sync());
+    this.scrollSideways();
     this.sync();
     this.idleStatus();
+  }
+
+  /** A bar wider than its column scrolls: an up-down wheel moves it sideways too. */
+  private scrollSideways(): void {
+    this.el.addEventListener('wheel', (e) => {
+      if (this.el.scrollWidth <= this.el.clientWidth || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      this.el.scrollLeft += e.deltaY;
+    }, { passive: false });
   }
 
   set live(s: RealtimeStatus) {

@@ -47,6 +47,7 @@ import { deleteSelectedKeys, hasPickedKeys, keepKeySelection, selectAllKeys } fr
 import { canLoopPath, setPathLoop } from './timeline-ops';
 import { isPlaying, togglePlay } from '../play/session';
 import { GizmoKind } from '../render/wire/gizmo';
+import { cloudUi } from '../ui/cloud/cloud-ui';
 
 type Handler = (arg?: number) => void;
 
@@ -112,6 +113,8 @@ export class Commands {
     const toggle = (key: 'quad' | 'sidePanel' | 'leftPanel' | 'depthCue' | 'grid' | 'gizmo' | 'snap' | 'liveRender' | 'motionPaths' | 'maximized') => () => e.update({ [key]: !e.state[key] });
     // A side panel asked for while the view is maximized comes back with the rest.
     const panel = (key: 'sidePanel' | 'leftPanel') => () => e.update(e.state.maximized ? { maximized: false, [key]: true } : { [key]: !e.state[key] });
+    // The cloud (Cloud preview feature): a scene of one's own goes on the recent list at once, a gallery copy after its first change.
+    const cloud = () => cloudUi(ctx, { opened: (name, own) => hooks.sceneOpened?.(name, own) });
     this.handlers = {
       [Action.New]: () => { w.replaceScene(emptyScene(), 'New scene'); hooks.sceneOpened?.(SCENE_NAME.untitled, false); },
       [Action.StartWindow]: () => hooks.openStart(),
@@ -138,6 +141,11 @@ export class Commands {
       [Action.PreviewFeatures]: () => toolWindows(ctx).open(ToolId.PreviewFeatures),
       [Action.Settings]: () => openSettings(e, SettingsSection.General, sceneDepth(w)),
       [Action.Open]: () => void this.open(),
+      [Action.CloudOpen]: () => cloud().openFromCloud(),
+      [Action.CloudSave]: () => cloud().save(),
+      [Action.CloudPublish]: () => cloud().publish(),
+      [Action.CloudGallery]: () => cloud().gallery(),
+      [Action.CloudAccount]: () => cloud().account(),
       [Action.Save]: () => { downloadScene(w.scene, DEFAULT_FILE_NAME); hooks.sceneSaved?.(); },
       [Action.LoadDemo]: () => { w.replaceScene(demoScene(), 'Open demo'); hooks.sceneOpened?.(SCENE_NAME.demo, false); },
       [Action.SurpriseScene]: () => {
@@ -173,6 +181,8 @@ export class Commands {
       [Action.CreatePortals]: () => createPortals(w),
       [Action.CreateTriggerZone]: () => createZone(w),
       [Action.LinkPortals]: () => linkSelectedPortals(w),
+      [Action.PortalsTriggers]: () => toolWindows(ctx).open(ToolId.PortalsTriggers),
+      [Action.TutorialBook]: () => toolWindows(ctx).open(ToolId.TutorialBook),
       [Action.Land]: () => w.updateObjects(sel(), 'Land', (o) => landed(w.scene, o)),
       [Action.Attributes]: () => this.attributes(),
       [Action.EditMaterial]: () => this.materials(),
@@ -216,7 +226,13 @@ export class Commands {
       [Action.TabEdit]: () => e.update({ tab: PaletteTab.Edit }),
       [Action.TabSky]: () => e.update({ tab: PaletteTab.Sky }),
       // A preset is an atmosphere: the scene keeps its shadow softness.
-      [Action.SkyLibrary]: () => openSkyLibrary(ctx.thumbs, (s) => w.setSky({ ...s.sky, softShadows: w.scene.sky.softShadows }, `Sky: ${s.name}`), () => undefined),
+      [Action.SkyLibrary]: () => {
+        const softShadows = w.scene.sky.softShadows;
+        openSkyLibrary(ctx.thumbs, w.scene.sky, (s) => {
+          w.endPreview();
+          w.setSky({ ...s.sky, softShadows }, `Sky: ${s.name}`);
+        }, (s) => (s ? w.previewSky({ ...s.sky, softShadows }) : w.endPreview()));
+      },
       [Action.MaterialLibrary]: () => this.materials(),
       [Action.CommandPalette]: () => openCommandPalette(ctx),
       [Action.Shortcuts]: () => openShortcuts(e.state.features),

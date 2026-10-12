@@ -83,6 +83,7 @@ export const HINTS = {
   sun: { title: 'Sun Control', text: 'Drag the ball to move the sun; below the horizon the moon rises' },
   skyColors: { title: 'Sky Colours', text: 'Click a swatch to pick a colour' },
   dice: { title: 'Randomize Sky', text: 'Roll a new atmosphere' },
+  saveSky: { title: 'Save Sky', text: 'Keep this sky in My skies, under Sky & Fog ▾' },
 } satisfies Record<string, Hint>;
 
 export const VIEW_NAMES = ['Camera', 'Top', 'Front', 'Side', "Director's View"] as const;

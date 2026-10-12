@@ -1,0 +1,7 @@
+# Local settings for `wrangler dev` (docs/cloud.md): copy to .dev.vars, which Git ignores.
+# The Turnstile keys are Cloudflare's public test keys: the check always passes.
+DEV_LOGIN=1
+MODERATORS=moderator@example.com
+APP_ORIGINS=http://localhost:5754
+TURNSTILE_SITE_KEY=1x00000000000000000000AA
+TURNSTILE_SECRET=1x0000000000000000000000000000000AA

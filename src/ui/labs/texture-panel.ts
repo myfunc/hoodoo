@@ -8,7 +8,7 @@ import type { Thumbnailer } from '../../render/thumbs';
 import { ColorSwatch } from '../kit/color-picker';
 import { Button, Dial, Select } from '../kit/controls';
 import { clearChildren, el } from '../kit/dom';
-import { MAPPINGS, MAPPING_LABELS, TEXTURE_KINDS, TEXTURE_KIND_LABELS } from './texture-labels';
+import { MAPPINGS, MAPPING_LABELS, SLOT_NAMES, TEXTURE_KINDS, TEXTURE_KIND_LABELS } from './texture-labels';
 
 const PREVIEW_PX = 72;
 const PREVIEW_SAMPLES = 2;
@@ -17,30 +17,57 @@ const DETAIL = { min: 1, max: 8 } as const;
 const CONTRAST = { min: -20, max: 100 } as const;
 const DEFAULT_RAMP: readonly [Rgb, Rgb, Rgb] = [[0.1, 0.1, 0.1], [0.5, 0.5, 0.5], [0.95, 0.95, 0.95]];
 const DEFAULT_FREQ = 1;
-const SLOT_NAMES = ['A', 'B', 'C'] as const;
 const PREVIEW_BG = '#222';
 const LABEL_GUTTER = 16;
 const FLAT_LIGHT = { diffusion: 30, ambience: 100, specularity: 0 } as const;
 
-/** Editor for one of the three procedural textures (A, B, C) of a material. */
+/** A new texture in an empty slot: grey noise to start from. */
+export const newTexture = (): ProceduralTexture => texture(TextureKind.Fbm, DEFAULT_FREQ, DEFAULT_RAMP);
+
+/** What a slot's heading says about its use, and the way to give it more. */
+export interface SlotUse {
+  /** The channels it drives, by their short names. */
+  readonly channels: readonly string[];
+  /** Use for…: the channels to drive from this slot, under `anchor`. */
+  readonly pick: (anchor: HTMLElement) => void;
+}
+
+const USE_FOR = { title: 'Use for…', hint: 'Pick the channels this texture drives' } as const;
+
+/** Editor for one of the three procedural textures (A, B, C) of a material; its heading names the channels it drives. */
 export class TexturePanel {
   readonly el: HTMLElement;
   private readonly preview: HTMLCanvasElement;
   private readonly body: HTMLElement;
+  private readonly usage: HTMLElement;
+  private readonly name: string;
 
   constructor(
     slot: number,
     private value: ProceduralTexture | null,
     private readonly thumbs: Thumbnailer,
     private readonly onChange: (t: ProceduralTexture | null) => void,
+    use: SlotUse,
   ) {
+    this.name = `Texture ${SLOT_NAMES[slot]}`;
     this.preview = el('canvas', { style: { width: `${PREVIEW_PX}px`, height: `${PREVIEW_PX}px`, border: '1px solid #000', background: PREVIEW_BG } });
     this.body = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '4px', minWidth: '0' } });
-    this.el = el('div', { cls: 'lab-texture', style: { display: 'grid', gridTemplateColumns: `${PREVIEW_PX + LABEL_GUTTER}px 1fr`, gap: '8px', padding: '6px 0', borderTop: '1px solid rgba(255,255,255,0.06)' } }, [
-      el('div', {}, [el('div', { cls: 'lab-section-title', text: `Texture ${SLOT_NAMES[slot]}`, style: { margin: '0 0 4px' } }), this.preview]),
-      this.body,
+    this.usage = el('span', { cls: 'lab-slot-use' });
+    const useFor = new Button({ label: USE_FOR.title, cls: 'lab-use-for', title: USE_FOR.hint, onClick: (e) => use.pick(e.currentTarget as HTMLElement) });
+    this.el = el('div', { cls: 'lab-texture' }, [
+      el('div', { cls: 'lab-slot-head' }, [el('span', { cls: 'lab-section-title lab-slot-name', text: this.name }), this.usage, useFor.el]),
+      el('div', { cls: 'lab-slot-body', style: { gridTemplateColumns: `${PREVIEW_PX + LABEL_GUTTER}px 1fr` } }, [this.preview, this.body]),
     ]);
+    this.uses = use.channels;
     this.build();
+  }
+
+  /** The heading's line: "· Diffuse, Bump", or that no channel uses it yet. */
+  set uses(channels: readonly string[]) {
+    const text = channels.length ? `· ${channels.join(', ')}` : this.value ? '· not used yet: pick a dot or Use for…' : '';
+    this.usage.textContent = text;
+    this.usage.title = channels.length ? `${this.name} drives ${channels.join(', ')}` : text.slice(2);
+    this.usage.classList.toggle('is-unused', !channels.length);
   }
 
   private set(t: ProceduralTexture | null): void {
@@ -59,7 +86,7 @@ export class TexturePanel {
     if (!t) {
       this.body.append(
         el('span', { cls: 'lab-note', text: 'Empty slot.' }),
-        new Button({ label: 'Add texture', onClick: () => { this.set(texture(TextureKind.Fbm, DEFAULT_FREQ, DEFAULT_RAMP)); this.build(); } }).el,
+        new Button({ label: 'Add texture', onClick: () => { this.set(newTexture()); this.build(); } }).el,
       );
       this.renderPreview();
       return;
