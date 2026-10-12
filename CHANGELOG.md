@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.11.1 — 2026-10-12
+
+### Fixed
+- Play starts on the website again: the site's security policy now lets the
+  physics engine bundled with the app compile (WebAssembly only; script
+  eval stays forbidden). It had stopped Play with "play could not start".
+
 ## 0.11.0 — 2026-10-12
 
 ### Added
