@@ -1,5 +1,67 @@
 # Changelog
 
+## 0.9.0 — 2026-10-11
+
+### Added
+- The length of the scene is set right on the timeline. The readout shows
+  the playhead and the length, 0:03.2 / 0:08.0: click the length and type
+  30, 1:30 or 2m, then Enter (Esc keeps the old one). Or drag the teal flag at
+  the end of the ruler; held past the ruler's end, it keeps growing the scene.
+  Scenes run up to 10 minutes. Each change is one undo step.
+- Keys keep their times when the scene gets shorter: the ones past the end
+  wait greyed in a hatched stretch of the ruler, and a one-line message offers
+  Scale keys to fit, which squeezes the whole motion into the new length.
+- The camera and the sun are members of the scene: Camera and Sun rows sit at
+  the top of the scene list. Selecting one shows its settings in Attributes:
+  for the camera its position, aim (heading, tilt, bank) and lens; for the
+  sun its azimuth, altitude, colour, intensity and soft shadows. Add Key (K)
+  keys the selected one, Remove Key removes only its key, and a selected
+  camera is keyed like an object from its first change. The eye hides its
+  glyph; the lock holds its place and aim (orbit and walk leave a locked
+  camera alone) or the sun's direction.
+- Top, Front and Side (and Four Views) draw the camera as a small movie camera
+  with its view cone out to the focus distance and a cross at its aim, and
+  the sun as a sun on a ring round the picture with an arrow along its
+  light. Drag the camera to move it, its aim cross to turn it, and the sun
+  round its ring to turn it (in Top the middle is overhead, the edge the
+  horizon). A camera outside the picture is marked on its edge.
+- A tag beside the pointer names what a drag moves, in one line: "Moving Blue
+  Egg", "Moving key 2 of Blue Egg · 2.0 s", "Camera · move", "Sun · azimuth
+  40° · altitude 34°"; the hint line says the same. Orbit, pan, dolly or walk
+  in the Camera view show "Camera" while the camera is selected, keyed or
+  locked, so it is clear the camera itself is being changed.
+- Motion paths: the key under the pointer is ringed and shows its number and
+  time before you press; a dragged key's path turns bold and the other paths
+  fade. The camera's keys are little cameras instead of squares.
+- Five new animated examples, 8-second loops, in the start window: Sunset
+  Gambit, a chess game in progress and a racked set of pool balls on a
+  lacquered table by the sea at sunset, with a mirror ball and a gold one
+  (shown large, first among the animations); Billiard Orrery, groups orbiting
+  a mirror sun while their moons circle inside them; Squash & Stretch, balls
+  that flatten and stretch as they bounce and chess pieces that swell, all by
+  keyed sizes; Hoodoo Run, a camera fly-through over a lake, through two stone
+  arches and round hoodoo spires; Boolean Carving, keyed cutters boring,
+  rounding and piercing three solids.
+
+### Changed
+- The frame line under the readout (now with the frame rate) opens Animation
+  Setup, whose length field takes the same 1:30 times. Animation Setup no
+  longer cuts keys past a shorter end, and files keep such keys too.
+- The ruler labels long scenes in minutes (1:30) above a minute.
+- The camera lens (field of view, depth of field, focus) moved from the empty
+  Attributes panel into the camera's own attributes: click Camera in the
+  scene list.
+- The selection's handles are drawn as lit solids in the scene's own colours:
+  cones on the move axes, cubes on the size axes, a glossy teal ball for an
+  even resize and tube rings, each in a dark rim and on a soft shadow, so
+  they read on bright sky, dark water and the red wires alike. X is copper
+  now, never the selection's red. A handle under the pointer turns gold and
+  glows, and every handle takes a press from further away.
+- Four more looks for the handles, for trying out with `?gizmo=1` to `5` in
+  the address: glossy arrows and balls like the control panel, Bryce's
+  selection box with square handles on its corners and faces, thick outlined
+  lines with round tips, and a pebble palette under the A / M / E tags.
+
 ## 0.8.2 — 2026-10-11
 
 ### Fixed

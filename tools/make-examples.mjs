@@ -1,6 +1,6 @@
 // Renders the start window's example thumbnails with the app's own ray tracer
-// (src/world/examples.ts): one 480 x 300 JPEG per example, the animated ones
-// posed at the time below. Needs the dev server: it imports the modules from /src.
+// (src/world/examples.ts): one 480 x 300 JPEG per example (the featured one, shown
+// twice as large, 960 x 600), the animated ones posed at the time below. Needs the dev server: it imports the modules from /src.
 // Usage: node tools/make-examples.mjs [url] [id ...]   (writes src/ui/art/examples/<id>.jpg)
 import fs from 'node:fs';
 import puppeteer from 'puppeteer-core';
@@ -9,8 +9,9 @@ import { launchOptions } from './browser.mjs';
 const [url = 'http://localhost:5640/', ...only] = process.argv.slice(2);
 const OUT = new URL('../src/ui/art/examples/', import.meta.url);
 const THUMB = { width: 480, height: 300, samples: 36, quality: 0.86 };
+const FEATURED = { ...THUMB, width: 960, height: 600, quality: 0.84 };
 /** Seconds into each animation where the thumbnail is taken. */
-const POSE_AT = { flight: 2.2, waltz: 1.4, 'dunes-morning': 6.5, 'arch-night': 6 };
+const POSE_AT = { flight: 2.2, waltz: 1.4, 'dunes-morning': 6.5, 'arch-night': 6, gambit: 0, orrery: 1, squash: 1.3, 'hoodoo-run': 0, carving: 2.4 };
 
 const browser = await puppeteer.launch(launchOptions(['--window-size=1280,900']));
 try {
@@ -21,10 +22,10 @@ try {
   await page.waitForFunction('window.__hoodooReady === true', { timeout: 120000 });
   const ids = await page.evaluate(async () => {
     const { EXAMPLES } = await import('/src/world/examples.ts');
-    return EXAMPLES.map((e) => e.id);
+    return EXAMPLES.map((e) => ({ id: e.id, featured: !!e.featured }));
   });
   const files = new Map();
-  for (const id of ids.filter((i) => !only.length || only.includes(i))) {
+  for (const { id, featured } of ids.filter((i) => !only.length || only.includes(i.id))) {
     const data = await page.evaluate(async (exampleId, o, at) => {
       const { EXAMPLES } = await import('/src/world/examples.ts');
       const { Thumbnailer } = await import('/src/render/thumbs.ts');
@@ -38,7 +39,7 @@ try {
         onProgress: () => {}, isCancelled: () => false,
       });
       return c.toDataURL('image/jpeg', o.quality).split(',')[1];
-    }, id, THUMB, POSE_AT[id]);
+    }, id, featured ? FEATURED : THUMB, POSE_AT[id]);
     files.set(`${id}.jpg`, data);
     console.log('rendered', id);
   }

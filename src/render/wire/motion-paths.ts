@@ -2,7 +2,7 @@ import type { Vec3 } from '../../core/vec3';
 import type { GroupId, ObjectId } from '../../model/scene.ids';
 import type { Key, Scene, Transform } from '../../model/scene.types';
 import { channelAt } from '../../world/animation/interpolate';
-import { type KeyRef, KeyTrack, isCyclic, isKeyPicked } from '../../world/animation/key-selection';
+import { type KeyRef, KeyTrack, isCyclic, isKeyPicked, sameKey } from '../../world/animation/key-selection';
 import { sceneFrames } from '../../world/group-pose';
 import { framePoint } from '../../world/group-transform';
 import { chain, coverItems, groupIndex } from '../../world/group-tree';
@@ -17,6 +17,9 @@ import type { WireProjector } from './wireframe';
  * A keyed group has a path of its own, named after it. Paths inside a group are
  * drawn where the group is now, so they travel with it. With a keyed group
  * selected its path is the bold one; what moves inside it shows faintly.
+ * The camera's keys are little cameras, not squares. The key under the pointer
+ * is ringed and shows its number and time; while a key is dragged its path is
+ * the bold one and every other path fades.
  */
 
 /** A key square on screen, for picking. */
@@ -52,9 +55,14 @@ const PATH = {
   maxSamples: 240,
 } as const;
 
-/** The owner's tag beside the first key. */
-const TAG = { font: 'bold 10px Geneva, Verdana, sans-serif', dx: 8, dy: -8, padX: 3, height: 13, back: 'rgba(255,255,255,0.78)', baseline: 3.5 } as const;
+/** The owner's tag beside the first key; a key's own tag (number and time) sits below it. */
+const TAG = { font: 'bold 10px Geneva, Verdana, sans-serif', dx: 8, dy: -8, keyDy: 14, padX: 3, height: 13, back: 'rgba(255,255,255,0.78)', baseline: 3.5 } as const;
 const CAMERA_NAME = 'Camera';
+/** The ring round the key under the pointer or held. */
+const RING = { color: '#ffb000', width: 2, gap: 4 } as const;
+/** A camera key's marker: a body (share of the key size) with a lens on its right. */
+const CAMERA_MARK = { body: 1.5, height: 1, lens: 1.2 } as const;
+const SECONDS_DIGITS = 1;
 
 interface PathStyle {
   readonly color: string;
@@ -75,20 +83,57 @@ function positionAt<T>(keys: readonly Key<T>[], t: number, read: (v: T) => Vec3,
   return [0, 1, 2].map((axis) => channelAt(keys, t, (v) => read(v)[axis], { loop })) as unknown as Vec3;
 }
 
-function drawTag(g: CanvasRenderingContext2D, text: string, x: number, y: number, color: string): void {
+function drawTag(g: CanvasRenderingContext2D, text: string, x: number, y: number, color: string, dy: number = TAG.dy): void {
   g.font = TAG.font;
   const w = g.measureText(text).width + TAG.padX * 2;
   const left = x + TAG.dx;
-  const mid = y + TAG.dy;
+  const mid = y + dy;
   g.fillStyle = TAG.back;
   g.fillRect(left, mid - TAG.height / 2, w, TAG.height);
   g.fillStyle = color;
   g.fillText(text, left + TAG.padX, mid + TAG.baseline);
 }
 
+/** A key's marker: a square, or a little camera for the camera's keys. */
+function drawMarker(g: CanvasRenderingContext2D, camera: boolean, x: number, y: number, r: number): void {
+  if (!camera) {
+    g.fillRect(x - r, y - r, r * 2, r * 2);
+    g.strokeRect(x - r + 0.5, y - r + 0.5, r * 2 - 1, r * 2 - 1);
+    return;
+  }
+  const w = r * CAMERA_MARK.body;
+  const h = r * CAMERA_MARK.height;
+  const lens = r * CAMERA_MARK.lens;
+  g.beginPath();
+  g.rect(x - w - lens / 2, y - h, w * 2, h * 2);
+  g.moveTo(x + w - lens / 2, y);
+  g.lineTo(x + w + lens / 2, y - h);
+  g.lineTo(x + w + lens / 2, y + h);
+  g.closePath();
+  g.fill();
+  g.stroke();
+}
+
+/** The key under the pointer, or held: ringed, with its number and time beside it. */
+function drawKeyFocus(g: CanvasRenderingContext2D, x: number, y: number, r: number, index: number, time: number): void {
+  g.strokeStyle = RING.color;
+  g.lineWidth = RING.width;
+  g.beginPath();
+  g.arc(x, y, r + RING.gap, 0, Math.PI * 2);
+  g.stroke();
+  g.lineWidth = 1;
+  drawTag(g, `Key ${index + 1} · ${time.toFixed(SECONDS_DIGITS)} s`, x, y, PATH.pickedEdge, TAG.keyDy);
+}
+
+/** How the scene window wants a key shown: under the pointer, or held by a drag. */
+export interface KeyFocus {
+  readonly ref: KeyRef;
+  readonly held: boolean;
+}
+
 function drawPath<T>(
   g: CanvasRenderingContext2D, proj: WireProjector, scene: Scene, keys: readonly Key<T>[], local: (v: T) => Vec3,
-  how: TrackDraw, handle: Pick<KeyHandle, 'track' | 'id' | 'owner'>, picked: readonly KeyRef[], out: KeyHandle[],
+  how: TrackDraw, handle: Pick<KeyHandle, 'track' | 'id' | 'owner'>, picked: readonly KeyRef[], out: KeyHandle[], focus: KeyFocus | null = null,
 ): void {
   if (keys.length < 2) return;
   const a = scene.animation;
@@ -117,21 +162,26 @@ function drawPath<T>(
   g.setLineDash([]);
   g.lineWidth = 1;
   let tagAt: [number, number] | null = null;
-  for (const k of keys) {
+  let focused: { x: number; y: number; r: number; index: number; time: number } | null = null;
+  const camera = handle.track === KeyTrack.Camera;
+  for (const [index, k] of keys.entries()) {
     const world = read(k.value);
     const v = proj.view(world);
     if (!proj.basis.ortho && v[2] < WIRE.nearPlane) continue;
     const [x, y] = proj.screen(v);
-    const on = isKeyPicked(picked, { ...handle, time: k.time }, a.fps);
-    const r = on ? style.key + 1 : style.key;
-    g.fillStyle = on ? PATH.picked : style.color;
+    const ref = { ...handle, time: k.time };
+    const on = isKeyPicked(picked, ref, a.fps);
+    const lit = !!focus && sameKey(focus.ref, ref, a.fps);
+    const r = (on ? style.key + 1 : style.key) + (lit && focus?.held ? 1 : 0);
+    g.fillStyle = on || (lit && focus?.held) ? PATH.picked : style.color;
     g.strokeStyle = on ? PATH.pickedEdge : PATH.keyEdge;
-    g.fillRect(x - r, y - r, r * 2, r * 2);
-    g.strokeRect(x - r + 0.5, y - r + 0.5, r * 2 - 1, r * 2 - 1);
+    drawMarker(g, camera, x, y, r);
     out.push({ ...handle, time: k.time, world, x, y });
     tagAt ??= [x, y];
+    if (lit) focused = { x, y, r, index, time: k.time };
   }
   if (tagAt && style.tag) drawTag(g, handle.owner, tagAt[0], tagAt[1], style.color);
+  if (focused) drawKeyFocus(g, focused.x, focused.y, focused.r, focused.index, focused.time);
 }
 
 enum Emphasis {
@@ -188,19 +238,26 @@ function pathJobs(scene: Scene, selection: ReadonlySet<string>): PathJob[] {
  */
 export function drawMotionPaths(
   g: CanvasRenderingContext2D, scene: Scene, proj: WireProjector, selection: ReadonlySet<string>,
-  opts: { camera: boolean; overRender: boolean; keys?: readonly KeyRef[] },
+  opts: { camera: boolean; overRender: boolean; keys?: readonly KeyRef[]; focus?: KeyFocus | null; cameraSelected?: boolean },
 ): KeyHandle[] {
   const out: KeyHandle[] = [];
   const a = scene.animation;
   const picked = opts.keys ?? [];
+  const focus = opts.focus ?? null;
+  // A key held: its path is the bold one, every other path fades.
+  const held = focus?.held ? focus.ref : null;
+  const mine = (job: Pick<PathJob, 'handle'>) => !!held && held.track === job.handle.track && held.id === job.handle.id;
   g.save();
   for (const job of pathJobs(scene, selection)) {
-    if (opts.overRender && job.emphasis === Emphasis.Normal) continue;
-    drawPath(g, proj, scene, job.keys, (v) => v.position, job.draw, job.handle, picked, out);
+    if (opts.overRender && job.emphasis === Emphasis.Normal && !mine(job)) continue;
+    const draw = held ? { ...job.draw, style: STYLES[mine(job) ? Emphasis.Selected : Emphasis.Faint] } : job.draw;
+    drawPath(g, proj, scene, job.keys, (v) => v.position, draw, job.handle, picked, out, focus);
   }
   if (opts.camera) {
-    const draw = { frame: null, loop: a.loop || isCyclic(a, KeyTrack.Camera, ''), style: { color: PATH.camera, key: PATH.keySelected, dash: PATH.cameraDash, tag: true } };
-    drawPath(g, proj, scene, a.camera, (c) => c.position, draw, { track: KeyTrack.Camera, id: '', owner: CAMERA_NAME }, picked, out);
+    const handle = { track: KeyTrack.Camera, id: '', owner: CAMERA_NAME };
+    const color = held && !mine({ handle }) ? PATH.faint : opts.cameraSelected || mine({ handle }) ? PATH.selected : PATH.camera;
+    const draw = { frame: null, loop: a.loop || isCyclic(a, KeyTrack.Camera, ''), style: { color, key: PATH.keySelected, dash: PATH.cameraDash, tag: true } };
+    drawPath(g, proj, scene, a.camera, (c) => c.position, draw, handle, picked, out, focus);
   }
   g.restore();
   return out;

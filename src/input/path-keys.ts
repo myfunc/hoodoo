@@ -9,7 +9,8 @@ import { type EditorStore, IDLE_HINT } from '../world/editor-store';
 import { sceneFrames } from '../world/group-pose';
 import { frameDelta } from '../world/group-transform';
 import { groupIndex, subtree } from '../world/group-tree';
-import { SelectMode, type World } from '../world/world';
+import { Rig, SelectMode, type World } from '../world/world';
+import { keyName, showDoing } from './drag-names';
 import { PICK_RADIUS_PX } from './input.constants';
 import { groundPoint } from './pick';
 
@@ -25,8 +26,7 @@ export interface KeyDrag {
   readonly frame: Transform | null;
 }
 
-const SECONDS_DIGITS = 2;
-const HINT_ACTIONS = 'drag to move, click to select';
+const HINT_ACTIONS = 'drag it';
 
 /**
  * The key squares of the motion paths in the scene window: hover names the key,
@@ -72,6 +72,7 @@ export class PathKeys {
     }
     const moving = this.picked.filter((r) => r.track === ref.track && r.id === ref.id);
     this.world.beginGesture(moving.length > 1 ? 'Move keys' : 'Move key');
+    showDoing(this.editor, keyName(this.world.scene, h, moving.length));
     return { handle: h, cell, x, y, anim: a, moving, frame: this.frameOf(h) };
   }
 
@@ -100,7 +101,7 @@ export class PathKeys {
     return true;
   }
 
-  /** Hovering a square names it in the hint line; leaving it clears the hint again. */
+  /** Hovering a square names it in the hint line (whose key, which, when); leaving it clears the hint again. */
   hover(h: KeyHandle | null): void {
     if (!h) {
       if (this.hinted) this.editor.setHint({ title: IDLE_HINT.title, text: '' });
@@ -108,10 +109,8 @@ export class PathKeys {
       return;
     }
     this.hinted = true;
-    const camera = h.track === KeyTrack.Camera;
-    const when = `${h.time.toFixed(SECONDS_DIGITS)} s`;
-    const title = camera ? 'Camera key' : h.track === KeyTrack.Group ? 'Group key' : 'Object key';
-    this.editor.setHint({ title, text: `${camera ? '' : `${h.owner} · `}${when} · ${HINT_ACTIONS}` });
+    const named = keyName(this.world.scene, h);
+    this.editor.setHint({ title: named.title, text: `${named.text} · ${HINT_ACTIONS}` });
   }
 
   /** The groups around the key's owner, posed now; the keys move in their space. */
@@ -123,8 +122,12 @@ export class PathKeys {
     return null;
   }
 
-  /** An object key belongs to its object, a group key to its group: grabbing it selects the owner (which clears the picked keys). */
+  /** An object key belongs to its object, a group key to its group, a camera key to the camera: grabbing it selects the owner (which clears the picked keys). */
   private selectOwner(h: KeyHandle): void {
+    if (h.track === KeyTrack.Camera) {
+      if (this.world.rig !== Rig.Camera) this.world.selectRig(Rig.Camera);
+      return;
+    }
     if (h.track === KeyTrack.Group) {
       const ids = subtree(this.world.scene, h.id as GroupId);
       if (ids.some((id) => !this.world.selection.has(id))) this.world.select(ids, SelectMode.Replace);

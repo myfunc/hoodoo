@@ -41,6 +41,8 @@ export interface EditorState {
   readonly sidePanel: boolean;
   readonly renderSamples: number;
   readonly hint: Hint;
+  /** What a drag in the scene window moves now (an object, a key, the camera, the sun): the tag beside the pointer names it. */
+  readonly doing: Doing | null;
   /** The next click in a perspective view sets the camera's focus distance. */
   readonly pickingFocus: boolean;
   /** What two-finger scrolling does: guessed per swipe, or fixed by the user. */
@@ -57,6 +59,11 @@ export interface EditorState {
   readonly features: FeatureFlags;
   /** Personal settings from the Settings window (live quality…): world/settings.ts. */
   readonly settings: Settings;
+}
+
+/** A drag named: a short title and its detail for the hint line, the whole of it in one line for the tag beside the pointer. */
+export interface Doing extends Hint {
+  readonly line: string;
 }
 
 export const IDLE_HINT: Hint = { title: 'Ready', text: 'Point at a control for help' };
@@ -78,6 +85,7 @@ export const INITIAL_EDITOR: EditorState = {
   sidePanel: true,
   renderSamples: DEFAULT_SAMPLES,
   hint: IDLE_HINT,
+  doing: null,
   pickingFocus: false,
   scroll: ScrollPreference.Auto,
   playing: false,

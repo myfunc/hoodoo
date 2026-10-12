@@ -25,6 +25,10 @@ const MOUSE: readonly [string, string][] = [
   ['Double-click an object', 'Edit it (Terrain Editor or Attributes)'],
   ['1 … 9 / Shift+1 … 9', 'Recall / save camera bookmarks'],
   ['Alt+F, then click', 'Focus the camera lens on that surface'],
+  ['Click Camera or Sun in Scene', 'Select it: Attributes shows its settings, K keys it'],
+  ['Drag the camera in flat views', 'Move it in Top, Front or Side; drag the cross at its aim to turn it'],
+  ['Drag the sun in flat views', 'Turn it round its ring: the middle is overhead in Top'],
+  ['Point at a path key, drag it', 'The key rings and shows its time; the tag names what moves'],
 ];
 
 const QOL: readonly string[] = [
@@ -32,7 +36,7 @@ const QOL: readonly string[] = [
   'Live ray-traced preview while you edit (P)',
   'Orbit, pan, dolly, WASD walk and fly navigation; Z+drag quick resize',
   'Move, resize and rotate handles in the scene, numeric Attributes panel',
-  'Scene outliner: rename, hide, lock',
+  'Scene outliner: rename, hide, lock; the camera and the sun are in it too',
   'Autosave, .hoodoo files, drag-and-drop to open',
   'Share a whole scene as a link',
   'Tiled high-resolution PNG export and copy to clipboard',

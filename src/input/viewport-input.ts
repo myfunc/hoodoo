@@ -1,17 +1,18 @@
-import { type Vec3, add, dot, scale, sub } from '../core/vec3';
+import type { Vec3 } from '../core/vec3';
 import { ViewKind } from '../model/scene.enums';
 import type { ObjectId } from '../model/scene.ids';
 import type { Camera, SceneObject } from '../model/scene.types';
 import type { SceneView, ViewCell } from '../render/viewport';
 import type { GizmoPart } from '../render/wire/gizmo';
 import type { KeyHandle } from '../render/wire/motion-paths';
-import { pickRect } from '../render/wire/picking';
-import { MIN_SPAN, dolly, orbit, translateLocal } from '../world/camera-math';
+import { keyRefOf, pickRect } from '../render/wire/picking';
+import type { RigPart } from '../render/wire/rig-glyphs';
+import { orbit } from '../world/camera-math';
 import { type EditorStore, isPerspective } from '../world/editor-store';
 import { moved } from '../world/transform-ops';
 import { SelectMode, type World } from '../world/world';
 import { orbitDrag } from './orbit-drag';
-import { CameraWalk, cameraOf, setCameraOf } from './camera-walk';
+import { CameraWalk } from './camera-walk';
 import {
   BUTTON_LEFT, BUTTON_MIDDLE, BUTTON_RIGHT, DRAG_THRESHOLD_PX, GESTURE_MIN_SCALE, GIZMO_PICK_PX, ORTHO_ZOOM, PICK_RADIUS_PX, PINCH_DOLLY, RING_PICK_PX, SWIPE_GAP_MS,
   TRACKPAD_ORBIT_DEG_PER_PX, TRACKPAD_PAN, WHEEL_DOLLY,
@@ -19,9 +20,13 @@ import {
 import { installFileDrop } from './file-drop';
 import { type KeyDrag, PathKeys } from './path-keys';
 import { GizmoDrag, gizmoCursor } from './gizmo-drag';
-import { gizmoPartAt, groundPoint, nearGizmo, pickObject, surfacePoint } from './pick';
+import { gizmoPartAt, nearGizmo, pickObject, surfacePoint } from './pick';
 import { QuickResize } from './quick-resize';
 import { SceneKeys } from './scene-keys';
+import { RigDrag } from './rig-drag';
+import { clearDoing, handleName, movingName, showDoing } from './drag-names';
+import { CameraNav } from './camera-nav';
+import { objectDragDelta } from './object-drag';
 import { ScrollClassifier, ScrollDevice } from './scroll-device';
 import { scrollResizeFactor } from './walk-math';
 
@@ -48,7 +53,11 @@ enum Gesture {
   Resize = 'resize',
   /** Pressed on a handle of the selection: a move tip, a resize cube or a rotate ring (gizmo-drag.ts). */
   Handle = 'handle',
+  /** Pressed on the camera's or the sun's glyph: a click selects it, a drag moves it (rig-drag.ts). */
+  RigPress = 'rig-press',
+  RigDrag = 'rig-drag',
 }
+
 
 export interface InputHooks {
   readonly onOpenObject: (id: ObjectId) => void;
@@ -73,6 +82,8 @@ interface Press {
   /** The key square pressed (KeyPress), then its drag (KeyDrag). */
   readonly key?: KeyHandle;
   readonly keyDrag?: KeyDrag;
+  /** The camera or sun glyph part pressed (RigPress). */
+  readonly rig?: RigPart;
 }
 
 /**
@@ -80,6 +91,7 @@ interface Press {
  * Idle → Pressing → (MoveObjects | BoxSelect) on the left button,
  * Handle on a handle of the selection (move tip, resize cube, rotate ring: gizmo-drag.ts),
  * KeyPress → KeyDrag on a motion-path key square (path-keys.ts),
+ * RigPress → RigDrag on the camera's or the sun's glyph (rig-drag.ts),
  * Orbit (right / Alt-left), Pan (middle / Space-left), Fly (right + WASD/RC/QE), Resize (Z held + left).
  * A right press let go before it travels DRAG_THRESHOLD_PX is a right click: the context menu.
  * A band that holds key squares picks those keys; otherwise it selects objects.
@@ -105,6 +117,8 @@ export class ViewportInput {
   private gestureRotation = 0;
   private readonly keys: PathKeys;
   private readonly handles: GizmoDrag;
+  private readonly rigs: RigDrag;
+  private readonly nav: CameraNav;
   /** A right press that has not travelled yet: letting go opens the context menu, the camera waits. */
   private rightClick = false;
 
@@ -119,6 +133,8 @@ export class ViewportInput {
     this.box.className = 'box-select';
     this.keys = new PathKeys(world, editor);
     this.handles = new GizmoDrag(world, editor);
+    this.rigs = new RigDrag(world, editor);
+    this.nav = new CameraNav(world, editor);
     const walk = new CameraWalk(world, editor, { walkCell: () => this.walkCell(), onFly: () => this.onFly(), idle: () => this.state === Gesture.Idle });
     this.resize = new QuickResize(world, editor, () => this.state === Gesture.Idle);
     this.sceneKeys = new SceneKeys(el, editor, walk, this.resize, {
@@ -136,6 +152,7 @@ export class ViewportInput {
       this.view.hover = { object: null, gizmo: null, near: false };
       this.keys.hover(null);
       this.handles.hover(null);
+      this.rigs.hover(null);
     });
     el.addEventListener('wheel', (e) => this.wheel(e), { passive: false });
     el.addEventListener('gesturestart', (e) => this.gestureStart(e as GestureEvent));
@@ -166,19 +183,19 @@ export class ViewportInput {
     this.el.setPointerCapture(e.pointerId);
     this.el.focus({ preventScroll: true });
     this.last = { x, y };
-    const base = { x, y, cell, shift: e.shiftKey, alt: e.altKey, start: this.world.selectedObjects(), camera: this.camera(cell) };
+    const base = { x, y, cell, shift: e.shiftKey, alt: e.altKey, start: this.world.selectedObjects(), camera: this.nav.camera(cell) };
     if (e.button === BUTTON_RIGHT || (e.button === BUTTON_LEFT && e.altKey && !this.world.selection.size)) {
       this.press = { ...base, target: null };
       this.state = isPerspective(cell.kind) ? Gesture.Orbit : Gesture.Pan;
       this.rightClick = e.button === BUTTON_RIGHT;
-      this.beginCameraGesture(cell, 'Camera trackball');
+      this.nav.beginGesture(cell, 'Camera trackball');
       this.flyArmed = e.button === BUTTON_RIGHT && isPerspective(cell.kind);
       return;
     }
     if (e.button === BUTTON_MIDDLE || (e.button === BUTTON_LEFT && this.sceneKeys.spaceHeld)) {
       this.press = { ...base, target: null };
       this.state = Gesture.Pan;
-      this.beginCameraGesture(cell, 'Camera pan');
+      this.nav.beginGesture(cell, 'Camera pan');
       return;
     }
     if (e.button !== BUTTON_LEFT) return;
@@ -197,6 +214,13 @@ export class ViewportInput {
     if (part && this.handles.begin(part, cell, x, y)) {
       this.press = { ...base, target: null };
       this.state = Gesture.Handle;
+      showDoing(this.editor, handleName(this.world, part), false);
+      return;
+    }
+    const rig = this.rigs.at(cell, x, y);
+    if (rig) {
+      this.press = { ...base, target: null, rig };
+      this.state = Gesture.RigPress;
       return;
     }
     this.press = { ...base, target: this.pickAt(cell, x, y) };
@@ -216,6 +240,12 @@ export class ViewportInput {
     if (this.state === Gesture.KeyPress && p.key && Math.hypot(x - p.x, y - p.y) > DRAG_THRESHOLD_PX) {
       this.press = { ...p, keyDrag: this.keys.beginDrag(p.key, p.cell, p.x, p.y, p.shift) };
       this.state = Gesture.KeyDrag;
+      this.view.hover = { object: null, gizmo: null, near: false, key: keyRefOf(p.key), held: true };
+    }
+    if (this.state === Gesture.RigPress && p.rig && Math.hypot(x - p.x, y - p.y) > DRAG_THRESHOLD_PX) {
+      this.rigs.begin(p.rig, p.cell, p.x, p.y);
+      this.state = Gesture.RigDrag;
+      this.view.hover = { object: null, gizmo: null, near: false, rig: p.rig };
     }
     if (this.state === Gesture.Pressing && Math.hypot(x - p.x, y - p.y) > DRAG_THRESHOLD_PX) {
       this.state = p.target ? Gesture.MoveObjects : Gesture.BoxSelect;
@@ -223,17 +253,19 @@ export class ViewportInput {
         if (!this.world.selection.has(p.target)) this.world.select(this.world.groupMembers(p.target), p.shift ? SelectMode.Add : SelectMode.Replace);
         this.press = { ...p, start: this.world.selectedObjects() };
         this.world.beginGesture('Move');
+        showDoing(this.editor, movingName(this.world));
       } else this.el.append(this.box);
     }
     switch (this.state) {
       case Gesture.MoveObjects: this.dragObjects(x, y, e.altKey); break;
       case Gesture.Handle: this.handles.drag(x, y, e.shiftKey, e.altKey); break;
       case Gesture.KeyDrag: if (this.press?.keyDrag) this.keys.drag(this.press.keyDrag, x, y, e.altKey); break;
+      case Gesture.RigDrag: this.rigs.drag(x, y); break;
       case Gesture.BoxSelect: this.drawBox(p.x, p.y, x, y); break;
       case Gesture.Resize: this.resize.drag(x - p.x); break;
       case Gesture.Orbit:
-      case Gesture.Fly: if (!this.stillClick(p, x, y)) this.orbitBy(p.cell, dx, dy); break;
-      case Gesture.Pan: if (!this.stillClick(p, x, y)) this.panBy(p.cell, dx, dy); break;
+      case Gesture.Fly: if (!this.stillClick(p, x, y)) this.nav.orbitBy(p.cell, dx, dy); break;
+      case Gesture.Pan: if (!this.stillClick(p, x, y)) this.nav.panBy(p.cell, dx, dy); break;
       default: break;
     }
   }
@@ -244,6 +276,7 @@ export class ViewportInput {
     if (p) {
       if (this.state === Gesture.Pressing) this.click(p);
       if (this.state === Gesture.KeyPress && p.key) this.keys.click(p.key, p.shift);
+      if (this.state === Gesture.RigPress && p.rig) this.rigs.click(p.rig);
       if (this.state === Gesture.BoxSelect && !this.keys.band(p.cell, p.x, p.y, x, y, p.shift)) {
         const ids = pickRect(p.cell.segments, p.x, p.y, x, y);
         this.world.select(ids, p.shift ? SelectMode.Add : SelectMode.Replace);
@@ -264,6 +297,9 @@ export class ViewportInput {
   private finish(): void {
     this.box.remove();
     this.handles.end();
+    this.rigs.end();
+    clearDoing(this.editor);
+    if (this.state === Gesture.KeyDrag || this.state === Gesture.RigDrag) this.view.hover = { object: null, gizmo: null, near: false };
     this.world.endGesture();
     this.flyArmed = false;
     this.state = Gesture.Idle;
@@ -301,16 +337,19 @@ export class ViewportInput {
     const key = this.keys.at(cell, x, y);
     this.keys.hover(key);
     if (key) {
-      this.view.hover = { object: null, gizmo: null, near: false };
+      this.view.hover = { object: null, gizmo: null, near: false, key: keyRefOf(key) };
       this.handles.hover(null);
+      this.rigs.hover(null);
       this.el.style.cursor = 'move';
       return;
     }
     const part = this.gizmoAt(cell, x, y);
-    const object = part ? null : this.pickAt(cell, x, y);
-    this.view.hover = { object, gizmo: part, near: this.editor.state.gizmo && nearGizmo(cell.gizmo, x, y) };
+    const rig = part ? null : this.rigs.at(cell, x, y);
+    this.rigs.hover(rig);
+    const object = part || rig ? null : this.pickAt(cell, x, y);
+    this.view.hover = { object, gizmo: part, near: this.editor.state.gizmo && nearGizmo(cell.gizmo, x, y), rig };
     this.handles.hover(part);
-    this.el.style.cursor = this.resize.isHeld ? 'ew-resize' : part ? gizmoCursor(part, cell.gizmo) : object ? 'pointer' : 'default';
+    this.el.style.cursor = this.resize.isHeld ? 'ew-resize' : part ? gizmoCursor(part, cell.gizmo) : rig ? 'move' : object ? 'pointer' : 'default';
   }
 
   /** The selection's handle under a point; the rotate rings count while they show (the pointer near). */
@@ -319,25 +358,9 @@ export class ViewportInput {
     return gizmoPartAt(cell.gizmo, x, y, GIZMO_PICK_PX, RING_PICK_PX, nearGizmo(cell.gizmo, x, y));
   }
 
-  /** Plain drag slides on the ground plane through the grab point; Alt lifts vertically. Ortho views move in their plane. */
   private dragObjects(x: number, y: number, vertical: boolean): void {
     const p = this.press!;
-    const b = p.cell.basis;
-    let delta: Vec3;
-    if (b.ortho) {
-      const k = (2 * b.halfHeight) / p.cell.frame.h;
-      delta = add(scale(b.right, (x - p.x) * k), scale(b.up, -(y - p.y) * k));
-    } else if (vertical) {
-      delta = [0, -(y - p.y) * this.unitsPerPixel(p), 0];
-    } else {
-      const anchor = p.start[0]?.transform.position ?? [0, 0, 0];
-      const a = groundPoint(p.cell, p.x, p.y, anchor[1]);
-      const c = groundPoint(p.cell, x, y, anchor[1]);
-      // Above the camera the ground plane is out of reach: slide in the screen plane instead.
-      const k = this.unitsPerPixel(p);
-      delta = a && c ? sub(c, a) : add(scale(b.right, (x - p.x) * k), scale(b.up, -(y - p.y) * k));
-    }
-    this.applyMove(p, delta);
+    this.applyMove(p, objectDragDelta(p, x, y, vertical));
   }
 
   private applyMove(p: Press, delta: Vec3): void {
@@ -346,48 +369,10 @@ export class ViewportInput {
     this.world.updateObjects(new Set(byId.keys()), 'Move', (o) => moved(byId.get(o.id) ?? o, delta, snap, this.editor.state.settings.snapGrid));
   }
 
-  /** World units per screen pixel at the depth of the grabbed object. */
-  private unitsPerPixel(p: Press): number {
-    const b = p.cell.basis;
-    const pos = p.start[0]?.transform.position ?? b.origin;
-    const depth = Math.max(dot(sub(pos, b.origin), b.forward), 1);
-    return (2 * b.halfHeight * depth) / p.cell.frame.h;
-  }
-
   private drawBox(x0: number, y0: number, x1: number, y1: number): void {
     Object.assign(this.box.style, {
       left: `${Math.min(x0, x1)}px`, top: `${Math.min(y0, y1)}px`, width: `${Math.abs(x1 - x0)}px`, height: `${Math.abs(y1 - y0)}px`,
     });
-  }
-
-  private camera(cell: ViewCell): Camera {
-    return cameraOf(this.world, this.editor, cell);
-  }
-
-  private setCamera(cell: ViewCell, c: Camera, label: string): void {
-    setCameraOf(this.world, this.editor, cell, c, label);
-  }
-
-  private beginCameraGesture(cell: ViewCell, label: string): void {
-    if (cell.kind === ViewKind.Camera) this.world.beginGesture(label);
-  }
-
-  private orbitBy(cell: ViewCell, dx: number, dy: number): void {
-    this.setCamera(cell, orbitDrag(this.camera(cell), dx, dy, this.editor.state.settings.orbitSpeed), 'Camera trackball');
-  }
-
-  private panBy(cell: ViewCell, dx: number, dy: number): void {
-    const b = cell.basis;
-    if (b.ortho) {
-      const v = this.world.scene.views[cell.kind];
-      const k = (2 * b.halfHeight) / cell.frame.h;
-      const center = add(v.center, add(scale(b.right, -dx * k), scale(b.up, dy * k)));
-      this.world.setView(cell.kind, { ...v, center });
-      return;
-    }
-    const c = this.camera(cell);
-    const k = (2 * b.halfHeight * c.focus) / cell.frame.h;
-    this.setCamera(cell, translateLocal(c, -dx * k, dy * k, 0), 'Camera pan');
   }
 
   private wheel(e: WheelEvent): void {
@@ -406,18 +391,18 @@ export class ViewportInput {
     }
     this.scrollGesture(cell, device === ScrollDevice.Trackpad && !e.metaKey ? (e.shiftKey || e.altKey || cell.basis.ortho ? 'Camera pan' : 'Camera trackball') : 'Camera dolly');
     if (device === ScrollDevice.Pinch) {
-      this.zoomBy(cell, Math.exp(e.deltaY * PINCH_DOLLY));
+      this.nav.zoomBy(cell, Math.exp(e.deltaY * PINCH_DOLLY));
       return;
     }
     if (device === ScrollDevice.Wheel || e.metaKey) {
-      this.zoomBy(cell, Math.exp(e.deltaY * (cell.basis.ortho ? ORTHO_ZOOM : WHEEL_DOLLY)));
+      this.nav.zoomBy(cell, Math.exp(e.deltaY * (cell.basis.ortho ? ORTHO_ZOOM : WHEEL_DOLLY)));
       return;
     }
     // Natural scrolling: content follows the fingers, like dragging the scene with the mouse.
     const dx = -e.deltaX;
     const dy = -e.deltaY;
-    if (cell.basis.ortho || e.shiftKey || e.altKey) this.panBy(cell, dx * TRACKPAD_PAN, dy * TRACKPAD_PAN);
-    else this.setCamera(cell, orbitDrag(this.camera(cell), dx, dy, this.editor.state.settings.orbitSpeed, TRACKPAD_ORBIT_DEG_PER_PX), 'Camera trackball');
+    if (cell.basis.ortho || e.shiftKey || e.altKey) this.nav.panBy(cell, dx * TRACKPAD_PAN, dy * TRACKPAD_PAN);
+    else this.nav.set(cell, orbitDrag(this.nav.camera(cell), dx, dy, this.editor.state.settings.orbitSpeed, TRACKPAD_ORBIT_DEG_PER_PX), 'Camera trackball');
   }
 
   /** A swipe or a pinch is one undo step: the gesture closes after a short pause. */
@@ -425,17 +410,10 @@ export class ViewportInput {
     if (cell.kind === ViewKind.Camera) this.world.beginGesture(label);
     window.clearTimeout(this.scrollTimer);
     this.scrollTimer = window.setTimeout(() => {
-      if (this.state === Gesture.Idle) this.world.endGesture();
+      if (this.state !== Gesture.Idle) return;
+      this.world.endGesture();
+      clearDoing(this.editor);
     }, SWIPE_GAP_MS);
-  }
-
-  private zoomBy(cell: ViewCell, factor: number): void {
-    if (cell.basis.ortho) {
-      const v = this.world.scene.views[cell.kind];
-      this.world.setView(cell.kind, { ...v, span: Math.max(MIN_SPAN, v.span * factor) });
-      return;
-    }
-    this.setCamera(cell, dolly(this.camera(cell), factor), 'Camera dolly');
   }
 
   /** Safari: pinch to zoom, twist to turn around the pivot. Other browsers pinch through Ctrl+wheel. */
@@ -452,8 +430,8 @@ export class ViewportInput {
     if (!cell || this.state !== Gesture.Idle) return;
     this.scrollGesture(cell, 'Camera dolly');
     const scale = Math.max(GESTURE_MIN_SCALE, e.scale);
-    this.zoomBy(cell, this.gestureScale / scale);
-    if (!cell.basis.ortho) this.setCamera(cell, orbit(this.camera(cell), e.rotation - this.gestureRotation, 0), 'Camera trackball');
+    this.nav.zoomBy(cell, this.gestureScale / scale);
+    if (!cell.basis.ortho) this.nav.set(cell, orbit(this.nav.camera(cell), e.rotation - this.gestureRotation, 0), 'Camera trackball');
     this.gestureScale = scale;
     this.gestureRotation = e.rotation;
   }

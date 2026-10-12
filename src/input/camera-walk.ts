@@ -10,6 +10,7 @@ import type { World } from '../world/world';
 import { FLY_KEYS, WALK_KEYS } from './bindings';
 import { MAX_FLY_DT, MS_PER_SECOND } from './input.constants';
 import { approach, panSpeed, settled, walkIntent, walkSpeed } from './walk-math';
+import { CameraMove, cameraNavName, clearDoing, showDoing } from './drag-names';
 
 /** The undo step of a keyboard walk in the Camera view. */
 const WALK_LABEL = 'Camera walk';
@@ -114,13 +115,19 @@ export class CameraWalk {
       this.stepOpen = true;
     }
     setCameraOf(this.world, this.editor, cell, { ...c, position: add(c.position, [0, d[1], 0]) }, WALK_LABEL);
+    // Walking the selected or keyed camera is an edit: the tag says so.
+    const named = cell.kind === ViewKind.Camera ? cameraNavName(this.world, flying ? CameraMove.Fly : CameraMove.Walk) : null;
+    if (named) showDoing(this.editor, named);
   }
 
   /** Stops at once and closes the walk's undo step, unless a mouse press took over: the step is the press's now. */
   private halt(closeStep: boolean): void {
     this.velocity = ZERO3;
     this.kind = null;
-    if (this.stepOpen && closeStep) this.world.endGesture();
+    if (this.stepOpen && closeStep) {
+      this.world.endGesture();
+      clearDoing(this.editor);
+    }
     this.stepOpen = false;
   }
 }

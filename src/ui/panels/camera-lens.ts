@@ -13,9 +13,10 @@ const APERTURE = { min: 0, max: 100 } as const;
 const GESTURE = 'Camera lens';
 
 /**
- * Modern: the scene camera's lens, shown in the Attributes panel when nothing is
- * selected. Field of view, depth of field (Bryce 2's camera was a pinhole) and the
- * focus distance, which is also the trackball pivot. Pick Focus aims it at a surface.
+ * Modern: the scene camera's lens, shown in the Attributes panel when the camera
+ * is selected (rig-attributes.ts). Field of view, depth of field (Bryce 2's
+ * camera was a pinhole) and the focus distance, which is also the trackball
+ * pivot. Pick Focus aims it at a surface.
  */
 export class CameraLens {
   readonly el: HTMLElement;

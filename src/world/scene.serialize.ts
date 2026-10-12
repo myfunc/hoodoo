@@ -21,7 +21,9 @@ export { SceneFileError };
  * A `groups` table appears only when groups nest, have names or transforms;
  * older readers still see each object's innermost group. Version 3 gives groups
  * transforms and tracks: an object's transform in the file is its pose inside
- * its group, which for every older file is its place in the world.
+ * its group, which for every older file is its place in the world. A `rig`
+ * table (the camera's and the sun's eye and lock) appears only when one is
+ * hidden or locked; older readers pass over it.
  */
 export const SCENE_FORMAT = 'hoodoo-scene';
 export const SCENE_VERSION = 3;
@@ -171,6 +173,7 @@ export function deserializeScene(raw: unknown): Scene {
   const v1 = file.version < SCENE_VERSION;
   const motion = v1 && (s as { readonly studio?: unknown }).studio === V1_MOTION_STUDIO;
   const sky = check.sky(s.sky, motion ? V1_MOTION_SKY : DEFAULT_SKY);
+  const rig = check.rigTable(s.rig);
   const ids = new Set(objects.map((o) => o.id));
   const groupIds = new Set([...groups.map((g) => g.id as string), ...objects.flatMap((o) => (o.groupId ? [o.groupId as string] : []))]);
   return placed({
@@ -182,5 +185,6 @@ export function deserializeScene(raw: unknown): Scene {
     document: check.documentSetup(s.document, DEFAULT_DOCUMENT),
     views: Object.fromEntries((Object.keys(DEFAULT_VIEWS) as unknown as ViewKind[]).map((k) => [k, check.orthoView((s.views as Record<string, unknown> | undefined)?.[k], DEFAULT_VIEWS[k])])) as Scene['views'],
     bookmarks: bookmarks.map((b) => (b ? check.camera(b, DEFAULT_CAMERA) : null)),
+    ...(rig ? { rig } : {}),
   });
 }

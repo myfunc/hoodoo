@@ -154,7 +154,8 @@ export class StartWindow {
       ? el('img', { cls: 'start-thumb', attrs: { src, alt: e.name, loading: 'eager', decoding: 'async' } })
       : el('span', { cls: 'start-thumb is-empty' });
     const card = new Button({
-      cls: 'start-card',
+      // The featured example spans two columns and two rows: the showcase's front page.
+      cls: e.featured ? 'start-card is-featured' : 'start-card',
       title: `${e.name}: ${e.blurb}`,
       content: el('span', {}, [
         picture,

@@ -196,6 +196,14 @@ export interface Animation {
   readonly cyclic?: readonly string[];
 }
 
+/** The eye and the lock of the camera or the sun in the scene list. */
+export interface RigFlags {
+  /** Its glyph is not drawn in the scene window (the camera still films, the sun still shines). */
+  readonly hidden: boolean;
+  /** Orbit, walk, drags and typed values leave its place and aim (the sun's direction) alone. */
+  readonly locked: boolean;
+}
+
 export interface Scene {
   /** With animation on, the animated values of `objects`, `camera` and `sky` are the pose at the playhead. */
   readonly animation: Animation;
@@ -207,4 +215,6 @@ export interface Scene {
   readonly document: DocumentSetup;
   readonly views: Readonly<Record<ViewKind, OrthoView>>;
   readonly bookmarks: readonly (Camera | null)[];
+  /** The camera's and the sun's eye and lock; absent while both are shown and free. */
+  readonly rig?: { readonly camera?: RigFlags; readonly sun?: RigFlags };
 }

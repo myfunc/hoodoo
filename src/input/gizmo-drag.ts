@@ -1,11 +1,11 @@
 import { type Vec3, scale, withAxis } from '../core/vec3';
 import type { SceneObject } from '../model/scene.types';
 import type { ViewCell } from '../render/viewport';
-import { EVEN_AXIS, type GizmoFrame, type GizmoHandles, GizmoKind, type GizmoPart, gizmoFrame, nearestRingPoint } from '../render/wire/gizmo';
+import { EVEN_AXIS, type GizmoFrame, type GizmoGrip, type GizmoHandles, GizmoKind, type GizmoPart, gizmoFrame, nearestRingPoint } from '../render/wire/gizmo';
 import { type EditorStore, type Hint, IDLE_HINT } from '../world/editor-store';
 import { moved, turned } from '../world/transform-ops';
 import type { World } from '../world/world';
-import { DEG_PER_RAD, type ScreenPoint, anchorOf, resizedFrom, slideAlong, snapTurn, stretchFactor, sweep, tangentTurn, winding } from './gizmo-math';
+import { DEG_PER_RAD, type ScreenPoint, anchorOf, resizedFrom, slideAlong, snapTurn, stretchFactor, sweep, tangentTurn, travelFactor, winding } from './gizmo-math';
 
 const AXIS_NAMES = ['X', 'Y', 'Z'] as const;
 const LABELS: Readonly<Record<GizmoKind, string>> = { [GizmoKind.Move]: 'Move', [GizmoKind.Resize]: 'Resize', [GizmoKind.Rotate]: 'Rotate' };
@@ -14,6 +14,9 @@ export const TURN_SNAP_DEG = 15;
 /** A ring facing the eye at least this squarely follows the pointer round; flatter rings read the drag along their tangent. */
 const SWEEP_FACING = 0.5;
 const PERCENT = 100;
+/** A pebble (a handle set apart from the axes): this many pixels of travel double the size, or turn one radian. */
+const PEBBLE_DOUBLE_PX = 120;
+const PEBBLE_RADIAN_PX = 90;
 const MOVE_TEXT = 'Drag along the axis';
 const RESIZE_TEXT = 'Shift: even · Alt: far side';
 const EVEN_TEXT = 'Drag out · Alt: keep base';
@@ -35,7 +38,8 @@ export function gizmoHint(part: GizmoPart): Hint {
 export function gizmoCursor(part: GizmoPart, g: GizmoHandles | null): string {
   if (part.kind === GizmoKind.Move) return 'move';
   if (part.kind === GizmoKind.Rotate) return ROTATE_CURSOR;
-  const h = part.axis === EVEN_AXIS ? g?.even : g?.cubes[part.axis];
+  const grip = gripOf(part, g);
+  const h = grip && !grip.detached ? grip.at : part.axis === EVEN_AXIS ? null : g?.cubes[part.axis];
   if (!g || !h) return RESIZE_CURSORS[0];
   // Screen y runs down: a handle up-right of the centre wants the ↗↙ arrow.
   const a = Math.atan2(g.origin[1] - h[1], h[0] - g.origin[0]);
@@ -43,9 +47,13 @@ export function gizmoCursor(part: GizmoPart, g: GizmoHandles | null): string {
   return RESIZE_CURSORS[k];
 }
 
+/** The grip a part was taken by, when it has one (rings have none). */
+const gripOf = (part: GizmoPart, g: GizmoHandles | null): GizmoGrip | null => (part.grip === undefined ? null : g?.grips[part.grip] ?? null);
+
 interface Grab {
   readonly part: GizmoPart;
   readonly g: GizmoHandles;
+  readonly grip: GizmoGrip | null;
   readonly press: ScreenPoint;
   readonly start: readonly SceneObject[];
   readonly frame: GizmoFrame;
@@ -76,10 +84,11 @@ export class GizmoDrag {
     const start = this.world.selectedObjects();
     const frame = gizmoFrame(start);
     if (!g || !frame) return false;
+    const grip = gripOf(part, g);
     const ring = part.kind === GizmoKind.Rotate ? g.rings[part.axis] : null;
-    if (part.kind === GizmoKind.Rotate && !ring) return false;
+    if (part.kind === GizmoKind.Rotate && !ring && !grip?.detached) return false;
     this.grab = {
-      part, g, press: [x, y], start, frame, last: [x, y], turn: 0,
+      part, g, grip, press: [x, y], start, frame, last: [x, y], turn: 0,
       ringIndex: ring ? nearestRingPoint(ring, x, y).index : 0,
       winding: ring ? winding(ring, g.origin) : 1,
     };
@@ -126,11 +135,18 @@ export class GizmoDrag {
 
   private resize(grab: Grab, now: ScreenPoint, shift: boolean, alt: boolean): void {
     const axis = grab.part.axis;
-    const handle = axis === EVEN_AXIS ? grab.g.even : grab.g.cubes[axis];
-    if (!handle) return;
-    const k = stretchFactor(grab.g.origin, handle, grab.press, now);
+    const { g, grip } = grab;
+    const along = axis === EVEN_AXIS ? null : g.cubes[axis];
+    let k: number;
+    if (grip?.detached) {
+      k = travelFactor(along ? [along[0] - g.origin[0], along[1] - g.origin[1]] : null, grab.press, now, PEBBLE_DOUBLE_PX);
+    } else {
+      const handle = grip?.at ?? (axis === EVEN_AXIS ? g.even : along);
+      if (!handle) return;
+      k = stretchFactor(g.origin, handle, grab.press, now);
+    }
     const factor: Vec3 = axis === EVEN_AXIS || shift ? [k, k, k] : withAxis([1, 1, 1], axis, k);
-    const next = resizedFrom(grab.start, grab.frame, factor, alt ? anchorOf(grab.frame, axis) : null);
+    const next = resizedFrom(grab.start, grab.frame, factor, alt ? anchorOf(grab.frame, axis, grip?.side) : null);
     this.world.updateObjects(new Set(next.keys()), LABELS[GizmoKind.Resize], (o) => next.get(o.id) ?? o);
     this.say({ title: gizmoHint(grab.part).title, text: `${Math.round(k * PERCENT)}%` });
   }
@@ -138,8 +154,9 @@ export class GizmoDrag {
   private rotate(grab: Grab, now: ScreenPoint, shift: boolean): void {
     const axis = grab.part.axis;
     const ring = grab.g.rings[axis];
-    if (!ring) return;
-    if (grab.g.facing[axis] >= SWEEP_FACING) {
+    if (grab.grip?.detached) grab.turn = (now[0] - grab.press[0]) / PEBBLE_RADIAN_PX;
+    else if (!ring) return;
+    else if (grab.g.facing[axis] >= SWEEP_FACING) {
       grab.turn += sweep(grab.g.origin, grab.last, now) * grab.winding;
       grab.last = now;
     } else grab.turn = tangentTurn(ring, grab.ringIndex, grab.g.ringRadius, grab.press, now);

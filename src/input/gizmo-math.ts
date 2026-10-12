@@ -26,6 +26,19 @@ export function stretchFactor(origin: ScreenPoint, handle: ScreenPoint, press: S
   return Math.max(MIN_FACTOR, along(now) / from);
 }
 
+/**
+ * A resize read from the pointer's travel rather than its distance from the
+ * centre (a pebble set apart from the axes): every `perDouble` pixels along
+ * `dir` (or right and up, with no direction) doubles the size, as far back halves it.
+ */
+export function travelFactor(dir: ScreenPoint | null, press: ScreenPoint, now: ScreenPoint, perDouble: number): number {
+  const dx = now[0] - press[0];
+  const dy = now[1] - press[1];
+  const len = dir ? Math.hypot(dir[0], dir[1]) : 0;
+  const along = dir && len > 0 ? (dx * dir[0] + dy * dir[1]) / len : dx - dy;
+  return Math.max(MIN_FACTOR, 2 ** (along / perDouble));
+}
+
 /** A move tip's travel: how far the pointer went along the tip's screen direction, in axis lengths. */
 export function slideAlong(origin: ScreenPoint, tip: ScreenPoint, press: ScreenPoint, now: ScreenPoint): number {
   const dx = tip[0] - origin[0];
@@ -71,10 +84,10 @@ export function tangentTurn(ring: Float32Array, index: number, radiusPx: number,
 /** A turn by `raw` degrees snapped so that `start + turn` lands on a whole `step`. */
 export const snapTurn = (start: number, raw: number, step: number): number => Math.round((start + raw) / step) * step - start;
 
-/** What Alt keeps still: the face opposite a size handle, or the base under the even square. */
-export function anchorOf(frame: GizmoFrame, axis: number): Vec3 {
+/** What Alt keeps still: the face opposite a size handle (on `side` +1 the far face of its axis, -1 the near one), or the base under the even handle. */
+export function anchorOf(frame: GizmoFrame, axis: number, side = 1): Vec3 {
   if (axis === EVEN_AXIS) return frame.base;
-  return sub(frame.pivot, scale(frame.sizeAxes[axis], frame.extents[axis]));
+  return sub(frame.pivot, scale(frame.sizeAxes[axis], frame.extents[axis] * side));
 }
 
 /** The slide that brings `anchor` back where it was after resizing by `factor` about the pivot along the size axes. */

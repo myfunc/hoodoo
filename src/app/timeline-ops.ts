@@ -2,8 +2,11 @@ import type { Animation } from '../model/scene.types';
 import type { UiContext } from '../ui/context';
 import { type KeyRef, KeyTrack, allKeyRefs, liveKeyRefs, withoutKeys } from '../world/animation/key-selection';
 import { PathLoop, loopTracks, pathLoopOf, selectionTracks, withPathLoop } from '../world/animation/loops';
-import { allKeyTimes, frameTime, hasKeyAt, withDuration, withKey, withoutKey } from '../world/animation/keying';
+import { allKeyTimes, frameTime, hasKeyAt, withKey, withoutKey } from '../world/animation/keying';
+import { clampLength, withLength } from '../world/animation/duration';
+import { offerFit } from '../ui/chrome/timeline-length';
 import { EMPTY_ANIMATION } from '../world/scene.defaults';
+import { Rig } from '../world/world.enums';
 
 /** Timeline commands: the animation switch, keys at the playhead, stepping, playback. */
 
@@ -24,13 +27,14 @@ export function toggleAnimation(ctx: UiContext): void {
   if (!enabled && allKeyTimes(a).length) ctx.toast('Animation off. The keys are kept until it is back on');
 }
 
-/** Keys the selection where it is now: a whole group by its own transform, single objects by theirs; with nothing selected, the camera. */
+/** Keys the selection where it is now: a whole group by its own transform, single objects by theirs; the sun when it is selected (a sky key); with nothing selected, the camera. */
 export function addKey(ctx: UiContext): void {
   const w = ctx.world;
   const items = w.selectedItems();
   const count = items.groups.length + items.objects.length;
   if (!count) {
-    keyCamera(ctx);
+    if (w.rig === Rig.Sun) keySun(ctx);
+    else keyCamera(ctx);
     return;
   }
   const single = items.objects.length === 1 && !items.groups.length ? w.object(items.objects[0])?.name : undefined;
@@ -49,6 +53,11 @@ export function removeKey(ctx: UiContext): void {
     w.setAnimation(withoutKeys(a, refs), 'Remove key');
     return;
   }
+  // The camera or the sun selected: only its own key goes (the sun's is the sky's).
+  if (w.rig) {
+    w.setAnimation(w.rig === Rig.Camera ? { ...a, camera: withoutKey(a.camera, t, a.fps) } : { ...a, sky: withoutKey(a.sky, t, a.fps) }, 'Remove key');
+    return;
+  }
   if (!hasKeyAt(a.camera, t, a.fps) && !hasKeyAt(a.sky, t, a.fps)) {
     ctx.toast('No camera or sky key here. Select an object to remove its key');
     return;
@@ -65,6 +74,13 @@ export function keyCamera(ctx: UiContext): void {
   if (a.camera.length === 0) ctx.toast('Camera keyed. Move the playhead and the camera to make it fly');
 }
 
+/** A key of the sun where it is now: the sky's key, on the Sky lane. */
+export function keySun(ctx: UiContext): void {
+  const w = ctx.world;
+  const a = anim(ctx);
+  w.setAnimation({ ...a, sky: withKey(a.sky, frameTime(w.time, a.fps), w.scene.sky, a.fps) }, 'Key sun');
+}
+
 export function stepFrames(ctx: UiContext, frames: number): void {
   const a = anim(ctx);
   ctx.world.setTime(ctx.world.time + frames / a.fps);
@@ -74,15 +90,18 @@ export function jumpKey(ctx: UiContext, direction: 1 | -1): void {
   const a = anim(ctx);
   const now = ctx.world.time;
   const half = 0.5 / a.fps;
-  const times = allKeyTimes(a);
+  // Keys past the end of the scene wait there; stepping stays inside it.
+  const times = allKeyTimes(a).filter((t) => t <= a.duration + half);
   const next = direction > 0 ? times.find((t) => t > now + half) : times.reverse().find((t) => t < now - half);
   if (next !== undefined) ctx.world.setTime(next);
 }
 
+/** Animation Setup in one undo step; a new length keeps the keys where they are (and offers to fit those past the end). */
 export function setTimeline(ctx: UiContext, patch: { duration?: number; fps?: number; loop?: boolean }): void {
   let a = anim(ctx);
-  if (patch.duration !== undefined && patch.duration !== a.duration) a = withDuration(a, patch.duration);
+  if (patch.duration !== undefined) a = withLength(a, clampLength(patch.duration));
   ctx.world.setAnimation({ ...a, fps: patch.fps ?? a.fps, loop: patch.loop ?? a.loop }, 'Animation setup');
+  offerFit(ctx);
 }
 
 export function clearAnimation(ctx: UiContext): void {

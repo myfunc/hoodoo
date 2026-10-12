@@ -2,7 +2,7 @@ import { type Vec3, add, scale } from '../core/vec3';
 import type { ObjectId } from '../model/scene.ids';
 import type { Scene } from '../model/scene.types';
 import { nearestWire } from '../render/wire/picking';
-import { EVEN_AXIS, GizmoKind, type GizmoPart, nearestRingPoint } from '../render/wire/gizmo';
+import { GizmoKind, type GizmoPart, nearestRingPoint } from '../render/wire/gizmo';
 import { GIZMO } from '../render/wire/wire.constants';
 import type { Frame, GizmoHandles, SegmentIndex } from '../render/wire/wireframe';
 import { type ViewBasis, rayAt } from '../world/camera-math';
@@ -71,21 +71,26 @@ export function surfacePoint(scene: Scene, v: Pick<PickView, 'basis' | 'frame'>,
 }
 
 /**
- * The handle under a point, or null. Small handles win over the long rings, the
- * even square first, then the cubes and the move tips; rings count only while
- * they show (`near`).
+ * The handle under a point, or null. The nearest handle within its reach wins
+ * (never less than `radius`), over the long rings; rings count only while they
+ * show (`near`) and the look lets them be grabbed, within the larger of
+ * `ringRadius` and the look's own reach.
  */
 export function gizmoPartAt(g: GizmoHandles | null, x: number, y: number, radius: number, ringRadius: number, near: boolean): GizmoPart | null {
   if (!g) return null;
-  const at = (p: readonly [number, number] | null) => p !== null && Math.hypot(p[0] - x, p[1] - y) <= radius;
-  if (at(g.even)) return { kind: GizmoKind.Resize, axis: EVEN_AXIS };
-  const cube = g.cubes.findIndex(at);
-  if (cube >= 0) return { kind: GizmoKind.Resize, axis: cube };
-  const tip = g.tips.findIndex(at);
-  if (tip >= 0) return { kind: GizmoKind.Move, axis: tip };
-  if (!near) return null;
+  let found: GizmoPart | null = null;
+  let foundD = Infinity;
+  for (const grip of g.grips) {
+    if (grip.reach <= 0) continue;
+    const d = Math.hypot(grip.at[0] - x, grip.at[1] - y);
+    if (d <= Math.max(grip.reach, radius) && d < foundD) {
+      found = grip.part;
+      foundD = d;
+    }
+  }
+  if (found || !near || g.ringReach <= 0) return found;
   let best: GizmoPart | null = null;
-  let bestD = ringRadius;
+  let bestD = Math.max(g.ringReach, ringRadius);
   g.rings.forEach((r, axis) => {
     const d = r ? nearestRingPoint(r, x, y).distance : Infinity;
     if (d <= bestD) {
@@ -96,6 +101,9 @@ export function gizmoPartAt(g: GizmoHandles | null, x: number, y: number, radius
   return best;
 }
 
-/** The pointer is close enough to the handles for the rotate rings to show. */
-export const nearGizmo = (g: GizmoHandles | null, x: number, y: number): boolean =>
-  !!g && Math.hypot(g.origin[0] - x, g.origin[1] - y) <= g.ringRadius + GIZMO.ringNearPx;
+/** The pointer is close enough to the handles (or, in a look with a band, to a ring) for the rotate rings to show. */
+export function nearGizmo(g: GizmoHandles | null, x: number, y: number): boolean {
+  if (!g) return false;
+  if (g.nearBand > 0) return g.rings.some((r) => r !== null && nearestRingPoint(r, x, y).distance <= g.nearBand);
+  return Math.hypot(g.origin[0] - x, g.origin[1] - y) <= g.ringRadius + GIZMO.ringNearPx;
+}

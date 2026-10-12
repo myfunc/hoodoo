@@ -8,7 +8,8 @@ import { IDENTITY } from '../group-transform';
  * the change becomes a key at that frame. A first change of a still object also
  * keys where it was at zero, so it moves from there. At zero, a still object is
  * simply edited. The camera is keyed once its track exists (Key Camera), so
- * looking around never starts a camera move by accident. With animation off
+ * looking around never starts a camera move by accident; a selected camera
+ * (world/rig) is keyed like an object, from its first change. With animation off
  * nothing is keyed. Objects are keyed by their pose inside their group, groups
  * by their own transform (world/group-edits decides which of them an edit moved).
  */
@@ -51,9 +52,9 @@ function pruned(tracks: Tracks, alive: ReadonlySet<string>): Tracks {
 /**
  * The edited scene with auto-keys recorded at `time`. With animation off, or
  * `poses` false (a change of the tree, which moves nothing), only the tracks of
- * deleted objects and groups go.
+ * deleted objects and groups go. `cameraSelected`: the camera is keyed like an object.
  */
-export function recordKeys(before: Scene, after: Scene, time: number, poses = true): Scene {
+export function recordKeys(before: Scene, after: Scene, time: number, poses = true, cameraSelected = false): Scene {
   const a = after.animation;
   const index = groupIndex(after);
   let objects = pruned(a.objects, new Set(after.objects.map((o) => o.id)));
@@ -80,7 +81,9 @@ export function recordKeys(before: Scene, after: Scene, time: number, poses = tr
     const keys = autoKeyed(groups?.[g.id] ?? [], t, from, to, a.fps);
     if (keys.length) groups = { ...groups, [g.id]: keys };
   }
-  const camera = a.camera.length && before.camera !== after.camera ? withKey(a.camera, t, after.camera, a.fps) : a.camera;
+  const cameraMoved = before.camera !== after.camera;
+  const cameraKeys = cameraSelected ? autoKeyed(a.camera, t, before.camera, after.camera, a.fps) : a.camera.length ? withKey(a.camera, t, after.camera, a.fps) : a.camera;
+  const camera = cameraMoved ? cameraKeys : a.camera;
   const sky = before.sky !== after.sky ? autoKeyed(a.sky, t, before.sky, after.sky, a.fps) : a.sky;
   return done(camera, sky);
 }
@@ -89,24 +92,6 @@ export function recordKeys(before: Scene, after: Scene, time: number, poses = tr
 export function allKeyTimes(a: Animation): number[] {
   const times = [...a.camera, ...a.sky, ...Object.values(a.objects).flat(), ...Object.values(a.groups ?? {}).flat()].map((k) => k.time);
   return [...new Set(times)].sort((x, y) => x - y);
-}
-
-/** Keys past a new, shorter duration move onto its end. */
-export function withDuration(a: Animation, duration: number): Animation {
-  const clip = <T>(keys: readonly Key<T>[]): readonly Key<T>[] => {
-    if (keys.every((k) => k.time <= duration)) return keys;
-    const inside = keys.filter((k) => k.time < duration);
-    const last = keys.filter((k) => k.time >= duration).at(-1);
-    return last ? [...inside, { time: duration, value: last.value }] : inside;
-  };
-  return {
-    ...a,
-    duration,
-    camera: clip(a.camera),
-    sky: clip(a.sky),
-    objects: Object.fromEntries(Object.entries(a.objects).map(([id, k]) => [id, clip(k)])),
-    ...(a.groups ? { groups: Object.fromEntries(Object.entries(a.groups).map(([id, k]) => [id, clip(k)])) } : {}),
-  };
 }
 
 /** The key at `from` moved to `to` (on a frame, inside the timeline); a key already there gives way. */

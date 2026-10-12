@@ -17,3 +17,9 @@ export enum LiveQuality {
   Full = 'full',
   Detailed = 'detailed',
 }
+
+/** The scene members that are not objects: listed above the objects, selected, keyed, hidden and locked like them. */
+export enum Rig {
+  Camera = 'camera',
+  Sun = 'sun',
+}

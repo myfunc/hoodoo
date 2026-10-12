@@ -19,6 +19,7 @@ import { type SceneMenu, SEPARATOR, actionItem, openContextMenu } from '../chrom
 import { Button } from '../kit/controls';
 import { iconCanvas } from '../chrome/icon-canvas';
 import { OutlinerDrag } from './outliner-drag';
+import { rigRows } from './outliner-rig';
 import { panelTitle } from './panel-title';
 
 const ICON_PX = 18;
@@ -28,8 +29,8 @@ const ROOT_DROP_TEXT = 'Top level';
 const NEW_GROUP_TITLE = 'New group: around the selection, or an empty one to drag rows into';
 
 /**
- * Scene list (modern addition): each object with its little rendered icon, as on
- * the Create palette. Click selects, double-click renames, the eye hides, the
+ * Scene list (modern addition): the Camera and the Sun on top (outliner-rig.ts),
+ * then each object with its little rendered icon, as on the Create palette. Click selects, double-click renames, the eye hides, the
  * lock locks. Grouped objects sit on a bracket. With the Object Tree preview on,
  * groups are rows of their own: they fold, rename, hide and lock everything
  * inside, and rows dragged onto a group move into it; + Group in the title makes
@@ -94,6 +95,7 @@ export class Outliner {
     const sel = this.ctx.world.selection;
     const objects = this.ctx.world.scene.objects;
     for (const id of this.icons.keys()) if (!objects.some((o) => o.id === id)) this.icons.delete(id);
+    this.body.append(...rigRows(this.ctx));
     if (this.tree) {
       for (const row of treeRows(this.ctx.world.scene)) this.body.append(row.group ? this.groupRow(row.group, row) : this.treeObjectRow(row));
       this.body.append(el('div', { cls: 'outliner-root-drop', text: ROOT_DROP_TEXT }));

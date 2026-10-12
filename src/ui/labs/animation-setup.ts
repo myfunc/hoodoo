@@ -3,6 +3,7 @@ import { ANIMATION_LIMITS } from '../../world/scene.validate';
 import { NumberField, Select, Toggle } from '../kit/controls';
 import { Dialog, DialogStyle } from '../kit/dialog';
 import { el } from '../kit/dom';
+import { formatClock, parseClock } from '../chrome/timeline-time';
 
 const FRAME_RATES = [8, 12, 15, 24, 30] as const;
 
@@ -19,7 +20,7 @@ export function openAnimationSetup(a: Animation, onApply: (s: TimelineSetup) => 
   const show = () => { frames.textContent = `${Math.round(setup.duration * setup.fps)} frames`; };
   const limit = ANIMATION_LIMITS.duration;
   const duration = new NumberField({
-    value: setup.duration, digits: 1,
+    value: setup.duration, parse: parseClock, format: formatClock, title: 'Type 30, 1:30 or 2m',
     onCommit: (v) => { setup = { ...setup, duration: Math.min(limit.max, Math.max(limit.min, v)) }; show(); },
   });
   const rates = FRAME_RATES.includes(setup.fps as (typeof FRAME_RATES)[number]) ? FRAME_RATES : [...FRAME_RATES, setup.fps].sort((x, y) => x - y);
@@ -31,7 +32,7 @@ export function openAnimationSetup(a: Animation, onApply: (s: TimelineSetup) => 
   const loop = new Toggle({ label: 'Loop playback', value: setup.loop, onChange: (v) => { setup = { ...setup, loop: v }; } });
   show();
   const body = el('div', { cls: 'form-grid', style: { gridTemplateColumns: '90px 170px' } }, [
-    el('span', { text: 'Duration (s)' }), duration.el,
+    el('span', { text: 'Length' }), duration.el,
     el('span', { text: 'Frame rate' }), fps.el,
     el('span'), frames,
     el('span'), loop.el,

@@ -1,150 +1,144 @@
 # Hoodoo
 
-**A Bryce-style 3D landscape studio that runs in the browser.**
+**Bryce 2 and Bryce 3D, rebuilt for the browser — with a live ray tracer.**
 
-Hoodoo recreates the workflow and the look of MetaTools Bryce 2 (1996): the
-stone-grey interface, the wireframe scene window, the camera trackball, the
-Materials Lab, the Terrain Editor, Sky & Fog, and a ray tracer that paints the
-picture block by block. From Bryce 3D (1997) it takes the animation timeline,
-keys and motion paths — switched on for any scene with one click — and soft
-shadows, a dial in Sky & Fog. It adds the conveniences a modern editor is
-expected to have — undo history, live rendering, depth of field, snapshots,
-movies, trackpad gestures, offline use.
+![Sunset Gambit: a chess game in progress on a lacquered table by the sea, a racked set of pool balls, a mirror ball and a gold one; the camera drifts in the low sunset light](docs/images/demo-gambit.webp)
 
-The start window keeps your scenes apart from the examples: on top, the last
-eight scenes you opened, saved or changed, each with its picture and when you
-had it (stored in the browser, × removes one from the list); below, eight
-example projects, four stills and four animations.
+**Open it: [hoodoo.myfunc.io](https://hoodoo.myfunc.io/)** — nothing to install, works offline once
+loaded. The scene above is *Sunset Gambit*, the first animated example
+([960×600 WebM](docs/images/demo-gambit.webm)).
 
-**Live:** https://hoodoo.myfunc.io/
+Hoodoo brings back MetaTools Bryce 2 (1996): the stone-grey interface, the
+wireframe scene window, the camera trackball, the Materials Lab, the Terrain
+Editor, Sky & Fog and the picture painted block by block. From Bryce 3D (1997)
+it takes the timeline, keys and motion paths. Then it adds what a modern editor
+needs: a GPU ray tracer that is live while you edit, glass and mirrors traced
+for real, boolean modelling, undo for everything, scene files and share links.
+The animated scenes on this page were rendered by Hoodoo itself, frame by
+frame, and each one opens from the start window's examples.
 
-![Editing a scene: moving a chrome egg in the live ray-traced viewport, orbiting the camera, applying the Vapor Sunset sky, then rendering block by block](docs/images/editing.gif)
+## Feature tour
 
-## Features
+### Animate objects and groups
 
-### From Bryce 2
+![Billiard Orrery: two pool-ball planets, each a group with its own moon, orbit a mirror sun above a chess endgame](docs/images/demo-orrery.webp)
 
-- **Interface:** generated stone-paper chrome, embossed *Create / Edit / Sky&Fog*
-  titles with preset triangles, ray-traced teal object icons on a shelf whose
-  lip scrolls them when the window is narrow, the left column with nano
-  preview, the view platform, three salmon camera crosses, the trackball dome
-  and chrome render balls, hint text, and the dark lab windows. Every icon is
-  rendered by the app itself at load time.
-- **Splash screen:** an animated welcome while the app loads — golden fog dunes
-  under three planets by day, a planetary ring arching over a starry lake in the
-  evening. Both are Hoodoo scenes (`src/world/splash-scene.ts`) rendered frame
-  by frame in Hoodoo by `node tools/make-splash.mjs`: a five-second welcome, then
-  a seamless loop while the ray tracer starts.
-- **Scene window:** wireframe lattices with depth cue, ground grid, horizon,
-  red selection, the A / M / E tag beside the selection, document-aspect frame.
-- **Render:** a progressive GPU ray tracer that draws like Bryce — 16×16 down
-  to 2×2 blocks, then anti-aliasing — with primitives, boolean groups, terrains
-  and symmetrical lattices, stones, infinite planes, lights, shadows,
-  reflection, refraction, bump, 14 procedural textures and the Bryce sky with
-  clouds, haze, fog and stars. See [docs/rendering.md](docs/rendering.md).
-- **Editors:** Materials Lab (colour and value channels driven by three
-  textures, preset library), Terrain Editor (elevation and filter tools, grid
-  resolution, paint brush, height-map import and export), Sky & Fog palette,
-  Object Attributes, Edit palette (resize / rotate / reposition, align,
-  randomize, land), Object Library (Landforms; Chess & Billiards: a Staunton
-  chess set, pieces, board, pool balls and rack), Document Setup.
+Switch a scene's animation on (the film chip, or Shift+A), move the red
+scrubber and change anything: that is a key. Keys interpolate smoothly and a
+path that ends where it began loops without a seam. A group has its own track,
+and what it holds keeps its own keys inside it — here each planet is a group
+circling the sun while its moon circles the ball. *Example: Billiard Orrery* · [960×600 WebM](docs/images/demo-orrery.webm)
 
-### From Bryce 3D
+### Animate size
 
-- **Animation switch:** every scene is a still until its animation is switched
-  on — the film chip in the display bar, Animation › Animation, or Shift+A. On,
-  the timeline appears; off, it hides, edits are no longer keyed and the scene
-  rests in its start pose. The keys are kept, so switching back on brings the
-  motion back. Each switch is one undo step and is saved with the scene.
-- **Timeline** under the scene window: transport buttons, a time readout that
-  opens Animation Setup (length, frame rate, loop), and a ruler with the red
-  time scrubber and three lanes of keys — objects, camera, sky.
-- **Auto-key:** move the scrubber, then move, turn or resize an object or
-  change the sky, and that becomes a key. Keys interpolate smoothly (cubic, no
-  overshoot of dials and colours); a looping track that ends where it began
-  flows through the seam. Drag a key on the ruler to retime it.
-- **Motion paths:** every animated object shows its route as a dotted line with
-  a square per key and its owner's name by the first one, and the camera's
-  route shows in the other views. Drag a square to reshape the path (Alt lifts
-  it).
-- **Animated groups:** a group has its own transform and track. Moving,
-  turning or resizing a whole group keys the group; what it holds keeps its
-  own keys inside it, so a moon orbits a planet while the pair flies. A
-  member picked alone (its row in the scene list) is keyed by itself. Paths
-  inside a group travel with it; a selected group's path is bold, the paths
-  inside it faint. *Close Path Loop* makes a path end where it began and loop
-  seamlessly; *Open Path* undoes it.
-- **Key selection:** click squares or ruler keys (Shift adds), or drag a band:
-  in the scene window a band that holds key squares selects those keys,
-  otherwise objects. Selected keys move together and Delete removes them;
-  Select All Keys is Alt+Shift+A.
-- **Camera moves** start with *Animate Camera* (Shift+K), so looking around
-  never keys the camera by accident.
-- **Soft shadows:** a Sky & Fog dial from 0 (Bryce 2's crisp shadows, the
-  default) to 100 (Bryce 3D's look): the sun and lamps get a size, so shadows
-  soften as samples add up, and highlights roll off instead of clipping. It can
-  be keyed like any other sky dial.
-- **Movies** of the timeline, frame by frame, saved as WebM, when the scene is
-  animated.
+![Squash & Stretch: four balls bounce across a chessboard, flattening as they land and stretching as they leave, while a queen and a king swell and settle](docs/images/demo-squash.webp)
 
-### Modern additions
+A key holds the size as well as the place and the turn, so things grow,
+shrink, squash and stretch on the timeline. *Example: Squash & Stretch* · [960×600 WebM](docs/images/demo-squash.webm)
 
-1. Unlimited undo and redo with a clickable history.
-2. Live ray-traced viewport: real-time while you move, refining when you stop.
-3. Orbit, pan and dolly navigation, frame selection. **Walk** with the pointer over
-   the scene window (or after clicking it): W/S forward and back, A/D sideways,
-   R/C up and down, Shift faster; flat views (Top, Front, Side) pan with W/A/S/D.
-   Right-drag + the same keys (or E/Q for up and down) flies and looks around.
-   **Quick resize:** hold Z and drag left/right in the scene window, or scroll, to
-   scale the selection about its centre (a wheel notch is 10%). Alt, Shift and Cmd
-   keep their scroll meanings. Randomize runs from the Objects menu and the Edit
-   palette only.
-4. Handles on the selection: balls move along an axis (with grid snapping),
-   cubes stretch along it (Shift evenly, Alt from the far side), the pale square
-   resizes evenly (Alt keeps the base) and rings turn about an axis (Shift in
-   15° steps); plus a numeric Attributes panel.
-5. Scene outliner: select, rename, hide, lock.
-6. Autosave, `.hoodoo` scene files, drag and drop to open.
-7. Share links that carry the whole scene.
-8. Tiled high-resolution PNG export and copy to clipboard.
-9. Command palette (Ctrl/Cmd+P or Ctrl/Cmd+K) with every action and its shortcut.
-10. Four-view layout and a free Director's View.
-11. Nine camera bookmarks.
-12. Height-map import and export, terrain paint brush.
-13. Random materials, random skies, Multi-Replicate.
-14. **Depth of field** with click-to-focus (Alt+F).
-15. **Snapshots** with an A/B compare slider and one-click restore (B, Shift+B).
-16. **Surprise Me:** a whole random landscape from one seed (Alt+Shift+N).
-17. **Movies:** turntable, swing, fly-in and sunrise time-lapse, saved as WebM.
-18. **Offline and installable** as an app.
-19. **Start window** with your recent scenes, a new scene, a file and example projects.
-20. **Trackpad gestures:** two fingers orbit, Shift pans, a pinch zooms, Safari's
-    twist turns; a mouse wheel still dollies (View › Scroll Gestures to fix it).
-21. **Context menus:** right-click an object in the scene window or the scene
-    list for Group, Duplicate, Clear, Hide, Land, Materials Lab and more,
-    empty space for Paste, Select All and Create; right-drag still orbits.
-22. **Preview Features** (Settings › Preview Features, also View › Preview
-    Features…): unfinished features to try, each with an On | Off switch that is
-    remembered; one that is off leaves no trace in the interface. The first is the Object
-    Tree: nested, named groups with + Group in the scene list, and a group
-    menu on right-click (rename, ungroup, fold, a new group inside).
-23. **Material menu:** the material name in Attributes (or right-click › Choose
-    Material…) opens rendered preset balls by family; hover previews on the
-    selection, click applies. ↑ / ↓ step the selection through the presets.
-24. **Settings** (Hoodoo › Settings…, Ctrl/Cmd+,): start window and splash,
-    autosave, scene panel, hint line, message time, scroll gestures, walk speed,
-    live preview and its quality, rays per pixel. Choices act at once and are
-    remembered in the browser; Reset to Defaults puts them all back.
+### Animate the camera
 
-| Depth of field | Snapshot compare |
-|---|---|
-| ![Depth of field focused on the pedestal egg](docs/images/depth-of-field.jpg) | ![A/B compare between a snapshot and the live picture](docs/images/compare.jpg) |
+![Hoodoo Run: the camera flies a figure of eight low over a golden lake, through two stone arches, round hoodoo spires and under a mirror ball, banking into the turns](docs/images/demo-hoodoo-run.webp)
+
+*Animate Camera* (Shift+K) keys the camera, and from then on orbit, pan, walk
+and fly become camera moves: position, heading, tilt, bank and lens. The
+camera's route shows as a path in the other views. *Example: Hoodoo Run* · [960×600 WebM](docs/images/demo-hoodoo-run.webm)
+
+### Model with booleans
+
+![Boolean Carving: a sphere bores through a gold mirror cube, an amber glass cube melts from a ball into a die, holes open and close in a chrome ball](docs/images/demo-carving.webp)
+
+Put objects in a group and mark them Positive, Negative or Intersect
+(Attributes › Boolean): negatives cut, intersects clip. The cutters are
+ordinary objects, so they move, resize and animate — the cut follows, traced
+exactly. *Example: Boolean Carving* · [960×600 WebM](docs/images/demo-carving.webm)
+
+### Move, resize and turn in place
+
+![The Sunset Gambit in the editor: the mirror ball selected, with arrows, cubes and rings around it; the timeline and the Fast, Full, Detailed selector below](docs/images/handles.jpg)
+
+The selection carries handles: arrows move along an axis, cubes stretch along
+one (Shift evenly, Alt from the far side), the pale square resizes evenly and
+the rings turn (Shift in 15° steps). Hold Z and drag, or scroll, to resize
+quickly. With animation on, each drag is a key.
+
+### Materials: glass, mirrors, pool balls
+
+![Pool balls, a clear glass ball, the mirror ball and the gold one on the lacquered table at sunset, each reflecting and refracting the others](docs/images/materials.jpg)
+
+Fourteen procedural textures drive colour, shine, transparency, reflection,
+refraction and bump in the Materials Lab. The presets include clear and
+coloured glass, Mirror and Gold Mirror, metals, waters and a Chess & Billiards
+family: boxwood and ebony pieces, a walnut board and the sixteen numbered
+balls. The Object Library builds a Staunton chess set and an 8-ball rack, every
+piece an ordinary object.
+
+### Terrains, skies and water
 
 | Surprise Me | Surprise Me |
 |---|---|
 | ![A generated volcano in a lagoon](docs/images/surprise-1.jpg) | ![A generated desert scene](docs/images/surprise-2.jpg) |
 
-## Getting started
+Terrains and symmetrical lattices with the Terrain Editor (filters, a paint
+brush, height-map import and export), infinite water, ground and cloud planes,
+and the Bryce sky: sun or moon, clouds, haze, fog, stars and soft shadows.
+*Surprise Me* (Alt+Shift+N) builds a whole landscape from one seed.
+
+### Portals (preview)
+
+![A blue portal on the table shows the chessboard from the far side, where its orange partner stands](docs/images/portals.jpg)
+
+Turn Portals on in Settings › Preview Features: *Create Portal Pair* puts a
+blue and an orange oval in the scene, and looking into one you see out of the
+other — live and in the final render.
+
+### Live ray tracing
+
+| Depth of field | Snapshot compare |
+|---|---|
+| ![Depth of field focused on the pedestal egg](docs/images/depth-of-field.jpg) | ![A/B compare between a snapshot and the live picture](docs/images/compare.jpg) |
+
+The scene window is ray traced while you work: shadows, reflections and
+refraction update as you drag, and the picture refines when you stop. Pick
+**Fast** (quickest while moving), **Full** (the finished tracer) or
+**Detailed** (glass and mirrors traced twice as deep, frames averaged under a
+still camera) in the display bar. Render then paints the final picture block
+by block, as Bryce did, with depth of field (click to focus, Alt+F). Snapshots
+(B) keep a picture to compare with an A/B slider (Shift+B).
+
+### The editor
+
+![Editing a scene: moving a chrome egg in the live ray-traced viewport, orbiting the camera, applying the Vapor Sunset sky, then rendering block by block](docs/images/editing.gif)
+
+Unlimited undo with a clickable history, autosave, `.hoodoo` scene files,
+share links that carry the whole scene, tiled high-resolution PNG export,
+WebM movies of the timeline, four views and a Director's View, nine camera
+bookmarks, a command palette with every action, right-click menus, trackpad
+gestures, and an installable offline app.
+
+## Keyboard and mouse
+
+| Do | How |
+|---|---|
+| Orbit, pan, dolly | Drag the trackball, or right-drag in the scene window; two-finger trackpad gestures; the wheel dollies |
+| Walk and fly | W A S D, R / C up and down, Shift faster; right-drag + keys to look around |
+| Select, move | Click a wireframe; drag it, or its handles |
+| Resize quickly | Hold Z and drag, or scroll |
+| Frame selection / scene | F / Shift+F |
+| Animation on / off | Shift+A |
+| Play / pause | Shift+Space |
+| Add key / animate camera | K / Shift+K |
+| Previous / next frame | `,` / `.` |
+| Previous / next key | Shift+`,` / Shift+`.` |
+| Render / stop | Ctrl/Cmd+R / Ctrl/Cmd+`.` |
+| Live preview on / off | P |
+| Materials Lab / Terrain Editor | M / E |
+| Object Library | Alt+O |
+| Undo / redo | Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z |
+| Command palette | Ctrl/Cmd+P or Ctrl/Cmd+K |
+| All shortcuts | ? |
+
+## Run it locally
 
 Requires Node.js 20 or newer.
 
@@ -153,22 +147,21 @@ npm ci
 npm run dev        # http://localhost:5640
 ```
 
-Other commands are in [CONTRIBUTING.md](CONTRIBUTING.md): tests, lint, build,
-and the headless tools used to measure rendering and start-up.
+Any browser with WebGL 2 and float render targets works: current Chrome,
+Edge, Firefox and Safari. Movie export needs WebCodecs with VP8 or VP9 (Chrome,
+Edge, Firefox). On the first visit the ray tracer is compiled for the local
+GPU — a fraction of a second on macOS, several seconds with Direct3D on
+Windows; the editor can be used meanwhile, and later visits reuse the program.
 
-### Browser support
-
-Any browser with WebGL 2 and float render targets: current Chrome, Edge,
-Firefox and Safari. Movie export needs WebCodecs with VP8 or VP9 (Chrome, Edge,
-Firefox). On the first visit the ray tracer is compiled for the local GPU —
-a fraction of a second on macOS, several seconds with Direct3D on Windows; a
-card in the scene window shows the progress, and the editor can be used in the
-meantime. Later visits reuse the compiled program.
+`npm run build` makes static files with relative paths, to host at a root or a
+sub-path. The public instance runs on Cloudflare Workers as static assets
+(`npm run deploy`, see `wrangler.jsonc`); `deploy/nginx.conf` is a sample for
+nginx, and [SECURITY.md](SECURITY.md) explains the response headers.
 
 ## How it is built
 
-TypeScript, Vite and WebGL 2, no runtime dependencies. The code is split into
-layers that only import downwards (enforced by ESLint):
+TypeScript, Vite and WebGL 2, with no runtime dependencies. The code is split
+into layers that only import downwards, enforced by ESLint:
 
 ```
 core → model → assets → world → render / io → input → ui → app
@@ -176,38 +169,25 @@ core → model → assets → world → render / io → input → ui → app
 
 | Layer | Contents |
 |---|---|
-| `core` | vectors, matrices, colour, event bus, logger, seeded random numbers, key names |
-| `model` | scene types and enums, branded ids, material factory |
-| `assets` | presets as data: materials, skies, objects, terrain recipes |
-| `world` | the `World` (immutable scene snapshots, undo, gestures, the playhead), animation keys and interpolation, terrain operations, camera math, transforms, scene files and validation, the landscape generator, example projects |
-| `render` | the GPU engine, classic and live renderers, thumbnails, tiled export, wireframe |
-| `io` | project files, autosave, share links, image export, WebM muxer and encoder |
-| `input` | actions, key bindings, the scene-window pointer state machine |
-| `ui` | the UI kit, the Bryce chrome, labs and side panels |
-| `app` | composition root, commands, service worker registration |
+| `core` | vectors, matrices, colour, events, logging, seeded random numbers, key names |
+| `model` | scene types and enums, ids, the material factory |
+| `assets` | presets as data: materials, skies, objects, terrain recipes, chess and billiards |
+| `world` | the immutable scene and undo, animation keys and interpolation, terrains, camera math, scene files, the landscape generator, the example scenes |
+| `render` | the GPU ray tracer, live and final renderers, thumbnails, tiled export, wireframes |
+| `io` | project files, autosave, share links, image export, the WebM encoder |
+| `input` | actions, key bindings, the scene-window pointer handling |
+| `ui` | the UI kit, the Bryce chrome, labs and panels |
+| `app` | composition root and commands |
 
-### Scene files and links
+A `.hoodoo` file is JSON (`format: "hoodoo-scene"`); a share link holds the
+same JSON, deflated, in the URL fragment, so it never reaches a server. How the
+renderer works is in [docs/rendering.md](docs/rendering.md).
 
-A `.hoodoo` file is JSON (`format: "hoodoo-scene"`, `version: 2`); terrain
-heights are stored as base64 16-bit samples. `animation` holds the switch
-(`enabled`) and the keyed tracks, `sky.softShadows` the shadow softness.
-Version 1 files named a studio instead: `hoodoo-3d` scenes open with animation
-on and soft shadows at 100, the rest as stills with crisp shadows. A share link
-holds the same JSON, deflated, in the URL fragment, so it never reaches a server.
+## Contributing
 
-## Deploying
-
-`npm run build` produces static files with relative paths; host `dist/` on any
-web server, at the root or under a sub-path. The response headers live in
-`public/_headers` and [SECURITY.md](SECURITY.md) explains them.
-
-- **Cloudflare Workers** (the public instance): `npm run deploy` builds and
-  uploads `dist/` as static assets with those headers; no Worker code runs, so
-  it fits the free plan. Change the route in `wrangler.jsonc` to host your own
-  copy, or set `"workers_dev": true` for a free `*.workers.dev` address.
-- **nginx:** `deploy/nginx.conf` is a sample site with the same headers.
-- **Anything else:** `npm run serve:dist` previews a build with the production
-  headers, so a host that cannot send them is easy to compare against.
+Tests, lint, the code rules and the headless tools — including the ones that
+render the start window's thumbnails and the clips on this page — are in
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Credits
 

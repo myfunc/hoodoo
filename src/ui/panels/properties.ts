@@ -13,6 +13,8 @@ import { NumberField } from '../kit/controls';
 import { clearChildren, el, glyph } from '../kit/dom';
 import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
 import { CameraLens } from './camera-lens';
+import { CameraAttributes, SunAttributes } from './rig-attributes';
+import { Rig } from '../../world/world';
 import { PRESET_ORDER, openMaterialMenu } from './material-menu';
 import { panelTitle } from './panel-title';
 
@@ -39,6 +41,7 @@ const BOOLEANS: readonly { value: BooleanMode; mark: readonly string[]; title: s
  * Attributes of the single selected object, in the Bryce manner: the Edit tools'
  * icons lead the Offset / Rotate / Size rows, the boolean mode is four marks, and
  * the material shows as its rendered ball (click it for the Materials Lab).
+ * With the camera or the sun selected, theirs (rig-attributes.ts).
  */
 export class Properties {
   readonly el: HTMLElement;
@@ -47,12 +50,14 @@ export class Properties {
   private booleans: { value: BooleanMode; node: HTMLElement }[] = [];
   private ball: { canvas: HTMLCanvasElement; material: Material } | null = null;
   private shownId: string | null = null;
-  private readonly lens: CameraLens;
+  private readonly camera: CameraAttributes;
+  private readonly sun: SunAttributes;
   /** Tallest body shown so far: the panel never shrinks, so the scene list below stays put. */
   private tallest = 0;
 
   constructor(private readonly ctx: UiContext) {
-    this.lens = new CameraLens(ctx);
+    this.camera = new CameraAttributes(ctx, new CameraLens(ctx));
+    this.sun = new SunAttributes(ctx);
     this.body = el('div', { cls: 'panel-body' });
     this.el = el('div', { cls: 'panel attributes-panel' }, [panelTitle('Attributes', GLYPH.move), this.body]);
     ctx.world.events.on('selection', () => this.rebuild());
@@ -79,12 +84,18 @@ export class Properties {
     this.fields = [];
     this.booleans = [];
     this.ball = null;
+    const rig = this.ctx.world.rig;
+    if (rig) {
+      this.shownId = rig;
+      this.body.append(rig === Rig.Camera ? this.camera.el : this.sun.el);
+      return;
+    }
     const o = this.target();
     this.shownId = o?.id ?? null;
     const n = this.ctx.world.selection.size;
     if (!o) {
       this.body.append(el('div', { cls: 'props-empty', text: n > 1 ? `${n} objects selected` : 'Nothing selected. Click a wireframe.' }));
-      if (n === 0) this.body.append(this.lens.el);
+      if (n === 0) this.body.append(el('div', { cls: 'props-empty', text: 'Camera and Sun: top of the scene list.' }));
       return;
     }
     const grid = el('div', { cls: 'props-grid' }, [el('span'), ...AXIS_NAMES.map((a) => el('span', { cls: 'axis-head', text: a }))]);
@@ -153,6 +164,7 @@ export class Properties {
   }
 
   private sync(): void {
+    if (this.ctx.world.rig) return;
     const o = this.target();
     if (!o || o.id !== this.shownId) {
       this.rebuild();

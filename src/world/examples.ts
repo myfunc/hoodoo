@@ -9,6 +9,11 @@ import { demoScene } from './demo-scene';
 import { createObject } from './objects.factory';
 import { surpriseScene } from './scene-generator';
 import { EMPTY_ANIMATION, emptyScene } from './scene.defaults';
+import { sunsetGambit } from './showcase/gambit';
+import { squashAndStretch } from './showcase/bounce';
+import { booleanCarving } from './showcase/carve';
+import { hoodooRun } from './showcase/flight';
+import { billiardOrrery } from './showcase/orrery';
 import { SplashClip, SplashKind, splashBase, splashFrame, splashScene } from './splash-scene';
 
 /**
@@ -22,6 +27,8 @@ export interface Example {
   readonly animated: boolean;
   readonly name: string;
   readonly blurb: string;
+  /** Shown larger in the start window: the showcase's front page. */
+  readonly featured?: boolean;
   build(): Scene;
 }
 
@@ -149,8 +156,13 @@ export const EXAMPLES: readonly Example[] = [
   { id: 'dunes', animated: false, name: 'Golden Dunes', blurb: 'Sunrise fog and three planets', build: () => withDocument(splashScene(SplashKind.Dunes), EXAMPLE_DOCUMENT) },
   { id: 'arch', animated: false, name: 'Ring Arch', blurb: 'A planet ring over a starry lake', build: () => withDocument(splashScene(SplashKind.Arch), EXAMPLE_DOCUMENT) },
   { id: 'surprise', animated: false, name: 'Checkerboard Desert', blurb: `Stones · Surprise Me #${SURPRISE_SEED}`, build: () => surpriseScene(SURPRISE_SEED) },
+  { id: 'gambit', animated: true, featured: true, name: 'Sunset Gambit', blurb: 'Chess and billiards by the sea', build: sunsetGambit },
   { id: 'flight', animated: true, name: 'Canyon Flight', blurb: 'The camera flies round the eggs', build: canyonFlight },
   { id: 'waltz', animated: true, name: 'Moon Waltz', blurb: 'Two moons orbit a ringed planet', build: moonWaltz },
   { id: 'dunes-morning', animated: true, name: 'Dunes Morning', blurb: 'Sun, fog and planets breathe', build: () => splashMotion(SplashKind.Dunes, true) },
   { id: 'arch-night', animated: true, name: 'Arch Night', blurb: 'The night sky wheels over the lake', build: () => splashMotion(SplashKind.Arch, false) },
+  { id: 'orrery', animated: true, name: 'Billiard Orrery', blurb: 'Groups orbit while their moons circle', build: billiardOrrery },
+  { id: 'squash', animated: true, name: 'Squash & Stretch', blurb: 'Balls bounce and pieces swell: keyed sizes', build: squashAndStretch },
+  { id: 'hoodoo-run', animated: true, name: 'Hoodoo Run', blurb: 'A fly-through: arches, spires, a mirror ball', build: hoodooRun },
+  { id: 'carving', animated: true, name: 'Boolean Carving', blurb: 'Keyed cutters bore, round and pierce', build: booleanCarving },
 ];

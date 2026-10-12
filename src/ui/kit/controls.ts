@@ -136,6 +136,11 @@ export interface NumberFieldOptions {
   readonly step?: number;
   readonly digits?: number;
   readonly title?: string;
+  /** Reads typed text (a time as 1:30, say); null keeps the old value. Plain numbers by default. */
+  readonly parse?: (text: string) => number | null;
+  /** Shows the value; `digits` decimals by default. */
+  readonly format?: (v: number) => string;
+  readonly cls?: string;
   readonly onCommit: (v: number) => void;
 }
 
@@ -145,12 +150,12 @@ export class NumberField {
   private shown: number;
 
   constructor(private readonly o: NumberFieldOptions) {
-    this.el = el('input', { cls: 'ui-number', title: o.title, attrs: { type: 'text', inputmode: 'decimal', spellcheck: 'false' } });
+    this.el = el('input', { cls: o.cls ? `ui-number ${o.cls}` : 'ui-number', title: o.title, attrs: { type: 'text', inputmode: 'decimal', spellcheck: 'false' } });
     this.shown = o.value;
     this.set(o.value);
     const commit = () => {
       const text = this.el.value.trim();
-      const v = Number(text);
+      const v = o.parse ? (o.parse(text) ?? NaN) : Number(text);
       if (!text || !Number.isFinite(v)) {
         this.el.value = '';
         this.set(this.shown);
@@ -169,7 +174,7 @@ export class NumberField {
   set(v: number): void {
     this.shown = v;
     if (document.activeElement === this.el && this.el.value !== '') return;
-    this.el.value = v.toFixed(this.o.digits ?? 2);
+    this.el.value = this.o.format ? this.o.format(v) : v.toFixed(this.o.digits ?? 2);
   }
 }
 

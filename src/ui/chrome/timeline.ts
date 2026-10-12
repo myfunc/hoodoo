@@ -4,12 +4,17 @@ import type { Animation, Key } from '../../model/scene.types';
 import { type KeyRef, KeyTrack, isKeyPicked, pickKeys, trackKeys, withTracksRetimed } from '../../world/animation/key-selection';
 import { selectionTracks } from '../../world/animation/loops';
 import { frameTime, retimed, sameTime } from '../../world/animation/keying';
+import { lastKeyTime } from '../../world/animation/duration';
 import { SelectMode } from '../../world/world.enums';
 import type { UiContext } from '../context';
 import { hintOn } from '../context';
 import { Button } from '../kit/controls';
 import { el, glyph } from '../kit/dom';
 import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
+import { TimelineClock } from './timeline-clock';
+import { EndDrag } from './timeline-length';
+import { COPPER, GHOST, GROOVE, PEWTER, PICKED, RULER, type Span, paintBand, paintDiamond, paintEnd, paintGroove, paintLaneGlyph, paintPastEnd, paintScrubber, paintTicks, xAt } from './timeline-paint';
+import { formatClock } from './timeline-time';
 
 /**
  * The animation controls under the scene window (shown while Animation is on), after Bryce 3D's
@@ -17,7 +22,9 @@ import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
  * three grooves of copper keys — objects (the selection, or every animated object),
  * camera and sky — under a red scrubber needle. Drag the ruler to scrub, a key to retime it;
  * double-click a key to jump to it. A click picks a key (Shift toggles), Shift-drag on the
- * ruler picks the keys inside the band; picked keys show filled yellow.
+ * ruler picks the keys inside the band; picked keys show filled yellow. The teal flag
+ * at the end of the ruler is the end of the scene: drag it to change the length.
+ * Keys past the end wait greyed in the hatched stretch beyond it.
  */
 
 enum Lane {
@@ -28,58 +35,22 @@ enum Lane {
 
 const LANES = [Lane.Objects, Lane.Camera, Lane.Sky] as const;
 const LANE_TRACKS = [KeyTrack.Object, KeyTrack.Camera, KeyTrack.Sky] as const;
-const RULER = { top: 13, lane: 10, pad: 8, label: 18, keyHit: 6 } as const;
-/** The scrubber: a red needle with a bead on top, riding the tick groove. */
-const SCRUBBER = { line: 1.5, bead: 3.5, beadY: 9.5, highlight: 1.5 } as const;
-/** An engraved groove: a dark upper lip and a light lower one. */
-const GROOVE = { height: 6, top: 4 } as const;
-const TICKS = { frame: 3, label: 7, textGap: 14, textX: 2, textY: 5, font: '9px Geneva, Verdana, sans-serif', eps: 1e-6 } as const;
-const LANE_GLYPH = { x: 2, y: 6.5, scale: 0.55, stroke: 2.6 } as const;
-/** Key colours: the lit facet, the shaded facet and the outline. */
-interface Bevel { readonly light: string; readonly dark: string; readonly edge: string }
-const COPPER: Bevel = { light: '#f3a676', dark: '#b4511f', edge: '#6a2c0e' };
-const PEWTER: Bevel = { light: '#d6d6d4', dark: '#8f8e8a', edge: '#5f5e5a' };
-const PICKED: Bevel = { light: '#fff08a', dark: '#f0b818', edge: '#2a2a2a' };
-const COLORS = {
-  tick: 'rgba(0,0,0,0.38)',
-  tickText: '#55565a',
-  tickTextShadow: 'rgba(255,255,255,0.9)',
-  grooveFill: 'rgba(120,122,128,0.22)',
-  grooveShade: 'rgba(0,0,0,0.32)',
-  grooveLight: 'rgba(255,255,255,0.95)',
-  band: 'rgba(200,40,45,0.9)',
-  bandFill: 'rgba(200,40,45,0.1)',
-  scrubber: '#d0281e',
-  scrubberDark: '#7a0e08',
-  scrubberLight: '#ffb0a8',
-  label: '#6a6b6f',
-} as const;
-/** Bryce's stop is a red square in the middle of the VCR row. */
-const STOP_GLYPH = ['M6 6h12v12H6z'] as const;
-/** The old-fashioned key between − and +: bow, shaft and two teeth. */
-const KEY_GLYPH = ['M7 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z', 'M10.5 12H22', 'M18.5 12v3.5M21.5 12v2.5'] as const;
+/** How near the end flag a press grabs it, in pixels. */
+const END_HIT = 5;
 const LANE_NAMES = ['Objects', 'Camera', 'Sky'] as const;
 const LANE_GLYPHS = [GLYPH.cube, GLYPH.camera, GLYPH.sun] as const;
 const MAX_DPR = 2;
 const DIAMOND = 4.5;
 const DIAMOND_PICKED = 5.5;
-const BAND_DASH = [3, 2] as const;
+/** Bryce's stop is a red square in the middle of the VCR row. */
+const STOP_GLYPH = ['M6 6h12v12H6z'] as const;
+/** The old-fashioned key between − and +: bow, shaft and two teeth. */
+const KEY_GLYPH = ['M7 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z', 'M10.5 12H22', 'M18.5 12v3.5M21.5 12v2.5'] as const;
 const HINTS = {
   ruler: { title: 'Time Scrubber', text: 'Drag to scrub · click a key to select · Shift-drag to box keys' },
   lane: 'Click to select · Shift-click to add · drag to retime',
+  end: { title: 'End of the scene', text: 'Drag to change the length' },
 } as const;
-const MIN_TICK_PX = 6;
-const LABEL_EVERY_PX = 46;
-const TICK_STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300] as const;
-const SECONDS_PER_MINUTE = 60;
-const TIME_DIGITS = 2;
-
-/** 00:01.40 — minutes, seconds and hundredths. */
-export function formatTime(t: number): string {
-  const m = Math.floor(t / SECONDS_PER_MINUTE);
-  const s = t - m * SECONDS_PER_MINUTE;
-  return `${String(m).padStart(2, '0')}:${s.toFixed(TIME_DIGITS).padStart(TIME_DIGITS + 3, '0')}`;
-}
 
 enum DragMode {
   Scrub = 'scrub',
@@ -87,6 +58,8 @@ enum DragMode {
   Band = 'band',
   /** Shift-click on a key: it was toggled, nothing follows. */
   None = 'none',
+  /** The end flag: the length of the scene. */
+  End = 'end',
 }
 
 interface Drag {
@@ -111,12 +84,13 @@ export class Timeline {
   readonly el: HTMLElement;
   private readonly canvas: HTMLCanvasElement;
   private readonly g: CanvasRenderingContext2D;
-  private readonly readout: HTMLElement;
-  private readonly frameOut: HTMLElement;
+  private readonly clock: TimelineClock;
   private readonly play: Button;
   private shownPlaying: boolean | null = null;
   private readonly loop: Button;
   private drag: Drag | null = null;
+  private endDrag: EndDrag | null = null;
+  private endHot = false;
   private band: { x0: number; y0: number; x1: number; y1: number } | null = null;
   private queued = false;
 
@@ -128,11 +102,7 @@ export class Timeline {
     };
     this.play = tb(Action.PlayPause, GLYPH.play, 'Play / Pause', 'tl-play');
     this.loop = tb(Action.ToggleLoop, GLYPH.loop, 'Loop playback', 'tl-loop');
-    this.readout = el('span', { cls: 'tl-time' });
-    this.frameOut = el('span', { cls: 'tl-frame' });
-    const clock = el('div', { cls: 'tl-clock', title: 'Animation Setup: length and frame rate' }, [this.readout, this.frameOut]);
-    clock.addEventListener('click', () => ctx.dispatch(Action.AnimationSetup));
-    hintOn(ctx, clock, { title: 'Time', text: 'Click to set the length and frame rate' });
+    this.clock = new TimelineClock(ctx);
     this.canvas = el('canvas', { cls: 'tl-ruler' });
     const g = this.canvas.getContext('2d');
     if (!g) throw new Error('2D canvas unavailable');
@@ -151,7 +121,7 @@ export class Timeline {
         tb(Action.NextKey, GLYPH.stepForward, 'Next key').el,
         tb(Action.LastFrame, GLYPH.toEnd, 'Go to end').el,
       ]),
-      clock,
+      this.clock.el,
       this.canvas,
       el('div', { cls: 'tl-keys' }, [
         tb(Action.RemoveKey, GLYPH.minus, 'Remove key at the playhead', 'tl-round').el,
@@ -207,19 +177,22 @@ export class Timeline {
     return isKeyPicked(this.ctx.editor.state.selectedKeys, { track: lane === Lane.Objects ? track.track : LANE_TRACKS[lane], id: track.id, time }, this.anim.fps);
   }
 
-  private get span(): { x0: number; w: number } {
+  /** The ruler's time: the whole scene and any keys past its end; held still while the end flag is dragged. */
+  private get span(): Span {
     const w = this.canvas.clientWidth;
-    return { x0: RULER.label + RULER.pad, w: Math.max(1, w - RULER.label - RULER.pad * 2) };
+    const view = this.endDrag?.view ?? Math.max(this.anim.duration, lastKeyTime(this.anim));
+    return { x0: RULER.label + RULER.pad, w: Math.max(1, w - RULER.label - RULER.pad * 2), view };
   }
 
   private xOf(t: number): number {
-    const { x0, w } = this.span;
-    return x0 + (t / this.anim.duration) * w;
+    return xAt(this.span, t);
   }
 
-  private timeAt(x: number): number {
-    const { x0, w } = this.span;
-    return Math.min(this.anim.duration, Math.max(0, ((x - x0) / w) * this.anim.duration));
+  /** The time under x, inside the scene unless `free`. */
+  private timeAt(x: number, free = false): number {
+    const { x0, w, view } = this.span;
+    const t = Math.max(0, ((x - x0) / w) * view);
+    return free ? t : Math.min(this.anim.duration, t);
   }
 
   private laneY(lane: Lane): number {
@@ -229,9 +202,7 @@ export class Timeline {
   private draw(): void {
     const a = this.anim;
     const t = this.ctx.world.time;
-    const fr = Math.round(t * a.fps);
-    this.readout.textContent = formatTime(t);
-    this.frameOut.textContent = `frame ${fr} / ${Math.round(a.duration * a.fps)}`;
+    this.clock.show(t, a);
     const playing = this.ctx.editor.state.playing;
     if (playing !== this.shownPlaying) {
       this.shownPlaying = playing;
@@ -249,86 +220,25 @@ export class Timeline {
     const g = this.g;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, cw, ch);
-    this.drawTicks(cw);
-    for (const lane of LANES) this.drawLane(lane, cw);
-    this.drawBand();
-    this.drawScrubber(this.xOf(t), ch);
+    const span = this.span;
+    paintTicks(g, span, a.fps, cw);
+    for (const lane of LANES) {
+      paintGroove(g, this.laneY(lane), GROOVE.height, RULER.label, cw);
+      paintLaneGlyph(g, LANE_GLYPHS[lane], this.laneY(lane));
+    }
+    const end = this.xOf(a.duration);
+    paintPastEnd(g, end, cw, ch);
+    for (const lane of LANES) this.drawKeys(lane);
+    if (this.band) paintBand(g, this.band);
+    paintEnd(g, end, ch, this.endHot || !!this.endDrag, this.endDrag ? formatClock(a.duration) : '');
+    paintScrubber(g, this.xOf(t), ch);
   }
 
-  /** The red needle down the grooves, a bead on top of it. */
-  private drawScrubber(x: number, ch: number): void {
-    const g = this.g;
-    g.fillStyle = COLORS.scrubber;
-    g.fillRect(Math.round(x) - 0.5, SCRUBBER.beadY, SCRUBBER.line, ch - SCRUBBER.beadY);
-    const bead = g.createRadialGradient(x - 1, SCRUBBER.beadY - 1, SCRUBBER.highlight / 2, x, SCRUBBER.beadY, SCRUBBER.bead);
-    bead.addColorStop(0, COLORS.scrubberLight);
-    bead.addColorStop(0.5, COLORS.scrubber);
-    bead.addColorStop(1, COLORS.scrubberDark);
-    g.fillStyle = bead;
-    g.beginPath();
-    g.arc(x, SCRUBBER.beadY, SCRUBBER.bead, 0, Math.PI * 2);
-    g.fill();
-  }
-
-  /** A groove cut into the chrome, `h` tall and centred on y. */
-  private groove(y: number, h: number, x0: number, x1: number): void {
-    const g = this.g;
-    const top = Math.round(y - h / 2) + 0.5;
-    g.fillStyle = COLORS.grooveFill;
-    g.fillRect(x0, top, x1 - x0, h);
-    g.fillStyle = COLORS.grooveShade;
-    g.fillRect(x0, top, x1 - x0, 1);
-    g.fillStyle = COLORS.grooveLight;
-    g.fillRect(x0, top + h, x1 - x0, 1);
-  }
-
-  private drawTicks(cw: number): void {
-    const g = this.g;
+  private drawKeys(lane: Lane): void {
     const a = this.anim;
-    const { w } = this.span;
-    const pxPerS = w / a.duration;
-    const framePx = pxPerS / a.fps;
-    g.strokeStyle = COLORS.tick;
-    g.lineWidth = 1;
-    g.beginPath();
-    if (framePx >= MIN_TICK_PX) {
-      for (let f = 0; f <= a.duration * a.fps; f++) {
-        const x = Math.round(this.xOf(f / a.fps)) + 0.5;
-        g.moveTo(x, RULER.top - TICKS.frame);
-        g.lineTo(x, RULER.top);
-      }
-    }
-    const step = TICK_STEPS.find((s) => s * pxPerS >= LABEL_EVERY_PX) ?? TICK_STEPS[TICK_STEPS.length - 1];
-    g.font = TICKS.font;
-    for (let s = 0; s <= a.duration + TICKS.eps; s += step) {
-      const x = Math.round(this.xOf(s)) + 0.5;
-      g.moveTo(x, RULER.top - TICKS.label);
-      g.lineTo(x, RULER.top);
-      if (x + TICKS.textGap >= cw) continue;
-      // Engraved numbers: a white shadow under dark ink.
-      g.fillStyle = COLORS.tickTextShadow;
-      g.fillText(`${s}s`, x + TICKS.textX, RULER.top - TICKS.textY + 1);
-      g.fillStyle = COLORS.tickText;
-      g.fillText(`${s}s`, x + TICKS.textX, RULER.top - TICKS.textY);
-    }
-    g.stroke();
-  }
-
-  private drawLane(lane: Lane, cw: number): void {
-    const g = this.g;
     const y = this.laneY(lane);
-    this.groove(y, GROOVE.height, RULER.label, cw);
-    // A tiny glyph names the lane, like the icons of Bryce's palettes.
-    g.save();
-    g.translate(LANE_GLYPH.x, y - LANE_GLYPH.y);
-    g.scale(LANE_GLYPH.scale, LANE_GLYPH.scale);
-    g.strokeStyle = COLORS.label;
-    g.lineWidth = LANE_GLYPH.stroke;
-    for (const d of LANE_GLYPHS[lane]) g.stroke(new Path2D(d));
-    g.restore();
     const selected = lane !== Lane.Objects || this.ctx.world.selection.size > 0;
     const bevel = selected ? COPPER : PEWTER;
-    g.lineWidth = 1;
     const seen = new Set<number>();
     const picked = new Set<number>();
     for (const track of this.laneTracks(lane)) {
@@ -337,44 +247,12 @@ export class Timeline {
         if (this.isPicked(lane, track, k.time)) picked.add(x);
         if (seen.has(x)) continue;
         seen.add(x);
-        this.diamond(x, y, DIAMOND, bevel);
+        const past = k.time > a.duration && !sameTime(k.time, a.duration, a.fps);
+        paintDiamond(this.g, x, y, DIAMOND, past ? GHOST : bevel);
       }
     }
     // Picked keys are drawn last, on top of their neighbours.
-    for (const x of picked) this.diamond(x, y, DIAMOND_PICKED, PICKED);
-  }
-
-  /** A bevelled diamond: two facets, lit on the upper left, shaded on the lower right. */
-  private diamond(x: number, y: number, r: number, b: Bevel): void {
-    const g = this.g;
-    const fill = g.createLinearGradient(x - r, y - r, x + r, y + r);
-    fill.addColorStop(0, b.light);
-    fill.addColorStop(0.5, b.light);
-    fill.addColorStop(0.5, b.dark);
-    g.fillStyle = fill;
-    g.strokeStyle = b.edge;
-    g.beginPath();
-    g.moveTo(x, y - r);
-    g.lineTo(x + r, y);
-    g.lineTo(x, y + r);
-    g.lineTo(x - r, y);
-    g.closePath();
-    g.fill();
-    g.stroke();
-  }
-
-  private drawBand(): void {
-    const b = this.band;
-    if (!b) return;
-    const g = this.g;
-    const x = Math.min(b.x0, b.x1);
-    const y = Math.min(b.y0, b.y1);
-    g.fillStyle = COLORS.bandFill;
-    g.strokeStyle = COLORS.band;
-    g.setLineDash(BAND_DASH as unknown as number[]);
-    g.fillRect(x, y, Math.abs(b.x1 - b.x0), Math.abs(b.y1 - b.y0));
-    g.strokeRect(x + 0.5, y + 0.5, Math.abs(b.x1 - b.x0), Math.abs(b.y1 - b.y0));
-    g.setLineDash([]);
+    for (const x of picked) paintDiamond(this.g, x, y, DIAMOND_PICKED, PICKED);
   }
 
   /** Keys whose diamonds sit inside the band. */
@@ -404,6 +282,12 @@ export class Timeline {
     return best;
   }
 
+  /** The end flag is under the point: on the tick row, or in a groove where no key is. */
+  private onEnd(x: number, y: number): boolean {
+    if (Math.abs(x - this.xOf(this.anim.duration)) > END_HIT) return false;
+    return y < RULER.top || !this.keyAt(x, y);
+  }
+
   private installPointer(): void {
     const c = this.canvas;
     const local = (e: PointerEvent | MouseEvent) => {
@@ -416,6 +300,12 @@ export class Timeline {
       c.setPointerCapture(e.pointerId);
       if (this.ctx.editor.state.playing) this.ctx.dispatch(Action.PlayPause);
       const p = local(e);
+      if (this.onEnd(p.x, p.y)) {
+        this.endDrag = new EndDrag(this.ctx, this.span.view, () => this.redraw());
+        this.drag = { mode: DragMode.End, lane: null, from: 0, startAnim: this.anim, startPicked: [], x: p.x, y: p.y };
+        this.redraw();
+        return;
+      }
       const key = this.keyAt(p.x, p.y);
       const mode = key ? (e.shiftKey ? DragMode.None : DragMode.Retime) : e.shiftKey ? DragMode.Band : DragMode.Scrub;
       if (key) this.pickAt(key.lane, key.time, e.shiftKey);
@@ -428,9 +318,7 @@ export class Timeline {
       const p = local(e);
       const d = this.drag;
       if (!d) {
-        c.style.cursor = this.keyAt(p.x, p.y) ? 'ew-resize' : 'pointer';
-        const lane = LANES.find((l) => Math.abs(p.y - this.laneY(l)) <= RULER.lane / 2);
-        this.ctx.editor.setHint(lane === undefined ? HINTS.ruler : { title: `${LANE_NAMES[lane]} keys`, text: HINTS.lane });
+        this.hover(p.x, p.y);
         return;
       }
       if (d.mode === DragMode.Scrub) this.ctx.world.setTime(this.timeAt(p.x));
@@ -439,6 +327,10 @@ export class Timeline {
         this.redraw();
       }
       if (d.mode === DragMode.Retime) this.retimeTo(d, this.timeAt(p.x));
+      if (d.mode === DragMode.End && this.endDrag) {
+        const s = this.span;
+        this.endDrag.move(this.timeAt(p.x, true), p.x - (s.x0 + s.w), s.w / s.view);
+      }
     });
     const end = () => {
       const d = this.drag;
@@ -448,6 +340,8 @@ export class Timeline {
         const refs = this.keysInBand(b.x0, b.y0, b.x1, b.y1);
         this.ctx.editor.update({ selectedKeys: pickKeys(d.startPicked, refs, SelectMode.Add, this.anim.fps) });
       }
+      this.endDrag?.end();
+      this.endDrag = null;
       this.band = null;
       this.drag = null;
       this.redraw();
@@ -455,11 +349,32 @@ export class Timeline {
     c.addEventListener('pointerup', end);
     c.addEventListener('pointercancel', end);
     c.addEventListener('lostpointercapture', end);
+    c.addEventListener('pointerleave', () => this.setEndHot(false));
     c.addEventListener('dblclick', (e) => {
       const p = local(e);
       const key = this.keyAt(p.x, p.y);
       if (key) this.ctx.world.setTime(key.time);
     });
+  }
+
+  /** The cursor and the status hint for what is under the pointer. */
+  private hover(x: number, y: number): void {
+    const c = this.canvas;
+    const onEnd = this.onEnd(x, y);
+    this.setEndHot(onEnd);
+    c.style.cursor = onEnd ? 'col-resize' : this.keyAt(x, y) ? 'ew-resize' : 'pointer';
+    if (onEnd) {
+      this.ctx.editor.setHint(HINTS.end);
+      return;
+    }
+    const lane = LANES.find((l) => Math.abs(y - this.laneY(l)) <= RULER.lane / 2);
+    this.ctx.editor.setHint(lane === undefined ? HINTS.ruler : { title: `${LANE_NAMES[lane]} keys`, text: HINTS.lane });
+  }
+
+  private setEndHot(hot: boolean): void {
+    if (hot === this.endHot) return;
+    this.endHot = hot;
+    this.redraw();
   }
 
   /** A click on a diamond picks its keys; Shift adds them, or takes them out when all are picked already. */

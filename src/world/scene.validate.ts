@@ -5,7 +5,7 @@ import { VALUE_LIMITS } from '../model/material.factory';
 import type { Rgb } from '../core/color';
 import { BooleanMode, ChannelSource, ColorChannel, Family, ShapeKind, SkyMode, TextureKind, TextureMapping, ValueChannel } from '../model/scene.enums';
 import { asGroupId } from '../model/scene.ids';
-import type { Animation, Camera, CloudSettings, DocumentSetup, GroupNode, Key, LightData, OrthoView, ProceduralTexture, Sky, Transform } from '../model/scene.types';
+import type { Animation, Camera, CloudSettings, DocumentSetup, GroupNode, Key, LightData, OrthoView, ProceduralTexture, RigFlags, Scene, Sky, Transform } from '../model/scene.types';
 
 /**
  * Guards for scene data that arrives from outside (files, share links, autosave):
@@ -202,15 +202,15 @@ export function materialParts(m: unknown): {
 
 export const ANIMATION_LIMITS = { duration: { min: 0.5, max: 600 }, fps: { min: 6, max: 60 } } as const;
 
-/** Keys of one track: well-formed ones only, inside the duration, sorted, at most keysPerTrack. */
-function keys<T>(v: unknown, duration: number, value: (raw: unknown) => T): Key<T>[] {
+/** Keys of one track: well-formed ones only, sorted, at most keysPerTrack. Keys past the end are kept (world/animation/duration). */
+function keys<T>(v: unknown, value: (raw: unknown) => T): Key<T>[] {
   if (!Array.isArray(v)) return [];
   const out: Key<T>[] = [];
   for (const k of v.slice(0, SCENE_LIMITS.keysPerTrack)) {
     const r = (k ?? {}) as Partial<Record<keyof Key<T>, unknown>>;
     if (!isNum(r.time)) continue;
     try {
-      out.push({ time: Math.min(duration, Math.max(0, r.time)), value: value(r.value) });
+      out.push({ time: Math.min(ANIMATION_LIMITS.duration.max, Math.max(0, r.time)), value: value(r.value) });
     } catch {
       // A malformed key is dropped; the rest of the track still plays.
     }
@@ -225,10 +225,10 @@ export function groupTransform(t: unknown): Transform {
 }
 
 /** Transform tracks of the given ids, well-formed keys only; empty tracks go. */
-function transformTracks(v: unknown, ids: ReadonlySet<string>, duration: number, value: (raw: unknown) => Transform): Record<string, Key<Transform>[]> {
+function transformTracks(v: unknown, ids: ReadonlySet<string>, value: (raw: unknown) => Transform): Record<string, Key<Transform>[]> {
   const tracks = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
   return Object.fromEntries(
-    Object.keys(tracks).filter((id) => ids.has(id)).map((id) => [id, keys(tracks[id], duration, value)] as const).filter(([, k]) => k.length > 0),
+    Object.keys(tracks).filter((id) => ids.has(id)).map((id) => [id, keys(tracks[id], value)] as const).filter(([, k]) => k.length > 0),
   );
 }
 
@@ -248,8 +248,8 @@ function cyclicTracks(v: unknown, a: Pick<Animation, 'objects' | 'groups' | 'cam
 export function animation(v: unknown, d: Animation, objectIds: ReadonlySet<string>, cam: Camera, skyDefault: Sky, groupIds: ReadonlySet<string> = new Set()): Animation {
   const r = (v ?? {}) as Partial<Record<keyof Animation, unknown>>;
   const duration = clampNum(r.duration, d.duration, ANIMATION_LIMITS.duration);
-  const objects = transformTracks(r.objects, objectIds, duration, transform);
-  const groups = transformTracks(r.groups, groupIds, duration, groupTransform);
+  const objects = transformTracks(r.objects, objectIds, transform);
+  const groups = transformTracks(r.groups, groupIds, groupTransform);
   const out: Animation = {
     enabled: typeof r.enabled === 'boolean' ? r.enabled : d.enabled,
     duration,
@@ -257,8 +257,8 @@ export function animation(v: unknown, d: Animation, objectIds: ReadonlySet<strin
     loop: typeof r.loop === 'boolean' ? r.loop : d.loop,
     objects,
     ...(Object.keys(groups).length ? { groups } : {}),
-    camera: keys(r.camera, duration, (c) => camera(c, cam)),
-    sky: keys(r.sky, duration, (s) => sky(s, skyDefault)),
+    camera: keys(r.camera, (c) => camera(c, cam)),
+    sky: keys(r.sky, (s) => sky(s, skyDefault)),
   };
   const cyclic = cyclicTracks(r.cyclic, out);
   return cyclic.length ? { ...out, cyclic } : out;
@@ -309,4 +309,16 @@ export function groupTable(v: unknown): GroupNode[] {
     }
   }
   return [...nodes.values()].map((n) => ({ ...n, parentId: parent.get(n.id) ?? null }));
+}
+
+/** The camera's and the sun's eye and lock: true values only; absent when both are shown and free. */
+export function rigTable(v: unknown): Scene['rig'] {
+  const r = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
+  const flags = (f: unknown): RigFlags | null => {
+    const o = (f && typeof f === 'object' ? f : {}) as Partial<Record<keyof RigFlags, unknown>>;
+    return o.hidden === true || o.locked === true ? { hidden: o.hidden === true, locked: o.locked === true } : null;
+  };
+  const camera = flags(r.camera);
+  const sun = flags(r.sun);
+  return camera || sun ? { ...(camera ? { camera } : {}), ...(sun ? { sun } : {}) } : undefined;
 }

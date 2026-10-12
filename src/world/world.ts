@@ -15,9 +15,10 @@ import { limitBreach } from './scene-limits';
 import { relinkCopies } from './portals';
 import { COPY_SUFFIX, DUPLICATE_OFFSET, HISTORY_LIMIT } from './world.constants';
 import { ChangeKind, type WorldEvents } from './world.events';
-import { SelectMode } from './world.enums';
+import { Rig, SelectMode } from './world.enums';
+import { lockedCamera, lockedSun, rigFlags, withRigFlags } from './rig';
 
-export { SelectMode } from './world.enums';
+export { Rig, SelectMode } from './world.enums';
 
 /**
  * READ ME — the only place the scene changes.
@@ -28,12 +29,16 @@ export { SelectMode } from './world.enums';
  * at it, and edits become keys at the playhead (animation/keying). With
  * animation off the playhead rests at zero and the scene is a still.
  * Groups: an edit that moves a whole group moves the group itself (group-edits).
+ * The camera or the sun can be selected instead of objects (world/rig): a selected
+ * camera is keyed like an object, a locked one keeps its place and aim.
  */
 export class World {
   readonly events = new Bus<WorldEvents>();
   private readonly logger = Logger.create('World');
   private readonly history: History<Scene>;
   private selected = new Set<ObjectId>();
+  /** The camera or the sun, selected in place of objects. */
+  private selectedRig: Rig | null = null;
   private gesture: string | null = null;
   private gestureOpened = false;
   private clipboard: readonly SceneObject[] = [];
@@ -53,6 +58,19 @@ export class World {
 
   get selection(): ReadonlySet<ObjectId> {
     return this.selected;
+  }
+
+  /** The camera or the sun when one of them is the selection, else null. */
+  get rig(): Rig | null {
+    return this.selectedRig;
+  }
+
+  /** Selects the camera or the sun (null: nothing); the objects are let go. */
+  selectRig(rig: Rig | null): void {
+    if (rig === this.selectedRig && !this.selected.size) return;
+    this.selectedRig = rig;
+    this.selected = new Set();
+    this.events.emit('selection', { ids: this.selected });
   }
 
   selectedObjects(): SceneObject[] {
@@ -109,6 +127,7 @@ export class World {
     this.playhead = 0;
     this.history.reset(label, poseAt(scene, 0));
     this.selected = new Set();
+    this.selectedRig = null;
     this.logger.info('scene loaded', { label, objects: scene.objects.length });
     this.emitAll(ChangeKind.All);
   }
@@ -119,6 +138,7 @@ export class World {
     this.playhead = 0;
     this.commit(label, poseAt(scene, 0), ChangeKind.All, false);
     this.selected = new Set();
+    this.selectedRig = null;
     this.events.emit('selection', { ids: this.selected });
   }
 
@@ -190,12 +210,23 @@ export class World {
     this.events.emit('changed', { scene, kind: ChangeKind.Objects });
   }
 
+  /** A locked sun keeps its direction (world/rig). */
   setSky(sky: Sky, label: string): void {
-    this.commit(label, { ...this.scene, sky }, ChangeKind.Sky);
+    const next = rigFlags(this.scene, Rig.Sun).locked ? lockedSun(this.scene.sky, sky) : sky;
+    if (sameJson(next, this.scene.sky)) return;
+    this.commit(label, { ...this.scene, sky: next }, ChangeKind.Sky);
   }
 
-  setCamera(camera: Camera, label: string): void {
-    this.commit(label, { ...this.scene, camera }, ChangeKind.Camera);
+  /** A locked camera keeps its place and aim (world/rig); false when nothing changed. */
+  setCamera(camera: Camera, label: string): boolean {
+    const next = rigFlags(this.scene, Rig.Camera).locked ? lockedCamera(this.scene.camera, camera) : camera;
+    if (sameJson(next, this.scene.camera)) return false;
+    return this.commit(label, { ...this.scene, camera: next }, ChangeKind.Camera);
+  }
+
+  /** The camera's or the sun's eye or lock in the scene list. */
+  setRigFlags(rig: Rig, patch: { hidden?: boolean; locked?: boolean }, label: string): void {
+    this.commit(label, withRigFlags(this.scene, rig, patch), rig === Rig.Camera ? ChangeKind.Camera : ChangeKind.Sky, false);
   }
 
   setDocument(document: DocumentSetup): void {
@@ -309,6 +340,7 @@ export class World {
 
   select(ids: readonly ObjectId[], mode: SelectMode): void {
     const next = mode === SelectMode.Replace ? new Set<ObjectId>() : new Set(this.selected);
+    this.selectedRig = null;
     for (const id of ids) {
       if (mode === SelectMode.Toggle && next.has(id)) next.delete(id);
       else next.add(id);
@@ -384,7 +416,7 @@ export class World {
     let scene = next;
     if (keyed) {
       const edit = settled(this.scene, next);
-      scene = recordKeys(edit.before, edit.after, this.playhead, edit.keyed);
+      scene = recordKeys(edit.before, edit.after, this.playhead, edit.keyed, this.selectedRig === Rig.Camera);
     }
     const breach = limitBreach(scene, this.scene);
     if (breach) {
@@ -417,3 +449,5 @@ export class World {
     this.events.emit('history', this.historyState());
   }
 }
+
+const sameJson = <T>(a: T, b: T): boolean => a === b || JSON.stringify(a) === JSON.stringify(b);

@@ -4,7 +4,8 @@ import { type Mat4, multiply, rotationEuler, transformDir } from '../../core/mat
 import { type Vec3, add, scale, sub } from '../../core/vec3';
 import { ViewKind } from '../../model/scene.enums';
 import type { Camera, SceneObject } from '../../model/scene.types';
-import { EVEN_AXIS, type GizmoHandles, GizmoKind, drawGizmo, gizmoFrame, nearestRingPoint } from '../../render/wire/gizmo';
+import { EVEN_AXIS, type GizmoHandles, GizmoKind, gizmoFrame, layoutGizmo, nearestRingPoint } from '../../render/wire/gizmo';
+import { GizmoStyle } from '../../render/wire/gizmo-style';
 import { WireProjector } from '../../render/wire/wireframe';
 import { boxSphere, worldBox } from '../../world/bounds';
 import { type ViewBasis, cameraBasis, orthoBasis } from '../../world/camera-math';
@@ -21,19 +22,13 @@ const FRAME = { x: 0, y: 0, w: W, h: H };
 const RADIUS = 9;
 const RING = 5;
 
-const nullContext = () =>
-  new Proxy({ canvas: { width: W, height: H } } as Record<string | symbol, unknown>, {
-    get: (t, k) => (k in t ? t[k] : () => undefined),
-    set: () => true,
-  }) as unknown as CanvasRenderingContext2D;
-
 const box = (position: Vec3, size: Vec3, rotation: Vec3 = [0, 0, 0]): SceneObject => {
   const o = createObject(createEntry('cube'), { seed: 1, position, size });
   return { ...o, transform: { position, rotation, size } };
 };
 
 const handles = (objs: readonly SceneObject[], basis: ViewBasis): GizmoHandles => {
-  const g = drawGizmo(nullContext(), objs, new WireProjector(basis, FRAME), { hover: null, near: true });
+  const g = layoutGizmo(objs, new WireProjector(basis, FRAME), GizmoStyle.Outline);
   if (!g) throw new Error('no gizmo');
   return g;
 };
@@ -176,10 +171,10 @@ describe('which handle a press takes', () => {
     const o = box([0, 0, 0], [1, 1, 1]);
     const g = handles([o], TOP);
     const cube = g.cubes[0]!;
-    expect(gizmoPartAt(g, cube[0], cube[1], RADIUS, RING, true)).toEqual({ kind: GizmoKind.Resize, axis: 0 });
-    expect(gizmoPartAt(g, g.even[0], g.even[1], RADIUS, RING, true)).toEqual({ kind: GizmoKind.Resize, axis: EVEN_AXIS });
+    expect(gizmoPartAt(g, cube[0], cube[1], RADIUS, RING, true)).toMatchObject({ kind: GizmoKind.Resize, axis: 0 });
+    expect(gizmoPartAt(g, g.even[0], g.even[1], RADIUS, RING, true)).toMatchObject({ kind: GizmoKind.Resize, axis: EVEN_AXIS });
     const tip = g.tips[0]!;
-    expect(gizmoPartAt(g, tip[0], tip[1], RADIUS, RING, true)).toEqual({ kind: GizmoKind.Move, axis: 0 });
+    expect(gizmoPartAt(g, tip[0], tip[1], RADIUS, RING, true)).toMatchObject({ kind: GizmoKind.Move, axis: 0 });
     const r = g.rings[1]!;
     const on = [r[9 * 2], r[9 * 2 + 1]] as const;
     expect(gizmoPartAt(g, on[0], on[1], RADIUS, RING, true)?.kind).toBe(GizmoKind.Rotate);

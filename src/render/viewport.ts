@@ -3,7 +3,7 @@ import { Logger } from '../core/log';
 import { ViewKind } from '../model/scene.enums';
 import type { ObjectId } from '../model/scene.ids';
 import type { Scene } from '../model/scene.types';
-import { type ViewBasis, cameraBasis, orthoBasis, pivotOf, project } from '../world/camera-math';
+import { type ViewBasis, cameraBasis, orthoBasis } from '../world/camera-math';
 import { type EditorState, type EditorStore, PaneMode, paneMode } from '../world/editor-store';
 import type { World } from '../world/world';
 import { ChangeKind } from '../world/world.events';
@@ -14,6 +14,10 @@ import { RealtimeRenderer, type RealtimeStatus } from './gpu/realtime';
 import { FINAL_BOUNCES, PREVIEW_BOUNCES, PREVIEW_SAMPLES } from './gpu/render.constants';
 import { type Frame, type GizmoHandles, type SegmentIndex, WireProjector, drawWireframe } from './wire/wireframe';
 import { type KeyHandle, drawMotionPaths } from './wire/motion-paths';
+import { type RigHandles, type RigPart, drawFocusReticle, drawRig } from './wire/rig-glyphs';
+import type { KeyRef } from '../world/animation/key-selection';
+import { rigFlags } from '../world/rig';
+import { Rig } from '../world/world.enums';
 import { type GizmoPart, samePart } from './wire/gizmo';
 
 /** One drawable view inside the scene window (one in single view, four in quad view). */
@@ -28,6 +32,8 @@ export interface ViewCell {
   gizmo: GizmoHandles | null;
   /** Key squares of the motion paths drawn in this cell. */
   keys: readonly KeyHandle[];
+  /** The camera's and the sun's glyphs drawn in this cell (rig-glyphs.ts). */
+  rig: RigHandles | null;
 }
 
 export interface ViewportEvents {
@@ -48,8 +54,6 @@ const LABEL_COLOR = 'rgba(40,40,40,0.75)';
 const LABEL_OFFSET = 14;
 /** Over a rendered pane the view name sits on a pale tab so it stays readable. */
 const LABEL_TAB = { color: 'rgba(236,235,231,0.85)', padX: 3, top: 3, height: 15 } as const;
-/** Focus reticle drawn at the focus distance while the camera has depth of field. */
-const FOCUS = { color: '#e08a1e', radius: 9, tick: 5, width: 1.5 } as const;
 const VIEW_LABELS: Readonly<Record<ViewKind, string>> = {
   [ViewKind.Camera]: 'Camera',
   [ViewKind.Director]: "Director's View",
@@ -63,7 +67,16 @@ export interface Hover {
   /** The selection's handle under the pointer, and whether the pointer is near enough for the rings. */
   readonly gizmo: GizmoPart | null;
   readonly near: boolean;
+  /** The motion-path key under the pointer, and whether a drag holds it. */
+  readonly key?: KeyRef | null;
+  readonly held?: boolean;
+  /** The camera's or the sun's glyph part under the pointer or held. */
+  readonly rig?: RigPart | null;
 }
+
+const sameHover = (a: Hover, b: Hover): boolean =>
+  a.object === b.object && a.near === b.near && samePart(a.gizmo, b.gizmo) && a.rig === b.rig && !!a.held === !!b.held
+  && a.key?.track === b.key?.track && a.key?.id === b.key?.id && a.key?.time === b.key?.time;
 
 /**
  * READ ME — the scene window. Observes World and EditorStore; draws the
@@ -133,8 +146,7 @@ export class SceneView {
   }
 
   set hover(h: Hover) {
-    const was = this.hoverState;
-    if (h.object === was.object && h.near === was.near && samePart(h.gizmo, was.gizmo)) return;
+    if (sameHover(h, this.hoverState)) return;
     this.hoverState = h;
     this.requestDraw();
   }
@@ -381,7 +393,7 @@ export class SceneView {
       : [{ kind: s.view, rect: { x: 0, y: 0, w: this.width, h: this.height } }];
     this.cellsCache = rects.map(({ kind, rect }) => {
       const frame = fitFrame(rect, aspect);
-      return { kind, rect, frame, basis: this.basisFor(kind, aspect), segments: new Map(), gizmo: null, keys: [] };
+      return { kind, rect, frame, basis: this.basisFor(kind, aspect), segments: new Map(), gizmo: null, keys: [], rig: null };
     });
     const main = this.mainCell();
     if (main && !this.renderer.active && !s.quad) this.placeGlCanvas(main.frame);
@@ -432,10 +444,16 @@ export class SceneView {
       });
       cell.segments = out.segments;
       cell.gizmo = out.gizmo;
+      const proj = new WireProjector(basis, cell.frame);
+      const h = this.hoverState;
+      cell.rig = drawRig(g, scene, proj, cell.kind, { selected: this.world.rig, hover: h.rig ?? null });
       // Paths are for editing: hidden while the show plays.
       const paths = scene.animation.enabled && s.motionPaths && !s.playing;
-      cell.keys = paths ? drawMotionPaths(g, scene, new WireProjector(basis, cell.frame), this.world.selection, { camera: cell.kind !== ViewKind.Camera, overRender, keys: s.selectedKeys }) : [];
-      this.drawFocus(cell, basis);
+      const camera = cell.kind !== ViewKind.Camera && !rigFlags(scene, Rig.Camera).hidden;
+      const focus = h.key ? { ref: h.key, held: !!h.held } : null;
+      cell.keys = paths ? drawMotionPaths(g, scene, proj, this.world.selection, { camera, overRender, keys: s.selectedKeys, focus, cameraSelected: this.world.rig === Rig.Camera }) : [];
+      if (cell.kind === ViewKind.Camera) drawFocusReticle(g, cell.frame, basis, scene.camera);
+      if (cell.kind === ViewKind.Director) drawFocusReticle(g, cell.frame, basis, s.director);
       if (s.quad) this.drawLabel(cell, overRender);
       g.restore();
       if (s.quad) {
@@ -456,29 +474,6 @@ export class SceneView {
     }
     g.fillStyle = LABEL_COLOR;
     g.fillText(text, x, cell.rect.y + LABEL_OFFSET);
-  }
-
-  /** Where the lens is sharp: a reticle at the camera's focus distance (pivot) when it has depth of field. */
-  private drawFocus(cell: ViewCell, basis: ViewBasis): void {
-    if (cell.kind !== ViewKind.Camera && cell.kind !== ViewKind.Director) return;
-    const cam = cell.kind === ViewKind.Camera ? this.world.scene.camera : this.editor.state.director;
-    if (cam.aperture <= 0) return;
-    const p = project(basis, pivotOf(cam));
-    if (p.depth <= 0) return;
-    const x = cell.frame.x + ((p.x + 1) / 2) * cell.frame.w;
-    const y = cell.frame.y + ((1 - p.y) / 2) * cell.frame.h;
-    const g = this.g;
-    g.save();
-    g.strokeStyle = FOCUS.color;
-    g.lineWidth = FOCUS.width;
-    g.beginPath();
-    g.arc(x, y, FOCUS.radius, 0, Math.PI * 2);
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      g.moveTo(x + dx * FOCUS.radius, y + dy * FOCUS.radius);
-      g.lineTo(x + dx * (FOCUS.radius + FOCUS.tick), y + dy * (FOCUS.radius + FOCUS.tick));
-    }
-    g.stroke();
-    g.restore();
   }
 }
 

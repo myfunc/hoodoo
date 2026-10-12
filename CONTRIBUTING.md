@@ -26,6 +26,7 @@ The dev tools in `tools/` drive a headless Chrome with a real GPU backend
 | `tools/make-icons.mjs` | renders the app icons in `public/icons` with the app itself |
 | `tools/make-splash.mjs` | renders the splash stills and WebM clips in `src/ui/art` from `src/world/splash-scene.ts`; needs the dev server (`npm run dev`) |
 | `tools/make-examples.mjs` | renders the start window's example thumbnails in `src/ui/art/examples` from `src/world/examples.ts` (pass ids to redo some); needs the dev server |
+| `tools/make-demos.mjs clips [url] <id ...>` | renders animated examples along their timeline into `docs/images`: `demo-<id>.webm` and a small looping `demo-<id>.webp` for the README; `frames` instead writes a contact sheet of the loop at 0, 2, 4, 6 and 8 s (`--at` other times, `--out` a folder) to check a scene while making it; needs the dev server, and a file saved meanwhile reloads its page, so render when nobody is editing |
 
 `?cold` on the app URL makes the shader source unique, so the browser cannot
 reuse a compiled copy; automated browsers skip the splash and the start window
