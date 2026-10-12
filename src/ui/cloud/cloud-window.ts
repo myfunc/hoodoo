@@ -1,7 +1,6 @@
 import { KEY } from '../../core/keys';
 import { UNAVAILABLE } from '../../io/cloud/cloud-api';
-import { type CloudProject, type GalleryPost, GallerySort, ModFilter, type PostPage, type Vote } from '../../io/cloud/cloud-contract';
-import { timeAgo } from '../chrome/start-window';
+import { type GalleryPost, GallerySort, ModFilter, type PostPage, type PostsState, type Vote } from '../../io/cloud/cloud-contract';
 import { Button, Choice } from '../kit/controls';
 import { holdModal } from '../kit/dialog';
 import { el, glyph } from '../kit/dom';
@@ -21,14 +20,17 @@ const VOTE_GLYPH = { up: ['M6 15h12l-6-7z'], down: GLYPH.triangleDown } as const
 
 const DIALOGS_OVER = '.ui-overlay:has(> .cloud-dialog), .cloud-human, .signin-window';
 
-/** Whatever a page lists: gallery posts or the user's projects. */
-type Item = { kind: 'post'; post: GalleryPost } | { kind: 'project'; project: CloudProject };
+/** No one's own posts and no votes: what the shared, cached Gallery list leaves out. */
+const NO_STATE: PostsState = { mine: [], votes: {} };
 
 /**
  * The cloud window: the public Gallery (New or Top, like, dislike, report, open a
- * copy), the user's own cloud projects (open, delete) and, for moderators, the
- * reported and hidden posts (hide, unhide, clear reports, delete). The head
- * carries the account: Sign in with Google, or the name and Sign out.
+ * copy), the user's own posts (hidden ones too, with why) and, for moderators, the
+ * reported and hidden posts (hide, unhide, clear reports, delete). Projects are not
+ * kept here: they stay on the device or in the user's own cloud. The head carries
+ * the account: Sign in with Google, or the nickname, Sign out and Delete account.
+ * The Gallery list is the same for everyone (cached on the server); which posts
+ * are the user's and how they voted comes with one more small call.
  */
 export class CloudWindow {
   private readonly overlay: HTMLElement;
@@ -43,6 +45,9 @@ export class CloudWindow {
   private sort = GallerySort.New;
   private filter = ModFilter.Reported;
   private pageNo = 0;
+  /** The signed-in user's posts and votes among those listed. */
+  private mine = new Set<string>();
+  private votes = new Map<string, Vote>();
   /** Bumped by every new listing: an older answer arriving late is dropped. */
   private generation = 0;
   private release: (() => void) | null = null;
@@ -117,7 +122,8 @@ export class CloudWindow {
     else if (user) {
       const out = new Button({ cls: 'start-chip', label: CLOUD.signOut, onClick: () => void this.cloud.signOut() });
       const remove = new Button({ cls: 'start-chip', label: CLOUD.deleteAccount, onClick: () => void this.cloud.deleteAccount() });
-      this.account.replaceChildren(el('span', { cls: 'cloud-user', text: user.name, title: user.email }), out.el, remove.el);
+      const nick = new Button({ cls: user.nick ? 'start-chip cloud-nick' : 'start-chip cloud-signin', label: user.nick ?? CLOUD.nickChoose, title: CLOUD.nickChange, onClick: () => void this.cloud.chooseNick() });
+      this.account.replaceChildren(nick.el, out.el, remove.el);
     } else if (this.cloud.canSignIn) {
       this.account.replaceChildren(new Button({ cls: 'start-chip cloud-signin', label: CLOUD.signIn, title: CLOUD.signInTitle, onClick: () => this.cloud.signIn() }).el);
     } else this.account.replaceChildren(el('span', { cls: 'cloud-user is-soft', text: CLOUD.notConfigured }));
@@ -130,7 +136,7 @@ export class CloudWindow {
       const sort = new Choice({ cls: 'segmented', items: [{ value: GallerySort.New, label: CLOUD.newest }, { value: GallerySort.Top, label: CLOUD.top }], value: this.sort, onChange: (s) => { this.sort = s; void this.load(true); } });
       this.bar.replaceChildren(sort.el, spacer, action(CLOUD.publishCurrent, () => this.cloud.publish()));
     } else if (this.page === CloudPage.Mine) {
-      this.bar.replaceChildren(spacer, action(CLOUD.saveCurrent, () => this.cloud.save()));
+      this.bar.replaceChildren(el('span', { cls: 'cloud-own', text: CLOUD.ownCloud, title: CLOUD.ownCloud }), spacer, action(CLOUD.publishCurrent, () => this.cloud.publish()));
     } else {
       const filter = new Choice({ cls: 'segmented', items: [{ value: ModFilter.Reported, label: CLOUD.reported }, { value: ModFilter.Hidden, label: CLOUD.hidden }], value: this.filter, onChange: (f) => { this.filter = f; void this.load(true); } });
       this.bar.replaceChildren(filter.el, spacer);
@@ -147,6 +153,8 @@ export class CloudWindow {
     if (reset) {
       this.pageNo = 0;
       this.grid.replaceChildren();
+      this.mine.clear();
+      this.votes.clear();
     }
     this.more.el.hidden = true;
     if (this.cloud.isUnavailable) return this.say(UNAVAILABLE);
@@ -157,29 +165,34 @@ export class CloudWindow {
       if (generation === this.generation) this.say('');
       return;
     }
-    this.grid.append(...listed.items.map((item) => this.card(item)));
+    const state = await this.stateOf(listed.posts);
+    if (generation !== this.generation) return;
+    for (const id of state.mine) this.mine.add(id);
+    for (const [id, v] of Object.entries(state.votes)) this.votes.set(id, v);
+    this.grid.append(...listed.posts.map((post) => this.postCard(post)));
     this.pageNo++;
     this.more.el.hidden = !listed.more;
     this.say(this.grid.childElementCount ? '' : this.emptyText());
   }
 
-  private async fetchPage(): Promise<{ items: Item[]; more: boolean } | undefined> {
+  private fetchPage(): Promise<PostPage | undefined> {
     const api = this.cloud.api;
-    const posts = (p: PostPage | undefined) => p && { items: p.posts.map((post): Item => ({ kind: 'post', post })), more: p.more };
-    if (this.page === CloudPage.Gallery) return posts(await this.cloud.run(() => api.posts(this.sort, this.pageNo), false));
-    if (this.page === CloudPage.Moderation) return posts(await this.cloud.run(() => api.moderation(this.filter, this.pageNo)));
-    const projects = await this.cloud.run(() => api.projects());
-    return projects && { items: projects.map((project): Item => ({ kind: 'project', project })), more: false };
+    if (this.page === CloudPage.Gallery) return this.cloud.run(() => api.posts(this.sort, this.pageNo), false);
+    if (this.page === CloudPage.Moderation) return this.cloud.run(() => api.moderation(this.filter, this.pageNo));
+    return this.cloud.run(() => api.ownPosts(this.pageNo));
+  }
+
+  /** Which of these posts are the user's and how they voted: nothing to ask when signed out. */
+  private async stateOf(posts: readonly GalleryPost[]): Promise<PostsState> {
+    if (!this.cloud.user || !posts.length) return NO_STATE;
+    if (this.page === CloudPage.Mine) return { mine: posts.map((p) => p.id), votes: (await this.cloud.run(() => this.cloud.api.postsState(posts.map((p) => p.id))))?.votes ?? {} };
+    return (await this.cloud.run(() => this.cloud.api.postsState(posts.map((p) => p.id)))) ?? NO_STATE;
   }
 
   private emptyText(): string {
     if (this.page === CloudPage.Gallery) return CLOUD.emptyGallery;
     if (this.page === CloudPage.Mine) return CLOUD.emptyMine;
     return this.filter === ModFilter.Reported ? CLOUD.emptyReported : CLOUD.emptyHidden;
-  }
-
-  private card(item: Item): HTMLElement {
-    return item.kind === 'post' ? this.postCard(item.post) : this.projectCard(item.project);
   }
 
   private face(name: string, sub: string, thumb: string | null, badge: string | null, open: () => void): HTMLElement {
@@ -195,47 +208,34 @@ export class CloudWindow {
     }).el;
   }
 
-  private projectCard(p: CloudProject): HTMLElement {
-    const open = () => void this.cloud.run(async () => {
-      const scene = await this.cloud.api.openProject(p.id);
-      this.close();
-      this.cloud.load(scene, p.name, { id: p.id, name: p.name });
-    });
-    const remove = new Button({
-      cls: 'start-chip', label: CLOUD.delete,
-      onClick: () => confirmDelete(CLOUD.deleteProject(p.name), () => void this.cloud.run(async () => {
-        await this.cloud.api.deleteProject(p.id);
-        this.say(CLOUD.deleted(p.name));
-        node.remove();
-      })),
-    });
-    const node = el('div', { cls: 'cloud-card' }, [
-      this.face(p.name, timeAgo(p.updatedAt), p.thumb, null, open),
-      el('div', { cls: 'cloud-card-bar' }, [el('span', { cls: 'cloud-spacer' }), remove.el]),
-    ]);
-    return node;
-  }
-
   private postCard(post: GalleryPost): HTMLElement {
     const node = el('div', { cls: 'cloud-card' });
     const replace = (next: GalleryPost) => node.replaceWith(this.postCard(next));
     const user = this.cloud.user;
+    const mine = this.mine.has(post.id);
+    const myVote = this.votes.get(post.id) ?? 0;
     const open = () => void this.cloud.run(async () => {
       const scene = await this.cloud.api.openPost(post.id);
       this.close();
-      this.cloud.load(scene, post.title, null);
+      this.cloud.load(scene, post.title);
     }, false);
-    const vote = (value: Vote) => void this.cloud.run(async () => replace(await this.cloud.api.vote(post.id, post.myVote === value ? 0 : value)));
+    const vote = (value: Vote) => void this.cloud.run(async () => {
+      const next = myVote === value ? 0 : value;
+      const updated = await this.cloud.api.vote(post.id, next);
+      if (next) this.votes.set(post.id, next);
+      else this.votes.delete(post.id);
+      replace(updated);
+    });
     const voteButton = (value: Vote, paths: readonly string[], count: number, title: string) => {
       const b = new Button({ cls: 'start-chip cloud-vote', title, content: el('span', {}, [glyph(paths, GLYPH_BOX), el('span', { text: String(count) })]), onClick: () => vote(value) });
-      b.active = post.myVote === value;
-      b.disabled = post.mine;
+      b.active = myVote === value;
+      b.disabled = mine;
       return b.el;
     };
     const chip = (label: string, run: () => void) => new Button({ cls: 'start-chip', label, onClick: run }).el;
     const tools: HTMLElement[] = [];
     const moderating = this.page === CloudPage.Moderation;
-    if (!moderating && !post.mine) {
+    if (!moderating && !mine) {
       tools.push(chip(CLOUD.report, () => openReportDialog(post.title, (reason, note) => void this.cloud.run(async () => {
         await this.cloud.api.report(post.id, reason, note);
         this.say(CLOUD.reportSent);
@@ -246,7 +246,7 @@ export class CloudWindow {
       if (post.reports) tools.push(chip(CLOUD.clearReports, () => void this.cloud.run(async () => replace(await this.cloud.api.clearReports(post.id)))));
     }
     // A post a moderator hid stays until a moderator decides: the server keeps it.
-    if ((post.mine && !post.hidden) || user?.moderator) {
+    if ((mine && !post.hidden) || user?.moderator) {
       tools.push(chip(CLOUD.delete, () => confirmDelete(CLOUD.deletePost(post.title), () => void this.cloud.run(async () => {
         await this.cloud.api.deletePost(post.id);
         this.say(CLOUD.deleted(post.title));

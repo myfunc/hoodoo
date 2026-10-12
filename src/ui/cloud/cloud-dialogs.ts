@@ -1,22 +1,10 @@
 import { CLOUD_LIMITS, REPORT_REASONS, ReportReason, cleanName } from '../../io/cloud/cloud-contract';
-import { Choice, TextField } from '../kit/controls';
+import { Select, TextField } from '../kit/controls';
 import { Dialog, DialogStyle } from '../kit/dialog';
 import { type Child, el } from '../kit/dom';
 import { CLOUD, REASON_LABELS } from './cloud-strings';
 
-/** The small windows of the cloud commands: Save to Cloud, Publish, Report and the delete confirmations. */
-
-/** The cloud project the open scene came from or was saved to. */
-export interface LinkedProject {
-  readonly id: string;
-  readonly name: string;
-}
-
-export interface SaveChoice {
-  readonly name: string;
-  /** The project to replace, or null for a new one. */
-  readonly replaceId: string | null;
-}
+/** The small windows of the cloud commands: the nickname, Publish, Report and the delete confirmations. */
 
 const row = (label: string, control: Child): HTMLElement => el('div', { cls: 'cloud-form-row' }, [el('span', { cls: 'cloud-form-label', text: label }), control]);
 
@@ -32,25 +20,22 @@ function open(dialog: Dialog, focus?: HTMLInputElement): void {
   focus?.select();
 }
 
-export function openSaveDialog(name: string, linked: LinkedProject | null, onOk: (c: SaveChoice) => void): void {
-  const field = nameField(linked?.name ?? name, CLOUD.saveName);
-  let replace = linked !== null;
-  const target = linked
-    ? row(CLOUD.saveAs, new Choice({
-      cls: 'segmented',
-      items: [{ value: true, label: CLOUD.replace(linked.name) }, { value: false, label: CLOUD.newProject }],
-      value: true,
-      onChange: (v) => { replace = v; },
-    }).el)
-    : null;
+/** The nickname: the only name Hoodoo Cloud shows. `problem` says why the last one was refused. */
+export function openNickDialog(current: string | null, problem: string | null, onOk: (nick: string) => void, onCancel: () => void): void {
+  const field = new TextField({ value: current ?? '', placeholder: CLOUD.nickPlaceholder, cls: 'cloud-form-field', maxLength: CLOUD_LIMITS.nickMax, onCommit: () => undefined });
   const dialog = new Dialog({
-    title: CLOUD.saveTitle, style: DialogStyle.Stone, cls: 'cloud-dialog',
-    body: el('div', { cls: 'cloud-form' }, [row(CLOUD.saveName, field.el), target]),
+    title: CLOUD.nickTitle, style: DialogStyle.Stone, cls: 'cloud-dialog',
+    body: el('div', { cls: 'cloud-form' }, [
+      row(CLOUD.nickLabel, field.el),
+      el('div', { cls: problem ? 'cloud-form-note is-bad' : 'cloud-form-note', text: problem ?? CLOUD.nickRules }),
+      el('div', { cls: 'cloud-form-note', text: CLOUD.nickPrivacy }),
+    ]),
     onOk: () => {
-      const text = cleanName(field.el.value);
-      if (text) onOk({ name: text, replaceId: replace && linked ? linked.id : null });
+      const nick = field.el.value.trim();
+      if (nick) onOk(nick);
+      else onCancel();
     },
-    onCancel: () => undefined,
+    onCancel,
   });
   open(dialog, field.el);
 }
@@ -74,7 +59,8 @@ export function openPublishDialog(name: string, picture: string | null, onOk: (t
 
 export function openReportDialog(title: string, onOk: (reason: ReportReason, note: string) => void): void {
   let reason = ReportReason.Spam;
-  const reasons = new Choice({ cls: 'segmented', items: REPORT_REASONS.map((r) => ({ value: r, label: REASON_LABELS[r] })), value: reason, onChange: (r) => { reason = r; } });
+  // A list, not segments: the reasons are long and there are five.
+  const reasons = new Select({ items: REPORT_REASONS.map((r) => ({ value: r, label: REASON_LABELS[r] })), value: reason, onChange: (r) => { reason = r; } });
   const note = new TextField({ value: '', cls: 'cloud-form-field', maxLength: CLOUD_LIMITS.reportChars, onCommit: () => undefined });
   const dialog = new Dialog({
     title: `${CLOUD.reportTitle}: ${title}`, style: DialogStyle.Stone, cls: 'cloud-dialog',
@@ -86,10 +72,10 @@ export function openReportDialog(title: string, onOk: (reason: ReportReason, not
 }
 
 /** Deleting the whole account: who, and what goes with it. */
-export function confirmDeleteAccount(email: string, onOk: () => void): void {
+export function confirmDeleteAccount(nick: string | null, onOk: () => void): void {
   open(new Dialog({
     title: CLOUD.deleteAccountTitle, style: DialogStyle.Stone, cls: 'cloud-dialog',
-    body: el('div', { cls: 'cloud-form' }, [el('div', { cls: 'cloud-form-note', text: CLOUD.deleteAccountAsk(email) }), el('div', { cls: 'cloud-form-note', text: CLOUD.deleteAccountWhat })]),
+    body: el('div', { cls: 'cloud-form' }, [el('div', { cls: 'cloud-form-note', text: CLOUD.deleteAccountAsk(nick) }), el('div', { cls: 'cloud-form-note', text: CLOUD.deleteAccountWhat })]),
     onOk, onCancel: () => undefined,
   }));
 }

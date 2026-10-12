@@ -14,14 +14,17 @@ export const CLOUD_LIMITS = {
   sceneBytes: 2 * MB,
   unpackedSceneBytes: 20 * MB,
   storageBytes: 50 * MB,
+  totalBytes: 10 * 1024 ** 3,
+  nickMin: 3,
+  nickMax: 20,
+  stateIds: 48,
   thumbWidth: 480,
   thumbHeight: 300,
   thumbBytes: 500 * KB,
-  /** Project names and gallery titles. */
+  /** Gallery titles. */
   nameChars: 80,
   reportChars: 200,
   hideReasonChars: 200,
-  projectsPerUser: 200,
   pageSize: 24,
   /** The deepest page a gallery list serves. */
   maxPage: 100,
@@ -64,6 +67,11 @@ export enum CloudErrorCode {
   TooMany = 'too-many',
   TooLarge = 'too-large',
   StorageFull = 'storage-full',
+  CloudFull = 'cloud_full',
+  NickRequired = 'nick_required',
+  NickInvalid = 'nick_invalid',
+  NickReserved = 'nick_reserved',
+  NickTaken = 'nick_taken',
   Busy = 'busy',
   NotFound = 'not-found',
   Forbidden = 'forbidden',
@@ -87,20 +95,8 @@ export interface CloudConfig {
 
 export interface CloudUser {
   readonly id: string;
-  readonly name: string;
-  readonly email: string;
+  readonly nick: string | null;
   readonly moderator: boolean;
-}
-
-/** A private cloud save of the user's own. */
-export interface CloudProject {
-  readonly id: string;
-  readonly name: string;
-  /** Bytes of the packed scene. */
-  readonly size: number;
-  readonly updatedAt: number;
-  /** URL of the picture, or null. */
-  readonly thumb: string | null;
 }
 
 export type Vote = -1 | 0 | 1;
@@ -111,7 +107,7 @@ export interface ReportNote {
   readonly at: number;
 }
 
-/** A post in the public gallery. */
+/** Shared fields only; per-user flags come from PostsState. */
 export interface GalleryPost {
   readonly id: string;
   readonly title: string;
@@ -119,8 +115,7 @@ export interface GalleryPost {
   readonly createdAt: number;
   readonly likes: number;
   readonly dislikes: number;
-  readonly myVote: Vote;
-  readonly mine: boolean;
+
   /** Hidden by a moderator: seen only by its author and moderators. */
   readonly hidden: boolean;
   /** The author and moderators only. */
@@ -130,6 +125,11 @@ export interface GalleryPost {
   readonly reports?: number;
   readonly authorId?: string;
   readonly reportNotes?: readonly ReportNote[];
+}
+
+export interface PostsState {
+  readonly mine: readonly string[];
+  readonly votes: Readonly<Record<string, Exclude<Vote, 0>>>;
 }
 
 export interface PostPage {

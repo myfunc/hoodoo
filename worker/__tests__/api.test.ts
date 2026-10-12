@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { CloudErrorCode, type CloudProject, type GalleryPost, ModFilter, ReportReason } from '../../src/io/cloud/cloud-contract';
+import { CloudErrorCode, type GalleryPost, ModFilter, ReportReason } from '../../src/io/cloud/cloud-contract';
 import { RATE_LIMITS, Limited } from '../rate';
 import { SITEVERIFY_URL } from '../human';
-import { TestClient, fakeScene, fakeThumb, testEnv, upload } from './fakes';
+import { TestClient, testEnv, upload } from './fakes';
 
 const MOD = 'mod@example.com';
 const TURNSTILE = { TURNSTILE_SITE_KEY: 'site-key', TURNSTILE_SECRET: 'secret' };
@@ -27,8 +27,8 @@ describe('cloud API: config and sign-in', () => {
     expect((await off.call('POST', '/api/auth/dev', { json: { email: 'a@b.co', name: 'A' } })).status).toBe(404);
     const cookie = await c.signIn('a@b.co', 'Alice');
     expect(cookie).toMatch(/^__Host-hoodoo-session=[\w-]{40,}$/);
-    const me = await body<{ user: { name: string; moderator: boolean } }>(await c.call('GET', '/api/me', { cookie }));
-    expect(me.user).toMatchObject({ name: 'Alice', moderator: false });
+    const me = await body<{ user: { nick: string; moderator: boolean } }>(await c.call('GET', '/api/me', { cookie }));
+    expect(me.user).toMatchObject({ nick: 'Alice', moderator: false });
     expect(await body(await c.call('GET', '/api/me'))).toEqual({ user: null });
   });
 
@@ -52,11 +52,11 @@ describe('cloud API: config and sign-in', () => {
   it('refuses changes from other origins or without one', async () => {
     const c = new TestClient(testEnv());
     const cookie = await c.signIn('a@b.co', 'A');
-    expect((await c.call('POST', '/api/projects', { cookie, form: upload('x'), origin: 'https://evil.example' })).status).toBe(403);
-    expect((await c.call('POST', '/api/projects', { cookie, form: upload('x'), origin: null })).status).toBe(403);
+    expect((await c.call('POST', '/api/posts', { cookie, form: upload('x'), origin: 'https://evil.example' })).status).toBe(403);
+    expect((await c.call('POST', '/api/posts', { cookie, form: upload('x'), origin: null })).status).toBe(403);
     const dev = new TestClient(testEnv({ APP_ORIGINS: 'http://localhost:5754' }));
     const devCookie = await dev.signIn('a@b.co', 'A');
-    expect((await dev.call('POST', '/api/projects', { cookie: devCookie, form: upload('x'), origin: 'http://localhost:5754' })).status).toBe(201);
+    expect((await dev.call('POST', '/api/posts', { cookie: devCookie, form: upload('x'), origin: 'http://localhost:5754' })).status).toBe(201);
   });
 
   it('serves the sign-in and human pages with their own policies', async () => {
@@ -68,54 +68,22 @@ describe('cloud API: config and sign-in', () => {
     const html = await signin.text();
     expect(html).toContain('"clientId":"cid"');
     expect(html).toContain('Dev sign-in');
+    expect(html).toContain('Publish scenes to the Gallery');
+    expect(html).not.toContain('Save your scenes to the cloud');
+    expect(html).not.toContain('dev-name');
     const human = await c.call('GET', '/api/human');
     expect(human.headers.get('Content-Security-Policy')).toContain("frame-ancestors 'self'");
     expect(await human.text()).toContain('"siteKey":"site-key"');
   });
 });
 
-describe('cloud API: private projects', () => {
-  it('saves, lists, opens, replaces and deletes; strangers see nothing', async () => {
-    const env = testEnv();
-    const c = new TestClient(env);
-    const alice = await c.signIn('alice@example.com', 'Alice');
-    const bob = await c.signIn('bob@example.com', 'Bob');
-    const scene = fakeScene(100);
-    const made = await c.call('POST', '/api/projects', { cookie: alice, form: upload('  My   canyon ', scene) });
-    expect(made.status).toBe(201);
-    const { project } = await body<{ project: CloudProject }>(made);
-    expect(project).toMatchObject({ name: 'My canyon', size: scene.length });
-    expect(project.thumb).toMatch(new RegExp(`^/api/projects/${project.id}/thumb\\?v=`));
-    expect((await body<{ projects: CloudProject[] }>(await c.call('GET', '/api/projects', { cookie: alice }))).projects).toHaveLength(1);
-    expect((await body<{ projects: CloudProject[] }>(await c.call('GET', '/api/projects', { cookie: bob }))).projects).toHaveLength(0);
-    const file = await c.call('GET', `/api/projects/${project.id}/scene`, { cookie: alice });
-    expect(new Uint8Array(await file.arrayBuffer())).toEqual(scene);
-    expect((await c.call('GET', `/api/projects/${project.id}/scene`, { cookie: bob })).status).toBe(404);
-    expect((await c.call('GET', `/api/projects/${project.id}/scene`)).status).toBe(401);
-    c.now += 1000;
-    const replaced = await c.call('PUT', `/api/projects/${project.id}`, { cookie: alice, form: upload('Canyon v2', fakeScene(10), null) });
-    expect((await body<{ project: CloudProject }>(replaced)).project).toMatchObject({ id: project.id, name: 'Canyon v2', thumb: null });
-    // The old files are gone, the new scene is the only file left.
-    expect(env.FILES_KV.keys()).toHaveLength(1);
-    expect((await c.call('PUT', `/api/projects/${project.id}`, { cookie: bob, form: upload('mine now') })).status).toBe(404);
-    expect((await c.call('DELETE', `/api/projects/${project.id}`, { cookie: alice })).status).toBe(204);
-    expect(env.FILES_KV.keys()).toHaveLength(0);
-  });
-
-  it('checks uploads: name, gzip scene, JPEG picture, sizes', async () => {
+describe('cloud API: no private projects', () => {
+  it('returns 404 for every former project route', async () => {
     const c = new TestClient(testEnv());
-    const cookie = await c.signIn('a@b.co', 'A');
-    const code = async (form: FormData) => body<{ error: string }>(await c.call('POST', '/api/projects', { cookie, form }));
-    expect((await code(upload('   '))).error).toBe(CloudErrorCode.Invalid);
-    expect((await code(upload('x', new Uint8Array([1, 2, 3])))).error).toBe(CloudErrorCode.Invalid);
-    expect((await code(upload('x', fakeScene(), new Uint8Array([0x89, 0x50, 0x4e, 0x47])))).error).toBe(CloudErrorCode.Invalid);
-    expect((await code(upload('x', fakeScene(), fakeThumb(600 * 1024)))).error).toBe(CloudErrorCode.TooLarge);
-  });
-
-  it('needs storage', async () => {
-    const c = new TestClient(testEnv({ FILES_KV: undefined }));
-    const cookie = await c.signIn('a@b.co', 'A');
-    expect((await body<{ error: string }>(await c.call('POST', '/api/projects', { cookie, form: upload('x') }))).error).toBe(CloudErrorCode.NotConfigured);
+    const cookie = await c.signIn('alice@example.com', 'Alice');
+    for (const [method, path] of [['GET', '/projects'], ['POST', '/projects'], ['PUT', '/projects/old'], ['DELETE', '/projects/old'], ['GET', '/projects/old/scene'], ['GET', '/projects/old/thumb']]) {
+      expect((await c.call(method, `/api${path}`, { cookie })).status).toBe(404);
+    }
   });
 });
 
@@ -145,7 +113,7 @@ describe('cloud API: gallery, votes, reports, moderation', () => {
     expect(asked).toEqual([SITEVERIFY_URL, SITEVERIFY_URL]);
     const ok = await c.call('POST', '/api/posts', { cookie: alice, form: upload('Dunes') });
     expect(ok.status).toBe(201);
-    expect((await body<{ post: GalleryPost }>(ok)).post).toMatchObject({ title: 'Dunes', author: 'Alice', mine: true, likes: 0, hidden: false });
+    expect((await body<{ post: GalleryPost }>(ok)).post).toMatchObject({ title: 'Dunes', author: 'Alice', likes: 0, hidden: false });
     // The pass lasts a while, then the check is due again.
     c.now += 31 * 60 * 1000;
     expect((await c.call('POST', '/api/posts', { cookie: alice, form: upload('Again') })).status).toBe(428);
@@ -165,13 +133,13 @@ describe('cloud API: gallery, votes, reports, moderation', () => {
     await c.call('POST', `/api/posts/${dunes.id}/vote`, { cookie: bob, json: { value: 1 } });
     await c.call('POST', `/api/posts/${dunes.id}/vote`, { cookie: bob, json: { value: 1 } });
     const voted = await c.call('POST', `/api/posts/${dunes.id}/vote`, { cookie: mod, json: { value: 1 } });
-    expect((await body<{ post: GalleryPost }>(voted)).post).toMatchObject({ likes: 2, dislikes: 0, myVote: 1 });
+    expect((await body<{ post: GalleryPost }>(voted)).post).toMatchObject({ likes: 2, dislikes: 0 });
     await c.call('POST', `/api/posts/${canyon.id}/vote`, { cookie: alice, json: { value: -1 } });
     expect((await list('top')).map((p) => [p.title, p.likes, p.dislikes])).toEqual([['Dunes', 2, 0], ['Canyon', 0, 1]]);
     await c.call('POST', `/api/posts/${dunes.id}/vote`, { cookie: bob, json: { value: -1 } });
     await c.call('POST', `/api/posts/${dunes.id}/vote`, { cookie: mod, json: { value: 0 } });
     const seen = (await list('top', bob)).find((p) => p.id === dunes.id);
-    expect(seen).toMatchObject({ likes: 0, dislikes: 1, myVote: -1, mine: false });
+    expect(seen).toMatchObject({ likes: 0, dislikes: 1 });
     expect((await c.call('POST', `/api/posts/${dunes.id}/vote`, { cookie: bob, json: { value: 2 } })).status).toBe(400);
     expect((await c.call('POST', `/api/posts/${dunes.id}/vote`, { json: { value: 1 } })).status).toBe(401);
     expect(seen?.reports).toBeUndefined();
@@ -194,7 +162,8 @@ describe('cloud API: gallery, votes, reports, moderation', () => {
     const titles = async (cookie?: string) => (await body<{ posts: GalleryPost[] }>(await c.call('GET', '/api/posts', { cookie }))).posts.map((p) => [p.title, p.hidden]);
     expect(await titles()).toEqual([]);
     expect(await titles(bob)).toEqual([]);
-    expect(await titles(alice)).toEqual([['Spam', true]]);
+    expect(await titles(alice)).toEqual([]);
+    expect(await body(await c.call('GET', '/api/me/posts', { cookie: alice }))).toMatchObject({ posts: [{ title: 'Spam', hidden: true }] });
     expect((await c.call('GET', `/api/posts/${post.id}/scene`, { cookie: bob })).status).toBe(404);
     expect((await c.call('GET', `/api/posts/${post.id}/scene`, { cookie: mod })).status).toBe(200);
     expect((await body<{ posts: GalleryPost[] }>(await c.call('GET', `/api/mod/posts?filter=${ModFilter.Hidden}`, { cookie: mod }))).posts).toHaveLength(1);

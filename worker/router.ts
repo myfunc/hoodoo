@@ -5,7 +5,7 @@ import { Ctx } from './context';
 import type { Env, Fetcher } from './env';
 import { ApiError, errorResponse, fail, json, STATUS } from './http';
 import * as posts from './posts';
-import * as projects from './projects';
+import { setNick } from './nick';
 
 /**
  * READ ME — the Hoodoo cloud API (docs/cloud.md). Every /api/* request lands here
@@ -29,18 +29,15 @@ const ROUTES: readonly Route[] = [
   route('GET', '/config', auth.config),
   route('GET', '/me', auth.me),
   route('DELETE', '/me', deleteAccount),
+  route('PUT', '/me/nick', setNick),
+  route('GET', '/me/posts-state', posts.postsState),
+  route('GET', '/me/posts', posts.ownPosts),
   route('GET', '/auth/signin', auth.signInWindow),
   route('POST', '/auth/google', auth.googleSignIn),
   route('POST', '/auth/dev', auth.devSignIn),
   route('POST', '/auth/signout', auth.signOut),
   route('GET', '/human', auth.humanWindow),
   route('POST', '/human', auth.humanCheck),
-  route('GET', '/projects', projects.listProjects),
-  route('POST', '/projects', projects.createProject),
-  route('PUT', '/projects/:id', projects.replaceProject),
-  route('DELETE', '/projects/:id', projects.deleteProject),
-  route('GET', '/projects/:id/scene', projects.projectScene),
-  route('GET', '/projects/:id/thumb', projects.projectThumb),
   route('GET', '/posts', posts.listPosts),
   route('POST', '/posts', posts.publish),
   route('DELETE', '/posts/:id', posts.deletePost),
@@ -54,6 +51,7 @@ const ROUTES: readonly Route[] = [
 ];
 
 const READS: ReadonlySet<string> = new Set(['GET', 'HEAD']);
+const CLOUD_FULL = /HOODOO_CLOUD_FULL/;
 const STORAGE_FULL = /HOODOO_STORAGE_FULL/;
 const ACCOUNT_DELETING = /HOODOO_ACCOUNT_DELETING/;
 const DAILY_QUOTA = /(?:daily|per.day).*(?:limit|quota)|(?:limit|quota).*(?:daily|per.day)|(?:D1|KV).*(?:quota|limit exceeded)|(?:KV|D1).*(?:too many|rate limit)/i;
@@ -80,11 +78,12 @@ export async function handleApi(request: Request, env: Env, fetcher: Fetcher, no
       return await r.run(c);
     } catch (error) {
       if (error instanceof ApiError) return errorResponse(error);
-      console.error('[cloud] request failed', { method, path: url.pathname }, error);
       const message = errorText(error);
+      if (CLOUD_FULL.test(message)) return errorResponse(fail.cloudFull());
       if (STORAGE_FULL.test(message)) return errorResponse(fail.storageFull());
       if (ACCOUNT_DELETING.test(message)) return errorResponse(fail.forbidden('Account deletion is in progress'));
       if (DAILY_QUOTA.test(message)) return errorResponse(fail.busy());
+      console.error('[cloud] request failed', { method, path: url.pathname });
       return json({ error: 'server', message: 'The server failed, try again' }, STATUS.server);
     }
   }

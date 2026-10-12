@@ -1,7 +1,7 @@
 import type { Scene } from '../../model/scene.types';
 import {
-  API_ROOT, type CloudConfig, CloudErrorCode, type CloudProject, type CloudUser, FORM, type GalleryPost, type GallerySort,
-  type ModFilter, type PostPage, type ReportReason, type Vote,
+  API_ROOT, type CloudConfig, CloudErrorCode, type CloudUser, FORM, type GalleryPost, type GallerySort,
+  type ModFilter, type PostPage, type PostsState, type ReportReason, type Vote,
 } from './cloud-contract';
 import { packScene, unpackScene } from './scene-pack';
 
@@ -53,22 +53,16 @@ export class CloudApi {
     }
   }
 
-  async projects(): Promise<readonly CloudProject[]> {
-    return (await this.call<{ projects: CloudProject[] }>('GET', '/projects')).projects;
+  async setNick(nick: string): Promise<CloudUser> {
+    return (await this.call<{ user: CloudUser }>('PUT', '/me/nick', { nick })).user;
   }
 
-  /** A new project, or a replacement of project `id`. */
-  async saveProject(up: SceneUpload, id: string | null): Promise<CloudProject> {
-    const form = await this.form(up);
-    return (await this.call<{ project: CloudProject }>(id ? 'PUT' : 'POST', id ? `/projects/${id}` : '/projects', form)).project;
+  postsState(ids: readonly string[]): Promise<PostsState> {
+    return this.call<PostsState>('GET', `/me/posts-state?ids=${encodeURIComponent(ids.join(','))}`);
   }
 
-  openProject(id: string): Promise<Scene> {
-    return this.scene(`/projects/${id}/scene`);
-  }
-
-  async deleteProject(id: string): Promise<void> {
-    await this.call('DELETE', `/projects/${id}`);
+  ownPosts(page = 0): Promise<PostPage> {
+    return this.call<PostPage>('GET', `/me/posts?page=${page}`);
   }
 
   posts(sort: GallerySort, page: number): Promise<PostPage> {

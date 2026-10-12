@@ -1,10 +1,10 @@
 # Hoodoo Cloud
 
-Sign in with Google, keep your scenes (animation included) in the cloud, publish
-them to a public Gallery, like or dislike other people's posts, report bad ones;
-moderators hide, unhide and delete. It is the **Cloud** preview feature: off until
-switched on in View › Preview Features (or `?flags=cloud` for one visit), so the
-public site works as before.
+Sign in with Google to publish scenes (animation included) to the public Gallery,
+like or dislike posts and report bad ones. Moderators hide, unhide and delete.
+Hoodoo Cloud stores public posts only. Projects belong on your device or in your
+own cloud; the editor saves them there. The **Cloud** preview feature is enabled
+in View › Preview Features, or with `?flags=cloud` for one visit.
 
 ## Owner setup: Google sign-in
 
@@ -17,124 +17,176 @@ public site works as before.
 
 The public instance uses Google Cloud project `hoodoo-511421`.
 
-## How it is built
+## Storage, identity and limits
 
-- **Worker** (`worker/`, TypeScript): the same Cloudflare Worker that serves the site.
-  `wrangler.jsonc` runs it only for `/api/*` (`assets.run_worker_first`); every other
-  path is `dist/` with `public/_headers`, exactly as before.
-- **D1** `hoodoo-cloud`: users, sessions, projects, posts, votes, reports, rate limits.
-  Schema in `migrations/` (`npx wrangler d1 migrations apply hoodoo-cloud --remote`).
-- **Files**: scenes (gzipped `.hoodoo` JSON, packed in the browser) and JPEG pictures in
-  KV `hoodoo-cloud-files` (binding `FILES_KV`). R2 is preferred once it is enabled on the
-  account: add an `r2_buckets` binding `FILES` (bucket `hoodoo-cloud-files`); new files go
-  to R2 and old ones stay readable from KV. Keys are never reused, so KV's eventual
-  consistency cannot serve a stale scene.
-- **Sign-in**: File › Cloud Account… opens `/api/auth/signin` as a pop-up. Google's button
-  returns an ID token; the Worker checks its RS256 signature against Google's keys, the
-  issuer, `aud` = our client ID, expiry, a verified email and the page's nonce, then sets
-  `__Host-hoodoo-session` (random token, HttpOnly, Secure, SameSite=Lax, 30 days). D1 keeps
-  only the token's SHA-256, so no signing secret exists to leak. The pop-up tells the editor
-  over a BroadcastChannel and closes.
-- **Anti-bot**: Cloudflare Turnstile (widget `hoodoo-cloud`, managed mode). Publishing,
-  voting and reporting need a session that passed it in the last 30 minutes; the API
-  answers 428 and the editor shows the check in a frame of `/api/human`, then retries.
-  Per-user limits in D1: 60 saves an hour, 10 posts a day, 300 votes an hour, 20 reports a
-  day, 30 sign-ins an hour per address.
-- **Moderation**: moderators are the emails in the `MODERATORS` secret (comma-separated).
-  Posts go live at once; a hidden post is seen only by its author and moderators.
-- **Security**: changes (`POST`, `PUT`, `DELETE`) must carry the editor's own `Origin`.
-  The editor still loads no outside script: Google's and Cloudflare's scripts run only on
-  the two Worker pages, each with its own policy. The editor's policy adds
-  `frame-src 'self'` for the check, and its service worker never touches `/api/`.
+The TypeScript Worker in `worker/` serves `/api/*`; other paths are static assets
+from `dist/`, with `public/_headers`. D1 `hoodoo-cloud` holds users, sessions,
+posts, votes, reports, rate limits and one `meta` row. Migration
+`0003_public_gallery.sql` drops private projects and their triggers/indexes,
+drops users' email/name columns, and gives existing accounts a NULL nick. It adds
+case-insensitive nick uniqueness, gallery versioning and total storage accounting.
 
-Limits: scene 2 MB packed and 20 MB unpacked, JPEG picture exactly 480×300 and at
-most 500 KB, names 80 characters, 200 projects per user. Each user has 50 MB total
-for projects and posts, counting packed scenes and pictures. Replacing a project
-releases its old size; deletion releases space. `storage-full` says "Your cloud is
-full (50 MB): delete old projects". Migration `0002_cloud_safety.sql` adds picture
-sizes and a transactional account counter with quota guards; existing pictures
-count as 500 KB until replaced because their size was not recorded previously.
+Users retain a generated account id, Google's stable subject id, a nickname and
+lowercased `nick_key`, moderator flag, creation time, storage bytes and deletion
+flag. Email is used only in memory after token verification to compare against
+`MODERATORS` (comma-separated secret). Every sign-in updates the stored boolean;
+email and Google name are never written to D1, shown to clients or logged.
+Sign-in preserves an existing nick. Nicknames are 3–20 ASCII letters/digits/_/-,
+starting and ending with a letter or digit. Uniqueness and reserved words are
+case-insensitive. Reserved: admin, administrator, mod, moderator, hoodoo,
+support, staff, system, official, root, null, undefined, anonymous.
+
+Google tokens need an RS256 signature, matching issuer/audience, valid expiry,
+verified email and the sign-in page's nonce. The session cookie
+`__Host-hoodoo-session` is random, HttpOnly, Secure, SameSite=Lax, valid for 30
+days; D1 stores its SHA-256 only. The sign-in page tells the editor over a
+BroadcastChannel. Mutations need the editor's own `Origin` (plus configured
+`APP_ORIGINS` for local development). Google and Turnstile scripts run in their
+own Worker pages with separate policies; the service worker skips `/api/`.
+
+Publishing, voting and reporting require a nickname **before** Turnstile/rate
+checks, then a human check valid for 30 minutes. Turnstile success must name the
+request hostname. Limits: 10 posts/day, 300 votes/hour, 20 reports/day per user;
+Google sign-in 30/hour per IP. A daily 03:17 UTC Cron purges expired sessions and
+rate rows older than one day: IP rows survive at most two days between runs.
+IP-only rows are not linked to an account.
+
+Scene files are gzipped `.hoodoo` JSON; pictures are JPEG. R2 binding `FILES` is
+preferred for new files when present, with read fallback to `FILES_KV`. Without
+R2, writes use KV. Immutable random file keys are never reused. This code does
+not enable R2 or change Cloudflare settings; the 10 GB logical cap does not
+increase the underlying provider's KV allowance.
+
+Limits (`CLOUD_LIMITS`): 2 MB packed / 20 MB unpacked scene, picture exactly
+480×300 and at most 500 KB, title 80 characters. Each user has 50 MB for posts
+(including hidden posts), and the entire Gallery has **10 GB = 10 × 1024³ bytes**.
+Counters `users.storage_bytes` and `meta.stored_bytes` count scenes plus pictures.
+SQL insert/delete triggers change counters atomically and reject racing uploads
+at either cap. Deletion releases space. `storage-full` (413) says "Your Gallery
+storage is full (50 MB): delete old posts". `cloud_full` (503) says "The Gallery
+is full for now: try again later". D1/KV daily quota errors use `busy` (503).
 
 Uploads need a valid Content-Length and a bounded multipart body. The Worker
-streams gzip decompression with an unpacked cap, parses JSON and checks the
-`hoodoo-scene` envelope, supported version and `scene.objects` array. The editor
-still performs full scene validation on opening. Pictures need a JPEG frame of
-the expected dimensions and a complete scan. Turnstile success must name the
-request hostname.
+streams gzip decompression with a cap, parses JSON and checks the `hoodoo-scene`
+envelope, supported version and `scene.objects`. The editor performs full scene
+validation on opening. JPEG validation checks dimensions and a complete scan.
+Failed row writes clean the new files immediately. There is no global orphan
+sweep: legacy KV keys have no creation time to safely distinguish in-flight files.
 
-The Gallery queries public posts through `posts_new` or `posts_top`. A signed-in
-author's hidden posts are fetched separately through `posts_owner_hidden` and
-merged into the same page, so the author still sees the hidden badge. Each list
-has independent pagination; a signed-in page can include up to 24 public and 24
-own hidden posts.
+## Gallery caching and moderation
 
-A moderator can set a hide reason of at most 200 characters. `hiddenReason` is
-returned only to the author and moderators; moderation rows also include
-`authorId`. Authors cannot delete hidden posts while awaiting review. Three
-distinct reporters of any reason, or two distinct `illegal` reporters, hide a
-post automatically with "Hidden after reports, waiting for a moderator". Repeat
-reports update the same reporter's row. Clearing reports does not unhide a post;
-unhiding clears its hide reason.
+`GET /api/posts` never reads a session, includes no per-user fields, and lists
+only visible posts through `posts_new` / `posts_top`. A cheap read of the single
+`meta.gallery_version` row precedes a Workers Cache API lookup keyed by canonical
+sort, page and version. Cached JSON is identical for anonymous users, authors and
+moderators. Edge entries live for one day; response headers are
+`Cache-Control: public, max-age=0, must-revalidate` and
+`ETag: "<version>-<sort>-<page>"`. Matching `If-None-Match` returns a bodyless 304,
+including weak tags, comma-separated tags and `*`.
 
-Account deletion removes every owned project's and post's file prefix from both
-R2 and KV, including obsolete versions, then cascades the account's projects,
-posts, votes, reports and sessions, removes its rate rows and recounts affected
-posts from other authors. The session cookie is cleared. Once deletion starts,
-new mutations are refused; a file-store failure leaves the account available for
-retrying DELETE /api/me. Large accounts use batches of three owned entries per
-request to fit the Free Worker's subrequest budget: 202 `{ deleting: true }`
-means repeat the same DELETE; the browser's `deleteAccount()` does so until the
-final 204 clears the cookie. Account deletion also removes hidden posts.
+Database triggers bump the version in the **same transaction** when publish,
+delete, hide/unhide, auto-hide, vote counts/Top order, author nick changes or
+account deletion alter the public list. Reports and clearing reports are private
+and do not bump it unless a visibility change occurs. Repeating an unchanged
+vote/hide does not bump it. Hidden-only changes do not affect public pages.
 
-A daily Cron Trigger (03:17 UTC) purges expired sessions and rate rows after one
-full day, keeping IP-address rate rows for at most two days between daily runs.
-Sessions expire after 30 days. IP-only rate rows are not linked to an account.
-Failed uploads clean up new files immediately; account deletion sweeps its file
-prefixes. There is no global orphan sweep: legacy KV keys have no creation time,
-so a scan cannot safely distinguish a new in-flight upload from an orphan at a
-bounded cost. Daily D1/KV quota failures return `busy` (503): "Hoodoo Cloud is busy
-today, try again tomorrow".
+`GET /api/me/posts-state?ids=...` provides ownership/votes for at most 48 requested
+ids, uncached. Hidden posts inaccessible to the caller are omitted. Own posts,
+including hidden ones, come from `GET /api/me/posts?page=n`, uncached and newest
+first. All lists page independently at 24 entries (page 0–100).
+
+Public thumbs use the Cache API with an immutable file-version URL and
+`Cache-Control: public, max-age=3600`. Every file request checks the post's current
+visibility in D1 **before** any cache hit. Hidden thumbs bypass cache and use
+`no-store`; hidden scenes also use `no-store`. Hidden files are available only to
+the author/moderators. Hide, auto-hide, deletion and account deletion evict the
+thumb/scene URLs locally; the D1 check protects other edge locations too. Scenes
+are always uncached.
+
+Moderator rows show only the author's nickname and generated `authorId`, never
+Google identity claims. Hide reasons (≤200 characters) are returned only to the
+author/moderators. Authors cannot delete hidden posts while awaiting review.
+Three distinct reporters of any reason, or two distinct `illegal` reporters,
+auto-hide with "Hidden after reports, waiting for a moderator". Repeat reports
+update one row. Clearing reports does not unhide; unhiding clears the reason.
+Illegal content, copyright and privacy requests can also be sent to
+[hoodoo@myfunc.io](mailto:hoodoo@myfunc.io), without an account.
+
+Account deletion removes all owned post file prefixes from R2 and KV, including
+obsolete files, then cascades posts, votes, reports and sessions, removes user
+rate rows and recounts votes/reports on other authors' posts. It also removes
+hidden posts. New mutations are refused once deletion starts. File failure
+leaves an authenticated account to retry. Bounded batches of three posts fit
+Worker subrequest budgets: repeat DELETE while it returns 202
+`{ deleting: true }`; final 204 clears the cookie. `CloudApi.deleteAccount()`
+handles this loop. IP-only rate rows remain until their normal expiry.
 
 ## API
 
-All JSON unless noted; errors are `{ "error": code, "message": text }` with the codes in
-`src/io/cloud/cloud-contract.ts`. Uploads are multipart: `name`, `scene` (gzip), `thumb` (JPEG, optional).
+Errors: `{ error: code, message: text }`. JSON and private routes use `no-store`
+except the shared Gallery list/public thumbs. Changes need Origin. `User` is
+`{ id: string, nick: string|null, moderator: boolean }`.
 
-| Method and path | Who | What |
+Shared `Post`: `{ id, title, author: nick, createdAt, likes, dislikes, hidden,
+thumb: string|null }`. `hidden` is always false in the public list. No `mine` or
+`myVote` exists in any Post: obtain them from posts-state. Owner responses add
+`hiddenReason: string|null`; moderator responses additionally add `authorId`,
+`reports`, `reportNotes: [{ reason, note, at }]`. Public rows have none of these
+private fields. `PostPage` is `{ posts: Post[], more: boolean }`.
+
+| Method and path | Who | Request → response |
 | --- | --- | --- |
 | `GET /api/config` | anyone | `{ googleClientId, turnstileSiteKey, devLogin }` |
-| `GET /api/me` | anyone | `{ user }` or `{ user: null }` |
-| `DELETE /api/me` | user | deletes the account, owned files and all linked data, clears cookie |
-| `GET /api/auth/signin` | anyone | the sign-in pop-up (HTML) |
-| `POST /api/auth/google` | anyone | `{ credential }` → session cookie, `{ user }` |
-| `POST /api/auth/dev` | localhost with `DEV_LOGIN=1` | `{ email, name }` → session cookie |
-| `POST /api/auth/signout` | user | ends the session |
-| `GET /api/human`, `POST /api/human` | user | the Turnstile frame; `{ token }` → human for 30 min |
-| `GET /api/projects` | user | own projects, newest first |
-| `POST /api/projects`, `PUT /api/projects/:id` | user | save new, replace own |
-| `GET /api/projects/:id/scene`, `/thumb` | owner | the packed scene, the picture |
-| `DELETE /api/projects/:id` | owner | delete |
-| `GET /api/posts?sort=new\|top&page=n` | anyone | gallery page `{ posts, more }` |
-| `POST /api/posts` | user, human | publish |
-| `GET /api/posts/:id/scene`, `/thumb` | anyone (hidden: author, moderators) | open a copy, the picture |
-| `POST /api/posts/:id/vote` | user, human | `{ value: 1 \| -1 \| 0 }`, not on one's own post |
-| `POST /api/posts/:id/report` | user, human | `{ reason: spam \| offensive \| broken \| other \| illegal, note }` |
-| `DELETE /api/posts/:id` | author (visible posts), moderator | delete with votes, reports, files |
-| `POST /api/posts/:id/hide` | moderator | `{ hidden: true \| false, reason?: string }` |
-| `POST /api/posts/:id/clear-reports` | moderator | clears the reports |
-| `GET /api/mod/posts?filter=reported\|hidden` | moderator | the queue, with report notes, authorId and hiddenReason |
+| `GET /api/me` | anyone | `{ user: User|null }` |
+| `PUT /api/me/nick` | user | `{ nick }` → `{ user: User }` |
+| `GET /api/me/posts-state?ids=a,b,c` | user | `{ mine: string[], votes: { [id]: 1\|-1 } }`; missing/zero votes omitted, ≤48 ids |
+| `GET /api/me/posts?page=n` | user | own `PostPage`, including hiddenReason/hidden posts |
+| `DELETE /api/me` | user | 202 `{ deleting: true }` until final 204; cookie cleared |
+| `GET /api/auth/signin` | anyone | sign-in HTML |
+| `POST /api/auth/google` | anyone | `{ credential }` → `{ user: User }`, session cookie |
+| `POST /api/auth/dev` | localhost with `DEV_LOGIN=1` | `{ email }` → `{ user: User }`, cookie; test subject is a hash, no raw email persisted |
+| `POST /api/auth/signout` | anyone | `{ user: null }`, cookie cleared |
+| `GET /api/human` | anyone | Turnstile HTML frame |
+| `POST /api/human` | user | `{ token }` → `{ humanUntil }` (Unix ms) |
+| `GET /api/posts?sort=new\|top&page=n` | anyone | shared `PostPage`; 200 or 304 |
+| `POST /api/posts` | user, nick, human | multipart `name`, `scene` (gzip), optional `thumb` (JPEG) → 201 `{ post }` |
+| `GET /api/posts/:id/scene`, `/thumb` | anyone; hidden: owner/mod | gzip scene / JPEG |
+| `POST /api/posts/:id/vote` | user, nick, human | `{ value: 1\|-1\|0 }` → `{ post }`; cannot vote for one's own post |
+| `POST /api/posts/:id/report` | user, nick, human | `{ reason: spam\|offensive\|broken\|other\|illegal, note?: string }` → 204 |
+| `DELETE /api/posts/:id` | author (visible), moderator | 204 after votes/reports/files deleted |
+| `POST /api/posts/:id/hide` | moderator | `{ hidden: boolean, reason?: string }` → `{ post }` |
+| `POST /api/posts/:id/clear-reports` | moderator | no body → `{ post }` |
+| `GET /api/mod/posts?filter=reported\|hidden&page=n` | moderator | moderator `PostPage` |
+
+All former `/api/projects*` routes return 404; the client no longer exposes
+CloudProject or projects/saveProject/openProject/deleteProject.
+
+New errors: `nick_required` **428**, `nick_invalid` **400**, `nick_reserved`
+**400**, `nick_taken` **409**, `cloud_full` **503**. For `nick_required`, open the
+nickname form, call PUT /me/nick, then retry the original operation. `human`
+**428** separately requests Turnstile. Existing codes: `sign-in` 401,
+`forbidden` 403, `not-found` 404, `invalid` 400, `too-large`/`storage-full` 413,
+`too-many` 429, `busy`/`not-configured` 503, `server` 500.
+
+Client methods: `setNick(nick): Promise<CloudUser>`,
+`postsState(ids): Promise<PostsState>`, `ownPosts(page=0): Promise<PostPage>`.
+`posts`, `publish`, `vote`, `report`, `hide`, `clearReports`, `deletePost`,
+`openPost` keep their routes, with the new shared Post contract.
 
 ## Local testing without Google
 
+Use `.dev.vars.example` for a local `.dev.vars` (DEV_LOGIN=1, Turnstile test keys).
+The dev login accepts an email in memory to identify a repeat test account and
+compute the moderator flag; it stores only its hashed test subject. It works
+only with `DEV_LOGIN=1` and localhost; production has neither.
+
 ```sh
-cp .dev.vars.example .dev.vars                          # DEV_LOGIN=1, Turnstile test keys
-npx wrangler d1 migrations apply hoodoo-cloud --local
-npx wrangler dev                                        # API on http://localhost:8787
-npx vite --port 5754                                    # the editor; /api goes to 8787
+npx wrangler d1 migrations apply hoodoo-cloud --local --persist-to /tmp/hoodoo-public-state
+npx wrangler dev --port 8789 --persist-to /tmp/hoodoo-public-state
+npx tsc --noEmit -p worker
+npx vitest run worker src/io/cloud
 ```
 
-Open <http://localhost:5754/?flags=cloud>, File › Cloud Account…, Sign in: the pop-up has a
-dev form (any email; an email listed in `MODERATORS` is a moderator). The dev sign-in
-works only with `DEV_LOGIN=1` **and** a localhost address; production has neither.
-Tests: `npx vitest run worker src/io/cloud` (the Worker runs against the real schema in
-`node:sqlite`); types: `npx tsc --noEmit -p worker`.
+Local API: <http://localhost:8789/api/config>. Sign in, then set a nick before
+publishing, voting or reporting. For the editor on Vite 5754, configure its API
+proxy to the desired local Worker port and allow its origin via APP_ORIGINS.

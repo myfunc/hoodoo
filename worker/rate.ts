@@ -3,7 +3,6 @@ import { fail } from './http';
 
 /** Per-user limits on the actions bots would repeat; fixed windows counted in D1. */
 export enum Limited {
-  Save = 'save',
   Publish = 'publish',
   Vote = 'vote',
   Report = 'report',
@@ -14,7 +13,6 @@ const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
 
 export const RATE_LIMITS: Readonly<Record<Limited, { readonly count: number; readonly windowMs: number; readonly what: string }>> = {
-  [Limited.Save]: { count: 60, windowMs: HOUR_MS, what: 'cloud saves this hour' },
   [Limited.Publish]: { count: 10, windowMs: DAY_MS, what: 'posts today' },
   [Limited.Vote]: { count: 300, windowMs: HOUR_MS, what: 'votes this hour' },
   [Limited.Report]: { count: 20, windowMs: DAY_MS, what: 'reports today' },

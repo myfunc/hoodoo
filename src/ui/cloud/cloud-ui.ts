@@ -6,7 +6,7 @@ import type { Scene } from '../../model/scene.types';
 import type { UiContext } from '../context';
 import { showToast } from '../panels/toast';
 import { SCENE_NAME } from '../strings';
-import { type LinkedProject, confirmDeleteAccount, openPublishDialog, openSaveDialog } from './cloud-dialogs';
+import { confirmDeleteAccount, openNickDialog, openPublishDialog } from './cloud-dialogs';
 import { CLOUD } from './cloud-strings';
 import { CloudPage, CloudWindow } from './cloud-window';
 import { humanCheck } from './human-check';
@@ -17,6 +17,8 @@ import './cloud.css';
 const THUMB = { width: 480, height: 300, quality: 0.82 } as const;
 const SIGNIN_WINDOW = 'popup,width=460,height=560';
 const SIGNIN_NAME = 'hoodoo-signin';
+/** The server refused the nickname itself: ask again with its reason. */
+const NICK_REFUSALS: ReadonlySet<CloudErrorCode> = new Set([CloudErrorCode.NickInvalid, CloudErrorCode.NickReserved, CloudErrorCode.NickTaken]);
 
 /** What the cloud tells the app about scenes it opened. */
 export interface CloudHooks {
@@ -54,8 +56,6 @@ export class CloudUi {
   private pending: (() => void) | null = null;
   private readonly watchers = new Set<() => void>();
   private window: CloudWindow | null = null;
-  /** The project the open scene came from or was saved to, and that scene's entry in the recent list. */
-  private link: { project: LinkedProject; scene: string | null } | null = null;
 
   constructor(readonly ctx: UiContext, private readonly hooks: CloudHooks) {
     if (typeof BroadcastChannel !== 'undefined') {
@@ -63,11 +63,6 @@ export class CloudUi {
         if ((e.data as { type?: unknown } | null)?.type === SIGNED_IN) void this.refresh(true);
       });
     }
-  }
-
-  /** The cloud project of the open scene; another scene opened since (a new recent entry) drops it. */
-  get linked(): LinkedProject | null {
-    return this.link && this.link.scene === (loadCurrentScene()?.id ?? null) ? this.link.project : null;
   }
 
   get user(): CloudUser | null {
@@ -114,7 +109,6 @@ export class CloudUi {
   async signOut(): Promise<void> {
     await this.guard(() => this.api.signOut());
     this.signedIn = null;
-    this.link = null;
     this.notify();
     showToast(CLOUD.signedOut);
   }
@@ -123,10 +117,9 @@ export class CloudUi {
   async deleteAccount(): Promise<void> {
     const user = this.signedIn;
     if (!user) return;
-    confirmDeleteAccount(user.email, () => void this.guard(async () => {
+    confirmDeleteAccount(user.nick, () => void this.guard(async () => {
       await this.api.deleteAccount();
       this.signedIn = null;
-      this.link = null;
       this.notify();
       showToast(CLOUD.accountDeleted);
     }));
@@ -159,21 +152,35 @@ export class CloudUi {
     this.openWindow(CloudPage.Gallery);
   }
 
-  openFromCloud(): void {
+  /** The user's own posts, hidden ones too. */
+  mine(): void {
     void this.ready().then(() => {
       if (this.signedIn || !this.canSignIn) this.openWindow(CloudPage.Mine);
       else this.signIn(() => this.openWindow(CloudPage.Mine));
     });
   }
 
-  save(): void {
-    void this.run(async () => {
-      openSaveDialog(this.sceneName(), this.linked, (choice) => void this.run(async () => {
-        const project = await this.api.saveProject({ name: choice.name, scene: this.ctx.world.scene, thumb: await this.thumbnail() }, choice.replaceId);
-        this.linkTo({ id: project.id, name: project.name });
-        showToast(CLOUD.saved(project.name));
-        this.window?.refresh();
-      }));
+  /**
+   * Asks for a nickname until the server takes one (or the user cancels): the only
+   * name Hoodoo Cloud keeps and shows. Resolves true once it is set.
+   */
+  chooseNick(problem: string | null = null): Promise<boolean> {
+    return new Promise((resolve) => {
+      openNickDialog(this.signedIn?.nick ?? null, problem, (nick) => void this.api.setNick(nick).then((user) => {
+        this.signedIn = user;
+        this.notify();
+        showToast(CLOUD.nickSet(nick));
+        resolve(true);
+      }, (error: unknown) => {
+        const refused = error instanceof CloudError && NICK_REFUSALS.has(error.code);
+        if (!refused) {
+          this.logger.warn('nickname not set', {}, error);
+          showToast(error instanceof Error ? error.message : String(error));
+          resolve(false);
+          return;
+        }
+        void this.chooseNick(error.message).then(resolve);
+      }), () => resolve(false));
     });
   }
 
@@ -189,14 +196,11 @@ export class CloudUi {
     });
   }
 
-  /** Puts a cloud scene in the editor as an undoable step. */
-  load(scene: Scene, name: string, own: LinkedProject | null): void {
+  /** Puts a copy of a Gallery scene in the editor as an undoable step. */
+  load(scene: Scene, name: string): void {
     this.ctx.world.replaceScene(scene, `Open ${name}`);
-    // The app starts the scene's recent entry first: the link belongs to that entry.
-    this.hooks.opened(name, own !== null);
-    this.link = null;
-    if (own) this.linkTo(own);
-    showToast(own ? CLOUD.opened(name) : CLOUD.openedCopy(name));
+    this.hooks.opened(name, false);
+    showToast(CLOUD.openedCopy(name));
     if (!this.ctx.editor.state.liveRender) this.ctx.view.render(true);
   }
 
@@ -222,9 +226,11 @@ export class CloudUi {
     }
     this.notify();
     if (fromSignIn && this.signedIn) {
-      showToast(CLOUD.signedIn(this.signedIn.name));
+      showToast(CLOUD.signedIn(this.signedIn.nick));
       const then = this.pending;
       this.pending = null;
+      // A first sign-in names itself before anything else: the Gallery shows nothing but the nickname.
+      if (!this.signedIn.nick && !(await this.chooseNick())) return;
       then?.();
     }
   }
@@ -240,6 +246,13 @@ export class CloudUi {
         }
         return this.guard(call);
       }
+      if (error instanceof CloudError && error.code === CloudErrorCode.NickRequired) {
+        return (await this.chooseNick()) ? this.guard(call) : undefined;
+      }
+      if (error instanceof CloudError && error.code === CloudErrorCode.CloudFull) {
+        showToast(CLOUD.cloudFull);
+        return undefined;
+      }
       if (error instanceof CloudError && error.code === CloudErrorCode.SignIn) {
         this.signedIn = null;
         this.notify();
@@ -252,16 +265,12 @@ export class CloudUi {
     }
   }
 
-  private linkTo(project: LinkedProject): void {
-    this.link = { project, scene: loadCurrentScene()?.id ?? null };
-  }
-
   private notify(): void {
     for (const fn of this.watchers) fn();
   }
 
   private sceneName(): string {
-    return this.linked?.name ?? loadCurrentScene()?.name ?? SCENE_NAME.untitled;
+    return loadCurrentScene()?.name ?? SCENE_NAME.untitled;
   }
 
   /** A JPEG of the scene window's picture, or null before anything is rendered. */

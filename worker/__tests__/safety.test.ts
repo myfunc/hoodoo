@@ -41,8 +41,6 @@ describe('account deletion on the real migrated schema', () => {
     const own = await post(c, author);
     const foreign = await post(c, other);
     const foreign2 = await post(c, mod);
-    const projectRes = await c.call('POST', '/api/projects', { cookie: author, form: upload('Private') });
-    const project = (await projectRes.json() as { project: { id: string } }).project;
     for (const [cookie, value] of [[author, 1], [mod, -1]] as const) {
       await c.call('POST', `/api/posts/${foreign.id}/vote`, { cookie, json: { value } });
       await c.call('POST', `/api/posts/${foreign.id}/report`, { cookie, json: { reason: ReportReason.Spam } });
@@ -60,14 +58,14 @@ describe('account deletion on the real migrated schema', () => {
     };
     Object.assign(env, { FILES: bucket });
     await r2.put(`posts/${own.id}/obsolete.scene.gz`, fakeScene());
-    await env.FILES_KV.put(`projects/${project.id}/obsolete.thumb.jpg`, fakeThumb());
+    await env.FILES_KV.put(`posts/${own.id}/obsolete.thumb.jpg`, fakeThumb());
     await r2.put(`posts/${foreign.id}/keep.scene.gz`, fakeScene());
     env.DB.sql.prepare('INSERT INTO rate VALUES (?, ?, ?, ?)').run('ip:203.0.113.1', 'signin', c.now, 1);
     const deleted = await c.call('DELETE', '/api/me', { cookie: author });
     expect(deleted.status).toBe(204);
     expect(deleted.headers.get('Set-Cookie')).toContain('Max-Age=0');
     expect(await (await c.call('GET', '/api/me', { cookie: author })).json()).toEqual({ user: null });
-    for (const table of ['users', 'sessions', 'projects', 'posts', 'votes', 'reports', 'rate']) {
+    for (const table of ['users', 'sessions', 'posts', 'votes', 'reports', 'rate']) {
       const column = table === 'users' ? 'id' : 'user_id';
       expect(env.DB.sql.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE ${column} = ?`).get(id)).toMatchObject({ n: 0 });
     }
@@ -76,7 +74,7 @@ describe('account deletion on the real migrated schema', () => {
     expect(env.DB.sql.prepare('SELECT COUNT(*) AS n FROM votes WHERE post_id = ?').get(own.id)).toMatchObject({ n: 0 });
     expect(env.DB.sql.prepare('SELECT COUNT(*) AS n FROM reports WHERE post_id = ?').get(own.id)).toMatchObject({ n: 0 });
     expect(env.DB.sql.prepare('SELECT COUNT(*) AS n FROM rate WHERE user_id LIKE ?').get('ip:%')).toMatchObject({ n: 1 });
-    expect(env.FILES_KV.keys().every((key) => !key.startsWith(`projects/${project.id}/`) && !key.startsWith(`posts/${own.id}/`))).toBe(true);
+    expect(env.FILES_KV.keys().every((key) => !key.startsWith(`posts/${own.id}/`))).toBe(true);
     expect(r2.keys()).toEqual([`posts/${foreign.id}/keep.scene.gz`]);
   });
 
@@ -86,44 +84,39 @@ describe('account deletion on the real migrated schema', () => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.spyOn(env.FILES_KV, 'delete').mockRejectedValueOnce(new Error('storage offline'));
     expect((await c.call('DELETE', '/api/me', { cookie: author })).status).toBe(500);
-    expect((await c.call('POST', '/api/projects', { cookie: author, form: upload('Blocked') })).status).toBe(403);
+    expect((await c.call('POST', '/api/posts', { cookie: author, form: upload('Blocked') })).status).toBe(403);
     expect((await c.call('DELETE', '/api/me', { cookie: author })).status).toBe(204);
     expect(env.FILES_KV.keys()).toEqual([]);
     vi.restoreAllMocks();
   });
 
-  it('cleans a replacement resumed after account deletion', async () => {
+  it('cleans a publish resumed after account deletion', async () => {
     const { env, c, author } = await setup();
-    const project = (await (await c.call('POST', '/api/projects', { cookie: author, form: upload('Old') })).json() as { project: { id: string } }).project;
     let release!: () => void;
     let started!: () => void;
     const gate = new Promise<void>((resolve) => { release = resolve; });
     const ready = new Promise<void>((resolve) => { started = resolve; });
     const put = env.FILES_KV.put;
     vi.spyOn(env.FILES_KV, 'put').mockImplementationOnce(async (key, bytes) => {
-      started();
-      await gate;
-      await put(key, bytes);
+      started(); await gate; await put(key, bytes);
     });
-    const replacing = c.call('PUT', `/api/projects/${project.id}`, { cookie: author, form: upload('New') });
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const publishing = c.call('POST', '/api/posts', { cookie: author, form: upload('New') });
     await ready;
     expect((await c.call('DELETE', '/api/me', { cookie: author })).status).toBe(204);
     release();
-    expect((await replacing).status).toBe(400);
+    expect((await publishing).status).toBe(500);
     expect(env.FILES_KV.keys()).toEqual([]);
     vi.restoreAllMocks();
   });
 
-  it('keeps file failures retryable for individual project/post deletion', async () => {
+  it('keeps individual post deletion retryable after a file failure', async () => {
     const { env, c, author } = await setup();
     const own = await post(c, author);
-    const project = (await (await c.call('POST', '/api/projects', { cookie: author, form: upload('Private') })).json() as { project: { id: string } }).project;
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    for (const [folder, id] of [['projects', project.id], ['posts', own.id]]) {
-      vi.spyOn(env.FILES_KV, 'delete').mockRejectedValueOnce(new Error('offline'));
-      expect((await c.call('DELETE', `/api/${folder}/${id}`, { cookie: author })).status).toBe(500);
-      expect(env.DB.sql.prepare(`SELECT id FROM ${folder} WHERE id = ?`).get(id)).toBeTruthy();
-    }
+    vi.spyOn(env.FILES_KV, 'delete').mockRejectedValueOnce(new Error('offline'));
+    expect((await c.call('DELETE', `/api/posts/${own.id}`, { cookie: author })).status).toBe(500);
+    expect(env.DB.sql.prepare('SELECT id FROM posts WHERE id = ?').get(own.id)).toBeTruthy();
     expect((await c.call('DELETE', '/api/me', { cookie: author })).status).toBe(204);
     expect(env.FILES_KV.keys()).toEqual([]);
     vi.restoreAllMocks();
@@ -132,7 +125,7 @@ describe('account deletion on the real migrated schema', () => {
   it('removes large accounts and obsolete prefixes in bounded, retryable batches', async () => {
     const { env, c, author } = await setup();
     const own = await post(c, author);
-    for (let i = 0; i < 8; i++) await c.call('POST', '/api/projects', { cookie: author, form: upload(`Private ${i}`) });
+    for (let i = 0; i < 8; i++) await c.call('POST', '/api/posts', { cookie: author, form: upload(`Private ${i}`) });
     for (let i = 0; i < 11; i++) await env.FILES_KV.put(`posts/${own.id}/obsolete-${i}.scene.gz`, fakeScene());
     let deleted: Response;
     let rounds = 0;
@@ -149,36 +142,6 @@ describe('account deletion on the real migrated schema', () => {
     expect(env.FILES_KV.keys()).toEqual([]);
   });
 
-  it('deletes obsolete versions after replacement cleanup failed', async () => {
-    const { env, c, author } = await setup();
-    const project = (await (await c.call('POST', '/api/projects', { cookie: author, form: upload('Old') })).json() as { project: { id: string } }).project;
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    vi.spyOn(env.FILES_KV, 'delete').mockRejectedValueOnce(new Error('offline'));
-    expect((await c.call('PUT', `/api/projects/${project.id}`, { cookie: author, form: upload('New') })).status).toBe(500);
-    expect(env.FILES_KV.keys().length).toBeGreaterThan(2);
-    expect((await c.call('DELETE', `/api/projects/${project.id}`, { cookie: author })).status).toBe(204);
-    expect((await c.call('DELETE', '/api/me', { cookie: author })).status).toBe(204);
-    expect(env.FILES_KV.keys()).toEqual([]);
-    vi.restoreAllMocks();
-  });
-
-  it('prevents replacements from winning while a project prefix is reserved for deletion', async () => {
-    const { env, c, author } = await setup();
-    const project = (await (await c.call('POST', '/api/projects', { cookie: author, form: upload('Old') })).json() as { project: { id: string } }).project;
-    let release!: () => void;
-    let started!: () => void;
-    const gate = new Promise<void>((resolve) => { release = resolve; });
-    const ready = new Promise<void>((resolve) => { started = resolve; });
-    const list = env.FILES_KV.list;
-    vi.spyOn(env.FILES_KV, 'list').mockImplementationOnce(async (options) => { started(); await gate; return list(options); });
-    const deleting = c.call('DELETE', `/api/projects/${project.id}`, { cookie: author });
-    await ready;
-    expect((await c.call('PUT', `/api/projects/${project.id}`, { cookie: author, form: upload('New') })).status).toBe(400);
-    release();
-    expect((await deleting).status).toBe(204);
-    expect(env.FILES_KV.keys()).toEqual([]);
-    vi.restoreAllMocks();
-  });
 });
 
 describe('bounded upload validation', () => {
@@ -186,7 +149,7 @@ describe('bounded upload validation', () => {
     for (const length of [null, 'bad', '-1', String(CLOUD_LIMITS.sceneBytes + CLOUD_LIMITS.thumbBytes + 100000)]) {
       const headers = new Headers();
       if (length) headers.set('Content-Length', length);
-      const request = new Request(`${ORIGIN}/api/projects`, { method: 'POST', headers, body: upload('Scene') });
+      const request = new Request(`${ORIGIN}/api/posts`, { method: 'POST', headers, body: upload('Scene') });
       await expect(readUpload(request)).rejects.toThrow(/Content-Length|too large/);
       expect(request.bodyUsed).toBe(false);
     }
@@ -196,67 +159,57 @@ describe('bounded upload validation', () => {
     const { c, author } = await setup();
     const packed = (value: unknown) => new Uint8Array(gzipSync(JSON.stringify(value)));
     for (const scene of [new Uint8Array([0x1f, 0x8b, 8, 0]), packed({ objects: [] }), packed({ format: 'hoodoo-scene', version: 0, scene: { objects: [] } }), packed({ format: 'hoodoo-scene', version: 3, scene: { objects: [null] } })]) {
-      expect((await c.call('POST', '/api/projects', { cookie: author, form: upload('Scene', scene) })).status).toBe(400);
+      expect((await c.call('POST', '/api/posts', { cookie: author, form: upload('Scene', scene) })).status).toBe(400);
     }
     const huge = new Uint8Array(gzipSync('x'.repeat(CLOUD_LIMITS.unpackedSceneBytes + 1)));
-    expect((await c.call('POST', '/api/projects', { cookie: author, form: upload('Bomb', huge) })).status).toBe(413);
-    const encoded = new Request(`${ORIGIN}/api/projects`, { method: 'POST', body: upload('Scene') });
+    expect((await c.call('POST', '/api/posts', { cookie: author, form: upload('Bomb', huge) })).status).toBe(413);
+    const encoded = new Request(`${ORIGIN}/api/posts`, { method: 'POST', body: upload('Scene') });
     const payload = await encoded.arrayBuffer();
     const headers = new Headers({ Origin: ORIGIN, Cookie: author, 'Content-Length': '1', 'Content-Type': encoded.headers.get('Content-Type')! });
-    const request = new Request(`${ORIGIN}/api/projects`, { method: 'POST', headers, body: payload });
+    const request = new Request(`${ORIGIN}/api/posts`, { method: 'POST', headers, body: payload });
     expect((await handleApi(request, c.env, c.fetcher, c.now)).status).toBe(413);
     const oversized = new Uint8Array(CLOUD_LIMITS.sceneBytes + 1);
     oversized.set([0x1f, 0x8b]);
-    expect((await c.call('POST', '/api/projects', { cookie: author, form: upload('Too big', oversized, null) })).status).toBe(413);
+    expect((await c.call('POST', '/api/posts', { cookie: author, form: upload('Too big', oversized, null) })).status).toBe(413);
   });
 
   it('accepts a real 480×300 JPEG and refuses wrong dimensions, fake magic and truncation', async () => {
     const { c, author } = await setup();
-    expect((await c.call('POST', '/api/projects', { cookie: author, form: upload('Good') })).status).toBe(201);
+    expect((await c.call('POST', '/api/posts', { cookie: author, form: upload('Good') })).status).toBe(201);
     const wrong = fakeThumb();
     const frame = wrong.findIndex((byte, i) => byte === 0xff && wrong[i + 1] === 0xc0);
     expect(frame).toBeGreaterThan(0);
     wrong[frame + 7] = 0;
     const bogus = new Uint8Array([0xff, 0xd8, 0xff, 0xdb, 0, 3, 0, 0xff, 0xc4, 0, 3, 0, 0xff, 0xc0, 0, 11, 8, 1, 44, 1, 224, 1, 1, 17, 0, 0xff, 0xda, 0, 8, 1, 1, 0, 0, 63, 0, 0, 0xff, 0xd9]);
     for (const thumb of [wrong, bogus, new Uint8Array([0xff, 0xd8, 0xff, 0xd9]), fakeThumb().slice(0, -2)]) {
-      expect((await c.call('POST', '/api/projects', { cookie: author, form: upload('Bad', fakeScene(), thumb) })).status).toBe(400);
+      expect((await c.call('POST', '/api/posts', { cookie: author, form: upload('Bad', fakeScene(), thumb) })).status).toBe(400);
     }
   });
 });
 
 describe('storage quota', () => {
-  it('retains only the winning files of parallel project replacements', async () => {
-    const { env, c, author } = await setup();
-    const project = (await (await c.call('POST', '/api/projects', { cookie: author, form: upload('Old') })).json() as { project: { id: string } }).project;
-    const results = await Promise.all(['First', 'Second'].map((name) => c.call('PUT', `/api/projects/${project.id}`, { cookie: author, form: upload(name) })));
-    expect(results.map((res) => res.status).sort()).toEqual([200, 400]);
-    expect(env.FILES_KV.keys()).toHaveLength(2);
-    const row = env.DB.sql.prepare('SELECT scene_key, thumb_key FROM projects WHERE id = ?').get(project.id) as { scene_key: string; thumb_key: string };
-    expect(env.FILES_KV.keys().sort()).toEqual([row.scene_key, row.thumb_key].sort());
-  });
-  it('counts scenes and pictures across projects/posts, permits replacements and releases deleted bytes', async () => {
+  it('counts scenes and pictures, refuses the per-user cap and releases deleted bytes', async () => {
     const { env, c, author } = await setup();
     const id = await userId(c, author);
-    const project = (await (await c.call('POST', '/api/projects', { cookie: author, form: upload('Old') })).json() as { project: { id: string } }).project;
+    const own = await post(c, author);
     const used = fakeScene().length + fakeThumb().length;
     expect(env.DB.sql.prepare('SELECT storage_bytes FROM users WHERE id = ?').get(id)).toMatchObject({ storage_bytes: used });
-    env.DB.sql.prepare('INSERT INTO projects (id, user_id, name, size, scene_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run('filler', id, 'Legacy', CLOUD_LIMITS.storageBytes - used, 'projects/filler/scene.gz', c.now, c.now);
+    env.DB.sql.prepare('INSERT INTO posts (id, user_id, title, size, scene_key, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run('filler', id, 'Legacy', CLOUD_LIMITS.storageBytes - used, 'posts/filler/scene.gz', c.now);
     const refused = await c.call('POST', '/api/posts', { cookie: author, form: upload('Full') });
-    expect(await refused.json()).toEqual({ error: CloudErrorCode.StorageFull, message: 'Your cloud is full (50 MB): delete old projects' });
+    expect(await refused.json()).toEqual({ error: CloudErrorCode.StorageFull, message: 'Your Gallery storage is full (50 MB): delete old posts' });
     expect(env.FILES_KV.keys()).toHaveLength(2);
-    expect((await c.call('PUT', `/api/projects/${project.id}`, { cookie: author, form: upload('Smaller', fakeScene(), null) })).status).toBe(200);
-    expect(env.DB.sql.prepare('SELECT storage_bytes FROM users WHERE id = ?').get(id)).toMatchObject({ storage_bytes: CLOUD_LIMITS.storageBytes - fakeThumb().length });
-    expect((await c.call('DELETE', '/api/projects/filler', { cookie: author })).status).toBe(204);
+    expect((await c.call('DELETE', `/api/posts/${own.id}`, { cookie: author })).status).toBe(204);
+    expect(env.DB.sql.prepare('SELECT storage_bytes FROM users WHERE id = ?').get(id)).toMatchObject({ storage_bytes: CLOUD_LIMITS.storageBytes - used });
     expect((await c.call('POST', '/api/posts', { cookie: author, form: upload('Room') })).status).toBe(201);
   });
 
-  it('atomically rejects parallel uploads at the cap and cleans the refused files', async () => {
+  it('atomically rejects parallel uploads at the per-user cap and cleans refused files', async () => {
     const { env, c, author } = await setup();
     const id = await userId(c, author);
     const used = fakeScene().length + fakeThumb().length;
-    env.DB.sql.prepare('INSERT INTO projects (id, user_id, name, size, scene_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-      .run('filler', id, 'Legacy', CLOUD_LIMITS.storageBytes - used, 'projects/filler/scene.gz', c.now, c.now);
+    env.DB.sql.prepare('INSERT INTO posts (id, user_id, title, size, scene_key, created_at) VALUES (?, ?, ?, ?, ?, ?)')
+      .run('filler', id, 'Legacy', CLOUD_LIMITS.storageBytes - used, 'posts/filler/scene.gz', c.now);
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const results = await Promise.all([0, 1].map(() => c.call('POST', '/api/posts', { cookie: author, form: upload('Race') })));
     expect(results.map((res) => res.status).sort()).toEqual([201, 413]);
@@ -318,7 +271,7 @@ describe('moderation and gallery indexes', () => {
     expect((await c.call('POST', `/api/posts/${own.id}/hide`, { cookie: mod, json: { hidden: true, reason: 'x'.repeat(201) } })).status).toBe(400);
     const hidden = await c.call('POST', `/api/posts/${own.id}/hide`, { cookie: mod, json: { hidden: true, reason: 'Evidence' } });
     expect(await hidden.json()).toMatchObject({ post: { hiddenReason: 'Evidence', authorId: await userId(c, author) } });
-    const mine = await (await c.call('GET', '/api/posts', { cookie: author })).json() as { posts: GalleryPost[] };
+    const mine = await (await c.call('GET', '/api/me/posts', { cookie: author })).json() as { posts: GalleryPost[] };
     expect(mine.posts[0].hiddenReason).toBe('Evidence');
     expect(mine.posts[0].authorId).toBeUndefined();
     expect((await c.call('DELETE', `/api/posts/${own.id}`, { cookie: author })).status).toBe(403);
@@ -353,9 +306,11 @@ describe('moderation and gallery indexes', () => {
     await c.call('GET', `/api/posts?sort=${sort}`, { cookie: author });
     const query = prepare.mock.calls.find(([sql]) => sql.includes('WHERE p.hidden = 0'))?.[0];
     expect(query).toBeTruthy();
-    const plan = env.DB.sql.prepare(`EXPLAIN QUERY PLAN ${query}`).all('', 25, 0) as { detail: string }[];
+    const plan = env.DB.sql.prepare(`EXPLAIN QUERY PLAN ${query}`).all(25, 0) as { detail: string }[];
     expect(plan.some((row) => row.detail.includes(`SEARCH p USING INDEX posts_${sort}`))).toBe(true);
-    expect(prepare.mock.calls.some(([sql]) => sql.includes('WHERE p.user_id = ? AND p.hidden = 1'))).toBe(true);
+    expect(prepare.mock.calls.some(([sql]) => sql.includes('WHERE p.user_id = ?'))).toBe(false);
+    await c.call('GET', '/api/me/posts', { cookie: author });
+    expect(prepare.mock.calls.some(([sql]) => sql.includes('WHERE p.user_id = ?'))).toBe(true);
     vi.restoreAllMocks();
   });
 });
@@ -368,6 +323,16 @@ describe('hostname, retention and provider quota errors', () => {
     for (const hostname of ['evil.example', undefined, 'localhost']) {
       c.fetcher = async () => Response.json({ success: true, hostname });
       expect((await c.call('POST', '/api/human', { cookie, json: { token: 'token' } })).status).toBe(hostname === 'localhost' ? 200 : 403);
+    }
+  });
+
+  it("takes Cloudflare's example.com answer only with a dummy test secret", async () => {
+    const env = testEnv({ TURNSTILE_SITE_KEY: '1x00000000000000000000AA', TURNSTILE_SECRET: '1x0000000000000000000000000000000AA' });
+    const c = new TestClient(env);
+    const cookie = await c.signIn('a@example.com', 'A');
+    for (const hostname of ['localhost', 'example.com']) {
+      c.fetcher = async () => Response.json({ success: true, hostname });
+      expect((await c.call('POST', '/api/human', { cookie, json: { token: 'token' } })).status).toBe(hostname === 'example.com' ? 200 : 403);
     }
   });
 

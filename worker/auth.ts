@@ -1,8 +1,8 @@
-import { type CloudConfig, cleanName } from '../src/io/cloud/cloud-contract';
+import { type CloudConfig } from '../src/io/cloud/cloud-contract';
 import type { Ctx } from './context';
 import { clientIdOf, devLoginOn } from './env';
 import { verifyGoogleToken } from './google';
-import { cookieOf, fail, json, readJson, setCookie } from './http';
+import { cookieOf, fail, json, readJson, setCookie, sha256Hex } from './http';
 import { passHuman, turnstileOn } from './human';
 import { humanPage, humanPolicy, newNonce, pageHeaders, signInPage, signInPolicy } from './pages';
 import { Limited, spend } from './rate';
@@ -47,14 +47,13 @@ export async function googleSignIn(c: Ctx): Promise<Response> {
   return signedIn(await startSession(c.env, who, c.now));
 }
 
-/** Local testing without Google (DEV_LOGIN=1 in .dev.vars, localhost only): any email and name. */
+/** Local testing without Google (DEV_LOGIN=1 in .dev.vars, localhost only): any email, hashed into a test subject. */
 export async function devSignIn(c: Ctx): Promise<Response> {
   if (!devLoginOn(c.env, c.url)) throw fail.notFound();
   const body = await readJson(c.request);
   const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
-  const name = typeof body.name === 'string' ? cleanName(body.name) : '';
-  if (!EMAIL.test(email) || !name) throw fail.invalid('Give an email and a name');
-  return signedIn(await startSession(c.env, { subject: `dev:${email}`, email, name }, c.now));
+  if (!EMAIL.test(email)) throw fail.invalid('Give a valid email');
+  return signedIn(await startSession(c.env, { subject: `dev:${await sha256Hex(email)}`, email }, c.now));
 }
 
 function signedIn(started: Awaited<ReturnType<typeof startSession>>): Response {

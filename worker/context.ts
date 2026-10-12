@@ -13,7 +13,7 @@ export class Ctx {
     readonly url: URL,
     readonly now: number,
     readonly fetcher: Fetcher,
-    /** The path parameter of the matched route (a project or post id). */
+    /** The path parameter of the matched route (a post id). */
     readonly id: string = '',
   ) {}
 
@@ -30,6 +30,12 @@ export class Ctx {
     const s = await this.session();
     if (!s) throw fail.signIn();
     if (s.deleting) throw fail.forbidden('Account deletion is in progress: retry Delete account');
+    return s;
+  }
+
+  async named(): Promise<Session> {
+    const s = await this.signedIn();
+    if (!s.user.nick) throw fail.nickRequired();
     return s;
   }
 

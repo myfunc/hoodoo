@@ -92,11 +92,11 @@ const FRAME_BUTTON_W = 300;
 
 export function signInPage(p: SignInPage): string {
   const head = p.framed ? '' : `<h1>Hoodoo Cloud</h1>
-<p class="soft">Save your scenes to the cloud and post them to the Gallery.</p>`;
+<p class="soft">Publish scenes to the Gallery, vote and report posts.</p>`;
   const body = `${head}
 ${p.clientId ? '<div id="google"></div>' : p.devLogin ? '' : '<p>Cloud sign-in is not configured on this server.</p>'}
 ${p.devLogin ? `<form id="dev" autocomplete="off"><label for="dev-email">Email</label><input id="dev-email" type="email" required value="tester@example.com">
-<label for="dev-name">Name</label><input id="dev-name" required value="Tester"><button type="submit">Dev sign-in</button></form>
+<button type="submit">Dev sign-in</button></form>
 <p class="soft">Dev sign-in: localhost only, never on the public site.</p>` : ''}
 <p id="status" role="status"></p>`;
   const script = `${SCRIPT_BASE}
@@ -104,7 +104,7 @@ const CONFIG = ${json({ clientId: p.clientId, nonce: p.nonce, channel: SIGNIN_CH
 const CLOSE_MS = 700;
 function done(out) {
   new BroadcastChannel(CONFIG.channel).postMessage({ type: CONFIG.signedIn });
-  say('Signed in as ' + out.user.name + (CONFIG.framed ? '' : '. You can go back to Hoodoo.'));
+  say('Signed in' + (out.user.nick ? ' as ' + out.user.nick : '') + (CONFIG.framed ? '' : '. You can go back to Hoodoo.'));
   // The frame and the editor share the origin: the message goes to that origin only.
   if (CONFIG.framed) parent.postMessage({ type: CONFIG.signedIn }, location.origin);
   else setTimeout(() => window.close(), CLOSE_MS);
@@ -115,7 +115,7 @@ if (dev) dev.addEventListener('submit', (e) => {
   e.preventDefault();
   say('Signing in…');
   const value = (id) => document.getElementById(id).value;
-  post('/api/auth/dev', { email: value('dev-email'), name: value('dev-name') }).then(done, failed);
+  post('/api/auth/dev', { email: value('dev-email') }).then(done, failed);
 });
 window.onGoogleLibraryLoad = () => {
   google.accounts.id.initialize({

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.13.0 — 2026-10-13
+
+### Changed
+- Hoodoo Cloud is public only: the Gallery. Projects stay on your device; File ›
+  Save opens the browser's save dialog, so a folder of Google Drive, iCloud or
+  Dropbox keeps them in your own cloud. Open from Cloud and Save to Cloud are gone.
+- Only a nickname is shown and kept: no email, no name. The first sign-in asks
+  for one; the account line changes it. My posts lists your posts, hidden ones too,
+  with the moderator's reason.
+- The Gallery list is the same for everyone and cached on the server until a post,
+  a vote or a moderator changes it; which posts are yours and your votes come apart.
+- Delete account removes everything at once; a report can say "Illegal or sexual
+  content, child safety", and a post hides itself after several reports.
+- Uploads are checked on the server (the scene unpacked, the picture a real
+  480×300 JPEG); 50 MB per account and 10 GB for the whole Gallery.
+- Privacy and Terms rewritten for this; contact hoodoo@myfunc.io.
+
 ## 0.12.4 — 2026-10-12
 
 ### Added

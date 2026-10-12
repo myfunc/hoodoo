@@ -1,7 +1,7 @@
 import { Logger } from '../core/log';
 import { randomSeed } from '../core/rng';
 import { Action } from '../input/actions';
-import { pickSceneFile, readSceneFile, downloadScene } from '../io/project-file';
+import { SceneSaved, pickSceneFile, readSceneFile, saveScene } from '../io/project-file';
 import { SCENE_NAME } from '../ui/strings';
 import { copyCanvas, downloadCanvas } from '../io/export-image';
 import { renderImage } from '../render/tiled-render';
@@ -141,12 +141,10 @@ export class Commands {
       [Action.PreviewFeatures]: () => toolWindows(ctx).open(ToolId.PreviewFeatures),
       [Action.Settings]: () => openSettings(e, SettingsSection.General, sceneDepth(w)),
       [Action.Open]: () => void this.open(),
-      [Action.CloudOpen]: () => cloud().openFromCloud(),
-      [Action.CloudSave]: () => cloud().save(),
       [Action.CloudPublish]: () => cloud().publish(),
       [Action.CloudGallery]: () => cloud().gallery(),
       [Action.CloudAccount]: () => cloud().account(),
-      [Action.Save]: () => { downloadScene(w.scene, DEFAULT_FILE_NAME); hooks.sceneSaved?.(); },
+      [Action.Save]: () => void this.save(),
       [Action.LoadDemo]: () => { w.replaceScene(demoScene(), 'Open demo'); hooks.sceneOpened?.(SCENE_NAME.demo, false); },
       [Action.SurpriseScene]: () => {
         const seed = randomSeed();
@@ -319,6 +317,19 @@ export class Commands {
   openObject(id: ObjectId): void {
     this.ctx.world.select(this.ctx.world.groupMembers(id), SelectMode.Replace);
     this.editObject();
+  }
+
+  /** Saves a .hoodoo file where the user picks: a folder of their own cloud (Google Drive, iCloud, Dropbox) as well. */
+  private async save(): Promise<void> {
+    try {
+      const saved = await saveScene(this.ctx.world.scene, DEFAULT_FILE_NAME);
+      if (saved === SceneSaved.Cancelled) return;
+      this.hooks.sceneSaved?.();
+      if (saved === SceneSaved.Saved) this.ctx.toast('Saved: a folder of Google Drive, iCloud or Dropbox keeps it in your cloud');
+    } catch (error) {
+      this.logger.error('save failed', {}, error);
+      this.ctx.toast(`Could not save: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
   }
 
   private async open(): Promise<void> {

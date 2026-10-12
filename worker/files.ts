@@ -34,13 +34,13 @@ export function filesOf(env: Env): Files {
   };
 }
 
-/** Where an upload's files live: one folder per project or post, a fresh name per save. */
+/** Where an upload's files live: one folder per post, a fresh name per save. */
 export const fileKeys = (folder: string, id: string, version: string) => ({
   scene: `${folder}/${id}/${version}.scene.gz`,
   thumb: `${folder}/${id}/${version}.thumb.jpg`,
 });
 
-export const FOLDER = { project: 'projects', post: 'posts' } as const;
+export const FOLDER = { post: 'posts' } as const;
 const DELETE_PAGE_SIZE = 4;
 
 /** Include obsolete versions left by an interrupted save, in both stores. */

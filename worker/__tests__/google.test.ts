@@ -39,7 +39,7 @@ describe('Google ID tokens', () => {
   it('accepts a good token and caches Google keys', async () => {
     const g = await fakeGoogle();
     const who = await verifyGoogleToken(await g.sign({}), CLIENT_ID, 'n1', NOW, g.fetcher);
-    expect(who).toEqual({ subject: '1234567890', email: 'denys@example.com', name: 'Denys' });
+    expect(who).toEqual({ subject: '1234567890', email: 'denys@example.com' });
     await verifyGoogleToken(await g.sign({}), CLIENT_ID, 'n1', NOW, g.fetcher);
     expect(g.fetches).toEqual([GOOGLE_KEYS_URL]);
   });
@@ -61,7 +61,8 @@ describe('Google ID tokens', () => {
 
   it('signs in through the API with the nonce of the sign-in page', async () => {
     const g = await fakeGoogle();
-    const c = new TestClient(testEnv({ GOOGLE_CLIENT_ID: CLIENT_ID, DEV_LOGIN: undefined }));
+    const env = testEnv({ GOOGLE_CLIENT_ID: CLIENT_ID, DEV_LOGIN: undefined });
+    const c = new TestClient(env);
     c.now = NOW;
     c.fetcher = g.fetcher;
     const page = await c.call('GET', '/api/auth/signin');
@@ -72,6 +73,12 @@ describe('Google ID tokens', () => {
     const res = await c.call('POST', '/api/auth/google', { cookie: nonceCookie, json: { credential: await g.sign({ nonce }) } });
     expect(res.status).toBe(200);
     const me = await (await c.call('GET', '/api/me', { cookie: cookieFrom(res) })).json();
-    expect(me).toMatchObject({ user: { name: 'Denys', email: 'denys@example.com', moderator: false } });
+    expect(me).toMatchObject({ user: { nick: null, moderator: false } });
+    const row = env.DB.sql.prepare('SELECT * FROM users').get();
+    expect(row).toMatchObject({ subject: '1234567890', nick: null, nick_key: null, moderator: 0 });
+    expect(row).not.toHaveProperty('email');
+    expect(row).not.toHaveProperty('name');
+    expect(JSON.stringify(row)).not.toContain('denys@example.com');
+    expect(JSON.stringify(row)).not.toContain('Denys');
   });
 });

@@ -82,8 +82,6 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.MoveSelection]: { label: 'Move Selection', menu: MenuName.Objects, chords: [c('KeyG')] },
   [Action.RotateSelection]: { label: 'Rotate Selection', menu: MenuName.Objects, chords: [] },
   [Action.SizeSelection]: { label: 'Size Selection', menu: MenuName.Objects, chords: [] },
-  [Action.CloudOpen]: { label: 'Open from Cloud…', menu: MenuName.File, chords: [] },
-  [Action.CloudSave]: { label: 'Save to Cloud…', menu: MenuName.File, chords: [] },
   [Action.CloudPublish]: { label: 'Publish to Gallery…', menu: MenuName.File, chords: [] },
   [Action.CloudGallery]: { label: 'Gallery…', menu: MenuName.File, chords: [] },
   [Action.CloudAccount]: { label: 'Cloud Account…', menu: MenuName.File, chords: [] },

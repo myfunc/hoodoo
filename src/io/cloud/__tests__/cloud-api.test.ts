@@ -51,6 +51,27 @@ describe('cloud API client', () => {
     await expect(offline.config()).rejects.toMatchObject({ code: CloudErrorCode.Server });
   });
 
+  it('uses the nickname, personal state and own-post routes with the new contract', async () => {
+    const requests: { url: string; method?: string; body?: BodyInit | null }[] = [];
+    const api = new CloudApi('/api', async (url, init) => {
+      requests.push({ url: String(url), method: init?.method, body: init?.body });
+      if (String(url).includes('/nick')) return Response.json({ user: { id: 'u1', nick: 'MapMaker', moderator: false } });
+      if (String(url).includes('posts-state')) return Response.json({ mine: ['p1'], votes: { p2: -1 } });
+      return Response.json({ posts: [], more: false });
+    });
+    expect(await api.setNick('MapMaker')).toEqual({ id: 'u1', nick: 'MapMaker', moderator: false });
+    expect(await api.postsState(['p1', 'p2'])).toEqual({ mine: ['p1'], votes: { p2: -1 } });
+    expect(await api.ownPosts(2)).toEqual({ posts: [], more: false });
+    expect(requests).toEqual([
+      { url: '/api/me/nick', method: 'PUT', body: '{"nick":"MapMaker"}' },
+      { url: '/api/me/posts-state?ids=p1%2Cp2', method: 'GET', body: undefined },
+      { url: '/api/me/posts?page=2', method: 'GET', body: undefined },
+    ]);
+    for (const code of [CloudErrorCode.NickRequired, CloudErrorCode.NickInvalid, CloudErrorCode.NickTaken, CloudErrorCode.NickReserved, CloudErrorCode.CloudFull]) {
+      await expect(new CloudApi('/api', reply({ error: code, message: code }, 428)).me()).rejects.toMatchObject({ code });
+    }
+  });
+
   it('cleans names to one short line', () => {
     expect(cleanName('  Golden\n\tdunes \u0007 ')).toBe('Golden dunes');
     expect(cleanName('x'.repeat(200))).toHaveLength(80);

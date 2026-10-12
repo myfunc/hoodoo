@@ -115,8 +115,6 @@ export enum Action {
   RotateSelection = 'rotate-selection',
   SizeSelection = 'size-selection',
   /** File › cloud commands (Cloud preview feature, ui/cloud/cloud-ui.ts). */
-  CloudOpen = 'cloud-open',
-  CloudSave = 'cloud-save',
   CloudPublish = 'cloud-publish',
   CloudGallery = 'cloud-gallery',
   CloudAccount = 'cloud-account',

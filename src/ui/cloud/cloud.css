@@ -41,7 +41,7 @@
 
 /* The anti-bot check: Turnstile's frame from /api/human. */
 .cloud-human { width: 340px; }
-.cloud-human-frame { display: block; width: 100%; height: 86px; border: 0; background: #2a2a2e; }
+.cloud-human-frame { display: block; width: 100%; height: 104px; border: 0; background: #2a2a2e; }
 
 /* Sign in (ui/cloud/sign-in-window.ts): the start window's stone, the open scene, Google's button in a frame. */
 .signin-overlay { z-index: 1080; }
@@ -62,3 +62,6 @@
   .signin-body { flex-direction: column; }
   .signin-picture { width: 100%; height: auto; aspect-ratio: 4 / 3; }
 }
+.cloud-form-note.is-bad { color: #a8302a; }
+:root[data-theme=dark] .cloud-form-note.is-bad { color: #ff9a8a; }
+.cloud-own { margin-top: 8px; font-size: 11px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -12,6 +12,9 @@ import type { Session } from './session';
 export const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 export const HUMAN_PASS_MS = 30 * 60 * 1000;
 const MAX_TOKEN_CHARS = 2048;
+/** Cloudflare's dummy secrets (local testing) answer for the hostname example.com, whatever the page's. */
+const TEST_SECRET = /^[123]x0+AA$/;
+const TEST_HOSTNAME = 'example.com';
 
 export const turnstileOn = (env: Env): boolean => !!env.TURNSTILE_SITE_KEY?.trim();
 
@@ -32,7 +35,8 @@ export async function passHuman(env: Env, session: Session, token: unknown, ip: 
   if (ip) form.append('remoteip', ip);
   const res = await fetcher(SITEVERIFY_URL, { method: 'POST', body: form });
   const outcome = (await res.json().catch(() => ({}))) as { success?: boolean; hostname?: string };
-  if (!res.ok || !outcome.success || outcome.hostname !== hostname) throw fail.forbidden('The human check did not pass, try again');
+  const expected = TEST_SECRET.test(env.TURNSTILE_SECRET) ? TEST_HOSTNAME : hostname;
+  if (!res.ok || !outcome.success || outcome.hostname !== expected) throw fail.forbidden('The human check did not pass, try again');
   const until = now + HUMAN_PASS_MS;
   await env.DB.prepare('UPDATE sessions SET human_until = ? WHERE token_hash = ?').bind(until, session.tokenHash).run();
   return until;

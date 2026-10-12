@@ -4,11 +4,12 @@ import { filesOf } from './files';
 import { fail } from './http';
 import type { Upload } from './uploads';
 
-export async function checkStorage(env: Env, userId: string, up: Upload, replacing = 0): Promise<void> {
-  const row = await env.DB.prepare('SELECT storage_bytes FROM users WHERE id = ?').bind(userId).first<{ storage_bytes: number }>();
+export async function checkStorage(env: Env, userId: string, up: Upload): Promise<void> {
+  const row = await env.DB.prepare('SELECT u.storage_bytes, m.stored_bytes FROM users u CROSS JOIN meta m WHERE u.id = ? AND m.id = 1').bind(userId).first<{ storage_bytes: number; stored_bytes: number }>();
   if (!row) throw fail.signIn();
   const added = up.scene.length + (up.thumb?.length ?? 0);
-  if (added > replacing && row.storage_bytes - replacing + added > CLOUD_LIMITS.storageBytes) throw fail.storageFull();
+  if (row.stored_bytes + added > CLOUD_LIMITS.totalBytes) throw fail.cloudFull();
+  if (row.storage_bytes + added > CLOUD_LIMITS.storageBytes) throw fail.storageFull();
 }
 
 /** Failed row writes must not leave the newly uploaded files behind. */

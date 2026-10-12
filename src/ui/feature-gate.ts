@@ -15,7 +15,7 @@ export const FEATURE_ACTIONS: Readonly<Record<Feature, readonly Action[]>> = {
   [Feature.Play]: [Action.Play, Action.CreateTriggerZone],
   // Sandbox has no editor commands: it is what Play carries (src/play/sandbox).
   [Feature.Sandbox]: [],
-  [Feature.Cloud]: [Action.CloudOpen, Action.CloudSave, Action.CloudPublish, Action.CloudGallery, Action.CloudAccount],
+  [Feature.Cloud]: [Action.CloudPublish, Action.CloudGallery, Action.CloudAccount],
 };
 
 /** Actions that serve several features (the Portals & Triggers window): there while any of them is on. */

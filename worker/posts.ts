@@ -3,6 +3,7 @@ import {
   isGallerySort, isModFilter, isReportReason, isVote,
 } from '../src/io/cloud/cloud-contract';
 import { type Ctx, readUpload } from './context';
+import { CACHE_CONTROL, edgeCache, evictPostFiles, fileCacheKey } from './cache';
 import { deleteFolder, FOLDER, fileKeys, filesOf } from './files';
 import { bytes, fail, json, newId, noContent, readJson, STATUS } from './http';
 import { requireHuman } from './human';
@@ -31,13 +32,9 @@ interface PostRow {
   hidden: number;
   hidden_reason: string | null;
   author: string;
-  my_vote: number | null;
 }
 
-/** Visible posts' pictures may sit in the browser a while; a hidden one's may not. */
-const THUMB_CACHE = { shown: 'public, max-age=3600', hidden: 'no-store' } as const;
-
-const SELECT_POSTS = 'SELECT p.*, u.name AS author, v.value AS my_vote FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN votes v ON v.post_id = p.id AND v.user_id = ?';
+const SELECT_POSTS = 'SELECT p.*, u.nick AS author FROM posts p JOIN users u ON u.id = p.user_id';
 const AUTO_HIDE_REPORTS = 3;
 const AUTO_HIDE_ILLEGAL = 2;
 const AUTO_HIDE_REASON = 'Hidden after reports, waiting for a moderator';
@@ -56,8 +53,8 @@ function postOf(r: PostRow, s: Session | null, notes?: readonly ReportNote[]): G
   const mod = !!s?.user.moderator;
   return {
     id: r.id, title: r.title, author: r.author, createdAt: r.created_at, likes: r.likes, dislikes: r.dislikes,
-    myVote: isVote(r.my_vote) ? r.my_vote : 0, mine: r.user_id === s?.user.id, hidden: r.hidden === 1,
-    thumb: r.thumb_key ? `/api/posts/${r.id}/thumb?v=${r.hidden}` : null,
+    hidden: r.hidden === 1,
+    thumb: r.thumb_key ? `/api/posts/${r.id}/thumb?v=${encodeURIComponent(r.thumb_key)}` : null,
     ...(mod || r.user_id === s?.user.id ? { hiddenReason: r.hidden_reason } : {}),
     ...(mod ? { authorId: r.user_id, reports: r.reports, reportNotes: notes ?? [] } : {}),
   };
@@ -69,33 +66,69 @@ function pageOf(url: URL): number {
 }
 
 /** One page more than asked tells whether there is another. */
-async function page(c: Ctx, s: Session | null, where: string, binds: unknown[]): Promise<{ rows: PostRow[]; more: boolean }> {
+async function page(c: Ctx, where: string, binds: unknown[]): Promise<{ rows: PostRow[]; more: boolean }> {
   const size = CLOUD_LIMITS.pageSize;
   const { results } = await c.env.DB.prepare(`${SELECT_POSTS} ${where} LIMIT ? OFFSET ?`)
-    .bind(s?.user.id ?? '', ...binds, size + 1, pageOf(c.url) * size).all<PostRow>();
+    .bind(...binds, size + 1, pageOf(c.url) * size).all<PostRow>();
   return { rows: results.slice(0, size), more: results.length > size };
 }
 
 export async function listPosts(c: Ctx): Promise<Response> {
-  const s = await c.session();
   const sortParam = c.url.searchParams.get('sort');
   const sort = isGallerySort(sortParam) ? sortParam : GallerySort.New;
-  const { rows, more } = await page(c, s, `WHERE p.hidden = 0 ORDER BY ${ORDER[sort]}`, []);
-  // Own hidden posts have their own indexed page; public pagination never scans them.
-  if (s) {
-    const own = await page(c, s, `WHERE p.user_id = ? AND p.hidden = 1 ORDER BY ${ORDER[sort]}`, [s.user.id]);
-    rows.push(...own.rows);
-    rows.sort((a, b) => (sort === GallerySort.Top ? (b.likes - b.dislikes) - (a.likes - a.dislikes) : 0) || b.created_at - a.created_at);
-    return json({ posts: rows.map((r) => postOf(r, s)), more: more || own.more });
+  const version = await c.env.DB.prepare('SELECT gallery_version FROM meta WHERE id = 1').first<{ gallery_version: number }>();
+  if (!version) throw new Error('Gallery metadata is missing');
+  const etag = `"${version.gallery_version}-${sort}-${pageOf(c.url)}"`;
+  const headers = { 'Cache-Control': CACHE_CONTROL.gallery, ETag: etag };
+  const matches = c.request.headers.get('If-None-Match')?.split(',').map((value) => value.trim().replace(/^W\//, ''));
+  if (matches?.includes(etag) || matches?.includes('*')) return new Response(null, { status: 304, headers });
+  const url = new URL('/api/posts', c.url.origin);
+  url.searchParams.set('sort', sort);
+  url.searchParams.set('page', String(pageOf(c.url)));
+  url.searchParams.set('version', String(version.gallery_version));
+  const key = new Request(url);
+  const cache = edgeCache();
+  const cached = await cache?.match(key);
+  if (cached) return new Response(cached.body, { headers: { ...Object.fromEntries(cached.headers), ...headers } });
+  const { rows, more } = await page(c, `WHERE p.hidden = 0 ORDER BY ${ORDER[sort]}`, []);
+  const response = json({ posts: rows.map((r) => postOf(r, null)), more }, STATUS.ok, headers);
+  if (cache) {
+    const stored = response.clone();
+    stored.headers.set('Cache-Control', CACHE_CONTROL.edge);
+    await cache.put(key, stored);
   }
+  return response;
+}
+
+export async function ownPosts(c: Ctx): Promise<Response> {
+  const s = await c.signedIn();
+  const { rows, more } = await page(c, 'WHERE p.user_id = ? ORDER BY p.created_at DESC', [s.user.id]);
   return json({ posts: rows.map((r) => postOf(r, s)), more });
+}
+
+const POST_ID = /^[\w-]{1,64}$/;
+
+export async function postsState(c: Ctx): Promise<Response> {
+  const s = await c.signedIn();
+  const param = c.url.searchParams.get('ids') ?? '';
+  const requested = param ? param.split(',') : [];
+  if (requested.length > CLOUD_LIMITS.stateIds || requested.some((id) => !POST_ID.test(id))) throw fail.invalid('Give at most 48 post ids');
+  const ids = [...new Set(requested)];
+  if (!ids.length) return json({ mine: [], votes: {} });
+  const marks = ids.map(() => '?').join(', ');
+  const { results } = await c.env.DB.prepare(`SELECT p.id, p.user_id, v.value FROM posts p LEFT JOIN votes v ON v.post_id = p.id AND v.user_id = ? WHERE p.id IN (${marks}) AND (p.hidden = 0 OR p.user_id = ? OR ? = 1)`)
+    .bind(s.user.id, ...ids, s.user.id, s.user.moderator ? 1 : 0).all<{ id: string; user_id: string; value: number | null }>();
+  return json({
+    mine: results.filter((r) => r.user_id === s.user.id).map((r) => r.id),
+    votes: Object.fromEntries(results.filter((r) => r.value === 1 || r.value === -1).map((r) => [r.id, r.value])),
+  });
 }
 
 export async function moderationList(c: Ctx): Promise<Response> {
   const s = await c.moderator();
   const filterParam = c.url.searchParams.get('filter');
   const filter = isModFilter(filterParam) ? filterParam : ModFilter.Reported;
-  const { rows, more } = await page(c, s, MOD_QUERY[filter], []);
+  const { rows, more } = await page(c, MOD_QUERY[filter], []);
   const notes = await reportNotes(c, rows.map((r) => r.id));
   return json({ posts: rows.map((r) => postOf(r, s, notes.get(r.id))), more });
 }
@@ -121,14 +154,14 @@ async function moderated(c: Ctx, s: Session): Promise<Response> {
 }
 
 async function postRow(c: Ctx, s: Session | null): Promise<PostRow> {
-  const row = await c.env.DB.prepare(`${SELECT_POSTS} WHERE p.id = ?`).bind(s?.user.id ?? '', c.id).first<PostRow>();
+  const row = await c.env.DB.prepare(`${SELECT_POSTS} WHERE p.id = ?`).bind(c.id).first<PostRow>();
   // A hidden post is missing to everyone but its author and the moderators.
   if (!row || (row.hidden === 1 && row.user_id !== s?.user.id && !s?.user.moderator)) throw fail.notFound('No such post');
   return row;
 }
 
 export async function publish(c: Ctx): Promise<Response> {
-  const s = await c.signedIn();
+  const s = await c.named();
   filesOf(c.env);
   requireHuman(c.env, s, c.now);
   await spend(c.env.DB, s.user.id, Limited.Publish, c.now);
@@ -150,14 +183,21 @@ export async function postScene(c: Ctx): Promise<Response> {
 
 export async function postThumb(c: Ctx): Promise<Response> {
   const row = await postRow(c, await c.session());
-  const body = row.thumb_key ? await filesOf(c.env).get(row.thumb_key) : null;
+  if (!row.thumb_key) throw fail.notFound('No picture');
+  const cache = row.hidden ? undefined : edgeCache();
+  const key = fileCacheKey(c, row.id, 'thumb', row.thumb_key);
+  const cached = await cache?.match(key);
+  if (cached) return cached;
+  const body = await filesOf(c.env).get(row.thumb_key);
   if (!body) throw fail.notFound('No picture');
-  return bytes(body, THUMB_MIME, row.hidden ? THUMB_CACHE.hidden : THUMB_CACHE.shown);
+  const response = bytes(body, THUMB_MIME, row.hidden ? CACHE_CONTROL.private : CACHE_CONTROL.thumb);
+  if (cache) await cache.put(key, response.clone());
+  return response;
 }
 
 /** Like (1), dislike (-1) or take the vote back (0); the counts are recounted in the same transaction. */
 export async function vote(c: Ctx): Promise<Response> {
-  const s = await c.signedIn();
+  const s = await c.named();
   const { value } = await readJson(c.request);
   if (!isVote(value)) throw fail.invalid('A vote is 1, -1 or 0');
   const row = await postRow(c, s);
@@ -177,7 +217,7 @@ export async function vote(c: Ctx): Promise<Response> {
 }
 
 export async function report(c: Ctx): Promise<Response> {
-  const s = await c.signedIn();
+  const s = await c.named();
   const body = await readJson(c.request);
   if (!isReportReason(body.reason)) throw fail.invalid('Pick a reason');
   const note = typeof body.note === 'string' ? body.note.trim().slice(0, CLOUD_LIMITS.reportChars) : '';
@@ -193,6 +233,8 @@ export async function report(c: Ctx): Promise<Response> {
     db.prepare('UPDATE posts SET hidden = 1, hidden_reason = ? WHERE id = ? AND hidden = 0 AND (reports >= ? OR (SELECT COUNT(*) FROM reports WHERE post_id = posts.id AND reason = ?) >= ?)')
       .bind(AUTO_HIDE_REASON, row.id, AUTO_HIDE_REPORTS, ReportReason.Illegal, AUTO_HIDE_ILLEGAL),
   ]);
+  const after = await db.prepare('SELECT hidden FROM posts WHERE id = ?').bind(row.id).first<{ hidden: number }>();
+  if (after?.hidden) await evictPostFiles(c, row);
   return noContent();
 }
 
@@ -204,6 +246,7 @@ export async function hide(c: Ctx): Promise<Response> {
   const row = await postRow(c, s);
   const changed = await c.env.DB.prepare('UPDATE posts SET hidden = ?, hidden_reason = ? WHERE id = ? AND deleting = 0').bind(hidden ? 1 : 0, hidden ? (typeof reason === 'string' ? reason.trim() : null) : null, row.id).run();
   if (!changed.meta.changes) throw fail.invalid('Post deletion is in progress: try again');
+  if (hidden) await evictPostFiles(c, row);
   return moderated(c, s);
 }
 
@@ -228,6 +271,7 @@ export async function deletePost(c: Ctx): Promise<Response> {
   const reserved = await db.prepare('UPDATE posts SET deleting = 1 WHERE id = ? AND deleting = 0 AND (hidden = 0 OR ? = 1)').bind(row.id, s.user.moderator ? 1 : 0).run();
   if (!reserved.meta.changes) throw fail.forbidden('A hidden post is kept for moderator review');
   try {
+    await evictPostFiles(c, row);
     await deleteFolder(c.env, FOLDER.post, row.id, [row.scene_key, row.thumb_key].filter((k): k is string => !!k));
     await db.batch([
       db.prepare('DELETE FROM votes WHERE post_id = ?').bind(row.id),

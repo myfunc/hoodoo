@@ -79,6 +79,7 @@ export const ORIGIN = 'http://localhost:8787';
 
 export interface Call {
   readonly cookie?: string;
+  readonly headers?: Record<string, string>;
   readonly json?: unknown;
   readonly form?: FormData;
   readonly origin?: string | null;
@@ -93,7 +94,7 @@ export class TestClient {
   constructor(readonly env: Env) {}
 
   async call(method: string, path: string, o: Call = {}): Promise<Response> {
-    const headers = new Headers();
+    const headers = new Headers(o.headers);
     if (o.cookie) headers.set('Cookie', o.cookie);
     const origin = o.origin === undefined ? ORIGIN : o.origin;
     if (origin) headers.set('Origin', origin);
@@ -115,7 +116,11 @@ export class TestClient {
   async signIn(email: string, name: string): Promise<string> {
     const res = await this.call('POST', '/api/auth/dev', { json: { email, name } });
     if (!res.ok) throw new Error(`sign-in failed: ${res.status} ${await res.text()}`);
-    return cookieFrom(res);
+    const cookie = cookieFrom(res);
+    const nick = name.length < 3 || ['mod', 'admin'].includes(name.toLowerCase()) ? `${name}_user` : name;
+    const named = await this.call('PUT', '/api/me/nick', { cookie, json: { nick } });
+    if (!named.ok) throw new Error(`nickname failed: ${named.status} ${await named.text()}`);
+    return cookie;
   }
 }
 

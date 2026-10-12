@@ -20,7 +20,6 @@ const JWT_PARTS = 3;
 export interface GoogleIdentity {
   readonly subject: string;
   readonly email: string;
-  readonly name: string;
 }
 
 interface Jwk extends JsonWebKey {
@@ -71,6 +70,5 @@ export async function verifyGoogleToken(token: string, clientId: string, nonce: 
   if (nonce !== null && claims.nonce !== nonce) throw fail.invalid('Sign-in window expired, open it again');
   if (typeof claims.sub !== 'string' || !claims.sub) throw fail.invalid('Token has no account');
   if (claims.email_verified !== true || typeof claims.email !== 'string') throw fail.forbidden('The Google account has no verified email');
-  const name = typeof claims.name === 'string' && claims.name.trim() ? claims.name : claims.email.split('@')[0];
-  return { subject: claims.sub, email: claims.email.toLowerCase(), name };
+  return { subject: claims.sub, email: claims.email.toLowerCase() };
 }
