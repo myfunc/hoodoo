@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.2 — 2026-10-12
+
+### Added
+- When the browser draws on the CPU (its graphics card switched off, as
+  Chrome does after its GPU process crashes a few times), a message says so
+  and offers the GPU row in Render, now shown in red; a browser restart brings
+  the card back.
+
 ## 0.12.1 — 2026-10-12
 
 ### Added

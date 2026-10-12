@@ -1,3 +1,5 @@
+import { Action } from '../input/actions';
+import { SOFTWARE_GPU } from '../render/gpu/gpu-name';
 import type { UiContext } from '../ui/context';
 import type { CreateEntry } from '../assets/object.catalog';
 import type { GameItem } from '../assets/games.library';
@@ -16,6 +18,7 @@ import { ToolRail } from '../ui/chrome/tool-rail';
 import { toolWindows } from '../ui/chrome/tool-windows';
 import { el } from '../ui/kit/dom';
 import { HistoryPanel } from '../ui/panels/history-panel';
+import { showOffer } from '../ui/panels/offer-toast';
 import { Outliner } from '../ui/panels/outliner';
 import { Properties } from '../ui/panels/properties';
 import { SnapshotsPanel } from '../ui/panels/snapshots-panel';
@@ -44,6 +47,12 @@ export class Shell {
     const progress = el('div', { cls: 'scene-progress', style: { width: '0' } });
     ctx.view.root.append(tag.el, new CompareOverlay(ctx).el, progress, el('div', { cls: 'drop-hint', text: 'Drop a .hoodoo scene or a height-map image' }));
     if (!ctx.view.engine.isReady) ctx.view.root.append(new ShaderLoader(ctx.view.engine).el);
+    // Chrome falls back to the CPU after its GPU process crashes a few times; a restart brings the card back.
+    const engine = ctx.view.engine;
+    // After the shaders: while they compile on the CPU the page does not repaint.
+    if (engine.gpu === SOFTWARE_GPU) {
+      void engine.ready.finally(() => showOffer('No graphics card: drawing on the CPU · restart the browser', 'GPU', () => ctx.dispatch(Action.RenderOptions)));
+    }
     ctx.view.root.append(new PaneModes(ctx).el);
     ctx.view.events.on('live', (s) => {
       display.live = s;

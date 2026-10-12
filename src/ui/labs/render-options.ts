@@ -1,6 +1,7 @@
 import { Action } from '../../input/actions';
 import { shortcutOf } from '../../input/bindings';
 import type { RealtimeStatus } from '../../render/gpu/view-renderer';
+import { SOFTWARE_GPU } from '../../render/gpu/gpu-name';
 import {
   RenderPreset, type RenderViewOptions, ShadowQuality, VIEW_SAMPLES, VIEW_SCALES, finalBounces, renderViewOptions, withOption,
 } from '../../world/render-setup';
@@ -136,7 +137,7 @@ export class RenderOptionsTool implements ToolContent {
         { name: 'Live preview', hint: `The scene renders itself while you edit (${shortcutOf(Action.ToggleLiveRender)})`, control: this.liveOn.el },
         { name: 'Quality', hint: 'What the live picture traces while you move', control: this.quality.el },
         { name: 'Bounces', hint: 'Mirror and glass bounces of the live picture; a personal setting', control: this.liveDepth.el },
-        { name: 'GPU', hint: GPU_HINT, control: el('span', { cls: 'ro-gpu', text: ctx.view.engine.gpu || 'Not reported' }) },
+        { name: 'GPU', hint: GPU_HINT, control: el('span', { cls: ctx.view.engine.gpu === SOFTWARE_GPU ? 'ro-gpu is-software' : 'ro-gpu', text: ctx.view.engine.gpu || 'Not reported' }) },
       ]),
       el('div', { cls: 'ro-heading', text: 'Render View' }),
       this.rows([
