@@ -33,6 +33,10 @@ float cloudDensity(vec3 rd, out float dist) {
     bool stratus = k == 1;
     if ((stratus ? uCloudKinds.y : uCloudKinds.x) < 0.5) continue;
     vec3 q = stratus ? vec3(p.x * 0.35, 0.0, p.z * 2.5) : vec3(p.x, 0.0, p.z);
+#ifdef GAME_TRACE
+    // Far clouds lose the octaves a pixel cannot hold (20-textures.glsl).
+    gDetail = detailFor(dist * uPixelAngle * freq * (stratus ? 2.5 : 1.0));
+#endif
     float n = fbm(q * freq, stratus ? 5 : 6) * 0.5 + 0.5;
     float c = stratus
       ? smoothstep(0.8 - cover * 0.6, 1.05 - cover * 0.5, n) * 0.85
@@ -115,3 +119,11 @@ vec4 atmosphere(vec3 ro, vec3 rd, float t) {
   float a = clamp(1.0 - (1.0 - haze) * (1.0 - fogAmt), 0.0, 1.0);
   return vec4(veil, a);
 }
+
+#ifdef GAME_TRACE
+// The sky a glass surface mirrors when the game variant follows the ray through it: the
+// gradient and the sun, without clouds or haze (no second cloud evaluation to compile).
+vec3 skyGlint(vec3 rd) {
+  return skyGradient(rd) + sunGlow(rd);
+}
+#endif

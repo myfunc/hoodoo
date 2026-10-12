@@ -5,10 +5,12 @@ import type { RealtimeStatus } from '../../render/gpu/view-renderer';
 import {
   RenderPreset, type RenderViewOptions, ShadowQuality, VIEW_SAMPLES, VIEW_SCALES, finalBounces, renderViewOptions, withOption,
 } from '../../world/render-setup';
+import { Feature, isFeatureOn } from '../../world/preview-features';
 import { changeSetting } from '../../world/settings';
 import { LiveQuality, PictureMode } from '../../world/world.enums';
 import { speedLine } from '../chrome/picture-readout';
 import { type UiContext, hintOn } from '../context';
+import { showWhile } from '../feature-gate';
 import { Choice, type Dial } from '../kit/controls';
 import { DialogStyle } from '../kit/dialog';
 import { el } from '../kit/dom';
@@ -59,6 +61,7 @@ export class RenderOptionsTool implements ToolContent {
   readonly cls = 'render-options';
   readonly body: HTMLElement;
   private readonly mode: Choice<boolean>;
+  private readonly game: Choice<boolean>;
   private readonly preset: Choice<RenderPreset>;
   private readonly scale: Choice<number>;
   private readonly samples: Choice<number>;
@@ -80,6 +83,7 @@ export class RenderOptionsTool implements ToolContent {
     const e = ctx.editor;
     const set = (patch: Partial<RenderViewOptions>) => this.change(patch);
     this.mode = this.choice(OFF_ON, (on) => e.update(on ? { picture: PictureMode.Final, quad: false } : { picture: PictureMode.Edit }));
+    this.game = this.choice(OFF_ON, (on) => e.update(on ? { picture: PictureMode.Game, quad: false } : { picture: PictureMode.Edit }));
     this.preset = this.choice(PRESETS.map(({ value, label }) => ({ value, label })), (p) => changeSetting(e, 'renderViewPreset', p));
     PRESETS.forEach((p, i) => hintOn(ctx, this.preset.el.children[i] as HTMLElement, { title: `Preset ${p.label}`, text: p.hint }));
     this.scale = this.choice(VIEW_SCALES.map((v) => ({ value: v as number, label: `${v * PERCENT}%` })), (scale) => set({ scale }));
@@ -95,6 +99,18 @@ export class RenderOptionsTool implements ToolContent {
     this.liveAbout = el('div', { cls: 'ro-about' });
     this.speed = el('div', { cls: 'ro-speed' });
     const key = shortcutOf(Action.ToggleRenderView);
+    // Play's own row: there only while the Play preview is on (Settings › Preview Features).
+    const play = el('div', { cls: 'ro-play' }, [
+      el('div', { cls: 'ro-heading', text: 'Play' }),
+      this.rows([
+        { name: 'Game look', hint: 'Play’s picture in the scene window: 60 fps, deep mirrors, its own grade', control: this.game.el },
+      ]),
+    ]);
+    showWhile(e, Feature.Play, play);
+    // Turning the preview off takes its picture away too (only this row turns it on).
+    e.events.on('changed', ({ state }) => {
+      if (state.picture === PictureMode.Game && !isFeatureOn(state.features, Feature.Play)) e.update({ picture: PictureMode.Edit });
+    });
     this.body = el('div', { cls: 'ro-body' }, [
       this.rows([
         { name: 'Render View', hint: `The final render in the scene window, refining in place (${key})`, control: this.mode.el },
@@ -113,6 +129,7 @@ export class RenderOptionsTool implements ToolContent {
         { name: 'Live edit', hint: 'Mirror and glass bounces of the live picture; a personal setting', control: this.liveDepth.el },
       ]),
       this.liveAbout,
+      play,
     ]);
     this.sync();
   }
@@ -151,6 +168,7 @@ export class RenderOptionsTool implements ToolContent {
     const o = this.options();
     const on = s.picture === PictureMode.Final;
     this.mode.set(on);
+    this.game.set(s.picture === PictureMode.Game);
     this.preset.set(s.settings.renderViewPreset);
     this.scale.set(o.scale);
     this.samples.set(o.samples);

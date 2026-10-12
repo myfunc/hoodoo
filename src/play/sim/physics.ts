@@ -144,6 +144,8 @@ const rv = (v: Vec3) => ({ x: v[0], y: v[1], z: v[2] });
 const rq = (q: Quat) => ({ x: q[0], y: q[1], z: q[2], w: q[3] });
 const groups = (layer: number, with_: number): number => ((layer & ALL_LAYERS) << GROUP_SHIFT) | (with_ & ALL_LAYERS);
 const pairKey = (a: BodyId, b: BodyId): string => (a < b ? `${a}:${b}` : `${b}:${a}`);
+/** Half-extents less half the skin: touching is not overlapping. */
+const inset = (half: Vec3, skin: number): Vec3 => [Math.max(half[0] - skin / 2, MIN_LENGTH), Math.max(half[1] - skin / 2, MIN_LENGTH), Math.max(half[2] - skin / 2, MIN_LENGTH)];
 
 interface Joint {
   readonly joint: RAPIER.ImpulseJoint;
@@ -158,6 +160,7 @@ export class Physics {
   private readonly apart = new Set<string>();
   private readonly events: RAPIER.EventQueue;
   private readonly boxes = new Map<string, RAPIER.Cuboid>();
+  private readonly balls = new Map<number, RAPIER.Ball>();
   private readonly hooks: RAPIER.PhysicsHooks;
 
   constructor(private readonly R: Rapier, gravity: number, readonly dt: number) {
@@ -364,35 +367,17 @@ export class Physics {
    * `skin` short of what it meets. Touching something while moving away from it does not block.
    */
   traceBox(start: Vec3, end: Vec3, half: Vec3, skin: number, opts: QueryOptions = {}): Trace {
-    const dir = sub(end, start);
-    const shape = this.box(half);
-    const filter = groups(ALL_LAYERS, opts.layers ?? Layer.World | Layer.Prop);
-    const flags = this.R.QueryFilterFlags.EXCLUDE_SENSORS;
-    const exclude = this.body(opts.exclude ?? -1) ?? undefined;
-    const free: Trace = { fraction: 1, end, normal: ZERO3, startSolid: false, body: null, point: null };
-    if (length(dir) < MIN_LENGTH) return this.overlapsBox(start, half, skin, opts) === null ? free : { ...free, end: start, fraction: 0, startSolid: true };
-    const leaving = new Set<number>();
-    const skip = (c: RAPIER.Collider) => !leaving.has(c.handle);
-    for (let i = 0; i < MAX_TRACE_TRIES; i++) {
-      const hit = this.world.castShape(rv(start), rq(IDENTITY_Q), rv(dir), shape, skin, 1, true, flags, filter, undefined, exclude, leaving.size ? skip : undefined);
-      if (!hit) return free;
-      const normal = v3(hit.normal1);
-      const body = hit.collider.parent()?.handle ?? -1;
-      const out = { fraction: hit.time_of_impact, end: add(start, scale(dir, hit.time_of_impact)), normal, startSolid: false, body, point: v3(hit.witness1) };
-      if (hit.time_of_impact > 0 || dot(dir, normal) < -PARALLEL * length(dir)) {
-        if (hit.time_of_impact === 0 && this.overlapsBox(start, half, skin, opts) !== null) return { ...out, startSolid: true };
-        return out;
-      }
-      leaving.add(hit.collider.handle);
-    }
-    return free;
+    return this.sweep(this.box(half), this.box(inset(half, skin)), start, end, skin, opts);
+  }
+
+  /** The plane's hull sweep: a ball from `start` to `end`, as `traceBox` (a ball turns with nothing). */
+  traceBall(start: Vec3, end: Vec3, radius: number, skin: number, opts: QueryOptions = {}): Trace {
+    return this.sweep(this.ball(radius), this.ball(Math.max(radius - skin / 2, MIN_LENGTH)), start, end, skin, opts);
   }
 
   /** A body overlapping the box (shrunk by half the skin, so touching is not overlapping), or null. */
   overlapsBox(center: Vec3, half: Vec3, skin: number, opts: QueryOptions = {}): BodyId | null {
-    const inner = this.box(half.map((h) => Math.max(h - skin / 2, MIN_LENGTH)) as unknown as Vec3);
-    const c = this.world.intersectionWithShape(rv(center), rq(IDENTITY_Q), inner, this.R.QueryFilterFlags.EXCLUDE_SENSORS, groups(ALL_LAYERS, opts.layers ?? Layer.World | Layer.Prop), undefined, this.body(opts.exclude ?? -1) ?? undefined);
-    return c ? (c.parent()?.handle ?? -1) : null;
+    return this.overlaps(center, this.box(inset(half, skin)), opts);
   }
 
   /** One fixed step: holds pull, joints past their limit break, Rapier integrates. Returns the contact events and broken joints. */
@@ -445,6 +430,45 @@ export class Physics {
       this.boxes.set(key, s);
     }
     return s;
+  }
+
+  private ball(radius: number): RAPIER.Ball {
+    let s = this.balls.get(radius);
+    if (!s) {
+      s = new this.R.Ball(radius);
+      this.balls.set(radius, s);
+    }
+    return s;
+  }
+
+  /** `shape` swept unturned from `start` to `end`; `inner` (the shape less half the skin) tells a start inside something. */
+  private sweep(shape: RAPIER.Shape, inner: RAPIER.Shape, start: Vec3, end: Vec3, skin: number, opts: QueryOptions): Trace {
+    const dir = sub(end, start);
+    const filter = groups(ALL_LAYERS, opts.layers ?? Layer.World | Layer.Prop);
+    const flags = this.R.QueryFilterFlags.EXCLUDE_SENSORS;
+    const exclude = this.body(opts.exclude ?? -1) ?? undefined;
+    const free: Trace = { fraction: 1, end, normal: ZERO3, startSolid: false, body: null, point: null };
+    if (length(dir) < MIN_LENGTH) return this.overlaps(start, inner, opts) === null ? free : { ...free, end: start, fraction: 0, startSolid: true };
+    const leaving = new Set<number>();
+    const skip = (c: RAPIER.Collider) => !leaving.has(c.handle);
+    for (let i = 0; i < MAX_TRACE_TRIES; i++) {
+      const hit = this.world.castShape(rv(start), rq(IDENTITY_Q), rv(dir), shape, skin, 1, true, flags, filter, undefined, exclude, leaving.size ? skip : undefined);
+      if (!hit) return free;
+      const normal = v3(hit.normal1);
+      const body = hit.collider.parent()?.handle ?? -1;
+      const out = { fraction: hit.time_of_impact, end: add(start, scale(dir, hit.time_of_impact)), normal, startSolid: false, body, point: v3(hit.witness1) };
+      if (hit.time_of_impact > 0 || dot(dir, normal) < -PARALLEL * length(dir)) {
+        if (hit.time_of_impact === 0 && this.overlaps(start, inner, opts) !== null) return { ...out, startSolid: true };
+        return out;
+      }
+      leaving.add(hit.collider.handle);
+    }
+    return free;
+  }
+
+  private overlaps(center: Vec3, shape: RAPIER.Shape, opts: QueryOptions): BodyId | null {
+    const c = this.world.intersectionWithShape(rv(center), rq(IDENTITY_Q), shape, this.R.QueryFilterFlags.EXCLUDE_SENSORS, groups(ALL_LAYERS, opts.layers ?? Layer.World | Layer.Prop), undefined, this.body(opts.exclude ?? -1) ?? undefined);
+    return c ? (c.parent()?.handle ?? -1) : null;
   }
 
   private motorOf(joint: RAPIER.ImpulseJoint, m: { speed: number; force: number }): void {

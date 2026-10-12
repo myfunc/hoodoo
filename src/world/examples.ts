@@ -12,6 +12,8 @@ import { EMPTY_ANIMATION, emptyScene } from './scene.defaults';
 import { sunsetGambit } from './showcase/gambit';
 import { squashAndStretch } from './showcase/bounce';
 import { booleanCarving } from './showcase/carve';
+import { playground } from './showcase/playground';
+import { Feature, type FeatureFlags, isFeatureOn } from './preview-features';
 import { hoodooRun } from './showcase/flight';
 import { marbleDream } from './showcase/marble';
 import { billiardOrrery } from './showcase/orrery';
@@ -32,6 +34,8 @@ export interface Example {
   readonly blurb: string;
   /** Shown larger in the start window: the showcase's front page. */
   readonly featured?: boolean;
+  /** Listed only while this preview feature is on (the Play example). */
+  readonly feature?: Feature;
   build(): Scene;
 }
 
@@ -171,4 +175,8 @@ export const EXAMPLES: readonly Example[] = [
   { id: 'squash', animated: true, name: 'Squash & Stretch', blurb: 'Balls bounce and pieces swell: keyed sizes', build: squashAndStretch },
   { id: 'hoodoo-run', animated: true, name: 'Hoodoo Run', blurb: 'A fly-through: arches, spires, a mirror ball', build: hoodooRun },
   { id: 'carving', animated: true, name: 'Boolean Carving', blurb: 'Keyed cutters bore, round and pierce', build: booleanCarving },
+  { id: 'playground', animated: true, feature: Feature.Play, name: 'Playground', blurb: 'Play it: a door, a lift, a spinning bridge, a button', build: playground },
 ];
+
+/** The examples to offer with these preview features on: one of a feature that is off is not listed. */
+export const examplesFor = (flags: FeatureFlags): readonly Example[] => EXAMPLES.filter((e) => !e.feature || isFeatureOn(flags, e.feature));

@@ -12,6 +12,11 @@ export const PLAY_KEYS = {
   duck: ['ControlLeft', 'ControlRight', 'KeyC'],
   use: 'KeyE',
   reload: 'KeyR',
+  /** The plane: throttle up and down beside W and S, the view, and the arrows' stick. */
+  throttleUp: ['ShiftLeft', 'ShiftRight'],
+  throttleDown: ['ControlLeft', 'ControlRight'],
+  view: 'KeyV',
+  arrows: { right: 'ArrowRight', left: 'ArrowLeft', up: 'ArrowUp', down: 'ArrowDown' },
   record: 'KeyK',
   setup: 'Tab',
   exit: KEY.Escape,
@@ -19,6 +24,8 @@ export const PLAY_KEYS = {
 
 const MOUSE_BUTTONS: Readonly<Record<number, Button>> = { 0: Button.Attack, 2: Button.Attack2 };
 const DUCK: ReadonlySet<string> = new Set(PLAY_KEYS.duck);
+const UP_KEYS: ReadonlySet<string> = new Set(PLAY_KEYS.throttleUp);
+const DOWN_KEYS: ReadonlySet<string> = new Set(PLAY_KEYS.throttleDown);
 
 export interface PlayInputHooks {
   /** Mouse motion while the pointer is locked, in pixels. */
@@ -27,6 +34,10 @@ export interface PlayInputHooks {
   /** Tab: free the pointer for the setup panel. */
   setup(): void;
   exit(): void;
+  /** Another part of play takes a key first (Sandbox: menus, weapons, undo); true keeps it from the player's moves. */
+  key?(code: string, down: boolean): boolean;
+  /** Another part of play takes the wheel (Sandbox: weapons, the Physics Gun's reach); true keeps it from jumping. */
+  wheel?(e: WheelEvent): boolean;
   /** The pointer was locked or let go (by the browser, a click, Tab or Esc). */
   locked(on: boolean, byUser: boolean): void;
 }
@@ -71,6 +82,7 @@ export class PlayInput {
     });
     this.listen(layer, 'wheel', (e) => {
       e.preventDefault();
+      if (this.hooks.wheel?.(e as WheelEvent)) return;
       const dy = (e as WheelEvent).deltaY;
       if (this.active && dy) this.wheel += Math.sign(dy);
     }, false, false);
@@ -97,15 +109,19 @@ export class PlayInput {
   /** This step's input; wheel notches go to the first step after them. */
   sample(): ActorInput {
     const axis = (plus: string, minus: string) => (this.held.has(plus) ? 1 : 0) - (this.held.has(minus) ? 1 : 0);
-    const move: Vec3 = [axis(PLAY_KEYS.right, PLAY_KEYS.left), 0, axis(PLAY_KEYS.forward, PLAY_KEYS.back)];
+    const held = [...this.held];
+    const up = (held.some((k) => UP_KEYS.has(k)) ? 1 : 0) - (held.some((k) => DOWN_KEYS.has(k)) ? 1 : 0);
+    const move: Vec3 = [axis(PLAY_KEYS.right, PLAY_KEYS.left), up, axis(PLAY_KEYS.forward, PLAY_KEYS.back)];
+    const arrows = [axis(PLAY_KEYS.arrows.right, PLAY_KEYS.arrows.left), axis(PLAY_KEYS.arrows.up, PLAY_KEYS.arrows.down)] as const;
     const buttons = new Set(this.buttons);
     if (this.held.has(PLAY_KEYS.jump)) buttons.add(Button.Jump);
     if ([...this.held].some((k) => DUCK.has(k))) buttons.add(Button.Duck);
     if (this.held.has(PLAY_KEYS.use)) buttons.add(Button.Use);
     if (this.held.has(PLAY_KEYS.reload)) buttons.add(Button.Reload);
+    if (this.held.has(PLAY_KEYS.view)) buttons.add(Button.View);
     const wheel = this.wheel;
     this.wheel = 0;
-    return { move, buttons, wheel };
+    return { move, buttons, wheel, arrows };
   }
 
   dispose(): void {
@@ -123,9 +139,11 @@ export class PlayInput {
     e.preventDefault();
     if (!down) {
       this.held.delete(e.code);
+      this.hooks.key?.(e.code, false);
       return;
     }
     if (e.repeat) return;
+    if (this.hooks.key?.(e.code, true)) return;
     if (e.code === PLAY_KEYS.exit) this.hooks.exit();
     else if (e.code === PLAY_KEYS.record) this.hooks.record();
     else if (e.code === PLAY_KEYS.setup) this.hooks.setup();

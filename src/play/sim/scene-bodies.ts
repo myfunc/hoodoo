@@ -1,9 +1,11 @@
 import { type Vec3, ZERO3, add, scale, sub } from '../../core/vec3';
 import { BooleanMode, ShapeKind } from '../../model/scene.enums';
 import type { GroupId, ObjectId } from '../../model/scene.ids';
-import type { Scene, SceneObject, Transform } from '../../model/scene.types';
+import type { Key, Scene, SceneObject, Transform } from '../../model/scene.types';
 import { bodyOf, groupBody, massOf } from '../../world/body-flags';
 import { chain, groupIndex } from '../../world/group-tree';
+import { sameTransform } from '../../world/group-transform';
+import { movedByScript, shownByRules } from '../../world/play/scripts';
 import { type BodyId, Motion, type Physics, type Pose } from './physics';
 import { type Quat, conjQ, eulerOfQuat, mulQ, quatOfEuler, rotateQ } from './quat';
 import { ShapeType, placedShapes, shapesOf } from './shapes';
@@ -39,16 +41,22 @@ const RESTITUTION = { ball: 0.45, other: 0.2 } as const;
 /** The physical bodies' collision margin of error: a frame of a fast prop is checked continuously. */
 const CCD = true;
 
+/** Whether keys move what they key: two of them hold different poses. Keys that change only a material, a light or the visibility do not. */
+const moves = (keys: readonly Key<Transform>[] | undefined): boolean =>
+  !!keys && keys.some((k) => !sameTransform(k.value, keys[0].value));
+
 const keyedOf = (scene: Scene) => {
   const a = scene.animation;
   const index = groupIndex(scene);
+  // A clip or a motion moves it as keys do (world/play/scripts.ts).
+  const scripted = movedByScript(scene);
   return (o: SceneObject): boolean =>
-    a.enabled && (!!a.objects[o.id]?.length || chain(index, o.groupId).some((g) => !!a.groups?.[g]?.length));
+    scripted(o) || (a.enabled && (moves(a.objects[o.id]) || chain(index, o.groupId).some((g) => moves(a.groups?.[g]))));
 };
 
-/** Whether an object takes part in collisions at all. */
-const collides = (o: SceneObject): boolean =>
-  !o.hidden && bodyOf(o).solid && !(o.groupId && (o.boolean === BooleanMode.Negative || o.boolean === BooleanMode.Intersect));
+/** Whether an object takes part in collisions at all: never a trigger zone; a hidden one only when a rule shows it (`shown`). */
+const collides = (o: SceneObject, shown: ReadonlySet<ObjectId>): boolean =>
+  !o.zone && (!o.hidden || shown.has(o.id)) && bodyOf(o).solid && !(o.groupId && (o.boolean === BooleanMode.Negative || o.boolean === BooleanMode.Intersect));
 
 /** The outermost physical group around an object, or null. */
 function physicalGroup(scene: Scene, o: SceneObject): GroupId | null {
@@ -63,12 +71,14 @@ export class SceneBodies {
   readonly items = new Map<BodyId, BodyItem>();
   private readonly byObject = new Map<ObjectId, BodyItem>();
 
-  constructor(private readonly physics: Physics, scene: Scene, playerHeight: number) {
+  /** `skip`: objects that are not bodies at all (the plane a take recorded: it is the player's own). */
+  constructor(private readonly physics: Physics, scene: Scene, playerHeight: number, skip?: ReadonlySet<ObjectId>) {
     const keyed = keyedOf(scene);
+    const shown = shownByRules(scene);
     const groups = new Map<GroupId, SceneObject[]>();
     for (const o of scene.objects) {
       if (o.kind === ShapeKind.WaterPlane && !o.hidden && !bodyOf(o).solid) this.waterFloor(o, playerHeight);
-      if (!collides(o)) continue;
+      if (!collides(o, shown) || skip?.has(o.id)) continue;
       const g = keyed(o) ? null : physicalGroup(scene, o);
       if (g) groups.set(g, [...(groups.get(g) ?? []), o]);
       else this.addObject(o, keyed(o) ? Motion.Kinematic : bodyOf(o).physical ? Motion.Dynamic : Motion.Fixed);
@@ -80,6 +90,12 @@ export class SceneBodies {
   /** The body an object belongs to. */
   itemOf(id: ObjectId): BodyItem | null {
     return this.byObject.get(id) ?? null;
+  }
+
+  /** A body moves another way from now on (Sandbox: a fixed object picked up becomes a prop that is drawn moving). */
+  setMotion(body: BodyId, motion: Motion): void {
+    const item = this.items.get(body);
+    if (item) this.remember({ ...item, motion });
   }
 
   /** Bodies that move by themselves (dynamic) or by keys (kinematic). */

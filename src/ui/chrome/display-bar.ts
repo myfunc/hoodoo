@@ -116,8 +116,8 @@ export class DisplayBar {
       this.viewSelect.set(state.view);
       samples.set(state.renderSamples);
       this.quality.set(state.settings.liveQuality);
-      // Render View draws the final render: the live quality waits until it is off.
-      this.quality.el.classList.toggle('is-idle', state.picture === PictureMode.Final);
+      // Render View (or the game look) draws the picture: the live quality waits until it is off.
+      this.quality.el.classList.toggle('is-idle', state.picture !== PictureMode.Edit);
       this.sync();
     });
     ctx.world.events.on('history', () => this.sync());

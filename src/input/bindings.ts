@@ -73,6 +73,7 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.ShowAll]: { label: 'Show All', menu: MenuName.Objects, chords: [c('KeyH', { alt: true })] },
   [Action.CreatePortals]: { label: 'Create Portal Pair', menu: MenuName.Objects, chords: [] },
   [Action.LinkPortals]: { label: 'Link Two Portals', menu: MenuName.Objects, chords: [] },
+  [Action.CreateTriggerZone]: { label: 'Create Trigger Zone', menu: MenuName.Objects, chords: [] },
   [Action.Play]: { label: 'Play: Walk the Scene', menu: MenuName.View, chords: [c('KeyP', { shift: true })] },
   [Action.FrameSelected]: { label: 'Frame Selection', menu: MenuName.View, chords: [c('KeyF')] },
   [Action.FrameAll]: { label: 'Frame Scene', menu: MenuName.View, chords: [c('KeyF', { shift: true })] },

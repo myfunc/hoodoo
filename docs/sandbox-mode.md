@@ -62,8 +62,8 @@ holding something.
 | Shift with E | turn in 45° steps (GMod's `gm_snapangles`) |
 | Mouse 2 while holding | freeze it where it is and let go |
 | Let go of Mouse 1 | it keeps its speed: a flick throws it |
-| R on a frozen object | unfreeze it |
-| R twice within 0.3 s | unfreeze every prop you spawned |
+| R on a frozen object | unfreeze it (a notice says so) |
+| R twice within 0.3 s | unfreeze every prop you froze |
 
 How it holds. At the grab the gun stores the distance, the grab point in the
 object's own frame and the object's turn relative to the player's heading.
@@ -78,13 +78,13 @@ What it grabs. Any finite object or group body that is not locked: Physical
 props, and scene objects that are not Physical, which act as frozen props.
 Grab one, move it and let go, and it falls unless you freeze it. Terrains,
 lattices, infinite planes, the camera and the sun are the map and stay put, as
-does anything locked in the scene list. Lights can be carried; they do not
-collide.
+does anything locked in the scene list. Lights have no body in Play, so the
+beam passes them by.
 
 What you see. A beam from the muzzle to the grab point that bends toward the
 aim when the object lags (a quadratic curve with its control point on the aim
-ray), the held object's outline in the beam colour, and a short flash on
-freezing.
+ray), the held object's wireframe in the beam colour, faint so the object
+stays in sight, and a short flash on freezing and unfreezing.
 
 ## Gravity Gun
 

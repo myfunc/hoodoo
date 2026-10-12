@@ -10,6 +10,8 @@
 .ro-rows { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 10px; align-items: center; }
 .ro-rows > .ui-choice.segmented, .ro-rows > .ui-dial { justify-self: start; }
 .ro-name { font: 800 11px var(--font-title); white-space: nowrap; }
+.ro-play { display: flex; flex-direction: column; gap: 6px; }
+.ro-play[hidden] { display: none; }
 .ro-heading { margin-top: 4px; font: 800 12px var(--font-title); white-space: nowrap; }
 .ro-about { color: var(--ink-soft); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ro-speed {

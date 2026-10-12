@@ -9,6 +9,12 @@
 // reflection too would halve it, but water without its reflections no longer looks
 // like the finished picture.
 //
+// GAME_TRACE builds the game renderer's variant (game-renderer.ts): noiseless like the
+// preview but as deep as uMaxBounces, the heavier branch at every bounce, with the
+// mirror image of the sky added to glass that also reflects. Shadow rays leave from the
+// first hit only; a path ends sooner the deeper it is. Colours stay HDR for bloom and
+// the tone curve, and the first hit goes to fragAux for the temporal upscale.
+//
 // Path rays and shadow rays share one loop and one traceScene / evalMaterial call
 // site. A hit on the path queues its lights; the following iterations trace their
 // shadow rays (through transparent occluders) before the path continues. With soft
@@ -16,6 +22,26 @@
 // another point of it and worth its share of the light. Nesting
 // the shadow loop inside the light and bounce loops instead made FXC (Chrome and
 // Edge on Windows) spend 36 s compiling this shader.
+#ifdef GAME_TRACE
+// Hits after this many bounces are lit without shadow rays.
+#define GAME_SHADOW_BOUNCES 1
+// A path ends once it carries less light than this times its bounces.
+#define GAME_MIN_THROUGHPUT 0.02
+// The HDR output's ceiling: the sun disc and its glints stay finite for the bloom.
+#define GAME_HDR_MAX 64.0
+// A surface seen edge-on stretches the footprint at most 1 / GRAZING_MIN times; textures take
+// the square root of it (between the narrow and the long side), bumps all of it.
+#define GRAZING_MIN 0.02
+// The first hit of the path: distance (0: the sky), object + 1 (negative for infinite planes), octahedral normal.
+vec4 gFirst = vec4(0);
+
+vec2 octEncode(vec3 n) {
+  n /= abs(n.x) + abs(n.y) + abs(n.z);
+  vec2 s = vec2(n.x >= 0.0 ? 1.0 : -1.0, n.y >= 0.0 ? 1.0 : -1.0);
+  return n.z >= 0.0 ? n.xy : (1.0 - abs(n.yx)) * s;
+}
+#endif
+
 vec4 radiance(vec3 ro, vec3 rd) {
   vec3 col = vec3(0);
   vec3 thr = vec3(1);
@@ -36,7 +62,7 @@ vec4 radiance(vec3 ro, vec3 rd) {
   vec3 sv = vec3(0, 1, 0);
   vec3 sw = vec3(0);
   // Light slots: every light (the sun first) once per shadow ray; slot / rays - 1 is the light.
-#ifdef FAST_PREVIEW
+#ifdef NOISELESS
   const int rays = 1;
 #else
   int rays = max(uShadowRays, 1);
@@ -76,6 +102,8 @@ vec4 radiance(vec3 ro, vec3 rd) {
 #ifdef FAST_PREVIEW
         // A point seen in a mirror or through glass is lit without testing its shadow.
         if (uSkyParams.y <= 0.0 || bounce > 1) {
+#elif defined(GAME_TRACE)
+        if (uSkyParams.y <= 0.0 || bounce > GAME_SHADOW_BOUNCES) {
 #else
         if (uSkyParams.y <= 0.0) {
 #endif
@@ -114,6 +142,12 @@ vec4 radiance(vec3 ro, vec3 rd) {
     vec3 ng = n;
     Mat mt;
     if (shaded) {
+#ifdef GAME_TRACE
+      if (!shadow) {
+        gStretch = 1.0 / max(abs(dot(h.n, d)), GRAZING_MIN);
+        gFoot = (gPathT + h.t) * uPixelAngle * sqrt(gStretch);
+      }
+#endif
       Surface sf = surfaceAt(h.obj, wp, n);
       mt = evalMaterial(h.obj, sf, n, !shadow);
     }
@@ -143,6 +177,11 @@ vec4 radiance(vec3 ro, vec3 rd) {
       col += thr * skyColor(rd);
       break;
     }
+#ifdef GAME_TRACE
+    // Infinite planes (sea, ground, cloud layer) are marked negative: their horizon is no outline.
+    if (bounce == 0 && portals == 0) gFirst = vec4(h.t, float(h.obj + 1) * (ob.bound.w < 0.0 ? -1.0 : 1.0), octEncode(ng));
+    gPathT += h.t;
+#endif
     vec4 atm = atmosphere(ro, rd, h.t);
     if (ob.kind == K_PORTAL && portalPass(h.obj, wp, atm, mt.diffuse, ro, rd, thr, col, portals, pathDone)) continue;
     float surfW = (1.0 - mt.transparency) * (1.0 - mt.reflection);
@@ -164,9 +203,16 @@ vec4 radiance(vec3 ro, vec3 rd) {
       pathDone = true;
       continue;
     }
-#ifdef FAST_PREVIEW
+#ifdef NOISELESS
     bool mirror = wR >= wT;
     float wPick = wR + wT;
+#ifdef GAME_TRACE
+    // Glass that also mirrors: its mirror image of the sky, added without tracing it.
+    if (!mirror && wR > 0.003) {
+      col += thr * mix(vec3(1), mt.diffuse, mt.metal) * wR * skyGlint(reflect(rd, n));
+      wPick = wT;
+    }
+#endif
 #else
     float pR = wR / (wR + wT);
     bool mirror = rand() < pR;
@@ -195,7 +241,11 @@ vec4 radiance(vec3 ro, vec3 rd) {
         }
       }
     }
+#ifdef GAME_TRACE
+    if (maxOf(thr) < GAME_MIN_THROUGHPUT * float(bounce)) pathDone = true;
+#else
     if (maxOf(thr) < 0.01) pathDone = true;
+#endif
   }
   return vec4(col, 1.0);
 }
@@ -213,7 +263,7 @@ void main() {
     ro = uCamPos;
     rd = normalize(uCamFwd + uCamRight * ndc.x * uHalfH * uAspect + uCamUp * ndc.y * uHalfH);
     // Thin lens: start on the aperture disc and aim at the same point of the focal plane.
-#ifndef FAST_PREVIEW
+#ifndef NOISELESS
     if (uLens.x > 0.0) {
       vec3 focal = ro + rd * (uLens.y / dot(rd, uCamFwd));
       float r = uLens.x * sqrt(rand());
@@ -224,6 +274,12 @@ void main() {
 #endif
   }
   vec4 c = radiance(ro, rd);
+#ifdef GAME_TRACE
+  // HDR, unclipped: the game renderer's bloom and tone curve take it from here.
+  fragColor = vec4(min(c.rgb, vec3(GAME_HDR_MAX)), 1.0);
+  fragAux = gFirst;
+  return;
+#endif
   // Soft shadows also roll highlights off above the knee instead of clipping them flat.
   if (uStyle.z > 0.0) {
     float knee = 1.0 - uStyle.z;

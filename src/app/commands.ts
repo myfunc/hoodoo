@@ -34,6 +34,7 @@ import { openMovieDialog } from '../ui/labs/movie-dialog';
 import { compareLatest, takeSnapshot } from './snapshot-ops';
 import { createFromLibrary, createGameItem, frame } from './scene-ops';
 import { canLinkPortals, createPortals, linkSelectedPortals } from './portal-ops';
+import { createZone } from './zone-ops';
 import { openAnimationSetup } from '../ui/labs/animation-setup';
 import { SettingsSection, openSettings } from '../ui/labs/settings-window';
 import { sceneDepth } from '../ui/labs/reflection-rows';
@@ -162,6 +163,7 @@ export class Commands {
       [Action.Ungroup]: () => w.ungroup(sel()),
       [Action.NewGroup]: () => w.newGroup(sel()),
       [Action.CreatePortals]: () => createPortals(w),
+      [Action.CreateTriggerZone]: () => createZone(w),
       [Action.LinkPortals]: () => linkSelectedPortals(w),
       [Action.Land]: () => w.updateObjects(sel(), 'Land', (o) => landed(w.scene, o)),
       [Action.Attributes]: () => this.attributes(),

@@ -102,6 +102,7 @@ export enum Action {
   Settings = 'settings',
   CreatePortals = 'create-portals',
   LinkPortals = 'link-portals',
+  CreateTriggerZone = 'create-trigger-zone',
   Play = 'play',
 }
 

@@ -32,7 +32,7 @@ skipping.
 - A thin lens for depth of field (the aperture is 0 by default: Bryce 2's
   camera is a pinhole).
 
-## Three ways to render
+## Four ways to render
 
 - **Classic** (`progressive.ts`): Bryce's block-by-block render — 16×16 blocks
   down to 2×2 sweeping down the picture, then anti-aliasing passes with Halton
@@ -44,17 +44,20 @@ skipping.
   per frame, to the chosen rays per pixel.
 - **Render View** (`final-view.ts`, Opt/Alt+P): the final render in the scene
   window, refining in place, with options to trade it for speed (below).
+- **Game** (`game-renderer.ts`): Play's picture, 60 fps with four to five
+  mirror and glass bounces and its own grade (*The game renderer*, below).
+  Render Options › Play › Game look shows it in the editor.
 
 Which one draws the single view is the editor's `picture` (`PictureMode` in
 `world/world.enums.ts`) together with Live on or off; `ViewPictures`
 (`render/view-pictures.ts`) picks the renderer and runs its loop. The live
 preview and Render View implement one interface, `ViewRenderer`
 (`gpu/view-renderer.ts`): resize, update with a scene and a view, tick once an
-animation frame, present, reset, and a status for the readouts. Another mode
-(the game renderer of Play) plugs in the same way: a `PictureMode` value, a
-class implementing `ViewRenderer`, and one case in `ViewPictures.rendererFor`.
-If it needs another variant of the tracer, `FAST_SOURCE` in `engine.ts` shows
-how one is compiled from the same source with a `#define`.
+animation frame, present, reset, and a status for the readouts. The game
+renderer plugged in that way: a `PictureMode` value, a class implementing
+`ViewRenderer`, and one case in `ViewPictures.rendererFor`. A variant of the
+tracer is the same source with `#define`s inserted after an anchor line
+(`trace-source.ts`: `FAST_SOURCE`, `GAME_SOURCE` in `engine.ts`).
 
 ## The live view while things move
 
@@ -307,6 +310,109 @@ Animation-frame deltas stayed at 16.7 ms (median) and there were no long tasks;
 some runs had a single delta of 130–170 ms, as the live view's drag runs (100–133 ms).
 For editing at 60 fps the live view stays the tool; Draft moves at about that
 rate, Final shows each picture finished.
+
+## The game renderer
+
+Play's picture (`PictureMode.Game`, `src/render/gpu/game-renderer.ts`): at
+least 60 fps with four to five mirror and glass bounces and no shimmer, in its
+own look. Play asks for it through `SceneView.setPlay({ quality:
+PictureMode.Game })`; Render Options › Play › Game look shows it in the editor.
+Every display frame:
+
+1. **Trace** the game variant of the tracer (`GAME_TRACE`, `#define`d into the
+   same source, compiled in the background on first use; until then the preview
+   program draws). It is noiseless: one ray a pixel, glass takes refraction
+   and adds a sky glint for its reflection, shadow rays only from the first two
+   hits, throughput fading with each bounce. Detail is faded by the ray's
+   footprint (pixel angle × distance, stretched at grazing angles): fractal
+   octaves, crests, strata lines and ripple waves finer than a pixel fade to
+   their mean, checkers are box-filtered, far bumps calm (never all the way,
+   or the sun's glitter on the sea shrinks to a disc), terrain marches with
+   longer steps far away. The object scan reads headers and bounds from a
+   uniform block (`GameScan`) instead of a texture. Output: HDR colour and a
+   second target with the first hit's distance, object and normal.
+2. **Ink** (Toon ink look only): outlines where the first hit changes object,
+   breaks in depth or folds, never at a horizon.
+3. **Temporal upscale** to the view's size (`game-taa.glsl`): the sample is
+   jittered (Halton 2, 3, eight phases); the last average is found through the
+   camera's motion and each object's own (`game-motion.ts`: the plane, thrown
+   props), read with a Catmull-Rom filter, clipped to the new samples' YCoCg
+   spread, and holds at most 12 frames at rest, 5 in fast motion.
+4. **Bloom** (six halved levels, 13-tap Karis-averaged down, tent up) and
+   **light shafts** toward the sun on screen (32 steps at quarter size).
+5. **Composite** with the look (`game-looks.ts`): exposure, ACES or a soft
+   shoulder, contrast, saturation, lift/gamma/gain, split toning, halation,
+   gradient map, fringe, vignette, soft focus, sharpening, scanlines, dither.
+
+The traced size follows a fence alone (`GAME_PACE`, `MotionScale.paced`): a
+frame the GPU has not finished by the next animation frame was too big; a step
+up is tried after two calm seconds, and one that fails waits longer. While
+nothing changes it refines 32 frames, then rests.
+
+**Looks.** `GAME_LOOK` in `game-looks.ts` picks one; `?look=<name>` on the URL
+compares them. Slide postcard is the default: deep colour, a red glow round
+highlights, sun shafts and a darker lens edge, like a 1990s slide: far enough
+from the editor's picture to feel like a game, and it keeps Bryce's palette.
+
+| Look | `?look=` | What it does |
+|---|---|---|
+| Clean filmic | `filmic` | ACES, a little bloom, sharp |
+| Vapor neon | `neon` | magenta and cyan grade, pink bloom, faint scanlines |
+| Toon ink | `ink` | banded light, ink outlines over the traced reflections |
+| Dreamy haze | `dream` | soft focus, pastel shadows, long light shafts |
+| Slide postcard | `postcard` | the default, above |
+
+**Techniques weighed.** GPU time of the main tracer at 1728×1080 (Sunset
+Gambit, one ray a pixel): 29.6 ms at 3 bounces; the game variant at 5
+bounces 20.6 ms, 17 ms with the uniform-block scan. Its parts (by removing
+each): sea and sky 12.2 ms, object scan about 4, shadows 7.7, textures 4.6.
+
+| Technique | Verdict |
+|---|---|
+| Low internal size, temporal upscale and reprojection | Used: the size control keeps 0.5–0.88 per side on a retina screen, 1.0 at DPR 1 |
+| Checkerboard or interleaved tracing | Not built: the jittered upscale already spreads samples over pixels and frames |
+| Low-size reflection pass | Not built: the cost is in the one program's registers, not in the bounces' pixels |
+| Bounce falloff | Used: shadows from the first two hits, throughput cut-off growing per bounce |
+| Bounding culling / BVH (58 objects in Gambit) | The scan is about 20 %; a uniform block took most of it (22 → 17 ms); no BVH |
+| Shadow caching | Not built: shadows are 7.7 ms but change with every moving object |
+| Terrain distance LOD | Used: longer march steps by footprint |
+| Foveated or adaptive sampling | Not built: the size control is enough at 60 fps |
+
+**Measured.** `node tools/perf-play.mjs <url> <example|demo> walk|fly 8000`
+with `DPR=1` or `2`, a 1440×900 window, MacBook (Apple silicon, Chrome).
+Picture intervals over 8 s, 480 frames; "over 20 ms" is a missed 60 Hz refresh.
+
+| Scene | Motion | DPR 2: median / p95, missed, traced size | DPR 1: median / p95, missed, size |
+|---|---|---|---|
+| Sunset Gambit | walk | 16.7 / 16.8 ms, 1, 0.56–0.75 | 16.6 / 17.5 ms, 0, 1.0 |
+| Sunset Gambit | fly | 16.7 / 17.5 ms, 0, 0.50–0.75 | 16.6 / 17.6 ms, 0, 1.0 |
+| Hoodoo Run | walk | 16.7 / 17.2 ms, 0, 0.63–0.88 | 16.6 / 17.5 ms, 0, 1.0 |
+| Hoodoo Run | fly | 16.7 / 17.3 ms, 0, 0.63–0.88 | 16.7 / 17.1 ms, 0, 1.0 |
+| Vapor Desk | walk | 16.6 / 17.6 ms, 0, 0.63–0.88 | 16.6 / 17.6 ms, 0, 1.0 |
+| Vapor Desk | fly | 16.6 / 17.4 ms, 0, 0.63–0.88 | 16.6 / 17.6 ms, 0, 1.0 |
+| Trapper Keeper Canyon | walk | 16.7 / 17.6 ms, 0, 0.50–0.75 | 16.7 / 17.4 ms, 0, 1.0 |
+| Trapper Keeper Canyon | fly | 16.7 / 17.3 ms, 0, 0.50–0.75 | 16.7 / 16.8 ms, 0, 1.0 |
+
+Every look holds 60 fps on Sunset Gambit at DPR 2 (median 16.6–16.7 ms; up
+to 6 of 360 frames missed while the size probes upward).
+
+**Shimmer.** A slow pan (0.05° a frame, 90 frames) in the editor, each frame
+against the last one reprojected exactly; mean / p95 / p99 of the luma change
+(0–255). The live preview (Fast) for comparison:
+
+| Scene | DPR 2 Fast | DPR 2 Game | DPR 1 Fast | DPR 1 Game |
+|---|---|---|---|---|
+| Sunset Gambit | 1.04 / 5.3 / 18.6 | 0.53 / 1.0 / 2.4 | 1.14 / 5.6 / 20.8 | 0.47 / 0.9 / 3.1 |
+| Hoodoo Run | 1.25 / 4.7 / 22.9 | 0.48 / 1.0 / 3.6 | 1.54 / 5.5 / 29.3 | 0.50 / 1.2 / 6.7 |
+| Vapor Desk | 1.91 / 9.9 / 34.3 | 0.82 / 2.8 / 10.4 | 2.68 / 13.8 / 55.0 | 0.96 / 4.7 / 12.6 |
+| Trapper Keeper Canyon | 3.40 / 19.7 / 43.8 | 0.87 / 2.7 / 8.3 | 3.25 / 19.2 / 45.9 | 0.96 / 3.6 / 9.1 |
+
+**Measuring on a Mac.** Timer queries on ANGLE over Metal are not to be
+trusted for this: during Play they also count the compositor's work and read
+two to three times high, and queries within one command buffer overlap. The
+same picture drawn twice in a row is skipped by the tile GPU's hidden-surface
+removal unless blending is on. So the size control uses the fence, and the
+numbers above are frame intervals.
 
 ## Keeping the shader quick to compile
 

@@ -1,0 +1,58 @@
+import type { Vec3 } from '../../../core/vec3';
+import type { Button, Eye } from '../../sim/actor';
+import type { BodyId, Physics } from '../../sim/physics';
+import type { Props } from '../props';
+import type { NoticeKind, WeaponId } from '../sandbox.enums';
+
+/** What a weapon may use: the physics, the props, the player's eye and scale, the held modifier keys. */
+export interface WeaponContext {
+  readonly physics: Physics;
+  readonly props: Props;
+  /** World units per Half-Life unit: Garry's Mod's numbers scale with the player. */
+  readonly unit: number;
+  readonly dt: number;
+  /** Simulation time, seconds. */
+  readonly time: number;
+  readonly eye: Eye;
+  /** The unit aim from the eye. */
+  readonly aim: Vec3;
+  /** E (use) and Shift are down. */
+  readonly use: boolean;
+  readonly snap: boolean;
+  notify(text: string, kind: NoticeKind): void;
+}
+
+/** One fixed step of the mouse buttons and R for the weapon in hand. */
+export interface WeaponInput {
+  readonly held: ReadonlySet<Button>;
+  /** Went down this step. */
+  readonly pressed: ReadonlySet<Button>;
+  /** Wheel steps since the last step (+ toward the player), when the weapon took them. */
+  readonly reach: number;
+}
+
+/** What the overlay draws for a weapon: its beam, the body it holds, a flash. */
+export interface WeaponView {
+  /** The trigger is down: the beam shows. */
+  readonly firing: boolean;
+  /** Where the beam ends in the world, or null (nothing in reach: it fades into the distance). */
+  readonly end: Vec3 | null;
+  /** The body held and the grabbed point on it. */
+  readonly held: { readonly body: BodyId; readonly local: Vec3; readonly distance: number } | null;
+  /** A body that was just frozen or unfrozen, and when (simulation seconds). */
+  readonly flash: { readonly body: BodyId; readonly time: number } | null;
+}
+
+export interface Weapon {
+  readonly id: WeaponId;
+  /** One line for the hint while this weapon is out. */
+  readonly hint: string;
+  step(input: WeaponInput, ctx: WeaponContext): void;
+  /** Mouse motion the weapon takes instead of the view (E turns what the Physics Gun holds). */
+  look?(dx: number, dy: number, ctx: WeaponContext): boolean;
+  /** Whether the weapon takes the wheel now (instead of switching weapons). */
+  wantsWheel?(): boolean;
+  view(): WeaponView;
+  /** Put away: let go of anything held. */
+  holster(ctx: WeaponContext): void;
+}

@@ -116,8 +116,16 @@ function groupIndex(objs: readonly SceneObject[]): Map<GroupId, number> {
   return map;
 }
 
+// Trigger zones (Play) are never drawn: they are dashed boxes in the wireframe only.
+const drawn = (scene: Scene): SceneObject[] => scene.objects.filter((o) => !o.hidden && !o.zone);
+
+/** The objects the tracer draws, in the order of their rows (the game renderer's motion rows follow it). */
+export function packedObjects(scene: Scene): SceneObject[] {
+  return drawn(scene).filter((o) => !LIGHT_KINDS.has(o.kind)).slice(0, MAX_OBJECTS);
+}
+
 export function packScene(scene: Scene): PackedScene {
-  const visible = scene.objects.filter((o) => !o.hidden);
+  const visible = drawn(scene);
   const lights = visible.filter((o) => LIGHT_KINDS.has(o.kind)).slice(0, MAX_LIGHTS);
   const all = visible.filter((o) => !LIGHT_KINDS.has(o.kind));
   const solids = all.slice(0, MAX_OBJECTS);
@@ -167,6 +175,21 @@ export function packScene(scene: Scene): PackedScene {
     count: solids.length, objects, materials, terrains, lightCount: lights.length, lightPos, lightColor, lightDir,
     dropped: all.length - solids.length,
   };
+}
+
+/**
+ * The game variant's object scan (GameScan in 00-header.glsl): every object's header texel,
+ * then every object's bounding sphere, MAX_OBJECTS of each (std140 vec4 arrays).
+ */
+export function scanRows(p: PackedScene): Float32Array {
+  const out = new Float32Array(MAX_OBJECTS * TEXEL_FLOATS * 2);
+  const bounds = MAX_OBJECTS * TEXEL_FLOATS;
+  for (let i = 0; i < p.count; i++) {
+    const row = i * ROW_OBJ;
+    out.set(p.objects.subarray(row + OBJ_AT.header, row + OBJ_AT.header + T), i * T);
+    out.set(p.objects.subarray(row + OBJ_AT.bound, row + OBJ_AT.bound + T), bounds + i * T);
+  }
+  return out;
 }
 
 function out4(a: Float32Array, at: number, x: number, y: number, z: number, w: number): void {

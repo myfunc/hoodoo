@@ -23,7 +23,7 @@ import { rigFlags } from '../world/rig';
 import { Rig } from '../world/world.enums';
 import { type GizmoPart, samePart } from './wire/gizmo';
 import { Tone, tonedTable } from './tone';
-import type { LiveQuality } from '../world/world.enums';
+import type { PlayQuality } from '../world/world.enums';
 
 /** One drawable view inside the scene window (one in single view, four in quad view). */
 export interface ViewCell {
@@ -52,8 +52,9 @@ const CELL_MARGIN = 6;
 const MAX_DPR = 2;
 /** Four Views pictures get one pixel per CSS pixel: a quarter of the work on a retina screen. */
 const QUAD_PIXEL_RATIO = 1;
-/** The tab on the picture while Render View draws it. */
+/** The tab on the picture while Render View draws it, and while the game look is previewed. */
 const RENDER_VIEW_TAB = 'Render View';
+const GAME_TAB = 'Game look';
 const LABEL_FONT = 'bold 10px Geneva, Verdana, sans-serif';
 /** The view names and the Four Views cell lines, and the tab under a name over a rendered pane. */
 const LABEL_INK = tonedTable({
@@ -90,14 +91,14 @@ const sameHover = (a: Hover, b: Hover): boolean =>
 /**
  * Play mode's hook (src/play, docs/play-mode.md): while a play source is set the
  * scene window shows its frames — the simulated scene through the player's eyes —
- * with no wires; the session calls `playFrame` every animation frame. A game
- * renderer of its own can later take the picture over here.
+ * with no wires; the session calls `playFrame` every animation frame. The quality
+ * picks the game renderer (PictureMode.Game) or the live preview at a quality.
  */
 export interface PlaySource {
   /** The scene and the camera to show now. */
   frame(): { readonly scene: Scene; readonly camera: Camera };
-  /** What moving frames trace while playing. */
-  readonly quality: LiveQuality;
+  /** What draws Play's frames: the game renderer, or the live preview at one of its qualities. */
+  readonly quality: PlayQuality;
 }
 
 /**
@@ -162,8 +163,7 @@ export class SceneView {
   /** Play mode: show `source`'s frames instead of the editor's scene, without wires; null goes back to the editor. */
   setPlay(source: PlaySource | null): void {
     this.play = source;
-    this.realtime.quality = source ? source.quality : this.editor.state.settings.liveQuality;
-    this.realtime.reset();
+    this.pictures.setPlay(source?.quality ?? null);
     this.layout();
     this.draw();
     this.updateLive();
@@ -331,7 +331,6 @@ export class SceneView {
     // Play mode: the session's frame, through the player's eyes, at the play quality.
     const play = this.play?.frame() ?? null;
     const scene = play?.scene ?? this.world.scene;
-    if (this.play) this.realtime.quality = this.play.quality;
     this.pictures.refresh(scene);
     live.resize(w, h);
     this.placeGlCanvas(cell.frame);
@@ -494,6 +493,7 @@ export class SceneView {
       if (cell.kind === ViewKind.Director) drawFocusReticle(g, cell.frame, basis, s.director);
       if (s.quad) this.drawLabel(cell, overRender);
       else if (s.picture === PictureMode.Final) drawPictureTab(g, cell.frame, RENDER_VIEW_TAB);
+      else if (s.picture === PictureMode.Game) drawPictureTab(g, cell.frame, GAME_TAB);
       g.restore();
       if (s.quad) {
         g.strokeStyle = LABEL_INK.text;

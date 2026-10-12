@@ -17,4 +17,6 @@ export interface PlayEvents {
   jointBroken: { readonly joint: JointId };
   /** Recording began or ended at this scene time. */
   record: { readonly on: boolean; readonly time: number };
+  /** A named event of the scene's scripts (trigger zones, buttons, counters; behaviours.ts); `from` is the sender's id. */
+  signal: { readonly name: string; readonly from: string };
 }

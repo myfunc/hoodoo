@@ -178,6 +178,62 @@ export class NumberField {
   }
 }
 
+export interface TextFieldOptions {
+  readonly value: string;
+  readonly placeholder?: string;
+  readonly title?: string;
+  readonly cls?: string;
+  readonly maxLength?: number;
+  /** Why the text cannot be used, or null: a refused text is marked and not committed. */
+  readonly check?: (text: string) => string | null;
+  readonly onCommit: (text: string) => void;
+}
+
+/** One line of text (a name, an event, a formula): Enter or leaving commits, Esc puts the value back. */
+export class TextField {
+  readonly el: HTMLInputElement;
+  private shown: string;
+
+  constructor(private readonly o: TextFieldOptions) {
+    this.el = el('input', {
+      cls: o.cls ? `ui-number ui-text ${o.cls}` : 'ui-number ui-text',
+      title: o.title,
+      attrs: { type: 'text', spellcheck: 'false', autocomplete: 'off', ...(o.placeholder ? { placeholder: o.placeholder } : {}), ...(o.maxLength ? { maxlength: String(o.maxLength) } : {}) },
+    });
+    this.shown = o.value;
+    this.el.value = o.value;
+    const mark = () => {
+      const why = o.check?.(this.el.value.trim()) ?? null;
+      this.el.classList.toggle('is-invalid', why !== null);
+      this.el.title = why ?? o.title ?? '';
+      return why;
+    };
+    this.el.addEventListener('input', mark);
+    this.el.addEventListener('change', () => {
+      const text = this.el.value.trim();
+      if (mark() !== null || text === this.shown) return;
+      this.shown = text;
+      o.onCommit(text);
+    });
+    this.el.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === KEY.Enter) this.el.blur();
+      if (e.key === KEY.Escape) {
+        this.set(this.shown);
+        this.el.blur();
+      }
+    });
+  }
+
+  set(v: string): void {
+    this.shown = v;
+    if (document.activeElement === this.el) return;
+    this.el.value = v;
+    this.el.classList.remove('is-invalid');
+    this.el.title = this.o.title ?? '';
+  }
+}
+
 export interface ToggleOptions {
   readonly label: string;
   readonly value: boolean;

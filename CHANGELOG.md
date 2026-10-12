@@ -1,5 +1,98 @@
 # Changelog
 
+## 0.11.0 — 2026-10-12
+
+### Added
+- A plane in Play: the setup panel (Tab) chooses who plays, Walker or
+  Plane, and remembers it. The plane is a toy built from Hoodoo's shapes: a
+  red egg of a fuselage, a chrome cowling and spinner, a wooden propeller,
+  yellow elliptical wings, a teal fin, wheels on struts and a chess pawn
+  for the pilot. A chase camera follows it, lagging softly and leaning half
+  as far as the plane banks; V switches to the cockpit. Arcade flight: W
+  and S (or Shift and Ctrl) set the throttle; the mouse, the arrows and A/D
+  pitch and roll; banking turns it by itself; lift grows with speed, a stall
+  drops the nose until the speed comes back, and with the stick let go the
+  wings level and the nose eases to the horizon. Space boosts (with a
+  cooldown), the view widens with speed, R starts over. It takes off from
+  and lands on any floor, terrain or deck; walls and the ground bounce it
+  with a wobble, never a crash, and the props it meets are knocked away.
+  The Plane section of the panel sets its speed, its turn rate and
+  inverted pitch, and its size follows the player's. The HUD line shows
+  speed, height above the ground and a throttle bar.
+- Record (K) with the plane keys the plane: the first take adds a Plane
+  group to the scene, keyed with the plane's pose and its propeller's
+  spin, with the camera (chase or cockpit, with the speed's FOV) on the
+  camera track; later takes key the same plane. Played back, the scene
+  repeats the flight; the take is one undo step. A take keeps the material,
+  light and visibility values keyed in the span it replaces, and props that
+  only settle by a few millimetres are not keyed.
+- Sandbox (preview feature with Play; View › Preview Features…, or
+  `?flags=play,sandbox`): Garry's Mod's Physics Gun in Play. Hold Mouse 1 to
+  grab a prop or any scene object that is not locked or part of the map; it
+  follows the aim and still collides. The wheel pushes and pulls it, E with
+  the mouse turns it (Shift: 45° steps), Mouse 2 freezes it in the air,
+  letting go throws it, R unfreezes the prop you aim at and R twice unfreezes
+  every one. Notices in the corner and the weapon strip on 1–6 and the
+  wheel. docs/sandbox-mode.md describes the whole mode.
+- Keyed materials, lights and visibility. With animation on and the playhead
+  past zero, a change in the Materials Lab or a light's colour, intensity,
+  falloff or cone becomes a key, as a move does: the key holds just the values
+  that changed (diffuse, ambient, specular and clear colours; diffusion,
+  ambience, specularity, metallicity, transparency, reflection, refraction,
+  bump), and the first change also keys the old value at zero. Numbers follow
+  the key's ease, colours blend in OKLab so a chrome-to-gold fade passes
+  through warm greys, and a preset change crossfades its numbers while its
+  name, sources and textures switch halfway between the two keys. Visibility
+  is stepped: it changes at its key. Hiding keys visibility once the object
+  has a visibility key; the first one is set in the key inspector. The live
+  view, Render View, Render, movies and the film strip all show the keyed
+  values frame by frame.
+- The key inspector lists what the picked key changes under compact
+  headings, Transform, Material, Light and Visibility, each from the key
+  before to this one, with a field (a swatch for colours) to set it: one
+  undo step per edit. What did not change sits folded below; a click opens a
+  heading, and it stays open from key to key.
+- Scene files carry these key values as optional data; older files open as
+  before, and out-of-range values from a file are clamped.
+- Clips in Play: an object or a group plays a stretch of its own keys on its
+  own clock while you play, Loop, Ping-pong or Once, at a speed, from the
+  start or when a trigger asks. Attributes › Behaviour (and the Object
+  Attributes window) sets it: Clip On, From and To picked from its keys, the
+  mode, × speed, Auto or On trigger. A clip-driven object is a moving
+  platform: it carries the player. The editor's timeline still keys the
+  motion; clips only play it.
+- Trigger zones (Objects › Create Trigger Zone while Play is on): an
+  invisible box or sphere, drawn as a dashed wireframe in the editor and
+  never rendered. Its rules read as a sentence: When the player, any
+  physical object or a named object enters, leaves or stays, then play a
+  clip forward or backward, toggle it, make an object solid or not, push it,
+  move it to a marker, show or hide it, or send an event. A door is two
+  rules: enter plays it forward, leave plays it back.
+- Behaviours (+ Add in Attributes › Behaviour): Spin, Bob, Orbit, Look at
+  Player, Follow Path (along its own keys), Formula, Spawner, Button,
+  Counter and Push. They talk through named events: a button sends one, a
+  counter passes on every n-th, a spawner drops its prop, a push throws
+  what is near; any clip or motion can wait for one. Numbers may be short
+  formulas of time, such as `30 + 20*sin(t)`, in a small safe language
+  (arithmetic and a fixed list of functions; anything else is refused as you
+  type). docs/play-mode.md lists it all.
+- Scripts are saved in scene files as optional data; older files open as
+  before, and a file's scripts are checked on load: unknown kinds and
+  formulas are dropped, numbers clamped, and nothing in a file can run code.
+- A Playground example (in the start window while Play is on): a door that
+  opens as you come near, a lift that carries you to a ledge, a spinning
+  bridge and a button that drops a ball onto a ramp.
+- Play has its own picture, the game renderer: 60 frames a second with four
+  to five mirror and glass bounces, walking or flying, on Sunset Gambit,
+  Hoodoo Run, Vapor Desk and Trapper Keeper Canyon, on a retina screen too.
+  It traces fewer pixels than the screen has and builds a sharp, steady
+  picture from the last frames, so edges stay smooth and mirrors, ripples
+  and checkers do not shimmer while you move; the plane and thrown props
+  keep sharp edges as they fly. Its look is a 1990s slide postcard: deep
+  colour, a warm glow round bright light, light shafts from the sun and a
+  darker lens edge. Render › Render Options… › Play › Game look shows it in
+  the editor without playing; the row is there only while Play is on. docs/rendering.md has the measurements.
+
 ## 0.10.0 — 2026-10-12
 
 ### Added

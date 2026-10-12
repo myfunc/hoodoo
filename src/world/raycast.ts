@@ -134,7 +134,8 @@ export interface RaycastOptions {
 export function raycast(scene: Scene, origin: Vec3, dir: Vec3, opts: RaycastOptions): RayHit | null {
   let best: RayHit | null = null;
   for (const obj of scene.objects) {
-    if (obj.hidden || opts.skip?.has(obj.id)) continue;
+    // A trigger zone has no surface: it is picked by its dashed wires, and nothing lands on it.
+    if (obj.hidden || obj.zone || opts.skip?.has(obj.id)) continue;
     if (!opts.includePlanes && INFINITE_KINDS.has(obj.kind)) continue;
     if (!opts.includeLights && LIGHT_KINDS.has(obj.kind)) continue;
     const t = objectT(obj, origin, dir);

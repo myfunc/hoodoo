@@ -1,9 +1,10 @@
 import type { Scene } from '../model/scene.types';
 import type { EditorState, EditorStore } from '../world/editor-store';
 import { finalBounces, renderViewOptions } from '../world/render-setup';
-import { PictureMode } from '../world/world.enums';
+import { type LiveQuality, PictureMode, type PlayQuality } from '../world/world.enums';
 import type { RayEngine } from './gpu/engine';
 import { FinalView } from './gpu/final-view';
+import { GameRenderer } from './gpu/game-renderer';
 import { RealtimeRenderer } from './gpu/realtime';
 import type { RealtimeStatus, ViewRenderer } from './gpu/view-renderer';
 import type { Frame } from './wire/wireframe';
@@ -14,15 +15,19 @@ const TAB = { font: 'bold 10px Geneva, Verdana, sans-serif', fill: 'rgba(43,138,
 
 /**
  * READ ME — the single view's pictures that draw themselves: the live preview
- * (RealtimeRenderer, while Live is on) and Render View (FinalView). `active`
- * picks one for the editor state, `sync` keeps them in step with the settings,
+ * (RealtimeRenderer, while Live is on), Render View (FinalView) and the game
+ * renderer (GameRenderer: Play's picture, or its look previewed). `active` picks
+ * one for the editor state and Play, `sync` keeps them in step with the settings,
  * and `run` keeps one animation-frame loop going for whichever is active. A new
  * picture mode adds its renderer here and one case in `rendererFor`.
  */
 export class ViewPictures {
   readonly realtime: RealtimeRenderer;
   readonly finalView: FinalView;
+  readonly game: GameRenderer;
   private loop = false;
+  /** What Play draws with while a session runs (`setPlay`), else null. */
+  private play: PlayQuality | null = null;
 
   constructor(engine: RayEngine, private readonly editor: EditorStore, private readonly emit: (s: RealtimeStatus) => void) {
     const s = editor.state;
@@ -31,13 +36,30 @@ export class ViewPictures {
     this.realtime.quality = s.settings.liveQuality;
     this.realtime.bounces = s.settings.liveBounces;
     this.finalView = new FinalView(engine);
+    this.game = new GameRenderer(engine);
   }
 
   /** The renderer that draws the single view by itself in state `s`, or null (Four Views, or Bryce's render on request). */
   rendererFor(s: EditorState): ViewRenderer | null {
     if (s.quad) return null;
+    if ((this.play === PictureMode.Game || s.picture === PictureMode.Game) && this.game.usable) return this.game;
     if (s.picture === PictureMode.Final) return this.finalView;
     return s.liveRender ? this.realtime : null;
+  }
+
+  /** Play starts (the game renderer, or the live preview at a quality) or ends (null): each picture starts over. */
+  setPlay(quality: PlayQuality | null): void {
+    const before = this.active();
+    this.play = quality;
+    this.realtime.quality = this.liveQuality(this.editor.state);
+    this.realtime.reset();
+    this.game.reset();
+    if (before === this.game && this.active() !== this.game) this.game.release();
+  }
+
+  /** The live preview's quality: Play's while it draws Play, else the setting. */
+  private liveQuality(s: EditorState): LiveQuality {
+    return this.play !== null && this.play !== PictureMode.Game ? this.play : s.settings.liveQuality;
   }
 
   active(): ViewRenderer | null {
@@ -53,15 +75,19 @@ export class ViewPictures {
   /** The editor changed: settings to the renderers; a renderer that stops drawing forgets its picture. */
   sync(s: EditorState, prev: EditorState, scene: Scene): void {
     if (s.renderSamples !== prev.renderSamples) this.realtime.target = s.renderSamples;
-    this.realtime.quality = s.settings.liveQuality;
+    this.realtime.quality = this.liveQuality(s);
     this.realtime.bounces = s.settings.liveBounces;
     this.refresh(scene);
     const before = this.rendererFor(prev);
+    const now = this.rendererFor(s);
     // The other renderer drew over the canvas: whichever comes back starts its picture over.
-    if (before && before !== this.rendererFor(s)) {
+    if (before && before !== now) {
       this.realtime.reset();
       this.finalView.reset();
+      this.game.reset();
     }
+    // The game renderer's targets are large: given back when it stops drawing.
+    if (before === this.game && now !== this.game) this.game.release();
   }
 
   /** Render in a view that draws itself: refine to four times the rays. */

@@ -15,18 +15,38 @@ float hash11(float x) { return fract(sin(x * 127.1) * 43758.5453); }
 
 float gnoise(vec3 p) { return textureLod(uNoise, p * (1.0 / NOISE_PERIOD), 0.0).r; }
 
+#ifdef GAME_TRACE
+// How many octaves a pattern keeps at the current hit (the game variant sets it from the
+// ray's footprint, 20-textures.glsl): finer ones would only alias, so they fade out and
+// are not sampled. The fractional part fades the last one, so nothing pops.
+float gDetail = 8.0;
+float octaveKeep(int i) { return clamp(gDetail - float(i), 0.0, 1.0); }
+#else
+float octaveKeep(int i) { return 1.0; }
+#endif
+
+// The mean of one crest octave, (1 - |1.6 g|)^2, over the noise volume (noise-texture.ts).
+#define RIDGE_MEAN 0.6
+
 // Fractal sum in roughly -1..1; ridged = true gives sharp crests in 0..1.
 float fractal(vec3 p, int octaves, bool ridgedSum) {
   float sum = 0.0;
   float amp = 0.5;
   int n = clamp(octaves, 1, 8);
   for (int i = 0; i < n; i++) {
-    float g = gnoise(p);
+    // A faded octave tends to its mean: 0 for the plain sum, RIDGE_MEAN for a crest, so the far colour holds.
+    float keep = octaveKeep(i);
     if (ridgedSum) {
-      float r = 1.0 - abs(g * 1.6);
-      sum += amp * r * r;
+      if (keep <= 0.0) {
+        sum += amp * RIDGE_MEAN * 2.0 * (1.0 - exp2(float(i - n)));
+        break;
+      }
+      float r = 1.0 - abs(gnoise(p) * 1.6);
+      sum += amp * mix(RIDGE_MEAN, r * r, keep);
     } else {
-      sum += amp * g;
+      amp *= keep;
+      if (amp <= 0.0) break;
+      sum += amp * gnoise(p);
     }
     p = p * 2.03 + vec3(1.7, 9.2, 3.1);
     amp *= 0.5;

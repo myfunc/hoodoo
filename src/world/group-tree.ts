@@ -30,7 +30,7 @@ export interface TreeRow {
 }
 
 const plainGroup = (id: GroupId): GroupNode => ({ id, name: GROUP_NAME, parentId: null, collapsed: false });
-const isPlain = (g: GroupNode): boolean => g.parentId === null && g.name === GROUP_NAME && !g.collapsed && !g.transform && !g.body;
+const isPlain = (g: GroupNode): boolean => g.parentId === null && g.name === GROUP_NAME && !g.collapsed && !g.transform && !g.body && !g.script;
 
 /** Every group of the scene by id: the table plus the plain groups objects point at. */
 export function groupIndex(scene: GroupedScene): Map<GroupId, GroupNode> {

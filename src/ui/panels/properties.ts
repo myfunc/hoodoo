@@ -18,6 +18,7 @@ import { Rig } from '../../world/world';
 import { PRESET_ORDER, openMaterialMenu } from './material-menu';
 import { panelTitle } from './panel-title';
 import { bodyRow, groupBodyRow } from './body-row';
+import { behaviourSection } from './behaviour-section';
 import { LightFields } from '../labs/light-fields';
 import { LiveEdit } from '../labs/live-edit';
 
@@ -105,7 +106,7 @@ export class Properties {
       this.body.append(el('div', { cls: 'props-empty', text: n > 1 ? `${n} objects selected` : 'Nothing selected. Click a wireframe.' }));
       if (n === 0) this.body.append(el('div', { cls: 'props-empty', text: 'Camera and Sun: top of the scene list.' }));
       const items = this.ctx.world.selectedItems();
-      if (items.groups.length === 1 && !items.objects.length) this.body.append(groupBodyRow(this.ctx, items.groups[0]));
+      if (items.groups.length === 1 && !items.objects.length) this.body.append(groupBodyRow(this.ctx, items.groups[0]), behaviourSection(this.ctx, { group: items.groups[0] }));
       return;
     }
     const grid = el('div', { cls: 'props-grid' }, [el('span'), ...AXIS_NAMES.map((a) => el('span', { cls: 'axis-head', text: a }))]);
@@ -128,8 +129,11 @@ export class Properties {
         grid.append(field.el);
       });
     }
-    if (o.light && LIGHT_KINDS.has(o.kind)) this.body.append(grid, this.lightRows(o));
-    else this.body.append(grid, this.booleanRow(o), this.materialRow(o), bodyRow(this.ctx, o.id));
+    // Play: the object's clip and behaviours; a trigger zone has its rules there and nothing to render.
+    const behaviour = behaviourSection(this.ctx, { object: o.id });
+    if (o.light && LIGHT_KINDS.has(o.kind)) this.body.append(grid, this.lightRows(o), behaviour);
+    else if (o.zone) this.body.append(grid, behaviour);
+    else this.body.append(grid, this.booleanRow(o), this.materialRow(o), bodyRow(this.ctx, o.id), behaviour);
   }
 
   private booleanRow(o: SceneObject): HTMLElement {

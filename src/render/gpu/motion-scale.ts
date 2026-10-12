@@ -22,6 +22,9 @@ export const MOTION_SCALE = {
   maxHold: 640,
 } as const;
 
+/** The size control's numbers (MOTION_SCALE); another renderer may pace itself differently (game-frame.ts). */
+export type MotionTuning = { readonly [K in keyof typeof MOTION_SCALE]: number };
+
 /**
  * READ ME — the size of the live picture while things move. With GPU timers it
  * predicts the frame cost from the measured cost per pixel; without them it
@@ -35,11 +38,12 @@ export class MotionScale {
   private current: number;
   private calm = 0;
   private late = 0;
-  private hold: number = MOTION_SCALE.upFrames;
+  private hold: number;
   private sinceUp = Infinity;
 
-  constructor(start = 1) {
-    this.current = quantize(start);
+  constructor(start = 1, private readonly tune: MotionTuning = MOTION_SCALE) {
+    this.current = quantize(start, tune);
+    this.hold = tune.upFrames;
   }
 
   get scale(): number {
@@ -47,32 +51,32 @@ export class MotionScale {
   }
 
   /** With timers: the smoothed GPU cost of one pixel of a moving frame, and the full picture size. */
-  measured(msPerPixel: number, fullPixels: number, budgetMs: number = MOTION_SCALE.frameMs): void {
+  measured(msPerPixel: number, fullPixels: number, budgetMs: number = this.tune.frameMs): void {
     if (msPerPixel <= 0 || fullPixels <= 0) return;
     const ideal = Math.sqrt(budgetMs / (msPerPixel * fullPixels));
     const cost = msPerPixel * fullPixels * this.current * this.current;
-    if (cost > budgetMs * MOTION_SCALE.overload) {
-      this.down(Math.min(this.current - MOTION_SCALE.step, Math.floor(ideal / MOTION_SCALE.step) * MOTION_SCALE.step));
+    if (cost > budgetMs * this.tune.overload) {
+      this.down(Math.min(this.current - this.tune.step, Math.floor(ideal / this.tune.step) * this.tune.step));
       return;
     }
-    const room = (ideal - this.current) / MOTION_SCALE.step;
-    this.considerUp(room >= MOTION_SCALE.upMargin, room);
+    const room = (ideal - this.current) / this.tune.step;
+    this.considerUp(room >= this.tune.upMargin, room);
   }
 
   /** Without timers: whether the GPU was still busy with the frame at the next animation frame. */
   paced(lateFrame: boolean): void {
-    this.late += ((lateFrame ? 1 : 0) - this.late) * MOTION_SCALE.lateGain;
-    if (this.late > MOTION_SCALE.lateLimit) {
+    this.late += ((lateFrame ? 1 : 0) - this.late) * this.tune.lateGain;
+    if (this.late > this.tune.lateLimit) {
       this.late = 0;
-      this.down(this.current - MOTION_SCALE.step);
+      this.down(this.current - this.tune.step);
       return;
     }
     this.considerUp(!lateFrame, 1);
   }
 
   private down(to: number): void {
-    if (this.sinceUp < this.hold * MOTION_SCALE.failWindow) this.hold = Math.min(MOTION_SCALE.maxHold, this.hold * 2);
-    this.current = quantize(to);
+    if (this.sinceUp < this.hold * this.tune.failWindow) this.hold = Math.min(this.tune.maxHold, this.hold * 2);
+    this.current = quantize(to, this.tune);
     this.calm = 0;
     this.sinceUp = Infinity;
   }
@@ -80,16 +84,16 @@ export class MotionScale {
   /** `steps`: how many steps of room the measurement shows; a long way to go is climbed faster. */
   private considerUp(room: boolean, steps: number): void {
     this.sinceUp++;
-    if (this.sinceUp === this.hold * MOTION_SCALE.earnBack) this.hold = Math.max(MOTION_SCALE.upFrames, this.hold / 2);
+    if (this.sinceUp === this.hold * this.tune.earnBack) this.hold = Math.max(this.tune.upFrames, this.hold / 2);
     this.calm = room ? this.calm + 1 : 0;
-    if (this.calm * Math.max(1, steps / MOTION_SCALE.upMargin) < this.hold || this.current >= 1) return;
-    this.current = quantize(this.current + MOTION_SCALE.step);
+    if (this.calm * Math.max(1, steps / this.tune.upMargin) < this.hold || this.current >= 1) return;
+    this.current = quantize(this.current + this.tune.step, this.tune);
     this.calm = 0;
     this.sinceUp = 0;
   }
 }
 
-function quantize(scale: number): number {
-  const stepped = Math.round(scale / MOTION_SCALE.step) * MOTION_SCALE.step;
-  return Math.min(1, Math.max(MOTION_SCALE.minScale, stepped));
+function quantize(scale: number, tune: MotionTuning): number {
+  const stepped = Math.round(scale / tune.step) * tune.step;
+  return Math.min(1, Math.max(tune.minScale, stepped));
 }

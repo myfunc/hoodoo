@@ -3,13 +3,16 @@ import { ViewKind } from '../model/scene.enums';
 import type { UiContext } from '../ui/context';
 import type { EditorState } from '../world/editor-store';
 import type { PlayerSettings } from '../world/player-settings';
+import { type PlaneSettings, PlayActor } from '../world/plane-settings';
 import { changeSetting, onSetting } from '../world/settings';
-import { LiveQuality, PictureMode } from '../world/world.enums';
-import { PlayHud } from './play-hud';
+import { PictureMode } from '../world/world.enums';
+import { Feature, isFeatureOn } from '../world/preview-features';
+import { PLANE_HINT, PLAY_HINT, PlayHud } from './play-hud';
 import { PlayInput } from './play-input';
 import { PlayPanel } from './play-panel';
 import { FixedClock } from './sim/clock';
 import type { PlaySim } from './sim/play-sim';
+import type { Sandbox } from './sandbox/sandbox';
 import { withTakes } from './sim/take';
 import './play.css';
 
@@ -70,6 +73,10 @@ class PlaySession {
   private ended = false;
   /** Record was switched off by the user (not by a full track). */
   private userStopped = false;
+  /** Sandbox's guns and menus (docs/sandbox-mode.md), when its preview is on. */
+  private sandbox: Sandbox | null = null;
+  /** A Sandbox menu has the pointer: play runs on without it. */
+  private menu = false;
 
   constructor(private readonly ctx: UiContext) {
     const { editor, view } = ctx;
@@ -78,7 +85,9 @@ class PlaySession {
     editor.update({ view: ViewKind.Camera, quad: false, liveRender: true, picture: PictureMode.Edit });
     editor.setHint(STATUS_HINT);
     this.input = new PlayInput(this.hud.el, {
-      look: (dx, dy) => this.sim?.driver.look(dx, dy),
+      look: (dx, dy) => { if (!this.sandbox?.look(dx, dy)) this.sim?.driver.look(dx, dy); },
+      key: (code, down) => this.sandbox?.key(code, down) ?? false,
+      wheel: (e) => this.sandbox?.wheel(e) ?? false,
       record: () => this.record(),
       setup: () => (this.input.isLocked ? this.input.release() : this.input.lock()),
       exit: () => this.exit(),
@@ -87,12 +96,17 @@ class PlaySession {
     this.panel = new PlayPanel({
       player: () => this.ctx.editor.state.settings.player,
       setPlayer: (p) => changeSetting(this.ctx.editor, 'player', p),
+      actor: () => this.ctx.editor.state.settings.playActor,
+      setActor: (a) => changeSetting(this.ctx.editor, 'playActor', a),
+      plane: () => this.ctx.editor.state.settings.plane,
+      setPlane: (p) => changeSetting(this.ctx.editor, 'plane', p),
       recording: () => this.sim?.recording ?? false,
       record: () => this.record(),
       resume: () => this.input.lock(),
       exit: () => this.exit(),
     });
     this.hud.setPanel(this.panel.el);
+    this.showActor(editor.state.settings.playActor);
     this.hud.paused = true;
     this.hud.el.addEventListener('click', () => { if (!this.input.isLocked) this.input.lock(); });
     view.root.append(this.hud.el);
@@ -103,6 +117,11 @@ class PlaySession {
       view.events.on('layout', () => this.hud.place(view.pictureFrame())),
       view.events.on('live', (st) => { this.fps = st.fps; }),
       onSetting(editor, 'player', (p: PlayerSettings) => this.sim?.setPlayer(p)),
+      onSetting(editor, 'playActor', (a: PlayActor) => {
+        this.sim?.setActor(a);
+        this.showActor(a);
+      }),
+      onSetting(editor, 'plane', (p: PlaneSettings) => this.sim?.setPlane(p)),
     );
     this.hud.place(view.pictureFrame());
     this.automate();
@@ -117,6 +136,8 @@ class PlaySession {
     const { editor, view } = this.ctx;
     const sim = this.sim;
     if (sim?.recording) sim.record(false);
+    this.sandbox?.dispose();
+    this.sandbox = null;
     this.input.dispose();
     for (const f of this.off) f();
     this.hud.el.remove();
@@ -134,7 +155,8 @@ class PlaySession {
     const { world, editor, view } = this.ctx;
     try {
       const { PlaySim } = await import('./sim/play-sim');
-      const sim = await PlaySim.create({ scene: world.scene, time: world.time, player: editor.state.settings.player });
+      const { player, playActor, plane } = editor.state.settings;
+      const sim = await PlaySim.create({ scene: world.scene, time: world.time, player, actor: playActor, plane });
       if (this.ended) {
         sim.dispose();
         return;
@@ -145,8 +167,9 @@ class PlaySession {
         if (!on && !this.userStopped) this.ctx.toast('Take full: a track holds 600 keys');
         this.userStopped = false;
       });
+      if (isFeatureOn(editor.state.features, Feature.Sandbox)) await this.startSandbox(sim);
       this.hud.ready();
-      view.setPlay({ frame: () => sim.frame(this.clock.alpha), quality: LiveQuality.Fast });
+      view.setPlay({ frame: () => sim.frame(this.clock.alpha), quality: PictureMode.Game });
       this.last = performance.now();
       this.raf = requestAnimationFrame(this.tick);
       logger.info('play started', { objects: world.scene.objects.length, bodies: sim.bodies.items.size });
@@ -155,6 +178,24 @@ class PlaySession {
       this.ctx.toast('Play could not start: the physics engine did not load');
       this.exit();
     }
+  }
+
+  /** Sandbox's code comes in its own chunk, after the physics. */
+  private async startSandbox(sim: PlaySim): Promise<void> {
+    const { Sandbox } = await import('./sandbox/sandbox');
+    if (this.ended) return;
+    const { world, view } = this.ctx;
+    this.sandbox = new Sandbox({
+      layer: this.hud.el, sim, scene: world.scene, picture: () => view.pictureFrame(),
+      active: () => !this.paused, freePointer: (on) => this.freePointer(on), toast: (m) => this.ctx.toast(m),
+    });
+  }
+
+  /** A menu takes the pointer (on) and gives it back; play keeps running meanwhile. */
+  private freePointer(on: boolean): void {
+    this.menu = on;
+    if (on) this.input.release();
+    else this.input.lock();
   }
 
   private record(): void {
@@ -167,6 +208,7 @@ class PlaySession {
 
   /** The pointer came or went: locked plays; Esc (the browser lets go, the page keeps focus) leaves; anything else pauses. */
   private locked(on: boolean, byUser: boolean): void {
+    if (!on && this.menu) return;
     if (!on && byUser && document.hasFocus() && this.sim) {
       this.exit();
       return;
@@ -187,13 +229,19 @@ class PlaySession {
     if (!sim || this.ended) return;
     const steps = this.paused ? 0 : this.clock.advance((now - this.last) / MS_PER_S);
     this.last = now;
-    for (let i = 0; i < steps; i++) sim.step(this.input.sample());
+    for (let i = 0; i < steps; i++) {
+      const input = this.input.sample();
+      sim.step(this.sandbox ? this.sandbox.input(input) : input);
+    }
     this.ctx.view.playFrame();
+    this.sandbox?.frame(sim.frame(this.clock.alpha));
     if (now - this.lastReadout > READOUT_MS) {
       this.lastReadout = now;
       const take = sim.recording ? sim.time - (sim.takeStart ?? sim.time) : null;
       this.hud.recording(take);
       this.hud.setReadout(`${sim.driver.readout?.() ?? ''} · ${this.fps} fps`);
+      const gauge = sim.driver.gauge?.();
+      this.hud.setGauge(gauge?.level ?? null, gauge?.hot);
     }
     this.raf = requestAnimationFrame(this.tick);
   };
@@ -203,9 +251,18 @@ class PlaySession {
     if (!sim.takes.length) return;
     const { world } = this.ctx;
     const r = withTakes(world.scene, sim.takes);
-    world.setAnimation(r.animation, UNDO_LABEL);
+    world.setAnimation(r.animation, UNDO_LABEL, r);
     const bodies = r.bodies ? ` and ${r.bodies} moving object${r.bodies > 1 ? 's' : ''}` : '';
-    this.ctx.toast(`Recorded ${r.seconds.toFixed(1)} s: ${r.cameraKeys} camera keys${bodies} · Undo removes the take`);
+    const plane = r.plane ? ', the Plane' : '';
+    this.ctx.toast(`Recorded ${r.seconds.toFixed(1)} s: ${r.cameraKeys} camera keys${plane}${bodies} · Undo removes the take`);
+  }
+
+  /** The hint line and the HUD's look follow who is driven. */
+  private showActor(a: PlayActor): void {
+    const plane = a === PlayActor.Plane;
+    this.hud.setHint(plane ? PLANE_HINT : PLAY_HINT);
+    this.hud.el.classList.toggle('is-plane', plane);
+    this.panel.sync();
   }
 
   /** window.__hoodooPlay for tools/*.mjs checks. */

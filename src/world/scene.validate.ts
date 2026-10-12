@@ -1,14 +1,15 @@
 import { DEFAULT_LIGHT } from '../assets/object.catalog';
 import { latheIndex } from '../assets/lathe.profiles';
 import type { Vec3 } from '../core/vec3';
-import { VALUE_LIMITS } from '../model/material.factory';
+import { VALUE_LIMITS, material } from '../model/material.factory';
 import type { Rgb } from '../core/color';
 import { BooleanMode, ChannelSource, ColorChannel, Ease, Family, ShapeKind, SkyMode, TextureKind, TextureMapping, ValueChannel } from '../model/scene.enums';
 import { asGroupId } from '../model/scene.ids';
-import type { Animation, Camera, CloudSettings, DocumentSetup, GroupNode, Key, LightData, OrthoView, ProceduralTexture, RenderSetup, RigFlags, Scene, Sky, Transform } from '../model/scene.types';
+import type { Animation, Camera, CloudSettings, DocumentSetup, GroupNode, Key, LightData, MaterialKey, ObjectKey, OrthoView, ProceduralTexture, RenderSetup, RigFlags, Scene, Sky, Transform } from '../model/scene.types';
 import { clampBounces } from './render-setup';
 import type { BodyFlags } from '../model/scene.types';
 import { MASS_RANGE } from './body-flags';
+import { playScript } from './play/script-validate';
 
 /**
  * Guards for scene data that arrives from outside (files, share links, autosave):
@@ -231,6 +232,40 @@ function keys<T>(v: unknown, value: (raw: unknown) => T): Key<T>[] {
   return out.sort((a, b) => a.time - b.time);
 }
 
+const unitRgb = (c: Rgb): Rgb => [Math.min(1, Math.max(0, c[0])), Math.min(1, Math.max(0, c[1])), Math.min(1, Math.max(0, c[2]))];
+const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object';
+const unlessEmpty = <T extends object>(o: T): T | null => (Object.keys(o).length ? o : null);
+
+/** The material values a key holds: colours in 0..1, dials in their range, a whole look or none. */
+function materialKey(v: unknown): MaterialKey | null {
+  if (!isRecord(v)) return null;
+  const parts = materialParts({ colors: v.colors, values: v.values });
+  const colors = unlessEmpty(Object.fromEntries(Object.entries(parts.colors).map(([k, c]) => [k, unitRgb(c)])));
+  const values = unlessEmpty(parts.values);
+  const m = isRecord(v.look) ? material(materialParts(v.look)) : null;
+  const look = m ? { name: m.name, colorSources: m.colorSources, valueSources: m.valueSources, textures: m.textures } : null;
+  return unlessEmpty({ ...(colors ? { colors } : {}), ...(values ? { values } : {}), ...(look ? { look } : {}) });
+}
+
+/** The light values a key holds, each clamped like the light's own. */
+function lightKey(v: unknown): Partial<LightData> | null {
+  if (!isRecord(v)) return null;
+  return unlessEmpty({
+    ...(isRgb(v.color) ? { color: unitRgb(v.color) } : {}),
+    ...(isNum(v.intensity) ? { intensity: clampNum(v.intensity, 0, DIAL) } : {}),
+    ...(isNum(v.falloff) ? { falloff: clampNum(v.falloff, 0, DIAL) } : {}),
+    ...(isNum(v.cone) ? { cone: clampNum(v.cone, CONE.min, CONE) } : {}),
+  });
+}
+
+/** An object key: its pose, and the material, light and visibility values it changes (world/animation/prop-channels). */
+export function objectKey(v: unknown): ObjectKey {
+  const r = isRecord(v) ? v : {};
+  const m = materialKey(r.material);
+  const l = lightKey(r.light);
+  return { ...transform(v), ...(m ? { material: m } : {}), ...(l ? { light: l } : {}), ...(typeof r.hidden === 'boolean' ? { hidden: r.hidden } : {}) };
+}
+
 /** A group's transform: like an object's, its scale kept positive (a group cannot mirror what it holds). */
 export function groupTransform(t: unknown): Transform {
   const out = transform(t);
@@ -238,7 +273,7 @@ export function groupTransform(t: unknown): Transform {
 }
 
 /** Transform tracks of the given ids, well-formed keys only; empty tracks go. */
-function transformTracks(v: unknown, ids: ReadonlySet<string>, value: (raw: unknown) => Transform): Record<string, Key<Transform>[]> {
+function transformTracks<T extends Transform>(v: unknown, ids: ReadonlySet<string>, value: (raw: unknown) => T): Record<string, Key<T>[]> {
   const tracks = (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
   return Object.fromEntries(
     Object.keys(tracks).filter((id) => ids.has(id)).map((id) => [id, keys(tracks[id], value)] as const).filter(([, k]) => k.length > 0),
@@ -261,7 +296,7 @@ function cyclicTracks(v: unknown, a: Pick<Animation, 'objects' | 'groups' | 'cam
 export function animation(v: unknown, d: Animation, objectIds: ReadonlySet<string>, cam: Camera, skyDefault: Sky, groupIds: ReadonlySet<string> = new Set()): Animation {
   const r = (v ?? {}) as Partial<Record<keyof Animation, unknown>>;
   const duration = clampNum(r.duration, d.duration, ANIMATION_LIMITS.duration);
-  const objects = transformTracks(r.objects, objectIds, transform);
+  const objects = transformTracks(r.objects, objectIds, objectKey);
   const groups = transformTracks(r.groups, groupIds, groupTransform);
   const out: Animation = {
     enabled: typeof r.enabled === 'boolean' ? r.enabled : d.enabled,
@@ -305,7 +340,8 @@ export function groupTable(v: unknown): GroupNode[] {
     const node: GroupNode = { id, name: label(r.name, GROUP_NAME) || GROUP_NAME, parentId: isId(r.parentId) ? asGroupId(r.parentId) : null, collapsed: r.collapsed === true };
     const pose = r.transform === undefined ? null : optionalGroupTransform(r.transform);
     const body = bodyFlags(r.body);
-    nodes.set(id, { ...node, ...(pose ? { transform: pose } : {}), ...(body ? { body } : {}) });
+    const script = playScript(r.script);
+    nodes.set(id, { ...node, ...(pose ? { transform: pose } : {}), ...(body ? { body } : {}), ...(script ? { script } : {}) });
   }
   const parent = new Map([...nodes.values()].map((n) => [n.id as string, n.parentId && nodes.has(n.parentId) ? n.parentId : null]));
   for (const id of parent.keys()) {

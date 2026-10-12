@@ -14,6 +14,7 @@ import type {
   ViewKind,
 } from './scene.enums';
 import type { GroupId, ObjectId } from './scene.ids';
+import type { PlayScript, TriggerZone } from './play.types';
 
 export interface Transform {
   readonly position: Vec3;
@@ -92,6 +93,10 @@ export interface SceneObject {
   readonly pair?: ObjectId;
   /** Play mode's physics layer; absent: the defaults of its kind (world/body-flags.ts). */
   readonly body?: BodyFlags;
+  /** Play mode: its own clip and behaviours (model/play.types.ts); absent: none. */
+  readonly script?: PlayScript;
+  /** Play mode: a trigger zone, never drawn in renders (a Cube or a Sphere); absent on everything else. */
+  readonly zone?: TriggerZone;
 }
 
 /** How an object or a group takes part in Play mode's physics (docs/play-mode.md). */
@@ -122,6 +127,8 @@ export interface GroupNode {
   readonly transform?: Transform;
   /** Play mode: a physical group is one rigid body (its members' own flags then wait). */
   readonly body?: BodyFlags;
+  /** Play mode: the group's own clip and behaviours; absent: none. */
+  readonly script?: PlayScript;
 }
 
 export interface CloudSettings {
@@ -198,6 +205,28 @@ export interface Key<T> {
   readonly ease?: Ease;
 }
 
+/** What a material key can blend: the colours and the dials it changes, nothing else. */
+export interface MaterialKey {
+  readonly colors?: Partial<Readonly<Record<ColorChannel, Rgb>>>;
+  readonly values?: Partial<Readonly<Record<ValueChannel, number>>>;
+  /** What cannot blend: switched halfway to the next key that holds one (a preset change). */
+  readonly look?: MaterialLook;
+}
+
+/** The parts of a material that switch rather than blend: its name, channel sources and textures. */
+export type MaterialLook = Pick<Material, 'name' | 'colorSources' | 'valueSources' | 'textures'>;
+
+/**
+ * An object key: the pose inside its group, always, and only those material,
+ * light and visibility values that change there (world/animation/prop-channels).
+ */
+export interface ObjectKey extends Transform {
+  readonly material?: MaterialKey;
+  readonly light?: Partial<LightData>;
+  /** Stepped: hidden from this key until the next one that says otherwise. */
+  readonly hidden?: boolean;
+}
+
 /**
  * The timeline, after Bryce 3D. Tracks hold keys sorted by time; values between keys
  * are interpolated (world/animation). Objects without a track stay where they are.
@@ -210,7 +239,7 @@ export interface Animation {
   readonly fps: number;
   readonly loop: boolean;
   /** Object keys hold the pose inside the object's group (the world pose for an ungrouped object). */
-  readonly objects: Readonly<Record<string, readonly Key<Transform>[]>>;
+  readonly objects: Readonly<Record<string, readonly Key<ObjectKey>[]>>;
   /** Group keys hold the group's pivot transform inside its parent; absent in older scenes. */
   readonly groups?: Readonly<Record<string, readonly Key<Transform>[]>>;
   readonly camera: readonly Key<Camera>[];

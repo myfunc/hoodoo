@@ -1,18 +1,26 @@
 import type { GroupId, ObjectId } from '../../model/scene.ids';
-import type { Animation, Camera, Key, Scene, Transform } from '../../model/scene.types';
-import { frameTime } from '../../world/animation/keying';
+import type { Animation, Camera, GroupNode, Key, ObjectKey, Scene, SceneObject, Transform } from '../../model/scene.types';
+import { frameTime, withKey, withPose } from '../../world/animation/keying';
+import { transformAt } from '../../world/animation/pose';
+import { keyGroups } from '../../world/animation/prop-channels';
 import { groupIndex } from '../../world/group-tree';
 import { sceneFrames } from '../../world/group-pose';
 import { fromFrame } from '../../world/group-transform';
 import { ANIMATION_LIMITS, SCENE_LIMITS } from '../../world/scene.validate';
+import type { PlanePose } from './plane-model';
+import { type PlaneTarget, planeKeys, planeTarget } from './plane-take';
 
 /**
  * READ ME — recording: while Record is on, the session samples the take at the
  * scene's frame rate from the time it started (the play session's playhead):
  * the camera (the actor's eye) and every physical object or group that moves.
  * On exit `withTakes` writes the samples as ordinary keys — camera keys, and
- * object or group keys in their parents' space — replacing what the tracks held
- * over the take's span, so the take plays back on the timeline like any keys.
+ * object or group keys in their parents' space — replacing the poses the tracks
+ * held over the take's span, so the take plays back on the timeline like any
+ * keys. Material, light and visibility values keyed in that span stay, on the
+ * take's key of their frame.
+ * A flown plane becomes the scene's Plane group (made on its first take) with
+ * its pose and propeller keyed (plane-take.ts).
  */
 
 export interface TakeSample {
@@ -23,6 +31,8 @@ export interface TakeSample {
   readonly objects: ReadonlyMap<ObjectId, Transform>;
   /** World frames of physical groups. */
   readonly groups: ReadonlyMap<GroupId, Transform>;
+  /** The plane, while it flies. */
+  readonly plane?: PlanePose;
 }
 
 export interface Take {
@@ -32,6 +42,11 @@ export interface Take {
 /** What a take turned into: the new timeline and a few numbers for the message. */
 export interface TakeResult {
   readonly animation: Animation;
+  /** Objects and groups the takes bring into the scene: the plane, on its first take. */
+  readonly objects: readonly SceneObject[];
+  readonly groups: readonly GroupNode[];
+  /** A plane was recorded. */
+  readonly plane: boolean;
   readonly seconds: number;
   readonly cameraKeys: number;
   readonly bodies: number;
@@ -76,13 +91,31 @@ export class TakeRecorder {
 export const takeLimit = (a: Animation, start: number): number =>
   Math.max(0, SCENE_LIMITS.keysPerTrack - a.camera.filter((k) => k.time < start - SAME).length);
 
-const near = (a: readonly number[], b: readonly number[]): boolean => a.every((v, i) => Math.abs(v - b[i]) < SAME);
-const sameTransform = (a: Transform, b: Transform): boolean => near(a.position, b.position) && near(a.rotation, b.rotation);
+/** Less than this never shows: a prop settling on the ground is not a moving object worth keys. */
+const STILL = { position: 0.01, rotation: 0.5 } as const;
+const near = (a: readonly number[], b: readonly number[], within: number): boolean => a.every((v, i) => Math.abs(v - b[i]) < within);
+const sameTransform = (a: Transform, b: Transform): boolean => near(a.position, b.position, STILL.position) && near(a.rotation, b.rotation, STILL.rotation);
 
 /** The track with the keys of [t0, t1] replaced by `keys`. */
 function spliced<T>(track: readonly Key<T>[], keys: readonly Key<T>[], t0: number, t1: number, fps: number): Key<T>[] {
   const eps = 0.5 / fps;
   return [...track.filter((k) => k.time < t0 - eps || k.time > t1 + eps), ...keys].sort((a, b) => a.time - b.time);
+}
+
+/**
+ * An object's track with the poses of [t0, t1] replaced by the take's `poses`. A key there that also
+ * holds material, light or visibility values keeps them: they go back onto the take's key at their
+ * frame (its pose the take's there), with the key's ease.
+ */
+function splicedPoses(track: readonly Key<ObjectKey>[], poses: readonly Key<Transform>[], t0: number, t1: number, fps: number): Key<ObjectKey>[] {
+  const eps = 0.5 / fps;
+  const values = track.filter((k) => k.time >= t0 - eps && k.time <= t1 + eps && keyGroups(k.value).size > 1);
+  let out: Key<ObjectKey>[] = spliced(track, poses, t0, t1, fps);
+  for (const k of values) {
+    const [merged] = withPose([k], k.time, transformAt(poses, k.time), fps);
+    out = withKey(out, k.time, merged.value, fps, k.ease);
+  }
+  return out;
 }
 
 /** Tracks of the bodies that moved during the take: world poses read in their parents' space. */
@@ -103,6 +136,7 @@ export function withTakes(scene: Scene, takes: readonly Take[]): TakeResult {
   const index = groupIndex(scene);
   const parentOf = new Map(scene.objects.map((o) => [o.id as string, o.groupId]));
   const moved = new Set<string>();
+  let plane: PlaneTarget | null = null;
   let seconds = 0;
   let cameraKeys = 0;
   for (const take of takes) {
@@ -115,7 +149,7 @@ export function withTakes(scene: Scene, takes: readonly Take[]): TakeResult {
     for (const [id, keys] of bodyTracks(s, (x) => x.objects, (id, w) => fromFrame(frames(parentOf.get(id) ?? null), w))) {
       // Deleted in the editor while playing (the pointer was free): nothing to key.
       if (!parentOf.has(id)) continue;
-      objects[id] = spliced(objects[id] ?? [], keys, t0, t1, a.fps);
+      objects[id] = splicedPoses(objects[id] ?? [], keys, t0, t1, a.fps);
       moved.add(id);
     }
     const groups = { ...(a.groups ?? {}) };
@@ -132,6 +166,16 @@ export function withTakes(scene: Scene, takes: readonly Take[]): TakeResult {
       objects,
       ...(Object.keys(groups).length ? { groups } : {}),
     };
+    const flown = s.find((x) => x.plane)?.plane;
+    if (flown) {
+      plane ??= planeTarget(scene, flown);
+      const keys = planeKeys(plane, s);
+      a = {
+        ...a,
+        groups: { ...(a.groups ?? {}), [plane.group]: spliced(a.groups?.[plane.group] ?? [], keys.group, t0, t1, a.fps) },
+        objects: { ...a.objects, [plane.propeller]: splicedPoses(a.objects[plane.propeller] ?? [], keys.propeller, t0, t1, a.fps) },
+      };
+    }
   }
-  return { animation: a, seconds, cameraKeys, bodies: moved.size };
+  return { animation: a, objects: plane?.objects ?? [], groups: plane?.groups ?? [], plane: plane !== null, seconds, cameraKeys, bodies: moved.size };
 }

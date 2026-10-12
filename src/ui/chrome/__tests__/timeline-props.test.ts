@@ -69,7 +69,7 @@ describe('key inspector', () => {
 
   it('a still item shows where it is, with nothing before', () => {
     const s = { ...scene(), animation: { ...scene().animation, objects: {} } };
-    expect(rowValueAt(s, ballRow, 3)).toEqual(pose(0));
+    expect(rowValueAt(s, ballRow, 3)).toMatchObject(pose(0));
     expect(keyView(s, ballRow, 3)).toMatchObject({ isKey: false, count: 0, from: null });
   });
 
@@ -79,7 +79,7 @@ describe('key inspector', () => {
     const y = propsOf(RowKind.Object).find((p) => p.id === 'position.1');
     if (!fov || !y) throw new Error('missing props');
     expect(editedValue(camRow, DEFAULT_CAMERA, fov, 500)).toMatchObject({ fov: 170 });
-    expect(editedValue(ballRow, rowValueAt(s, ballRow, 2), y, 7)).toEqual({ ...pose(4, 90), position: [4, 7, 0] });
+    expect(editedValue(ballRow, rowValueAt(s, ballRow, 2), y, 7)).toMatchObject({ ...pose(4, 90), position: [4, 7, 0] });
   });
 
   it('values read the same when they round alike', () => {

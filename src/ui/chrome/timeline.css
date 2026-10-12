@@ -156,6 +156,18 @@
 .timeline .tl-prop .segmented .ui-toggle { padding: 0 6px; font-size: 9px; line-height: 13px; }
 .tl-insp-hint { padding: 4px 6px; font-size: 9.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tl-insp-sep { height: 15px; padding: 2px 5px 0; font-size: 9px; color: var(--tl-head-ink); white-space: nowrap; border-top: 1px solid var(--tl-row-rule); }
+/* An object's headings: Transform, Material, Light, Visibility. */
+.tl-insp-group {
+  height: 13px; padding: 2px 5px 0; font-size: 8.5px; font-weight: bold; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ink-soft); white-space: nowrap;
+}
+.tl-insp-group.is-changed { color: var(--ink); }
+.tl-insp-group.is-fold { display: flex; align-items: center; gap: 3px; height: 15px; padding-top: 0; padding-left: 2px; cursor: pointer; }
+.tl-insp-group.is-fold:hover { color: var(--ink); }
+.tl-insp-group .tl-twisty { width: 8px; height: 8px; margin-left: 0; }
+.tl-insp-count { font-weight: normal; letter-spacing: 0; color: var(--ink-soft); }
+.tl-insp-from { text-overflow: ellipsis; }
+.tl-insp-name-value { overflow: hidden; text-overflow: ellipsis; color: inherit; }
 
 /* The ledger's tooltip: "Snow Moon · 0:04.0". */
 .tl-tip {

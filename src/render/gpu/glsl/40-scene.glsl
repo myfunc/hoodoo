@@ -141,9 +141,15 @@ bool traceScene(vec3 ro, vec3 rd, float tmax, out Hit hit, bool anyOpaque) {
     if (base >= uObjectCount) break;
     bool cutting = cursor >= 0;
     if (!cutting) {
+#ifdef GAME_TRACE
+      vec4 head = uScanHead[base];
+      vec4 bound = uScanBound[base];
+#else
       vec4 head = texelFetch(uObjects, ivec2(3, base), 0);
+      vec4 bound = texelFetch(uObjects, ivec2(5, base), 0);
+#endif
       bool member = int(head.y + 0.5) >= B_NEGATIVE && int(head.z + 0.5) > 0;
-      if (member || !boundHit(texelFetch(uObjects, ivec2(5, base), 0), ro, rd, hit.t)) {
+      if (member || !boundHit(bound, ro, rd, hit.t)) {
         base++;
         continue;
       }

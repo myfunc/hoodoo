@@ -38,6 +38,8 @@ const WIRE_LIGHT = {
   depthCueFloor: 0.25,
   negativeDash: [4, 3] as const,
   intersectDash: [1, 3] as const,
+  /** Play's trigger zones: long dashes, never rendered. */
+  zoneDash: [7, 4] as const,
   horizonFar: 100000,
   horizonSpread: 0.9,
   orthoGridLines: 60,

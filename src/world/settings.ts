@@ -2,6 +2,7 @@ import type { EditorStore } from './editor-store';
 import { LiveQuality } from './world.enums';
 import { DEFAULT_LIVE_BOUNCES, DEFAULT_VIEW_CUSTOM, DEFAULT_VIEW_PRESET, RenderPreset, type RenderViewOptions, isBounces, isRenderViewOptions } from './render-setup';
 import { DEFAULT_PLAYER, type PlayerSettings, isPlayerSettings } from './player-settings';
+import { DEFAULT_PLANE, type PlaneSettings, PlayActor, isPlaneSettings, isPlayActor } from './plane-settings';
 import { DEFAULT_EXAMPLE_LIST, type ExampleList, isExampleList } from './example-list';
 
 /** How fast W/A/S/D walk the camera (the speed also follows the scene's size). */
@@ -65,6 +66,10 @@ export interface Settings {
   readonly theme: ThemeMode;
   /** Play mode's player: size, speed, gravity, jump and mouse (world/player-settings.ts). */
   readonly player: PlayerSettings;
+  /** Play mode's actor: the walker or the plane (world/plane-settings.ts). */
+  readonly playActor: PlayActor;
+  /** The plane's speed, turn rate and pitch direction (world/plane-settings.ts). */
+  readonly plane: PlaneSettings;
   /** The start window's examples: their order and the hidden ones (world/example-list.ts). */
   readonly examples: ExampleList;
 }
@@ -84,6 +89,8 @@ export const DEFAULT_SETTINGS: Settings = {
   renderViewCustom: DEFAULT_VIEW_CUSTOM,
   theme: ThemeMode.Light,
   player: DEFAULT_PLAYER,
+  playActor: PlayActor.Walker,
+  plane: DEFAULT_PLANE,
   examples: DEFAULT_EXAMPLE_LIST,
 };
 
@@ -107,6 +114,8 @@ const CHECKS: { readonly [K in keyof Settings]: Check } = {
   renderViewCustom: isRenderViewOptions,
   theme: oneOf(Object.values(ThemeMode)),
   player: isPlayerSettings,
+  playActor: isPlayActor,
+  plane: isPlaneSettings,
   examples: isExampleList,
 };
 

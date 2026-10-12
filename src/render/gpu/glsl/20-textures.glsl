@@ -14,6 +14,11 @@
 #define T_RIDGED 13
 #define T_POOLBALL 14
 
+// Strata's fine lines and grain, ripples' waves, in texture units (faded when a pixel covers them).
+#define STRATA_LINE 0.17
+#define STRATA_GRAIN 0.25
+#define RIPPLE_WAVE 2.0
+
 #define MAP_WORLD 0
 #define MAP_OBJECT 1
 #define MAP_PARAMETRIC 2
@@ -27,19 +32,64 @@ struct Surface {
 
 vec4 matTexel(int mat, int t) { return texelFetch(uMaterials, ivec2(t, mat), 0); }
 
+#ifdef GAME_TRACE
+// Texture level of detail (the game variant): what is finer than a traced pixel fades to its
+// mean instead of flickering from frame to frame, and costs nothing. radiance() sets the
+// footprint, the world size of a pixel at the hit (wider where the surface turns away);
+// surfaceAt sets how many local units one world unit along the surface is, and the local normal.
+#define DETAIL_CELL 0.5
+#define DETAIL_OCTAVE 1.02
+#define PARAMETRIC_UNITS 2.0
+#define CHECKER_MIN_WIDTH 1e-3
+float gFoot = 0.0;
+// How much wider the footprint is along the surface than across it (1 / cos of the view angle).
+float gStretch = 1.0;
+// How far the eye is from the current ray's origin along the path (terrain LOD too, 35-terrain.glsl).
+float gPathT = 0.0;
+float gLocalScale = 1.0;
+vec3 gLocalNormal = vec3(0, 1, 0);
+// The current pattern's footprint in its own units, overall and along each axis (evalTexture).
+float gTexFoot = 0.0;
+vec3 gTexAxes = vec3(0);
+
+// Octaves a fractal keeps when a texture unit is `foot` wide: a cell of octave i is 2.03^-i
+// wide, and one narrower than two footprints would alias.
+float detailFor(float foot) { return clamp(log2(DETAIL_CELL / max(foot, 1e-6)) / DETAIL_OCTAVE + 1.0, 0.0, 8.0); }
+
+// 1 while a feature `size` texture units wide spans two footprints or more, 0 once it spans one.
+float featureKeep(float size) { return clamp(size / max(gTexFoot, 1e-6) - 1.0, 0.0, 1.0); }
+
+// A checkerboard box-filtered over `w` along each axis (after Inigo Quilez): squares smaller
+// than a pixel turn grey instead of flickering. An axis the surface does not move along
+// (w about 0, often exactly on a square's edge) keeps its plain sign.
+float checkerFiltered(vec3 p, vec3 w) {
+  vec3 plain = 1.0 - 2.0 * mod(floor(p), 2.0);
+  vec3 wide = max(w, vec3(CHECKER_MIN_WIDTH));
+  vec3 box = 2.0 * (abs(fract((p - 0.5 * wide) * 0.5) - 0.5) - abs(fract((p + 0.5 * wide) * 0.5) - 0.5)) / wide;
+  vec3 i = mix(plain, clamp(box, -1.0, 1.0), step(vec3(CHECKER_MIN_WIDTH), w));
+  return 0.5 - 0.5 * i.x * i.y * i.z;
+}
+#else
+float featureKeep(float size) { return 1.0; }
+#endif
+
 // One fractal and at most one cellular evaluation per call: each kind only picks
 // the input point and shapes the result (keeps the compiled shader small).
 float textureScalar(int kind, vec3 p, int octaves, Surface s) {
-  vec3 q = p;
+  // The fractal's input is the point stretched by k.
+  vec3 k = vec3(1.0);
   int oct = octaves;
-  if (kind == T_STRATA) { q = p * vec3(0.35, 0.08, 0.35); oct = 3; }
-  else if (kind == T_GRANITE) q = p * 2.0;
-  else if (kind == T_RIPPLES) q = p * 2.5;
-  else if (kind == T_CLOUDS) q = vec3(p.x, p.y * 0.3, p.z);
-  else if (kind == T_WOOD) q = p * vec3(0.5, 2.0, 0.5);
+  if (kind == T_STRATA) { k = vec3(0.35, 0.08, 0.35); oct = 3; }
+  else if (kind == T_GRANITE) k = vec3(2.0);
+  else if (kind == T_RIPPLES) k = vec3(2.5);
+  else if (kind == T_CLOUDS) k = vec3(1.0, 0.3, 1.0);
+  else if (kind == T_WOOD) k = vec3(0.5, 2.0, 0.5);
   else if (kind == T_SPOTS) oct = 2;
-  else if (kind == T_ALTITUDE || kind == T_SLOPE) q = p * 3.0;
-  float n = fractal(q, oct, kind == T_RIDGED);
+  else if (kind == T_ALTITUDE || kind == T_SLOPE) k = vec3(3.0);
+#ifdef GAME_TRACE
+  gDetail = detailFor(gTexFoot * max(k.x, max(k.y, k.z)));
+#endif
+  float n = fractal(p * k, oct, kind == T_RIDGED);
   vec2 v = vec2(0.0);
   if (kind == T_GRANITE || kind == T_SPOTS) v = voronoi(kind == T_SPOTS ? p + n * 0.3 : p);
 
@@ -47,18 +97,22 @@ float textureScalar(int kind, vec3 p, int octaves, Surface s) {
   if (kind == T_STRATA) {
     float y = p.y + n * 0.35;
     float band = hash11(floor(y * 3.0));
-    float fine = 0.5 + 0.5 * sin(y * 37.0 + gnoise(p * 2.0) * 2.0);
-    return clamp(band * 0.7 + fine * 0.18 + gnoise(p * 4.0) * 0.15 + 0.05, 0.0, 1.0);
+    float fine = 0.5 + 0.5 * sin(y * 37.0 + gnoise(p * 2.0) * 2.0) * featureKeep(STRATA_LINE);
+    return clamp(band * 0.7 + fine * 0.18 + gnoise(p * 4.0) * 0.15 * featureKeep(STRATA_GRAIN) + 0.05, 0.0, 1.0);
   }
   if (kind == T_MARBLE) return 0.5 + 0.5 * sin(p.x * 3.0 + n * 5.0);
   if (kind == T_GRANITE) return clamp((v.y - v.x) * 0.6 + n * 0.3 + hash13(floor(p * 9.0)) * 0.25, 0.0, 1.0);
   if (kind == T_RIPPLES) {
-    float w = sin(p.x * 3.1 + gnoise(p * 0.7) * 3.0) + sin(p.z * 2.3 + p.x * 0.9);
+    float w = (sin(p.x * 3.1 + gnoise(p * 0.7) * 3.0) + sin(p.z * 2.3 + p.x * 0.9)) * featureKeep(RIPPLE_WAVE);
     return clamp(0.5 + w * 0.2 + n * 0.25, 0.0, 1.0);
   }
   if (kind == T_CLOUDS) return smoothstep(0.42, 0.85, n * 0.5 + 0.5);
   if (kind == T_WOOD) return smoothstep(0.0, 0.8, fract(length(p.xz) + n * 0.3));
+#ifdef GAME_TRACE
+  if (kind == T_CHECKER) return checkerFiltered(p, gTexAxes);
+#else
   if (kind == T_CHECKER) return mod(floor(p.x) + floor(p.y) + floor(p.z), 2.0);
+#endif
   if (kind == T_SPOTS) return 1.0 - smoothstep(0.15, 0.55, v.x);
   if (kind == T_PSYCHEDELIC) return fract(n * 2.2 + p.y * 0.15);
   if (kind == T_ALTITUDE) return clamp(s.lp.y * 0.5 + 0.5 + n * 0.12, 0.0, 1.0);
@@ -130,7 +184,15 @@ vec4 evalTexture(int mat, int slot, Surface s) {
   vec4 t1 = matTexel(mat, base + 1);
   vec4 t2 = matTexel(mat, base + 2);
   vec4 t3 = matTexel(mat, base + 3);
-  vec3 p = texturePoint(int(t0.w + 0.5), t0.y, t1.w, s);
+  int mapping = int(t0.w + 0.5);
+  vec3 p = texturePoint(mapping, t0.y, t1.w, s);
+#ifdef GAME_TRACE
+  float unit = mapping == MAP_WORLD ? 1.0 : (mapping == MAP_OBJECT ? gLocalScale : PARAMETRIC_UNITS * gLocalScale);
+  gTexFoot = gFoot * t0.y * unit;
+  vec3 axisN = mapping == MAP_WORLD ? s.n : gLocalNormal;
+  // A flat pattern changes only along the surface: no blur across it.
+  gTexAxes = mapping == MAP_PARAMETRIC ? vec3(gTexFoot, gTexFoot, 0.0) : gTexFoot * sqrt(max(1.0 - axisN * axisN, 0.0));
+#endif
   float v = kind == T_POOLBALL ? poolBall(s.lp, t1.w) : (isSheen(kind) ? sheenScalar(kind, t0.y, s.wp, s.lp, s.n) : textureScalar(kind, p, int(t0.z + 0.5), s));
   v = clamp((v - 0.5) * (1.0 + t2.w * 0.04) + 0.5, 0.0, 1.0);
   vec3 col = isSheen(kind) ? sheenColor(kind, v, t0.y, s.lp, t1.rgb, t2.rgb, t3.rgb) : ramp(v, t1.rgb, t2.rgb, t3.rgb);

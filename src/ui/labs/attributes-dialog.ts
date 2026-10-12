@@ -11,6 +11,7 @@ import { Choice, NumberField, Toggle } from '../kit/controls';
 import { DialogStyle } from '../kit/dialog';
 import { clearChildren, el } from '../kit/dom';
 import type { ToolContent } from '../kit/tool-window';
+import { behaviourSection } from '../panels/behaviour-section';
 import { LightFields } from './light-fields';
 import { LiveEdit } from './live-edit';
 import './tool-content.css';
@@ -112,10 +113,12 @@ export class AttributesTool implements ToolContent {
       this.nameField(o),
       light ? el('div', { cls: 'stone-section-title', text: 'Light' }) : null,
       light?.el,
-      LIGHT_KINDS.has(o.kind) ? null : this.booleanRow(o),
+      LIGHT_KINDS.has(o.kind) || o.zone ? null : this.booleanRow(o),
       this.optionsRow(o),
       el('div', { cls: 'stone-section-title', text: 'Absolute Coordinates' }),
       this.coordinates(o),
+      // Play preview: its clip, behaviours and, for a trigger zone, its rules (it keeps itself up to date).
+      behaviourSection(this.ctx, { object: o.id }),
     ];
     for (const p of parts) if (p) this.body.append(p);
   }

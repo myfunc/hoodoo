@@ -1,0 +1,40 @@
+/* Attributes › Behaviour and Trigger (ui/panels/behaviour-section.ts): the Play preview's
+   clips, behaviours and zone rules, in the narrow Attributes panel and the Object Attributes
+   window. Short lines that wrap between controls, never inside a label. */
+.bh { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--shade-15); }
+.bh[hidden] { display: none; }
+.bh-line { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 6px; min-width: 0; }
+.bh-head { margin-top: 2px; }
+.bh-title { flex: none; width: 50px; white-space: nowrap; }
+.bh .ui-button.props-chip { height: 18px; padding: 0 5px; white-space: nowrap; flex: none; font-size: 10px; }
+.bh .bh-add { margin-left: auto; }
+.bh-none { color: var(--ink-faint); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.bh .ui-select { min-width: 0; height: 18px; font-size: 10px; padding: 0 3px 0 5px; gap: 3px; }
+.bh .ui-select-caption { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 96px; }
+.bh .segmented .ui-toggle { padding: 1px 6px; }
+
+/* A behaviour: its name on a line with what it works with, then its parameters. */
+.bh-block { display: flex; flex-direction: column; gap: 3px; padding: 4px 0 2px 6px; border-left: 2px solid var(--teal-edge); }
+.bh-name { font-weight: bold; color: var(--ink); white-space: nowrap; margin-right: auto; cursor: help; }
+.bh-param { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.bh-key { color: var(--ink-soft); }
+.bh-unit { color: var(--ink-faint); font-size: 10px; }
+.bh .ui-number.bh-number { width: 40px; }
+.bh .ui-number.bh-formula { width: 58px; }
+.bh .ui-number.bh-formula.is-formula, .bh .ui-number.bh-formula:focus { width: 120px; font-family: var(--font-mono, monospace); }
+.bh .ui-number.bh-event { width: 62px; }
+.bh .ui-number.ui-text.is-invalid { outline: 1px solid var(--select); background: var(--select-wash); }
+.bh .ui-button.bh-remove { padding: 0 2px; height: 16px; flex: none; color: var(--ink-faint); }
+.bh .ui-button.bh-remove:hover { color: var(--select); }
+.bh .bh-target { max-width: 120px; }
+
+/* A trigger zone's rules: one sentence each, When … then … */
+.bh-zone { display: flex; flex-direction: column; gap: 3px; }
+.bh-rule { display: flex; flex-direction: column; gap: 2px; padding: 3px 0 3px 6px; border-left: 2px solid var(--select-ring); }
+.bh-word { color: var(--ink-soft); font-style: italic; width: 28px; flex: none; }
+.bh-vector { display: inline-flex; gap: 2px; }
+.bh .ui-number.bh-axis { width: 34px; }
+
+/* In the Object Attributes window a rule fits on one line. */
+.tool-attributes .bh-rule { flex-direction: row; flex-wrap: wrap; gap: 3px 6px; }
+.tool-attributes .bh-rule .bh-line:last-child { flex: 1; }

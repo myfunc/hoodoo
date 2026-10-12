@@ -84,7 +84,7 @@ function clipNear(behind: Vec3, front: Vec3, near: number): Vec3 {
 function objectStyle(o: SceneObject, opts: WireOptions): { color: string; width: number; dash: readonly number[] } {
   const selected = opts.selection.has(o.id);
   const color = selected ? WIRE.selected : o.id === opts.hover ? WIRE.hover : FAMILY_COLORS[o.family];
-  const dash = o.groupId && o.boolean === BooleanMode.Negative ? WIRE.negativeDash : o.groupId && o.boolean === BooleanMode.Intersect ? WIRE.intersectDash : [];
+  const dash = o.zone ? WIRE.zoneDash : o.groupId && o.boolean === BooleanMode.Negative ? WIRE.negativeDash : o.groupId && o.boolean === BooleanMode.Intersect ? WIRE.intersectDash : [];
   return { color, width: selected ? WIRE.selectedWidth : WIRE.lineWidth, dash };
 }
 

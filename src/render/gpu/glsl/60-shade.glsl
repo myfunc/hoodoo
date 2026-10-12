@@ -17,6 +17,16 @@ struct Mat {
 
 int src(float v) { return int(v + 0.5); }
 
+#ifdef GAME_TRACE
+// Toon bands: half the width of a step between bands, and where the highlight's edge sits.
+#define TOON_STEP 0.08
+#define TOON_SPEC 0.5
+// The finest of a bump pattern, as a multiple of its texture unit (ripples stretch 2.5×),
+// and how much bump the far surface keeps.
+#define BUMP_DETAIL 2.5
+#define BUMP_CALM 0.45
+#endif
+
 vec3 pickColor(vec3 flat_, int s, vec4 t0, vec4 t1, vec4 t2) {
   if (s == 1) return t0.rgb;
   if (s == 2) return t1.rgb;
@@ -102,6 +112,11 @@ Mat evalMaterial(int m, Surface s, inout vec3 n, bool full) {
   if (bumped) {
     float v0 = bs == 1 ? t0.a : (bs == 2 ? t1.a : t2.a);
     vec3 g = (taps - v0) / h / freq;
+#ifdef GAME_TRACE
+    // Ripples finer than a pixel would sparkle: the far surface calms toward a mirror, but never
+    // all the way, or the sun's glitter on the sea would shrink to a disc.
+    mt.bump *= mix(BUMP_CALM, 1.0, clamp(detailFor(gTexFoot * BUMP_DETAIL) - 1.0, 0.0, 1.0));
+#endif
     n = normalize(n - mt.bump * 0.55 * (g - n * dot(g, n)));
   }
   return mt;
@@ -119,6 +134,12 @@ vec2 parametricUv(int kind, vec3 lp) {
 Surface surfaceAt(int obj, vec3 wp, vec3 n) {
   Obj o = loadObj(obj);
   vec3 lp = toLocalPoint(o, wp);
+#ifdef GAME_TRACE
+  // Local units per world unit along the surface, for the texture level of detail (20-textures.glsl).
+  vec3 t1 = normalize(cross(n, abs(n.y) < 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0)));
+  gLocalScale = max(length(toLocalDir(o, t1)), length(toLocalDir(o, cross(n, t1))));
+  gLocalNormal = normalize(toLocalDir(o, n));
+#endif
   return Surface(wp, lp, n, parametricUv(o.kind, lp));
 }
 
@@ -132,6 +153,14 @@ vec3 lightTerm(Mat mt, vec3 n, vec3 v, vec3 l, vec3 lc) {
   vec3 h = normalize(l + v);
   float shininess = mix(12.0, 90.0, mt.specularity);
   float spec = pow(max(dot(n, h), 0.0), shininess) * mt.specularity * 1.4;
+#ifdef GAME_TRACE
+  // The toon look: light in flat bands with soft steps, and a highlight with a crisp edge.
+  if (uToonBands > 0.0) {
+    float b = ndl * uToonBands;
+    ndl = (floor(b) + smoothstep(0.5 - TOON_STEP, 0.5 + TOON_STEP, fract(b))) / uToonBands;
+    spec = smoothstep(TOON_SPEC - TOON_STEP, TOON_SPEC + TOON_STEP, spec) * mt.specularity * 1.4;
+  }
+#endif
   vec3 specCol = mix(mt.specular, mt.diffuse, mt.metal);
   return lc * (mt.diffuse * mt.diffusion * ndl * (1.0 - mt.metal * 0.5) + specCol * spec);
 }
@@ -152,18 +181,18 @@ vec3 discJitter(vec3 d, float r) {
 
 // Light i as seen from wp (i = -1 is the sun or moon): direction l, distance (INF for the sun), colour.
 // Soft shadows give the lights a size: shadows get soft edges as samples add up
-// (not in the interaction preview, which has one noiseless sample).
+// (not in the noiseless variants, which have one sample).
 vec3 lightAt(int i, vec3 wp, out vec3 l, out float dist) {
   if (i < 0) {
     l = keyLightDir();
-#ifndef FAST_PREVIEW
+#ifndef NOISELESS
     if (uStyle.x > 0.0) l = normalize(l + discJitter(l, uStyle.x));
 #endif
     dist = INF;
     return keyLightColor();
   }
   vec3 toL = uLightPos[i].xyz - wp;
-#ifndef FAST_PREVIEW
+#ifndef NOISELESS
   if (uStyle.y > 0.0) toL += discJitter(normalize(toL), uStyle.y);
 #endif
   dist = length(toL);

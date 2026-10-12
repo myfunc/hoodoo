@@ -9,6 +9,7 @@ import { localOf, placed } from './group-pose';
 import { LIGHT_KINDS, TERRAIN_KINDS } from './objects.factory';
 import { tidyPairs } from './portals';
 import { withBody } from './body-flags';
+import { revivePlay } from './play/script-validate';
 import { BOOKMARK_SLOTS, DEFAULT_CAMERA, DEFAULT_DOCUMENT, DEFAULT_VIEWS, EMPTY_ANIMATION } from './scene.defaults';
 import * as check from './scene.validate';
 import { SceneFileError } from './scene.validate';
@@ -155,7 +156,8 @@ function reviveObject(o: SerializedObject, seen: Set<string>): SceneObject {
   };
   // Play mode's physics flags: kept only where they differ from the kind's defaults.
   const body = check.bodyFlags(o.body);
-  return body ? withBody(out, body) : out;
+  // Play mode's clip, behaviours and trigger zone (world/play/script-validate.ts).
+  return revivePlay(body ? withBody(out, body) : out, o);
 }
 
 export function deserializeScene(raw: unknown): Scene {

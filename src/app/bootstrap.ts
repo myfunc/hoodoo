@@ -155,6 +155,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
       onShowAtStartup: (v) => changeSetting(editor, 'showStart', v),
       examples: editor.state.settings.examples,
       onExamples: (list) => changeSetting(editor, 'examples', list),
+      features: editor.state.features,
     });
     start.open();
   };

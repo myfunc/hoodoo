@@ -4,13 +4,15 @@ import { add } from '../core/vec3';
 import type { ViewKind } from '../model/scene.enums';
 import { type GroupId, type ObjectId, newGroupId, newObjectId } from '../model/scene.ids';
 import type { Animation, BodyFlags, Camera, DocumentSetup, GroupNode, Material, OrthoView, RenderSetup, Scene, SceneObject, Sky } from '../model/scene.types';
-import { frameTime, recordKeys, withKey } from './animation/keying';
+import { frameTime, recordKeys, withKey, withPose } from './animation/keying';
 import { poseAt } from './animation/pose';
 import { repivoted, settled } from './group-edits';
 import { localOf } from './group-pose';
 import { IDENTITY } from './group-transform';
 import { type TreeItems, cloneGroups, coverItems, dissolved, familyOf, freshGroupName, groupIndex, grouped, reparented, ungrouped, withEmptyGroup, withGroup, withGroups, withoutObjects } from './group-tree';
 import { withGroupBody } from './body-flags';
+import type { PlayScript } from '../model/play.types';
+import { withScript } from './play/scripts';
 import { History } from './history';
 import { limitBreach } from './scene-limits';
 import { relinkCopies } from './portals';
@@ -96,12 +98,16 @@ export class World {
     this.pose(ChangeKind.Time);
   }
 
-  /** Replaces the timeline (keys moved, added or removed, duration changed, on or off) and re-poses the scene. */
-  setAnimation(animation: Animation, label: string): void {
+  /**
+   * Replaces the timeline (keys moved, added or removed, duration changed, on or off) and re-poses the scene.
+   * `added`: objects and groups that come with the keys in the same undo step (Play's recorded plane).
+   */
+  setAnimation(animation: Animation, label: string, added?: { readonly objects: readonly SceneObject[]; readonly groups: readonly GroupNode[] }): void {
     // Switched off, the scene stays a still in its start pose.
     if (!animation.enabled) this.setTime(0);
-    const scene = poseAt({ ...this.scene, animation }, this.playhead);
-    this.commit(label, scene, ChangeKind.Time, false);
+    const base = added?.objects.length ? withGroups(this.scene, [...this.scene.objects, ...added.objects], [...(this.scene.groups ?? []), ...added.groups]) : this.scene;
+    const scene = poseAt({ ...base, animation }, this.playhead);
+    this.commit(label, scene, added?.objects.length ? ChangeKind.All : ChangeKind.Time, false);
     if (this.playhead > animation.duration) this.setTime(animation.duration);
   }
 
@@ -119,7 +125,7 @@ export class World {
     const groups = { ...(a.groups ?? {}) };
     for (const g of items.groups) groups[g] = withKey(groups[g] ?? [], t, index.get(g)?.transform ?? IDENTITY, a.fps);
     const objects = { ...a.objects };
-    for (const o of scene.objects.filter((x) => items.objects.includes(x.id))) objects[o.id] = withKey(objects[o.id] ?? [], t, localOf(o), a.fps);
+    for (const o of scene.objects.filter((x) => items.objects.includes(x.id))) objects[o.id] = withPose(objects[o.id] ?? [], t, localOf(o), a.fps);
     const animation = { ...a, objects, ...(items.groups.length || a.groups ? { groups } : {}) };
     this.commit(label, poseAt({ ...scene, animation }, this.playhead), ChangeKind.Time, false);
   }
@@ -321,6 +327,15 @@ export class World {
     if (!node) return;
     index.set(id, withGroupBody(node, patch));
     this.commit('Physics', withGroups(this.scene, this.scene.objects, index.values()), ChangeKind.Objects);
+  }
+
+  /** Play: the group's own clip and behaviours (world/play/scripts.ts); one undo step. */
+  setGroupScript(id: GroupId, label: string, patch: (s: PlayScript) => PlayScript): void {
+    const index = groupIndex(this.scene);
+    const node = index.get(id);
+    if (!node) return;
+    index.set(id, withScript(node, patch));
+    this.commit(label, withGroups(this.scene, this.scene.objects, index.values()), ChangeKind.Objects);
   }
 
   /** Folding a group in the scene list is navigation: it amends the current entry quietly, so the render keeps refining. */

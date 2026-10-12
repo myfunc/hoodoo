@@ -1,14 +1,15 @@
 import { Action } from '../../input/actions';
 import type { Ease } from '../../model/scene.enums';
 import type { GroupId, ObjectId } from '../../model/scene.ids';
-import type { Animation, Key } from '../../model/scene.types';
+import type { Animation, Key, ObjectKey } from '../../model/scene.types';
 import { shiftDelta, shiftedRefs, withKeysEased, withKeysShifted, withTrack } from '../../world/animation/key-edits';
-import { type KeyRef, isKeyPicked, pickKeys, withoutKeys } from '../../world/animation/key-selection';
-import { frameTime, hasKeyAt, withKey } from '../../world/animation/keying';
+import { type KeyRef, KeyTrack, isCyclic, isKeyPicked, pickKeys, withoutKeys } from '../../world/animation/key-selection';
+import { frameTime, hasKeyAt, keyedChannel, withKey, withPose } from '../../world/animation/keying';
+import { transformAt } from '../../world/animation/pose';
 import { Rig, SelectMode } from '../../world/world.enums';
 import type { UiContext } from '../context';
 import { formatClock } from './timeline-time';
-import { editedValue, type KeyProp, type PropValue, rowValueAt } from './timeline-props';
+import { editedValue, type KeyProp, type ObjectState, type PropValue, poseOf, rowValueAt } from './timeline-props';
 import { type LedgerRow, RowKind, isRowSelected, rowKeys, rowRef } from './timeline-rows';
 
 /**
@@ -115,6 +116,22 @@ export function setEase(ctx: UiContext, refs: readonly KeyRef[], ease: Ease): vo
 }
 
 /**
+ * An object's track with one value typed in at `t`: a pose value sets the pose
+ * of the key there (the rest of the key stays); a material, light or visibility
+ * value keys just that channel, a new key holding the pose the track has there.
+ */
+function objectKeysEdited(a: Animation, id: string, keys: readonly Key<ObjectKey>[], t: number, prop: KeyProp, now: ObjectState, value: ObjectState): readonly Key<ObjectKey>[] {
+  const ch = prop.channel;
+  if (ch) {
+    const loop = a.loop || isCyclic(a, KeyTrack.Object, id);
+    const pose = (at: number) => (keys.length ? transformAt(keys, at, loop) : poseOf(now));
+    return keyedChannel(keys, t, ch, ch.ofObject(now.item), ch.ofObject(value.item), a.fps, pose);
+  }
+  if (keys.length) return withPose(keys, t, poseOf(value), a.fps);
+  return withKey(t > half(a) ? [{ time: 0, value: poseOf(now) }] : [], t, poseOf(value), a.fps);
+}
+
+/**
  * One value typed into the inspector: the row's key at `time` takes it, or a new key
  * is made there. A row without keys starts from where its item is at zero, as an
  * edit with auto-key would (a group is keyed first, so it turns about its middle).
@@ -130,7 +147,9 @@ export function editKeyValue(ctx: UiContext, row: LedgerRow, time: number, prop:
     const now = rowValueAt(w.scene, row, t);
     const value = editedValue(row, now, prop, x);
     const start: readonly Key<unknown>[] = t > half(a) ? [{ time: 0, value: now }] : [];
-    const next = withKey(keys.length ? keys : start, t, value, a.fps);
+    const next = row.kind === RowKind.Object
+      ? objectKeysEdited(a, row.trackId, keys as readonly Key<ObjectKey>[], t, prop, now as ObjectState, value as ObjectState)
+      : withKey(keys.length ? keys : start, t, value, a.fps);
     w.setAnimation(withTrack(a, row.track, row.trackId, next), EDIT_KEY);
   } finally {
     w.endGesture();

@@ -3,7 +3,8 @@ import { defaultPrefs } from '../../io/prefs';
 import type { RecentScene } from '../../io/recent-scenes';
 import { type ExampleList, arrangeExamples, hideExample, moveExample, sameList, showExample } from '../../world/example-list';
 import type { Example } from '../../world/examples';
-import { EXAMPLES } from '../../world/examples';
+import { EXAMPLES, examplesFor } from '../../world/examples';
+import type { FeatureFlags } from '../../world/preview-features';
 import { Button, Toggle } from '../kit/controls';
 import { holdModal } from '../kit/dialog';
 import { el, glyph } from '../kit/dom';
@@ -53,6 +54,8 @@ export interface StartActions {
   /** The examples' order and the hidden ones; `onExamples` keeps a change. */
   readonly examples: ExampleList;
   readonly onExamples: (list: ExampleList) => void;
+  /** The preview features on: an example of one that is off is not listed (absent: none on). */
+  readonly features?: FeatureFlags;
 }
 
 /**
@@ -184,7 +187,7 @@ export class StartWindow {
 
   /** The example cards in the user's order, the hidden ones in their tray, the header's chips. */
   private fillExamples(): void {
-    const { shown, hidden } = arrangeExamples(EXAMPLES, this.list);
+    const { shown, hidden } = arrangeExamples(examplesFor(this.a.features ?? {}), this.list);
     this.trayOpen &&= hidden.length > 0;
     this.hiddenChip.el.hidden = !hidden.length;
     this.hiddenChip.el.textContent = START.hidden(hidden.length) + (this.trayOpen ? OPEN_MARK.open : OPEN_MARK.closed);

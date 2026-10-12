@@ -36,7 +36,8 @@ type Frame = Transform | null;
 
 const sameFrame = (a: Frame, b: Frame): boolean => (a && b ? sameTransform(a, b) : (a ?? b) === null || isIdentity((a ?? b) as Transform));
 
-const reKeyed = (keys: readonly Key<Transform>[], fn: (t: Transform) => Transform): Key<Transform>[] => keys.map((k) => ({ ...k, value: fn(k.value) }));
+/** The keys with their poses mapped; what else an object key holds (material, light) stays. */
+const reKeyed = <T extends Transform>(keys: readonly Key<T>[], fn: (t: Transform) => Transform): Key<T>[] => keys.map((k) => ({ ...k, value: { ...k.value, ...fn(k.value) } }));
 
 function sameMatrix(a: Mat4, b: Mat4): boolean {
   for (let i = 0; i < a.length; i++) if (Math.abs(a[i] - b[i]) > FIT_EPS * (1 + Math.abs(b[i]))) return false;

@@ -4,6 +4,7 @@ precision highp int;
 precision highp sampler2D;
 precision highp sampler2DArray;
 precision highp sampler3D;
+// engine.ts inserts a variant's #defines (FAST_PREVIEW, GAME_TRACE) after this line.
 
 #define PI 3.14159265359
 #define TAU 6.28318530718
@@ -97,7 +98,30 @@ uniform vec2 uCloudKinds;
 // point light radius, highlight roll-off (0 = clip like Bryce 2), unused.
 uniform vec4 uStyle;
 
+#ifdef GAME_TRACE
+// The game renderer (game-renderer.ts) also keeps the first hit, for its temporal upscale and outlines:
+// distance (0 for the sky), object + 1 (negative for infinite planes), octahedral normal.
+layout(location = 0) out vec4 fragColor;
+layout(location = 1) out vec4 fragAux;
+// World size of one traced pixel at a distance of 1: procedural detail finer than that is faded out.
+uniform float uPixelAngle;
+// Diffuse light in this many bands (the toon look); 0 keeps it smooth.
+uniform float uToonBands;
+// The object scan's two texels per object (header, bounding sphere; 40-scene.glsl) in a
+// uniform block: every pixel of a warp reads the same object at the same step, which the
+// constant cache serves without a texture fetch's latency (scene-packer.ts scanRows).
+layout(std140) uniform GameScan {
+  vec4 uScanHead[MAX_OBJECTS];
+  vec4 uScanBound[MAX_OBJECTS];
+};
+#else
 out vec4 fragColor;
+#endif
+
+#if defined(FAST_PREVIEW) || defined(GAME_TRACE)
+// The noiseless variants: one branch a bounce, a pinhole, point lights. The same picture every frame.
+#define NOISELESS
+#endif
 
 uint rngState;
 

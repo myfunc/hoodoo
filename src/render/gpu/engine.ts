@@ -5,39 +5,27 @@ import type { ViewBasis } from '../../world/camera-math';
 import { EngineStage } from './engine.enums';
 import { type Target, GlError, Uniforms, createTarget, dataTexture, deleteTarget, linkProgram, linkProgramAsync, uploadFloatRows } from './gl';
 import { GpuFence } from './gpu-fence';
-import header from './glsl/00-header.glsl?raw';
-import noise from './glsl/10-noise.glsl?raw';
-import sheen from './glsl/15-sheen.glsl?raw';
-import textures from './glsl/20-textures.glsl?raw';
-import shapes from './glsl/30-shapes.glsl?raw';
-import terrain from './glsl/35-terrain.glsl?raw';
-import lathe from './glsl/36-lathe.glsl?raw';
-import portalShape from './glsl/38-portal-shape.glsl?raw';
-import sceneGlsl from './glsl/40-scene.glsl?raw';
-import sky from './glsl/50-sky.glsl?raw';
-import shade from './glsl/60-shade.glsl?raw';
-import portals from './glsl/70-portals.glsl?raw';
-import main from './glsl/90-main.glsl?raw';
 import blitFrag from './glsl/blit.glsl?raw';
 import temporalFrag from './glsl/temporal.glsl?raw';
 import fullscreen from './glsl/fullscreen.vert.glsl?raw';
-import { MAT_TEXELS, OBJ_TEXELS } from './render.constants';
+import { MAT_TEXELS, MAX_OBJECTS, OBJ_TEXELS, TEXEL_FLOATS } from './render.constants';
 import { NOISE_SIZE, bakeNoise } from './noise-texture';
-import { type PackedScene, packScene, skyUniforms } from './scene-packer';
+import { type PackedScene, packScene, scanRows, skyUniforms } from './scene-packer';
 import { packLathe } from './lathe-pack';
+import { FAST_DEFINE, GAME_DEFINE, TRACE_SOURCE, withDefines } from './trace-source';
 
-const TRACE_SOURCE = [header, noise, sheen, textures, shapes, terrain, lathe, portalShape, sceneGlsl, sky, shade, portals, main].join('\n');
 const COLD_FLAG = 'cold';
-const HEADER_END = 'out vec4 fragColor;';
 
 /**
  * Profiling aid: `?cold` makes the source unique so the driver cannot reuse a build
  * from an earlier visit (tools/perf.mjs). One nonce per page: engines share the build.
  */
-const COLD_NONCE = new URLSearchParams(location.search).has(COLD_FLAG) ? `\nconst float COLD_NONCE = ${Math.random()};\n` : '';
-const FINAL_SOURCE = TRACE_SOURCE.replace(HEADER_END, HEADER_END + COLD_NONCE);
+const COLD_NONCE = new URLSearchParams(location.search).has(COLD_FLAG) ? `const float COLD_NONCE = ${Math.random()};` : '';
+const FINAL_SOURCE = withDefines(TRACE_SOURCE, COLD_NONCE);
 /** The interaction preview: the same tracer without its second trace (90-main.glsl). */
-const FAST_SOURCE = FINAL_SOURCE.replace(HEADER_END, `${HEADER_END}\n#define FAST_PREVIEW\n`);
+const FAST_SOURCE = withDefines(FINAL_SOURCE, FAST_DEFINE);
+/** The game renderer's tracer: noiseless, deep, HDR, and the first hit in a second target (90-main.glsl). */
+const GAME_SOURCE = withDefines(FINAL_SOURCE, GAME_DEFINE);
 
 const UNIT_OBJECTS = 0;
 const UNIT_MATERIALS = 1;
@@ -47,6 +35,10 @@ const UNIT_TERRAIN_MAX = 4;
 const UNIT_LATHE = 5;
 const UNIT_CUR = 0;
 const UNIT_PREV = 1;
+/** Uniform buffer binding of the game variant's object scan (GameScan in 00-header.glsl). */
+const SCAN_BINDING = 0;
+const SCAN_BLOCK = 'GameScan';
+const SCAN_BYTES = MAX_OBJECTS * 2 * TEXEL_FLOATS * Float32Array.BYTES_PER_ELEMENT;
 
 /** One trace call: which pixels of which image, at what block size and sample. */
 export interface TraceRequest {
@@ -75,6 +67,24 @@ export interface TraceRequest {
    * default, as Render traces; more smooth the penumbra sooner; 0 draws soft shadows hard.
    */
   readonly shadowRays?: number;
+  /**
+   * Draw with the game renderer's variant (`prepareGame`) into a target with two colour
+   * attachments (`createGameTarget`). Until it is compiled the preview program draws, into the first only.
+   */
+  readonly game?: GameTrace;
+}
+
+/** What the game variant of the tracer needs besides a trace request (game-renderer.ts). */
+export interface GameTrace {
+  /** World size of one traced pixel at a distance of 1: finer texture and terrain detail fades. */
+  readonly pixelAngle: number;
+  /** Diffuse light in this many bands (the toon look); 0 keeps it smooth. */
+  readonly toonBands: number;
+}
+
+/** The game renderer's trace target: colour (HDR) and the first hit (distance, object, normal). */
+export interface GameTarget extends Target {
+  readonly aux: WebGLTexture;
 }
 
 export interface BlitRequest {
@@ -124,6 +134,10 @@ export class RayEngine {
   private trace: TraceProgram | null = null;
   private fast: TraceProgram | null = null;
   private fastStarted = false;
+  private game: TraceProgram | null = null;
+  private gameStarted = false;
+  /** The game variant's object scan (a uniform buffer at SCAN_BINDING), uploaded with each scene. */
+  private readonly scanBuffer: WebGLBuffer;
   private readonly blit: WebGLProgram;
   private readonly bu: Uniforms;
   private readonly temporal: WebGLProgram;
@@ -178,6 +192,11 @@ export class RayEngine {
     this.latheTex = dataTexture(gl);
     const lathe = packLathe();
     uploadFloatRows(gl, this.latheTex, lathe.width, lathe.rows, lathe.data);
+    const scan = gl.createBuffer();
+    if (!scan) throw new GlError('Cannot allocate the object scan');
+    this.scanBuffer = scan;
+    gl.bindBufferBase(gl.UNIFORM_BUFFER, SCAN_BINDING, scan);
+    gl.bufferData(gl.UNIFORM_BUFFER, SCAN_BYTES, gl.DYNAMIC_DRAW);
     this.logger.info('engine created', { float: this.floatInternal === gl.RGBA32F ? '32F' : '16F' });
   }
 
@@ -242,16 +261,38 @@ export class RayEngine {
   prepareFast(): void {
     if (this.fastStarted) return;
     this.fastStarted = true;
-    const build = async () => {
-      await this.ready;
-      const started = performance.now();
-      const program = await linkProgramAsync(this.gl, fullscreen, FAST_SOURCE);
-      const uniforms = new Uniforms(this.gl, program);
-      await this.warmUp(program, uniforms);
-      this.fast = { program, u: uniforms, sceneVersion: -1, viewVersion: -1 };
-      this.logger.info('preview program compiled', { ms: Math.round(performance.now() - started) });
-    };
-    build().catch((error: unknown) => this.logger.warn('preview program unavailable, moving frames use the full tracer', {}, error));
+    this.compileVariant(FAST_SOURCE, 'preview', (p) => { this.fast = p; })
+      .catch((error: unknown) => this.logger.warn('preview program unavailable, moving frames use the full tracer', {}, error));
+  }
+
+  /** True once the game renderer's tracer can draw. */
+  get gameReady(): boolean {
+    return this.game !== null;
+  }
+
+  /**
+   * Compiles the game renderer's tracer in the background, on first use only (the editor
+   * never needs it). Until it is ready `game` requests draw with the preview program.
+   */
+  prepareGame(): void {
+    if (this.gameStarted) return;
+    this.gameStarted = true;
+    this.prepareFast();
+    const bindScan = (program: WebGLProgram) => this.gl.uniformBlockBinding(program, this.gl.getUniformBlockIndex(program, SCAN_BLOCK), SCAN_BINDING);
+    this.compileVariant(GAME_SOURCE, 'game', (p) => { this.game = p; }, bindScan)
+      .catch((error: unknown) => this.logger.warn('game program unavailable, Play draws with the preview program', {}, error));
+  }
+
+  /** Compiles a variant of the tracer once the main program is ready, sets it up, warms it up and hands it over. */
+  private async compileVariant(source: string, name: string, done: (p: TraceProgram) => void, setup?: (p: WebGLProgram) => void): Promise<void> {
+    await this.ready;
+    const started = performance.now();
+    const program = await linkProgramAsync(this.gl, fullscreen, source);
+    setup?.(program);
+    const uniforms = new Uniforms(this.gl, program);
+    await this.warmUp(program, uniforms);
+    done({ program, u: uniforms, sceneVersion: -1, viewVersion: -1 });
+    this.logger.info(`${name} program compiled`, { ms: Math.round(performance.now() - started) });
   }
 
   /**
@@ -289,6 +330,27 @@ export class RayEngine {
     return createTarget(gl, width, height, this.floatInternal, linear ? gl.LINEAR : gl.NEAREST);
   }
 
+  /** A target for `game` trace requests: HDR colour (half float) and the first hit (full float where it can). */
+  createGameTarget(width: number, height: number): GameTarget {
+    const gl = this.gl;
+    const colorFormat = this.floatInternal === gl.RGBA8 ? gl.RGBA8 : gl.RGBA16F;
+    const t = createTarget(gl, width, height, colorFormat, gl.NEAREST);
+    const aux = createTarget(gl, width, height, this.floatInternal, gl.NEAREST);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, t.fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, aux.tex, 0);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    // Only the texture is kept: the second framebuffer is never drawn to.
+    gl.deleteFramebuffer(aux.fbo);
+    return { ...t, aux: aux.tex };
+  }
+
+  deleteGameTarget(t: GameTarget | null): void {
+    if (!t) return;
+    this.gl.deleteTexture(t.aux);
+    deleteTarget(this.gl, t);
+  }
+
   /** Sets the canvas's pixel size; a no-op when it already has it (assigning clears the canvas). */
   sizeCanvas(width: number, height: number): void {
     if (this.canvas.width !== width) this.canvas.width = width;
@@ -307,9 +369,17 @@ export class RayEngine {
     uploadFloatRows(gl, this.objectsTex, OBJ_TEXELS, p.count, p.objects);
     uploadFloatRows(gl, this.materialsTex, MAT_TEXELS, p.count, p.materials);
     if (p.terrains.key !== this.terrainKey) this.uploadTerrains(p);
+    this.uploadScan(p);
     this.scene = scene;
     this.style = renderStyle(scene.sky);
     this.sceneVersion++;
+  }
+
+  /** The game variant reads the object scan from a uniform buffer (scene-packer.ts scanRows). */
+  private uploadScan(p: PackedScene): void {
+    const gl = this.gl;
+    gl.bindBuffer(gl.UNIFORM_BUFFER, this.scanBuffer);
+    gl.bufferSubData(gl.UNIFORM_BUFFER, 0, scanRows(p));
   }
 
   setView(b: ViewBasis): void {
@@ -360,11 +430,15 @@ export class RayEngine {
   /** Traces the requested rows; a no-op until the program is compiled. */
   traceRows(r: TraceRequest): void {
     const gl = this.gl;
-    const t = (r.fast && this.fast) || this.trace;
+    const game = r.game && this.game;
+    const t = game || ((r.fast || r.game) && this.fast) || this.trace;
     if (!t) return;
     gl.useProgram(t.program);
     this.applyUniforms(t);
     gl.bindFramebuffer(gl.FRAMEBUFFER, r.target.fbo);
+    // A game target's second buffer takes the game program's first hits; a stand-in program writes only colour
+    // (WebGL refuses a draw into a buffer the program has no output for).
+    if ('aux' in r.target) gl.drawBuffers(game ? [gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1] : [gl.COLOR_ATTACHMENT0, gl.NONE]);
     const tw = Math.ceil(r.width / r.block);
     const th = Math.ceil(r.height / r.block);
     gl.viewport(0, 0, Math.min(tw, r.target.width), Math.min(th, r.target.height));
@@ -384,6 +458,10 @@ export class RayEngine {
     u.i('uMaxBounces', r.bounces);
     u.i('uTransparentBg', r.transparentBg ? 1 : 0);
     this.applyShadows(u, r.shadowRays ?? 1);
+    if (game && r.game) {
+      u.f('uPixelAngle', r.game.pixelAngle);
+      u.f('uToonBands', r.game.toonBands);
+    }
     this.bindData(u);
     gl.bindVertexArray(this.vao);
     gl.drawArrays(gl.TRIANGLES, 0, 3);

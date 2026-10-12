@@ -1,4 +1,5 @@
 import type { Rgb } from '../../core/color';
+import { type Lab, oklabToRgb, rgbToOklab } from '../../core/oklab';
 import type { Vec3 } from '../../core/vec3';
 import { Ease } from '../../model/scene.enums';
 import type { Key } from '../../model/scene.types';
@@ -120,7 +121,28 @@ export function rgbAt<T>(keys: readonly Key<T>[], t: number, read: (v: T) => Rgb
   return vec3At(keys, t, read, { bounded: true, loop });
 }
 
-/** Switches (sky mode, stars) take the value of the last key at or before `t`. */
+/**
+ * A colour blended in OKLab (core/oklab): even steps in lightness and hue, held
+ * between its neighbouring keys like any dial. Material and light keys use it;
+ * the sky keeps its older blend so animated skies look as they did.
+ */
+export function oklabAt<T>(keys: readonly Key<T>[], t: number, read: (v: T) => Rgb, loop = false): Rgb {
+  // On a key, or past the ends, the colour is the key's own, not a round trip through OKLab.
+  const held = t <= keys[0].time ? keys[0] : t >= keys[keys.length - 1].time ? keys[keys.length - 1] : keys.find((k) => k.time === t);
+  if (held) return read(held.value);
+  const labs = new Map<T, Lab>(keys.map((k) => [k.value, rgbToOklab(read(k.value))]));
+  return oklabToRgb(vec3At(keys, t, (v) => labs.get(v) as Lab, { bounded: true, loop }));
+}
+
+/** Switches (sky mode, stars, visibility) take the value of the last key at or before `t`. */
 export function stepAt<T, V>(keys: readonly Key<T>[], t: number, read: (v: T) => V): V {
   return read(keys[segmentAt(keys, t)].value);
+}
+
+/** What cannot blend (a material's textures) switches halfway between its two keys. */
+export function midStepAt<T, V>(keys: readonly Key<T>[], t: number, read: (v: T) => V): V {
+  const i = segmentAt(keys, t);
+  const next = keys[i + 1];
+  const switched = next && t >= keys[i].time && t >= (keys[i].time + next.time) / 2;
+  return read((switched ? next : keys[i]).value);
 }

@@ -95,6 +95,22 @@ export class FpsActor implements Actor {
     return { position: eyeOf(this.state), yaw: this.yaw, pitch: this.pitch, bank: 0 };
   }
 
+  /** A velocity change (a jump pad, a blast): an upward one lifts the player off the ground. */
+  kick(dv: Vec3): void {
+    const p = this.state;
+    p.velocity = add(p.velocity, dv);
+    if (dv[1] > 0) p.ground = null;
+  }
+
+  /** The player's feet at `feet`, standing still, looking the same way (a teleporter). */
+  teleport(feet: Vec3): void {
+    const p = this.state;
+    p.origin = [feet[0], feet[1] + hullOf(p, this.tuning)[1] + this.tuning.skin, feet[2]];
+    p.velocity = [0, 0, 0];
+    p.ground = null;
+    this.physics.setPose(this.body, { position: p.origin, rotation: IDENTITY_Q });
+  }
+
   /** Ground speed in Half-Life units a second, the speedometer of bunny hoppers. */
   get speed(): number {
     return Math.hypot(this.state.velocity[0], this.state.velocity[2]) / this.tuning.unit;

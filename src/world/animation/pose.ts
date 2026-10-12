@@ -4,6 +4,7 @@ import { groupIndex, withGroups } from '../group-tree';
 import { placed } from '../group-pose';
 import { channelAt, rgbAt, stepAt, vec3At } from './interpolate';
 import { KeyTrack, isCyclic } from './key-selection';
+import { withPropsAt } from './prop-channels';
 
 /** The values of every animated track at time `t`, laid over the scene. */
 
@@ -83,7 +84,9 @@ function posedGroups(scene: Scene, t: number): Scene {
 /**
  * The scene posed at `t`: animated objects, groups, camera and sky take their
  * interpolated values, and every object its world pose through its groups
- * (group-pose); a still stays as it is.
+ * (group-pose); a still stays as it is. Keyed materials, lights and visibility
+ * come out here too (prop-channels), so the live view, Render and movies all
+ * read them from the posed scene, frame by frame.
  */
 export function poseAt(scene: Scene, t: number): Scene {
   const a = scene.animation;
@@ -93,7 +96,9 @@ export function poseAt(scene: Scene, t: number): Scene {
     ...posedGroups(scene, t),
     objects: scene.objects.map((o) => {
       const keys = a.objects[o.id];
-      return keys?.length ? { ...o, local: transformAt(keys, t, loops(KeyTrack.Object, o.id)) } : o;
+      if (!keys?.length) return o;
+      const loop = loops(KeyTrack.Object, o.id);
+      return { ...withPropsAt(o, keys, t, loop), local: transformAt(keys, t, loop) };
     }),
     camera: a.camera.length ? cameraAt(a.camera, t, loops(KeyTrack.Camera, '')) : scene.camera,
     sky: a.sky.length ? skyAt(a.sky, t, loops(KeyTrack.Sky, '')) : scene.sky,

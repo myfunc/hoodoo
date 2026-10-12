@@ -13,7 +13,9 @@ import { Feature, type FeatureFlags, isFeatureOn } from '../world/preview-featur
 export const FEATURE_ACTIONS: Readonly<Record<Feature, readonly Action[]>> = {
   [Feature.ObjectTree]: [Action.NewGroup],
   [Feature.Portals]: [Action.CreatePortals, Action.LinkPortals],
-  [Feature.Play]: [Action.Play],
+  [Feature.Play]: [Action.Play, Action.CreateTriggerZone],
+  // Sandbox has no editor commands: it is what Play carries (src/play/sandbox).
+  [Feature.Sandbox]: [],
 };
 
 const OWNER = new Map<Action, Feature>(

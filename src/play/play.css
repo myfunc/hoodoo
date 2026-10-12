@@ -60,3 +60,23 @@
 
 /* The display bar's Play chip follows the preview switch (feature-gate showWhile sets [hidden]). */
 .display-bar .ui-button.mark-chip[hidden] { display: none; }
+
+/* The plane (docs/play-mode.md): the actor choice tops the panel; the HUD line goes Bryce, teal figures on dark
+   stone with the throttle as a small sunken bar that glows while boosting. */
+.play-panel .play-actors { display: flex; margin-bottom: 9px; }
+.play-panel .play-actors .ui-toggle { flex: 1 1 0; justify-content: center; text-align: center; }
+.play-fields[hidden] { display: none; }
+.play-fields > .ui-toggle { grid-column: 1 / -1; color: #b9b7af; }
+.play-gauge { display: none; }
+.play-gauge.is-on {
+  display: inline-block; width: 64px; height: 8px; margin-left: 9px; vertical-align: -1px; overflow: hidden;
+  border-radius: 4px; background: rgba(0, 0, 0, 0.6); box-shadow: inset 0 1px 2px #000, 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.play-gauge i { display: block; height: 100%; background: linear-gradient(#58c4c0, var(--teal)); transition: width 0.1s linear; }
+.play-gauge.is-hot i { background: linear-gradient(#ffe2a0, var(--lab-hot)); box-shadow: 0 0 6px var(--lab-hot); }
+.play-layer.is-plane .play-readout {
+  color: #a8e6df; letter-spacing: 0.06em; border-radius: 10px; padding: 3px 11px;
+  background: linear-gradient(rgba(58, 62, 60, 0.86), rgba(20, 22, 22, 0.86)); border: 1px solid rgba(43, 138, 138, 0.55);
+}
+.play-layer.is-plane .play-readout { top: 10px; bottom: auto; }
+.play-layer.is-plane .play-cross { display: none; }

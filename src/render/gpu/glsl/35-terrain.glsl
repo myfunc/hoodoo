@@ -24,6 +24,8 @@ vec3 terrainNormal(bool lattice, float layer, float res, vec3 p) {
 
 #define TERRAIN_CELL 8.0
 #define MAX_CELL_STEPS 48.0
+// Game variant: march steps per pixel footprint in the distance (more is finer and slower).
+#define TERRAIN_LOD 0.5
 
 // Ray already inside the solid (camera underground, rays in glass): plain march to the exit.
 Span terrainExit(bool lattice, vec3 ro, vec3 rd, float layer, float res, Span box) {
@@ -90,7 +92,13 @@ Span terrainSpan(bool lattice, vec3 ro, vec3 rd, float layer, float res) {
         b = a;
       }
       if (b > a) {
+#ifdef GAME_TRACE
+        // Distance LOD: far away one step spans what a pixel covers there, not one texel.
+        float lod = max(1.0, (gPathT + a) * uPixelAngle * rayLen / texel * TERRAIN_LOD);
+        float n = clamp(ceil((b - a) * rayLen / (texel * lod)), 1.0, MAX_CELL_STEPS);
+#else
         float n = clamp(ceil((b - a) * rayLen / texel), 1.0, MAX_CELL_STEPS);
+#endif
         float dt = (b - a) / n;
         float prev = a;
         for (int j = 1; j <= int(n) + uLoopGuard; j++) {
