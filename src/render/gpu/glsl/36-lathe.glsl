@@ -5,10 +5,14 @@
 // (crenellations, a slit) are subtracted and blocks (a cross) joined by keeping
 // only surface points outside the other parts; a knight's head is sphere-traced.
 #define K_LATHE 18
-#define LATHE_CHUNKS_AT 16
+#define LATHE_CHUNKS_AT 24
 #define LATHE_CHUNK 8
 #define LATHE_HEAD_STEPS 64
 #define LATHE_SEARCH_STEPS 8
+#define LATHE_HEAD_CHUNK 8
+#define LATHE_HEAD_DENTS 4
+#define LATHE_HEAD_GROOVES 2
+#define LATHE_EAR_TAPER 0.3
 
 uniform sampler2D uLathe;
 
@@ -80,42 +84,130 @@ bool latheInBlock(int row, int blocks, vec3 p, int skip) {
   return false;
 }
 
-// The knight's head: a side view (polygon) extruded across Z with rounded edges,
-// thinner toward the muzzle and the ears, a groove between the ears and two hollows a side.
-float latheHeadSdf(int row, vec3 p) {
+// A knight head's parameters, read once a ray (lathe-pack.ts LATHE_TEXELS).
+struct LatheHead {
+  int row;
+  int verts;
+  int at;
+  int chunks;
+  int chunksAt;
+  vec4 wf;
+  vec4 bf;
+  vec4 sh;
+  vec4 more;
+  vec4 dents[LATHE_HEAD_DENTS];
+  vec4 ga[LATHE_HEAD_GROOVES];
+  vec4 gb[LATHE_HEAD_GROOVES];
+};
+
+LatheHead latheHeadOf(int row) {
+  LatheHead hd;
   vec4 hdr = latheTexel(row, 0);
-  int n = int(hdr.y + 0.5);
-  int at = int(hdr.z + 0.5);
-  vec4 th = latheTexel(row, 10);
-  vec4 hm = latheTexel(row, 11);
-  float dd = INF;
-  float sgn = 1.0;
-  vec4 last = latheTexel(row, at + (n - 1) / 2);
-  vec2 vj = ((n - 1) & 1) == 0 ? last.xy : last.zw;
-  for (int i = 0; i < n + uLoopGuard; i++) {
-    vec4 tx = latheTexel(row, at + i / 2);
-    vec2 vi = (i & 1) == 0 ? tx.xy : tx.zw;
-    vec2 e = vj - vi;
-    vec2 w = p.xy - vi;
-    vec2 b = w - e * clamp(dot(w, e) / dot(e, e), 0.0, 1.0);
-    dd = min(dd, dot(b, b));
-    bvec3 c = bvec3(p.y >= vi.y, p.y < vj.y, e.x * w.y > e.y * w.x);
-    if (all(c) || all(not(c))) sgn = -sgn;
-    vj = vi;
+  hd.row = row;
+  hd.verts = int(hdr.y + 0.5);
+  hd.at = int(hdr.z + 0.5);
+  hd.wf = latheTexel(row, 10);
+  hd.bf = latheTexel(row, 11);
+  hd.sh = latheTexel(row, 12);
+  hd.more = latheTexel(row, 14);
+  hd.chunksAt = int(hd.more.z + 0.5);
+  hd.chunks = (hd.verts + LATHE_HEAD_CHUNK - 1) / LATHE_HEAD_CHUNK;
+  for (int i = 0; i < LATHE_HEAD_DENTS; i++) hd.dents[i] = latheTexel(row, 15 + i);
+  for (int i = 0; i < LATHE_HEAD_GROOVES; i++) {
+    hd.ga[i] = latheTexel(row, 19 + 2 * i);
+    hd.gb[i] = latheTexel(row, 20 + 2 * i);
   }
-  float d2 = sgn * sqrt(dd);
-  float half_ = clamp(th.x + th.y * p.x + th.z * p.y, th.w, hm.x);
-  // Edges rounded `round` times the half-thickness in: above 1 the cross-section is an ellipse
-  // (a domed side), traced in a space stretched across Z and scaled back to stay a safe bound.
-  float rr = half_ * hm.y;
-  float k = max(hm.y, 1.0);
-  vec2 q = vec2(d2 + rr, (abs(p.z) - half_) * k + rr);
-  float d = (min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - rr) / k;
-  d = max(d, -max(abs(p.z) - hm.w, hm.z - p.y));
+  return hd;
+}
+
+// Signed distance to the head's side view, negative inside, each edge bent into a smooth curve
+// (lathe-head.ts outlineDistance).
+// Edges come in chunks with a bounding circle; a chunk farther than the nearest edge so far is
+// skipped. `hint` bounds the true distance from above (a step's distance plus how far it moved;
+// INF finds one from the circles); `nearest` returns the true distance for the next step.
+float latheHeadOutline(LatheHead hd, vec2 p, float hint, out float nearest) {
+  int row = hd.row;
+  float ub = hint;
+  if (ub >= INF) {
+    for (int c = 0; c < hd.chunks + uLoopGuard; c++) {
+      vec4 cb = latheTexel(row, hd.chunksAt + c);
+      ub = min(ub, length(p - cb.xy) + cb.z);
+    }
+  }
+  float dd = ub * ub;
+  float value = ub;
+  for (int c = 0; c < hd.chunks + uLoopGuard; c++) {
+    vec4 cb = latheTexel(row, hd.chunksAt + c);
+    float lb = max(length(p - cb.xy) - cb.z, 0.0);
+    if (lb * lb >= dd) continue;
+    int i0 = c * LATHE_HEAD_CHUNK;
+    vec4 vj = latheTexel(row, hd.at + (i0 == 0 ? hd.verts - 1 : i0 - 1));
+    for (int e = 0; e < LATHE_HEAD_CHUNK + uLoopGuard; e++) {
+      int i = i0 + e;
+      if (i >= hd.verts) break;
+      vec4 vi = latheTexel(row, hd.at + i);
+      vec2 ed = vj.xy - vi.xy;
+      vec2 w = p - vi.xy;
+      float u = clamp(dot(w, ed) / dot(ed, ed), 0.0, 1.0);
+      vec2 b = w - ed * u;
+      float d2 = dot(b, b);
+      if (d2 < dd) {
+        dd = d2;
+        if (u <= 0.0 || u >= 1.0) {
+          // Nearest a point: the plain distance, signed by its normal (a corner's bisector).
+          value = dot(b, u <= 0.0 ? vi.zw : vj.zw) < 0.0 ? -sqrt(d2) : sqrt(d2);
+        } else {
+          // The edge bends off its chord by a cubic sag (lathe-head.ts outlineDistance) so the
+          // normal turns evenly from vj's to vi's; a corner (a half-length normal) adds no turn.
+          vec2 own = normalize(vec2(-ed.y, ed.x));
+          float fj = dot(vj.zw, vj.zw) < 0.5 ? 0.0 : atan(own.x * vj.w - own.y * vj.z, dot(own, vj.zw));
+          float fi = dot(vi.zw, vi.zw) < 0.5 ? 0.0 : atan(own.x * vi.w - own.y * vi.z, dot(own, vi.zw));
+          float s = 1.0 - u;
+          value = dot(b, own) + length(ed) * (fj * s * (1.0 - s) * (1.0 - s) + fi * s * s * (s - 1.0));
+        }
+      }
+      vj = vi;
+    }
+  }
+  nearest = sqrt(dd);
+  return value;
+}
+
+float latheSmax(float a, float b, float k) {
+  float h = max(k - abs(a - b), 0.0) / k;
+  return max(a, b) + h * h * k * 0.25;
+}
+
+// The knight's head (assets/lathe-head.ts headSdf): the side view cut through a block as wide
+// as the width field, its edges bevelled back, the ears, hollows and grooves on both sides.
+float latheHeadSdf(LatheHead hd, vec3 p, float hint, out float nearest) {
+  float a = latheHeadOutline(hd, p.xy, hint, nearest);
+  vec4 wf = hd.wf;
+  vec4 bf = hd.bf;
+  vec4 sh = hd.sh;
+  vec4 more = hd.more;
+  float k = max(sh.w, 1e-6);
+  // The width's ceiling blends over four times the softness (WIDTH_BLEND in lathe-head.ts).
+  float w = max(-latheSmax(-(wf.x + wf.y * p.x + wf.z * p.y), -sh.x, k * 4.0), wf.w);
+  // On the ears the bevel is its smallest, eased in over the softness (lathe-head.ts bevelAt).
+  float bevel = mix(clamp(bf.x + bf.y * p.x + bf.z * p.y, bf.w, sh.y), bf.w, smoothstep(more.x - k, more.x + k, p.y));
+  float side = abs(p.z) - w;
+  float d = latheSmax(latheSmax(a, side, k), (sh.z * a + side + bevel) / length(vec2(sh.z, 1.0)), k);
+  // Above the ears' line: a V gap between them, and each ear thinning toward its tip.
+  float rise = max(p.y - more.x, 0.0) * LATHE_EAR_TAPER;
+  d = max(d, -max(abs(p.z) - more.y - rise, more.x - p.y));
+  d = latheSmax(d, min(p.y - more.x, abs(p.z) - more.y - more.w + rise), k);
   vec3 m = vec3(p.xy, abs(p.z));
-  for (int k = 0; k < 2; k++) {
-    vec4 dent = latheTexel(row, 13 + k);
+  for (int i = 0; i < LATHE_HEAD_DENTS; i++) {
+    vec4 dent = hd.dents[i];
     if (dent.w > 0.0) d = max(d, dent.w - length(m - dent.xyz));
+  }
+  for (int i = 0; i < LATHE_HEAD_GROOVES; i++) {
+    vec4 ga = hd.ga[i];
+    if (ga.w <= 0.0) continue;
+    vec3 e = hd.gb[i].xyz - ga.xyz;
+    vec3 v = m - ga.xyz;
+    d = max(d, ga.w - length(v - e * clamp(dot(v, e) / dot(e, e), 0.0, 1.0)));
   }
   return d;
 }
@@ -123,8 +215,8 @@ float latheHeadSdf(int row, vec3 p) {
 // Nearest hit of the head ahead, INF on a miss; n is its normal.
 float latheHead(int row, vec3 o, vec3 d, out vec3 n) {
   n = vec3(0, 1, 0);
-  vec4 box = latheTexel(row, 12);
-  float maxW = latheTexel(row, 11).x;
+  vec4 box = latheTexel(row, 13);
+  float maxW = latheTexel(row, 12).x;
   vec3 c = vec3((box.x + box.z) * 0.5, (box.y + box.w) * 0.5, 0.0);
   vec3 h = vec3((box.z - box.x) * 0.5, (box.w - box.y) * 0.5, maxW) + 1e-3;
   Span s = cubeSpan((o - c) / h, d / h);
@@ -142,22 +234,37 @@ float latheHead(int row, vec3 o, vec3 d, out vec3 n) {
   float leave = -INF;
   bool inside = false;
   bool insideEnd = false;
-  vec4 last = latheTexel(row, at + (verts - 1) / 2);
-  vec2 vj = ((verts - 1) & 1) == 0 ? last.xy : last.zw;
-  for (int i = 0; i < verts + uLoopGuard; i++) {
-    vec4 tx = latheTexel(row, at + i / 2);
-    vec2 vi = (i & 1) == 0 ? tx.xy : tx.zw;
-    vec2 e = vj - vi;
-    if ((vi.y > q.y) != (vj.y > q.y) && q.x < vi.x + e.x * (q.y - vi.y) / e.y) inside = !inside;
-    if ((vi.y > qb.y) != (vj.y > qb.y) && qb.x < vi.x + e.x * (qb.y - vi.y) / e.y) insideEnd = !insideEnd;
-    float den = d.x * e.y - d.y * e.x;
-    if (abs(den) > 1e-12) {
-      vec2 a = vi - o.xy;
-      float u = (a.x * d.y - a.y * d.x) / den;
-      float tc = (a.x * e.y - a.y * e.x) / den;
-      if (u >= 0.0 && u <= 1.0 && tc >= ta && tc <= tb) { enter = min(enter, tc); leave = max(leave, tc); }
+  // Edges in chunks: a chunk whose circle the ray's path across the box misses, and that a line
+  // to +X from either end cannot cross, is skipped whole.
+  int chunksAt = int(latheTexel(row, 14).z + 0.5);
+  int chunks = (verts + LATHE_HEAD_CHUNK - 1) / LATHE_HEAD_CHUNK;
+  vec2 path = qb - q;
+  for (int ch = 0; ch < chunks + uLoopGuard; ch++) {
+    vec4 cb = latheTexel(row, chunksAt + ch);
+    vec2 w = cb.xy - q;
+    vec2 near_ = w - path * clamp(dot(w, path) / max(dot(path, path), 1e-12), 0.0, 1.0);
+    bool crosses = dot(near_, near_) <= cb.z * cb.z;
+    bool rowA = abs(q.y - cb.y) <= cb.z && q.x <= cb.x + cb.z;
+    bool rowB = abs(qb.y - cb.y) <= cb.z && qb.x <= cb.x + cb.z;
+    if (!crosses && !rowA && !rowB) continue;
+    int i0 = ch * LATHE_HEAD_CHUNK;
+    vec2 vj = latheTexel(row, at + (i0 == 0 ? verts - 1 : i0 - 1)).xy;
+    for (int k = 0; k < LATHE_HEAD_CHUNK + uLoopGuard; k++) {
+      int i = i0 + k;
+      if (i >= verts) break;
+      vec2 vi = latheTexel(row, at + i).xy;
+      vec2 e = vj - vi;
+      if ((vi.y > q.y) != (vj.y > q.y) && q.x < vi.x + e.x * (q.y - vi.y) / e.y) inside = !inside;
+      if ((vi.y > qb.y) != (vj.y > qb.y) && qb.x < vi.x + e.x * (qb.y - vi.y) / e.y) insideEnd = !insideEnd;
+      float den = d.x * e.y - d.y * e.x;
+      if (crosses && abs(den) > 1e-12) {
+        vec2 a = vi - o.xy;
+        float u = (a.x * d.y - a.y * d.x) / den;
+        float tc = (a.x * e.y - a.y * e.x) / den;
+        if (u >= 0.0 && u <= 1.0 && tc >= ta && tc <= tb) { enter = min(enter, tc); leave = max(leave, tc); }
+      }
+      vj = vi;
     }
-    vj = vi;
   }
   if (inside) enter = ta;
   if (insideEnd) leave = tb;
@@ -165,8 +272,15 @@ float latheHead(int row, vec3 o, vec3 d, out vec3 n) {
   float len = length(d);
   float t = enter;
   bool hit = false;
+  LatheHead hd = latheHeadOf(row);
+  float near_ = INF;
+  vec2 last = o.xy + d.xy * t;
   for (int i = 0; i < LATHE_HEAD_STEPS + uLoopGuard; i++) {
-    float dist = latheHeadSdf(row, o + d * t);
+    vec3 p = o + d * t;
+    // The true distance moves no more than the point does: a bound that skips most chunks.
+    float hint = near_ < INF ? near_ + length(p.xy - last) + 1e-5 : INF;
+    last = p.xy;
+    float dist = latheHeadSdf(hd, p, hint, near_);
     if (dist < 2e-4 * (1.0 + t * len)) { hit = true; break; }
     t += dist * 0.85 / len;
     if (t > leave) break;
@@ -174,9 +288,10 @@ float latheHead(int row, vec3 o, vec3 d, out vec3 n) {
   if (!hit) return INF;
   vec3 p = o + d * t;
   vec3 g = vec3(0);
+  float spare;
   for (int k = 0; k < 4 + uLoopGuard; k++) {
     vec3 e = vec3(float(((k + 3) >> 1) & 1), float((k >> 1) & 1), float(k & 1)) * 2.0 - 1.0;
-    g += e * latheHeadSdf(row, p + e * 4e-4);
+    g += e * latheHeadSdf(hd, p + e * 4e-4, near_ + 1e-3, spare);
   }
   n = g;
   return t;
@@ -203,7 +318,7 @@ Span latheSpan(vec3 lo, vec3 ld, float param) {
   float outer = bxz * bxz - dxz * (oxz - aspect * aspect);
   if (outer < 0.0) return NO_SPAN;
   float top = dxz > 1e-12 ? o.y + max(d.y * (-bxz - sqrt(outer)), d.y * (-bxz + sqrt(outer))) / dxz : INF;
-  vec4 floors = latheTexel(row, 15);
+  vec4 floors = latheTexel(row, 23);
   if (top < floors.x) copies = 0;
   if (top < floors.y) blocks = 0;
   int chunks = (segs + LATHE_CHUNK - 1) / LATHE_CHUNK;

@@ -1,27 +1,19 @@
-import type { LatheProfileData, Point2 } from '../assets/lathe';
+import type { LatheProfileData } from '../assets/lathe';
+import { headSdf } from '../assets/lathe-head';
 import type { Vec3 } from '../core/vec3';
 
 /**
  * CPU ray test of a Lathe object in its unit space, for picking and Land: the
- * outline's frustums and the joined blocks exactly, the carved head as the
- * extruded side view (its rounding and hollows ignored); cuts are ignored.
+ * outline's frustums and the joined blocks exactly, the carved head by marching
+ * its distance function (the shader's); cuts are ignored.
  * Like ray-shapes.ts, rays are not normalised and `t` is shared with world space.
  */
 
 const PARALLEL_EPS = 1e-12;
-const HEAD_STEPS = 160;
-const BISECT = 10;
-
-/** Is (x, y) inside the polygon (even-odd)? */
-export function insidePolygon(poly: readonly Point2[], x: number, y: number): boolean {
-  let inside = false;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const [xi, yi] = poly[i];
-    const [xj, yj] = poly[j];
-    if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
-  }
-  return inside;
-}
+const HEAD_STEPS = 200;
+/** Close enough to the head's surface, in unit space. */
+const HEAD_HIT = 1e-4;
+const HEAD_STEP_SCALE = 0.85;
 
 /** Smallest positive root of each frustum, or Infinity. */
 function outlineT(p: LatheProfileData, o: Vec3, d: Vec3): number {
@@ -83,27 +75,14 @@ function headT(p: LatheProfileData, o: Vec3, d: Vec3): number {
   const head = p.head;
   if (!head) return Infinity;
   const [x0, y0, x1, y1] = head.box;
-  const w = head.thickness.max;
-  const [a, b] = boxT(o, d, [(x0 + x1) / 2, (y0 + y1) / 2, 0], [(x1 - x0) / 2, (y1 - y0) / 2, w]);
+  const [a, b] = boxT(o, d, [(x0 + x1) / 2, (y0 + y1) / 2, 0], [(x1 - x0) / 2, (y1 - y0) / 2, head.width.max]);
   if (a > b || b <= 0) return Infinity;
-  const t = head.thickness;
-  const inside = (s: number) => {
-    const [x, y, z] = [o[0] + d[0] * s, o[1] + d[1] * s, o[2] + d[2] * s];
-    const half = Math.min(t.max, Math.max(t.min, t.base + t.perX * x + t.perY * y));
-    return Math.abs(z) <= half && insidePolygon(head.outline, x, y);
-  };
-  const start = Math.max(a, 0);
-  const dt = (b - start) / HEAD_STEPS;
-  for (let i = 0; i <= HEAD_STEPS; i++) {
-    const s = start + dt * i;
-    if (!inside(s)) continue;
-    let lo = Math.max(start, s - dt);
-    let hi = s;
-    for (let k = 0; k < BISECT; k++) {
-      const mid = (lo + hi) / 2;
-      if (inside(mid)) hi = mid; else lo = mid;
-    }
-    return hi;
+  const len = Math.hypot(d[0], d[1], d[2]);
+  let t = Math.max(a, 0);
+  for (let i = 0; i < HEAD_STEPS && t <= b; i++) {
+    const dist = headSdf(head, [o[0] + d[0] * t, o[1] + d[1] * t, o[2] + d[2] * t]);
+    if (dist < HEAD_HIT) return t;
+    t += (dist * HEAD_STEP_SCALE) / len;
   }
   return Infinity;
 }

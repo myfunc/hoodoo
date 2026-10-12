@@ -15,8 +15,10 @@ skipping.
 - Lathe objects (the chess pieces, `36-lathe.glsl`): a profile of cone
   frustums with smoothed normals, a bounding cylinder per eight segments,
   notches and slits cut by rotated plane groups, joined boxes, and the
-  knight's head sphere-traced inside its extruded side view. Profiles live in
-  one float texture (`lathe-pack.ts`).
+  knight's head sphere-traced inside its extruded side view: a distance
+  function that bends each edge of the side view into a smooth curve, then
+  bevels and narrows it like carved wood (`assets/lathe-head.ts`, shared with
+  picking). Profiles live in one float texture (`lathe-pack.ts`).
 - Boolean groups: Positive objects are cut by Negative members and clipped by
   Intersect members of their group.
 - Bryce 2 materials: ambient, diffuse and specular colour channels, diffusion,

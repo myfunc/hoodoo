@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.1 — 2026-10-11
+
+### Changed
+- A new knight: a broad, firm head, wide across the face seen from the front,
+  with a long straight face, a deep square muzzle and a clear chin, a carved
+  mouth line, a thick arched neck with a mane ridge down its back, and short
+  sturdy ears. Its sides are flat carved planes with bevelled edges, as a
+  carver cuts them.
+
+### Fixed
+- The knight's head no longer shows flat steps under a highlight: its curves
+  are traced smooth.
+- The knight's lattice in the scene window follows its carved shape: upright
+  slices through the face, each ear and the sides, and level ones up the head.
+
 ## 0.8.0 — 2026-10-11
 
 ### Added

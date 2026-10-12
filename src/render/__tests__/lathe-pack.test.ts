@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CORNER_MARK, EAR_TAPER, HEAD_CHUNK } from '../../assets/lathe-head';
 import { LATHE_PROFILES } from '../../assets/lathe.profiles';
 import { ShapeKind, TextureKind } from '../../model/scene.enums';
 import lathe from '../gpu/glsl/36-lathe.glsl?raw';
@@ -35,7 +36,31 @@ describe('lathe profiles on the GPU', () => {
     });
   });
 
+  it('pack the head: a point and its normal a texel, then a circle round each chunk of edges', () => {
+    LATHE_PROFILES.forEach((p, row) => {
+      const head = p.head;
+      if (!head) return;
+      const [, verts, headAt] = texel(row, LATHE_TEXELS.header);
+      const chunksAt = texel(row, LATHE_TEXELS.headMore)[2];
+      expect(chunksAt).toBe(headAt + verts);
+      expect(texel(row, headAt + 5)).toEqual([...head.outline[5], ...head.normals[5]].map(Math.fround));
+      head.chunks.forEach((c, i) => {
+        const [cx, cy, r] = texel(row, chunksAt + i);
+        for (let k = -1; k < HEAD_CHUNK && i * HEAD_CHUNK + k < verts; k++) {
+          const [x, y] = head.outline[(i * HEAD_CHUNK + k + verts) % verts];
+          expect(Math.hypot(x - cx, y - cy)).toBeLessThanOrEqual(r + 1e-5);
+        }
+        expect(c.radius).toBeCloseTo(r);
+      });
+    });
+  });
+
   it('share their constants with the shader', () => {
+    expect(lathe).toContain(`#define LATHE_HEAD_CHUNK ${HEAD_CHUNK}\n`);
+    expect(lathe).toContain(`#define LATHE_EAR_TAPER ${EAR_TAPER}\n`);
+    // The shader tells a corner's half-length normal from a unit one by its squared length.
+    expect(CORNER_MARK ** 2).toBeLessThan(0.5);
+    expect(lathe).toContain('dot(vi.zw, vi.zw) < 0.5');
     expect(lathe).toContain(`#define K_LATHE ${ShapeKind.Lathe}\n`);
     expect(lathe).toContain(`#define LATHE_CHUNKS_AT ${LATHE_TEXELS.chunks}\n`);
     expect(lathe).toContain(`#define LATHE_CHUNK ${LATHE_CHUNK}\n`);

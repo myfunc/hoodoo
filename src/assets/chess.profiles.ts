@@ -1,3 +1,4 @@
+import { KNIGHT_HEADS, KNIGHT_STYLE, type KnightStyle } from './knight.heads';
 import { type LatheSpec, type OutlinePoint, arc, notches, scaled, slit } from './lathe';
 
 /**
@@ -90,26 +91,15 @@ const KING: LatheSpec = {
   ],
 };
 
-const KNIGHT: LatheSpec = {
-  name: 'Knight',
-  outline: [
-    ...foot(16),
-    [10.6, 12.6], [10.0, 13.6, C], [12.2, 14.2], [12.6, 15.3], [12.1, 16.4], [10.8, 16.9, C], [0, 17.1, C],
-  ],
-  head: {
-    outline: [
-      [-10.0, 16.4], [-11.6, 21.0], [-12.2, 27.0], [-12.0, 33.0], [-11.0, 39.0], [-9.4, 45.0], [-7.6, 50.4], [-5.8, 55.2], [-4.4, 59.0],
-      [-3.4, 63.0], [-2.2, 67.6], [-0.4, 65.2], [0.8, 62.0],
-      [3.0, 61.2], [6.0, 59.4], [9.0, 56.4], [12.0, 52.2], [14.8, 47.4], [16.8, 43.0], [17.8, 40.0], [17.9, 37.6], [17.2, 35.8],
-      [15.6, 35.2], [14.2, 35.4], [15.2, 34.0], [15.4, 32.8], [14.2, 31.4],
-      [11.6, 30.8], [8.4, 31.2], [5.2, 31.6], [2.2, 31.0], [0.6, 29.6], [0.8, 27.6], [2.4, 25.0], [5.2, 22.0], [8.4, 19.4], [10.4, 17.2], [10.6, 16.4],
-    ],
-    thickness: { base: 10.8, perX: -0.06, perY: -0.085, min: 3.2, max: 8.4 },
-    round: 2.2,
-    earGap: { from: 61.0, half: 1.3 },
-    dents: [[7.0, 54.6, 1.5], [16.6, 39.0, 0.9]],
-  },
-};
+/** The knight's turned base; the head on it is one of KNIGHT_HEADS. */
+const KNIGHT_BASE: readonly OutlinePoint[] = [
+  ...foot(16),
+  [10.6, 12.6], [10.0, 13.6, C], [12.2, 14.2], [12.6, 15.3], [12.1, 16.4], [10.8, 16.9, C], [0, 17.1, C],
+];
+
+export const knightSpec = (style: KnightStyle): LatheSpec => ({ name: 'Knight', outline: KNIGHT_BASE, head: KNIGHT_HEADS[style] });
+
+const KNIGHT = knightSpec(KNIGHT_STYLE);
 
 /** In LatheProfile order: the index is the object's `shapeParam`. */
 export const CHESS_SPECS: readonly LatheSpec[] = [PAWN, ROOK, KNIGHT, BISHOP, QUEEN, KING];

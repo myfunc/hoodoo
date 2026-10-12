@@ -1,4 +1,8 @@
 import type { Vec3 } from '../core/vec3';
+import { type CarvedHead, type CompiledHead, compileHead, headExtent } from './lathe-head';
+import { type Point2, catmull } from './spline';
+
+export type { Point2 };
 
 /**
  * Turned solids: an outline spun about the Y axis, with optional extras that a
@@ -10,7 +14,6 @@ import type { Vec3 } from '../core/vec3';
 
 /** A point of an outline: radius and height; a third entry marks a sharp corner. */
 export type OutlinePoint = readonly [r: number, y: number] | readonly [r: number, y: number, corner: true];
-export type Point2 = readonly [number, number];
 /** A half-space dot([x, y, z], n) < d, as [nx, ny, nz, d]. */
 export type Plane = readonly [number, number, number, number];
 
@@ -25,19 +28,6 @@ export interface LatheCut {
 export interface LatheBlock {
   readonly center: Vec3;
   readonly half: Vec3;
-}
-
-/** A head carved from a side view, facing +X (the knight). */
-export interface CarvedHead {
-  readonly outline: readonly Point2[];
-  /** Half-thickness across Z: base + perX·x + perY·y, kept within [min, max]. */
-  readonly thickness: { readonly base: number; readonly perX: number; readonly perY: number; readonly min: number; readonly max: number };
-  /** Edge rounding in half-thicknesses: 0 flat sides and sharp edges, 1 round edges, above 1 domed sides. */
-  readonly round: number;
-  /** A groove between the ears: above `from`, `half` either side of the middle. */
-  readonly earGap: { readonly from: number; readonly half: number };
-  /** Hollows on both sides, [x, y, radius]: eyes, nostrils. */
-  readonly dents: readonly (readonly [number, number, number])[];
 }
 
 export interface LatheSpec {
@@ -57,18 +47,6 @@ export interface LatheSegment {
   readonly y1: number;
   readonly n0: Point2;
   readonly n1: Point2;
-}
-
-export interface CompiledHead {
-  readonly outline: readonly Point2[];
-  /** Half-thickness: base + perX·x + perY·y within [min, max], in unit space. */
-  readonly thickness: CarvedHead['thickness'];
-  readonly round: number;
-  readonly earGap: CarvedHead['earGap'];
-  /** Centres on the +Z side (mirrored to -Z) and radius. */
-  readonly dents: readonly (readonly [number, number, number, number])[];
-  /** Bounds of the outline: [xMin, yMin, xMax, yMax]. */
-  readonly box: readonly [number, number, number, number];
 }
 
 /**
@@ -99,8 +77,6 @@ const MAX_SUBDIV = 4;
 /** Adjacent pieces turning more than this keep separate normals (a crease). */
 const CREASE_COS = Math.cos((38 * Math.PI) / 180);
 const DEG = Math.PI / 180;
-const CENTRIPETAL = 0.25;
-const TINY = 1e-9;
 
 /** Points along a circle, from one angle to another in degrees (0 = outward, 90 = up). */
 export function arc(cx: number, cy: number, radius: number, fromDeg: number, toDeg: number, steps: number): OutlinePoint[] {
@@ -116,23 +92,6 @@ export const scaled = (pts: readonly OutlinePoint[], k: number, dy = 0): Outline
 
 const isCorner = (p: OutlinePoint): boolean => p.length === 3;
 const xy = (p: OutlinePoint): Point2 => [p[0], p[1]];
-
-/** Centripetal Catmull-Rom between b and c (Barry–Goldman), at u in 0..1. */
-function catmull(a: Point2, b: Point2, c: Point2, d: Point2, u: number): Point2 {
-  const knot = (p: Point2, q: Point2) => Math.max(Math.hypot(q[0] - p[0], q[1] - p[1]) ** (CENTRIPETAL * 2), TINY);
-  const t1 = knot(a, b);
-  const t2 = t1 + knot(b, c);
-  const t3 = t2 + knot(c, d);
-  const t = t1 + (t2 - t1) * u;
-  const lerp = (p: Point2, q: Point2, t0: number, tq: number): Point2 => {
-    const w = (t - t0) / (tq - t0);
-    return [p[0] + (q[0] - p[0]) * w, p[1] + (q[1] - p[1]) * w];
-  };
-  const a1 = lerp(a, b, 0, t1);
-  const a2 = lerp(b, c, t1, t2);
-  const a3 = lerp(c, d, t2, t3);
-  return lerp(lerp(a1, a2, 0, t2), lerp(a2, a3, t1, t3), t1, t2);
-}
 
 /** The outline as a dense polyline: smooth through plain points, sharp at corners; heights kept from going down. */
 export function tessellate(outline: readonly OutlinePoint[]): { points: Point2[]; corners: Set<number> } {
@@ -183,9 +142,6 @@ function segmentsOf(points: readonly Point2[], corners: ReadonlySet<number>): La
   return out;
 }
 
-const headThickness = (h: CarvedHead, x: number, y: number): number =>
-  Math.min(h.thickness.max, Math.max(h.thickness.min, h.thickness.base + h.thickness.perX * x + h.thickness.perY * y));
-
 /** Compiles a spec into profile space: height -1..1 about the middle, uniform scale. */
 export function compileProfile(spec: LatheSpec): LatheProfileData {
   const { points, corners } = tessellate(spec.outline);
@@ -197,10 +153,9 @@ export function compileProfile(spec: LatheSpec): LatheProfileData {
   }
   const head = spec.head;
   if (head) {
-    for (const [x, y] of head.outline) {
-      ys.push(y);
-      radii.push(Math.hypot(x, headThickness(head, x, y)));
-    }
+    const extent = headExtent(head);
+    ys.push(...extent.ys);
+    radii.push(...extent.radii);
   }
   const yMin = Math.min(...ys);
   const half = (Math.max(...ys) - yMin) / 2;
@@ -256,54 +211,6 @@ export function inCut(cut: LatheCut, p: Vec3): boolean {
   const [c, s] = [Math.cos(ang), Math.sin(ang)];
   const q: Vec3 = [c * p[0] + s * p[2], p[1], -s * p[0] + c * p[2]];
   return cut.planes.every(([x, y, z, d]) => x * q[0] + y * q[1] + z * q[2] < d);
-}
-
-/** A closed outline made smooth: centripetal Catmull-Rom through every point, `steps` pieces per side. */
-function smoothLoop(pts: readonly Point2[], steps: number): Point2[] {
-  const n = pts.length;
-  const out: Point2[] = [];
-  for (let i = 0; i < n; i++) {
-    const [a, b, c, d] = [pts[(i + n - 1) % n], pts[i], pts[(i + 1) % n], pts[(i + 2) % n]];
-    for (let s = 0; s < steps; s++) out.push(s === 0 ? b : catmull(a, b, c, d, s / steps));
-  }
-  return out;
-}
-
-/** How far inside the outline a point lies (distance to the nearest side). */
-function depthIn(poly: readonly Point2[], x: number, y: number): number {
-  let best = Infinity;
-  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-    const [ax, ay] = poly[j];
-    const [ex, ey] = [poly[i][0] - ax, poly[i][1] - ay];
-    const u = Math.min(1, Math.max(0, ((x - ax) * ex + (y - ay) * ey) / (ex * ex + ey * ey)));
-    best = Math.min(best, Math.hypot(x - ax - ex * u, y - ay - ey * u));
-  }
-  return best;
-}
-
-/** Where the carved side is at (x, y): the shader's rounding, so a hollow sits on the surface. */
-function sideAt(h: CarvedHead, poly: readonly Point2[], x: number, y: number): number {
-  const w = headThickness(h, x, y);
-  const rr = w * h.round;
-  const qx = rr - depthIn(poly, x, y);
-  return qx <= 0 ? w : w + (Math.sqrt(Math.max(0, rr * rr - qx * qx)) - rr) / Math.max(h.round, 1);
-}
-
-/** Spline pieces per side of the side view; 1 keeps the authored points (2 costs a knight about twice as much). */
-const HEAD_SUBDIV = 1;
-
-function compileHead(h: CarvedHead, cy: number, k: number): CompiledHead {
-  const smooth = smoothLoop(h.outline, HEAD_SUBDIV);
-  const outline = smooth.map(([x, y]): Point2 => [x * k, (y - cy) * k]);
-  const t = h.thickness;
-  return {
-    outline,
-    thickness: { base: (t.base + t.perY * cy) * k, perX: t.perX, perY: t.perY, min: t.min * k, max: t.max * k },
-    round: h.round,
-    earGap: { from: (h.earGap.from - cy) * k, half: h.earGap.half * k },
-    dents: h.dents.map(([x, y, r]) => [x * k, (y - cy) * k, sideAt(h, smooth, x, y) * k, r * k] as const),
-    box: [Math.min(...outline.map((p) => p[0])), Math.min(...outline.map((p) => p[1])), Math.max(...outline.map((p) => p[0])), Math.max(...outline.map((p) => p[1]))],
-  };
 }
 
 /** The outline's radius at height y (profile space), or -1 outside its heights. */
