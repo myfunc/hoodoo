@@ -17,6 +17,11 @@ for real, boolean modelling, undo for everything, scene files and share links.
 The animated scenes on this page were rendered by Hoodoo itself, frame by
 frame, and each one opens from the start window's examples.
 
+Hoodoo started with Corridor Crew's
+[*Can Modern VFX Artists use 90s Software?*](https://www.youtube.com/watch?v=lxxC7oQbmJw),
+where VFX artists build scenes in Bryce. Its opening scene, *Trapper Keeper
+Canyon*, is after one of theirs.
+
 ## Feature tour
 
 ### Animate objects and groups
@@ -234,6 +239,12 @@ Bryce is a trademark of DAZ 3D. Bryce 2 was created by Kai Krause and Eric
 Wenger at MetaTools (1996). Hoodoo is an independent tribute, not affiliated
 with or endorsed by DAZ 3D or the original authors, and contains none of their
 code or assets. The name comes from the rock spires of Bryce Canyon.
+
+Thank you to [Corridor Crew](https://www.youtube.com/@CorridorCrew): their video
+[*Can Modern VFX Artists use 90s Software?*](https://www.youtube.com/watch?v=lxxC7oQbmJw)
+is where Hoodoo began, and the opening scene, *Trapper Keeper Canyon* (strata
+towers in a lagoon, chrome eggs, an egg on a pedestal), is inspired by one of the
+scenes made in it. Hoodoo is not affiliated with Corridor Crew.
 
 ## License
 

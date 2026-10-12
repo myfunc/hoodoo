@@ -9,8 +9,9 @@ import { createObject } from './objects.factory';
 import { emptyScene } from './scene.defaults';
 
 /**
- * "Trapper Keeper Canyon": the opening scene, after the 90s render-challenge look —
- * strata towers in a turquoise lagoon, floating chrome eggs, an egg on a pedestal.
+ * "Trapper Keeper Canyon": the opening scene, after one of the Bryce scenes in Corridor
+ * Crew's "Can Modern VFX Artists use 90s Software?" (ui/strings.ts CORRIDOR) — strata
+ * towers in a turquoise lagoon, floating chrome eggs, an egg on a pedestal.
  */
 interface Placement {
   readonly entry: string;

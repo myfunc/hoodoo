@@ -679,6 +679,10 @@ body:has(.animation-on) .toast { bottom: calc(var(--displaybar-h) + var(--timeli
 .ui-button.start-card.is-featured .start-thumb { flex: 1; min-height: 0; aspect-ratio: auto; }
 .ui-button.start-card.is-featured .start-card-name { font-size: 14px; }
 .start-foot { display: flex; justify-content: flex-start; margin-top: 12px; color: var(--ink-soft); }
+/* The thank-you to the video Hoodoo began with, by the version; it gives way first on a narrow window. */
+.start-credit { margin-left: auto; min-width: 0; font-size: 11px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.start-credit:hover { color: var(--teal-ink); }
+.start-credit + .ui-button.start-close { margin-left: 0; }
 /* Examples › Edit: × hides a card, a drag moves it; Hidden (n) opens the tray of hidden ones, a click there shows one again. */
 .ui-button.start-chip { padding: 1px 8px; font: bold 10px/16px var(--font-ui); white-space: nowrap; }
 .ui-button.start-chip[hidden], .start-hidden-tray[hidden] { display: none; }

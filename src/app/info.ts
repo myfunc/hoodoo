@@ -3,7 +3,7 @@ import { ACTIONS, MenuName, shortcutOf } from '../input/bindings';
 import { el } from '../ui/kit/dom';
 import { openInfo } from '../ui/labs/setup-dialogs';
 import { splashArtNow } from '../ui/chrome/splash';
-import { APP_NAME, APP_TAGLINE, APP_VERSION } from '../ui/strings';
+import { APP_NAME, APP_TAGLINE, APP_VERSION, CORRIDOR } from '../ui/strings';
 import { SOURCE_URL } from './app.constants';
 import { actionShown } from '../ui/feature-gate';
 import type { FeatureFlags } from '../world/preview-features';
@@ -91,6 +91,11 @@ export function openAbout(): void {
     el('img', { cls: 'about-art', attrs: { src: art.still, alt: art.alt } }),
     el('div', { text: `${APP_NAME} ${APP_VERSION} — ${APP_TAGLINE}.`, style: { fontWeight: 'bold' } }),
     el('div', { text: 'A tribute to MetaTools Bryce 2 (1996, Kai Krause and Eric Wenger): the stone-grey palette, wireframe scene window, camera trackball, Materials Lab, Terrain Editor, Sky & Fog thumbnails and the block-by-block ray-traced render; the animation timeline and soft shadows follow Bryce 3D (1997). Not affiliated with Bryce or its owners. The interface is drawn and rendered by code at load time; the picture above is a Hoodoo scene rendered in Hoodoo — golden dunes by day, a ring arch at night.' }),
+    el('div', {}, [
+      'Inspired by Corridor Crew’s ',
+      el('a', { text: CORRIDOR.video, attrs: { href: CORRIDOR.url, target: '_blank', rel: 'noopener noreferrer' } }),
+      ', where VFX artists build scenes in Bryce; the opening scene, Trapper Keeper Canyon, is after one of them. Thank you, Corridor.',
+    ]),
     el('div', { cls: 'stone-section-title', text: 'Modern additions' }),
     el('ul', { style: { margin: '0', paddingLeft: '18px' } }, QOL.map((q) => el('li', { text: q }))),
     el('div', {}, [

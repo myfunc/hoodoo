@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.4 — 2026-10-12
+
+### Added
+- A thank-you to Corridor Crew, whose video *Can Modern VFX Artists use 90s
+  Software?* started Hoodoo: a link at the top of the start window, a line on
+  the splash, in About and in the README. The opening scene, Trapper Keeper
+  Canyon, is inspired by one of the scenes made in it.
+
 ## 0.12.3 — 2026-10-12
 
 ### Changed

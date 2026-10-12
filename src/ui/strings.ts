@@ -10,7 +10,7 @@ export const SPLASH = {
     arch: 'Ring Arch: a glowing planetary ring arching over a starry night lake between dark hills',
   },
   tagline: 'Landscape studio',
-  credits: 'Denys Myronov / myfunc · after MetaTools Bryce 2 (1996)',
+  credits: 'Denys Myronov / myfunc · after MetaTools Bryce 2 (1996) · inspired by Corridor Crew',
   version: 'Version',
   ready: 'Ready',
   dismiss: 'Click or press any key to start',
@@ -38,6 +38,14 @@ export const START = {
   hide: 'Hide this example',
   restore: 'Show again',
   allHidden: 'Every example is hidden: open Hidden to bring some back',
+} as const;
+
+/** The video that started Hoodoo; the opening scene is after one made in it. */
+export const CORRIDOR = {
+  url: 'https://www.youtube.com/watch?v=lxxC7oQbmJw',
+  video: 'Can Modern VFX Artists use 90s Software?',
+  credit: 'Inspired by Corridor Crew: Can Modern VFX Artists use 90s Software?',
+  title: 'The video that started Hoodoo; the opening scene, Trapper Keeper Canyon, is after one made in it',
 } as const;
 
 /** Names of scenes that do not come from a file, for the start window's list. */

@@ -9,7 +9,7 @@ import { Button, Toggle } from '../kit/controls';
 import { holdModal } from '../kit/dialog';
 import { el, glyph } from '../kit/dom';
 import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
-import { APP_VERSION, START } from '../strings';
+import { APP_VERSION, CORRIDOR, START } from '../strings';
 
 const THUMBS = import.meta.glob('../art/examples/*.jpg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>;
 const thumbOf = (id: string): string | undefined => THUMBS[`../art/examples/${id}.jpg`];
@@ -104,6 +104,7 @@ export class StartWindow {
       el('div', { cls: 'start-head' }, [
         el('div', { cls: 'start-title', text: START.title }),
         el('div', { cls: 'start-version', text: APP_VERSION }),
+        el('a', { cls: 'start-credit', text: CORRIDOR.credit, title: CORRIDOR.title, attrs: { href: CORRIDOR.url, target: '_blank', rel: 'noopener noreferrer' } }),
         close.el,
       ]),
       el('section', { cls: 'start-group start-mine' }, [
