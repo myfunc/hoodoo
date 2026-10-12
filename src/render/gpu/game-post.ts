@@ -3,6 +3,7 @@ import type { GameTarget } from './engine';
 import { GAME, type SunSpot, bloomSizes, bloomWeight, cameraRows } from './game-frame';
 import type { InkLook, Look } from './game-looks';
 import { MOTION_FLOATS } from './game-motion';
+import { sharpenAmount, upscaleKernel } from './game-upscale';
 import { type Target, Uniforms, createTarget, deleteTarget, linkProgram } from './gl';
 import { TEXEL_FLOATS } from './render.constants';
 import fullscreen from './glsl/fullscreen.vert.glsl?raw';
@@ -64,6 +65,8 @@ export class GamePost {
   private shaft: Target | null = null;
   private width = 0;
   private height = 0;
+  /** The last frame's traced size per side (the sharpening follows it). */
+  private traced = 1;
   private readonly motionBuffer: WebGLBuffer;
 
   constructor(private readonly gl: WebGL2RenderingContext, floatInternal: number) {
@@ -139,6 +142,9 @@ export class GamePost {
     u.f('uJitter', ...r.jitter);
     u.i('uHasHistory', r.history ? 1 : 0);
     u.f('uMaxWeight', GAME.restWeight, GAME.movingWeight);
+    this.traced = r.width / this.width;
+    const k = upscaleKernel(this.traced);
+    u.f('uKernel', k.temporal, k.flat, k.across, k.along);
     const cam = cameraRows(r.view);
     const prev = cameraRows(r.prev);
     u.v4array('uCam', cam.rows);
@@ -220,7 +226,7 @@ export class GamePost {
     u.f('uBloomTint', ...look.bloom.tint);
     u.f('uHalation', ...look.halation);
     u.f('uShaftTint', ...(look.shafts?.tint ?? [0, 0, 0]));
-    u.f('uLens', look.fringe, look.vignette, look.soften, look.sharpen);
+    u.f('uLens', look.fringe, look.vignette, look.soften, sharpenAmount(look.sharpen, this.traced));
     u.f('uExtra', look.scanlines, look.map?.amount ?? 0, bloomWeight(look.bloom.spread));
     u.f('uMapLo', ...(look.map?.lo ?? [0, 0, 0]));
     u.f('uMapMid', ...(look.map?.mid ?? [0, 0, 0]));

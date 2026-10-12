@@ -2,7 +2,7 @@ import { el } from '../ui/kit/dom';
 import type { Frame } from '../render/wire/wireframe';
 
 /** The one-line hint while playing; the setup panel and the record key are named too. */
-export const PLAY_HINT = 'WASD move · Space jump · Ctrl duck · K record · Tab setup · Esc exit';
+export const PLAY_HINT = 'WASD move · Space jump · Ctrl duck · V noclip · K record · Tab setup · Esc exit';
 /** The same line while the plane flies. */
 export const PLANE_HINT = 'Mouse fly · W/S throttle · Space boost · V view · R reset · K record · Tab setup · Esc exit';
 const PAUSED_TITLE = 'Click to play';
@@ -10,6 +10,10 @@ const LOADING = 'Loading physics…';
 const SECONDS_PER_MINUTE = 60;
 const TENTHS = 10;
 const PERCENT = 100;
+/** Where the hint sits while the readout would cover its end: a row up from the bottom. */
+const HINT_RAISED = '36px';
+/** A raised hint comes back down once the readout leaves this much room (pixels): digits coming and going do not flick it. */
+const HINT_ROOM = 48;
 
 /** m:ss.t for the record clock. */
 function clock(seconds: number): string {
@@ -23,7 +27,8 @@ function clock(seconds: number): string {
  * The heads-up layer over the picture: a small crosshair at the picture's
  * centre, the record light and its clock, a speed and frame-rate readout (with
  * the plane's throttle bar in it) and the hint line. The layer itself catches the mouse (pointer lock) so nothing
- * reaches the editor's handles underneath.
+ * reaches the editor's handles underneath. Where the picture is narrow or the readout long (noclip), the hint
+ * steps up a row rather than run under the readout.
  */
 export class PlayHud {
   readonly el: HTMLElement;
@@ -65,18 +70,21 @@ export class PlayHud {
     if (!frame) return;
     this.cross.style.left = `${frame.x + frame.w / 2}px`;
     this.cross.style.top = `${frame.y + frame.h / 2}px`;
+    this.fit(true);
   }
 
   /** Physics is ready: the hint replaces the loading note. */
   ready(): void {
     this.el.classList.remove('is-loading');
     this.hint.textContent = this.hintText;
+    this.fit(true);
   }
 
   /** The hint line for the actor being driven. */
   setHint(text: string): void {
     this.hintText = text;
     if (!this.el.classList.contains('is-loading')) this.hint.textContent = text;
+    this.fit(true);
   }
 
   /** Paused: the pointer is free, the setup panel shows. */
@@ -95,7 +103,23 @@ export class PlayHud {
   }
 
   setReadout(text: string): void {
-    if (this.readoutText.textContent !== text) this.readoutText.textContent = text;
+    if (this.readoutText.textContent === text) return;
+    this.readoutText.textContent = text;
+    this.fit();
+  }
+
+  /**
+   * The hint steps up a row when the readout on its right would cover it in its own place, and comes back
+   * when the readout leaves room again; `fresh` (a new layout or hint) decides without that slack.
+   */
+  private fit(fresh = false): void {
+    const raised = this.hint.style.bottom !== '';
+    this.hint.style.bottom = '';
+    const h = this.hint.getBoundingClientRect();
+    const r = this.readout.getBoundingClientRect();
+    const sameRow = r.width > 0 && h.width > 0 && r.top < h.bottom && r.bottom > h.top;
+    const room = r.left - h.right;
+    if (sameRow && room < (raised && !fresh ? HINT_ROOM : 0)) this.hint.style.bottom = HINT_RAISED;
   }
 
   /** The throttle bar, 0..1 (lit while boosting); null hides it (the walker). */

@@ -40,13 +40,13 @@ import { SettingsSection, openSettings } from '../ui/labs/settings-window';
 import { sceneDepth } from '../ui/labs/reflection-rows';
 import { PictureMode } from '../world/world.enums';
 import { actionShown } from '../ui/feature-gate';
-import { Feature, isFeatureOn } from '../world/preview-features';
 import { ScrollPreference } from '../input/scroll-device';
 import { isAnimated } from '../world/animation/pose';
 import { Player, addKey, clearAnimation, isAnimationOn, jumpKey, keyCamera, removeKey, setTimeline, stepFrames, toggleAnimation } from './timeline-ops';
 import { deleteSelectedKeys, hasPickedKeys, keepKeySelection, selectAllKeys } from './timeline-ops';
 import { canLoopPath, setPathLoop } from './timeline-ops';
 import { isPlaying, togglePlay } from '../play/session';
+import { GizmoKind } from '../render/wire/gizmo';
 
 type Handler = (arg?: number) => void;
 
@@ -60,6 +60,8 @@ export interface CommandHooks {
   readonly sceneOpened?: (name: string, fromFile: boolean) => void;
   /** The scene was saved to a file. */
   readonly sceneSaved?: () => void;
+  /** Starts a keyboard Move, Rotate or Size of the selection in the scene window (input/key-transform.ts). */
+  readonly transform?: (job: GizmoKind) => void;
 }
 
 /** Commands of the timeline: off while the scene's animation is off. */
@@ -87,6 +89,7 @@ const NEEDS_SELECTION: ReadonlySet<Action> = new Set([
   Action.Cut, Action.Copy, Action.Duplicate, Action.Replicate, Action.Delete, Action.CopyMaterial, Action.PasteMaterial,
   Action.Land, Action.Attributes, Action.EditMaterial, Action.EditObject, Action.Randomize, Action.HideSelected, Action.FrameSelected,
   Action.Group, Action.Ungroup,
+  Action.MoveSelection, Action.RotateSelection, Action.SizeSelection,
   Action.ChooseMaterial, Action.PrevMaterial, Action.NextMaterial,
 ]);
 
@@ -106,7 +109,9 @@ export class Commands {
     const w = ctx.world;
     const e = ctx.editor;
     const sel = () => w.selection;
-    const toggle = (key: 'quad' | 'sidePanel' | 'leftPanel' | 'depthCue' | 'grid' | 'gizmo' | 'snap' | 'liveRender' | 'motionPaths') => () => e.update({ [key]: !e.state[key] });
+    const toggle = (key: 'quad' | 'sidePanel' | 'leftPanel' | 'depthCue' | 'grid' | 'gizmo' | 'snap' | 'liveRender' | 'motionPaths' | 'maximized') => () => e.update({ [key]: !e.state[key] });
+    // A side panel asked for while the view is maximized comes back with the rest.
+    const panel = (key: 'sidePanel' | 'leftPanel') => () => e.update(e.state.maximized ? { maximized: false, [key]: true } : { [key]: !e.state[key] });
     this.handlers = {
       [Action.New]: () => { w.replaceScene(emptyScene(), 'New scene'); hooks.sceneOpened?.(SCENE_NAME.untitled, false); },
       [Action.StartWindow]: () => hooks.openStart(),
@@ -130,7 +135,7 @@ export class Commands {
       [Action.DeleteKeys]: () => deleteSelectedKeys(ctx),
       [Action.ClosePathLoop]: () => setPathLoop(ctx, true),
       [Action.OpenPath]: () => setPathLoop(ctx, false),
-      [Action.PreviewFeatures]: () => openSettings(e, SettingsSection.PreviewFeatures),
+      [Action.PreviewFeatures]: () => toolWindows(ctx).open(ToolId.PreviewFeatures),
       [Action.Settings]: () => openSettings(e, SettingsSection.General, sceneDepth(w)),
       [Action.Open]: () => void this.open(),
       [Action.Save]: () => { downloadScene(w.scene, DEFAULT_FILE_NAME); hooks.sceneSaved?.(); },
@@ -159,9 +164,12 @@ export class Commands {
       [Action.SelectNone]: () => { w.select([], SelectMode.Replace); e.update({ selectedKeys: [] }); },
       [Action.CopyMaterial]: () => { const id = [...sel()][0]; if (id) { w.copyMaterial(id); ctx.toast('Material copied'); } },
       [Action.PasteMaterial]: () => w.pasteMaterial(sel()),
-      [Action.Group]: () => { if (!w.group(sel(), this.tree)) ctx.toast('Select two or more objects to group'); },
+      [Action.Group]: () => { if (!w.group(sel())) ctx.toast('Select two or more objects to group'); },
       [Action.Ungroup]: () => w.ungroup(sel()),
       [Action.NewGroup]: () => w.newGroup(sel()),
+      [Action.MoveSelection]: () => hooks.transform?.(GizmoKind.Move),
+      [Action.RotateSelection]: () => hooks.transform?.(GizmoKind.Rotate),
+      [Action.SizeSelection]: () => hooks.transform?.(GizmoKind.Resize),
       [Action.CreatePortals]: () => createPortals(w),
       [Action.CreateTriggerZone]: () => createZone(w),
       [Action.LinkPortals]: () => linkSelectedPortals(w),
@@ -184,8 +192,9 @@ export class Commands {
       [Action.FrameAll]: () => frame(w, e, ctx.view, false),
       // Four Views has its own live panes: Render View draws the single view only.
       [Action.QuadView]: () => e.update({ quad: !e.state.quad, picture: PictureMode.Edit }),
-      [Action.ToggleSidePanel]: toggle('sidePanel'),
-      [Action.ToggleLeftPanel]: toggle('leftPanel'),
+      [Action.ToggleSidePanel]: panel('sidePanel'),
+      [Action.ToggleLeftPanel]: panel('leftPanel'),
+      [Action.MaximizeView]: toggle('maximized'),
       [Action.ToggleDepthCue]: toggle('depthCue'),
       [Action.ToggleGrid]: toggle('grid'),
       [Action.ToggleGizmo]: toggle('gizmo'),
@@ -262,8 +271,9 @@ export class Commands {
     if (scroll !== undefined) return s.scroll === scroll;
     const flags: Partial<Record<Action, boolean>> = {
       [Action.QuadView]: s.quad,
-      [Action.ToggleSidePanel]: s.sidePanel,
-      [Action.ToggleLeftPanel]: s.leftPanel,
+      [Action.ToggleSidePanel]: s.sidePanel && !s.maximized,
+      [Action.ToggleLeftPanel]: s.leftPanel && !s.maximized,
+      [Action.MaximizeView]: s.maximized,
       [Action.ToggleDepthCue]: s.depthCue,
       [Action.ToggleGrid]: s.grid,
       [Action.ToggleGizmo]: s.gizmo,
@@ -288,11 +298,6 @@ export class Commands {
     }
     e.update({ picture: PictureMode.Final, quad: false });
     this.ctx.toast(`Render View: the final render, refining in place · ${shortcutOf(Action.ToggleRenderView)} leaves`);
-  }
-
-  /** The Object Tree preview: groups nest and have names. */
-  private get tree(): boolean {
-    return isFeatureOn(this.ctx.editor.state.features, Feature.ObjectTree);
   }
 
   openObject(id: ObjectId): void {

@@ -1,15 +1,18 @@
 import type { Scene } from '../../model/scene.types';
 import { ScrollClassifier, ScrollDevice } from '../../input/scroll-device';
 import type { Frame } from '../../render/wire/wireframe';
-import { type HudNotice, SandboxHud } from '../../ui/sandbox/hud';
+import type { Hl2HudState, Hl2Weapon } from '../../ui/sandbox/hl2/hl2-hud';
+import { SandboxHud } from '../../ui/sandbox/hud';
 import { type ActorInput, Button } from '../sim/actor';
 import { SIM_DT } from '../sim/clock';
 import type { PlayFrame, PlaySim } from '../sim/play-sim';
 import { SANDBOX_KEYS, isSnapKey, slotOfKey } from './binds';
+import { GameFiles } from './game-files';
 import { Loadout } from './loadout';
-import { Notices } from './notices';
+import { type Notice, Notices } from './notices';
 import { Overlay } from './overlay';
 import { Props } from './props';
+import { SANDBOX_SOUNDS } from './sandbox-sounds';
 import { NoticeKind, WeaponId } from './sandbox.enums';
 import { UndoStack } from './undo';
 import { aimOf } from './weapons/grip';
@@ -30,18 +33,27 @@ export interface SandboxHost {
   /** A menu takes the pointer (true) or gives it back. */
   freePointer(on: boolean): void;
   toast(message: string): void;
+  /** Adds a section to the Play panel (Tab), above its buttons. */
+  addPanelSection(section: HTMLElement): void;
 }
 
 /** The slot strip stays this long after a switch. */
 const SLOTS_MS = 1500;
 /** A trackpad swipe of this many pixels is one wheel step; a line of a line-mode wheel is this many pixels. */
 const WHEEL = { pxPerStep: 50, linePx: 16, lineMode: 1 } as const;
+
+/** Health is not played yet: Half-Life 2's HUD shows it full, as Garry's Mod does. */
+const FULL_HEALTH = 100;
+const MS_PER_S = 1000;
+
 /** Z joins the hint once something can be undone (the spawn menu). */
 const COMMON_HINT = 'Tab setup · Esc exit';
 
 /** What scripted checks may drive (window.__hoodooSandbox): they cannot lock the pointer or click for real. */
 export interface SandboxAutomation {
   readonly state: () => { weapon: string; holding: string | null; undo: readonly string[]; notices: readonly string[] };
+  /** The game's sounds played lately and the mix's level now (null without game files). */
+  readonly heard: () => { recent: readonly string[]; level: number } | null;
   /** Holds or lets go of a button as if the mouse or R did. */
   readonly button: (b: Button, down: boolean) => void;
   readonly key: (code: string) => void;
@@ -79,12 +91,19 @@ export class Sandbox {
   private prev: ReadonlySet<Button> = new Set();
   private readonly forced = new Set<Button>();
   private slotsUntil = 0;
+  /** When the weapon last changed (performance.now), for Half-Life 2's selection. */
+  private switchedAt: number | null = null;
+  /** The player's Garry's Mod: its hands, guns and sounds once its files are read. */
+  private readonly game: GameFiles;
 
   constructor(private readonly host: SandboxHost) {
     this.props = new Props(host.sim, host.scene);
     host.layer.classList.add('is-sandbox');
     host.layer.append(this.overlay.canvas, this.hud.el);
+    this.game = new GameFiles({ mount: (cs) => this.overlay.canvas.after(...cs), notify: (text) => this.notify(text, NoticeKind.Hint) });
+    host.addPanelSection(this.game.section.el);
     this.automate();
+    void this.game.start();
   }
 
   get weapon(): Weapon {
@@ -140,38 +159,61 @@ export class Sandbox {
   /** Every display frame: the HUD and the beam. */
   frame(f: PlayFrame): void {
     const now = performance.now();
-    const notices: HudNotice[] = this.notices.visible(now).map(({ notice, opacity }) => ({ id: notice.id, text: notice.text, kind: notice.kind, opacity }));
+    const visible = this.notices.visible(now);
+    const hl2 = this.game.hud;
+    this.host.layer.classList.toggle('is-hl2', !!hl2);
+    this.hud.el.classList.toggle('is-hl2', !!hl2);
     this.hud.update({
       weapon: this.loadout.current.name,
       hint: `${this.weapon.hint} · ${COMMON_HINT}`,
       slots: now < this.slotsUntil ? this.loadout.slots() : null,
-      notices,
+      notices: visible.map(({ notice, opacity }) => ({ id: notice.id, text: notice.text, kind: notice.kind, opacity })),
     });
-    this.overlay.draw(f, this.host.picture(), this.weapon.view(), this.host.sim);
+    const picture = this.host.picture();
+    const view = this.weapon.view();
+    const hands = this.game.hands?.has(this.weapon.id) ? this.game.hands : null;
+    this.overlay.draw(f, picture, view, this.host.sim, !hands);
+    if (hands && picture) hands.draw(f, picture, view, this.weapon.id, this.host.sim);
+    if (hl2 && picture) hl2.draw(picture, this.hl2State(now, visible.map((v) => v.notice)));
+    this.game.sounds?.weapon(this.weapon.id, view, this.host.active());
+  }
+
+  /** What Half-Life 2's HUD shows: full health, the loadout by slot, the notices with their ages. */
+  private hl2State(now: number, notices: readonly Notice[]): Hl2HudState {
+    const slots = new Map<number, Hl2Weapon[]>();
+    for (const w of this.loadout.weapons) slots.set(w.slot, [...(slots.get(w.slot) ?? []), { id: w.weapon, name: w.name }]);
+    return {
+      health: FULL_HEALTH,
+      selection: { slots, current: this.loadout.current.weapon, since: this.switchedAt === null ? null : (now - this.switchedAt) / MS_PER_S },
+      notices: notices.map((n) => ({ id: n.id, text: n.text, kind: n.kind, age: (now - n.at) / MS_PER_S, life: n.life / MS_PER_S })),
+    };
   }
 
   dispose(): void {
+    this.game.dispose();
     this.weapon.holster(this.context());
     this.hud.el.remove();
     this.overlay.canvas.remove();
-    this.host.layer.classList.remove('is-sandbox');
+    this.host.layer.classList.remove('is-sandbox', 'is-hl2');
     delete (window as unknown as Record<string, unknown>).__hoodooSandbox;
   }
 
-  private notify(text: string, kind: NoticeKind): void {
+  private notify(text: string, kind: NoticeKind, sound?: string): void {
     this.notices.push(text, kind, performance.now());
+    if (sound) this.game.sounds?.play(sound);
   }
 
   private undoLast(): void {
     const label = this.undo.undo();
-    this.notify(label ? `Undone ${label}` : 'Nothing to undo', NoticeKind.Undo);
+    this.notify(label ? `Undone ${label}` : 'Nothing to undo', NoticeKind.Undo, label ? SANDBOX_SOUNDS.undo : undefined);
   }
 
   /** Changes the weapon (the old one lets go) and shows the slot strip. */
   private switchWeapon(change: () => boolean): void {
     const before = this.weapon;
     if (change()) before.holster(this.context());
-    this.slotsUntil = performance.now() + SLOTS_MS;
+    this.switchedAt = performance.now();
+    this.slotsUntil = this.switchedAt + SLOTS_MS;
   }
 
   private context(): WeaponContext {
@@ -180,7 +222,7 @@ export class Sandbox {
     return {
       physics: sim.physics, props: this.props, unit: sim.player.tuning.unit, dt: SIM_DT, time: sim.time,
       eye, aim: aimOf(eye.yaw, eye.pitch), use: this.use, snap: this.snap,
-      notify: (text, kind) => this.notify(text, kind),
+      notify: (text, kind, sound) => this.notify(text, kind, sound),
     };
   }
 
@@ -195,6 +237,7 @@ export class Sandbox {
           notices: this.notices.visible(performance.now()).map((n) => n.notice.text),
         };
       },
+      heard: () => this.game.sounds?.heard() ?? null,
       button: (b, down) => (down ? this.forced.add(b) : this.forced.delete(b)),
       key: (code) => { this.key(code, true); this.key(code, false); },
       wheel: (steps) => { this.reach += this.weapon.wantsWheel?.() ? steps : 0; },

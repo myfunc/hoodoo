@@ -22,8 +22,10 @@ export function formatPass(ms: number): string {
   return ms < 1 ? `${ms.toFixed(1)} ms` : `${Math.round(ms)} ms`;
 }
 
-/** The display bar's line for a picture that draws itself: the live preview, or Render View (kept short: the bar is narrow). */
+/** The display bar's line for a picture that draws itself: the live preview, Render View or the game picture (kept short: the bar is narrow). */
 export function pictureLine(s: RealtimeStatus): string {
+  // The game renderer: its rate while it draws, and the traced size it holds.
+  if (s.game) return `Game · ${s.moving ? `${s.fps} fps` : 'still'} · ${Math.round(s.scale * PERCENT)}% res`;
   const f = s.final;
   if (!f) {
     if (s.moving) return `Live · ${s.fps} fps · ${Math.round(s.scale * PERCENT)}% res`;

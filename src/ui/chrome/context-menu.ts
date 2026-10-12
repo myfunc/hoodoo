@@ -41,9 +41,18 @@ export function emptyEntries(): ContextEntry[] {
   return [Action.Paste, Action.SelectAll, Action.SelectNone, SEP, CREATE, SEP, Action.PreviewFeatures];
 }
 
+/** An action's menu label; Delete Selected Keys counts them: Delete 4 Keys. */
+function actionLabel(ctx: UiContext, a: Action): string {
+  const keys = ctx.editor.state.selectedKeys.length;
+  if (a === Action.DeleteKeys && keys) return `Delete ${keys} Key${keys === 1 ? '' : 's'}`;
+  return ACTIONS[a].label;
+}
+
 /** A menu item for an action: label and shortcut from the bindings table, tick and greying from the commands. */
 export function actionItem(ctx: UiContext, a: Action): MenuItem {
-  return { label: ACTIONS[a].label, hint: shortcutOf(a), checked: ctx.isChecked(a), disabled: !ctx.isEnabled(a), run: () => ctx.dispatch(a) };
+  // Delete Selected Keys has no chord of its own: Del (Clear) deletes the picked keys while any are picked.
+  const hint = a === Action.DeleteKeys ? shortcutOf(Action.Delete) : shortcutOf(a);
+  return { label: actionLabel(ctx, a), hint, checked: ctx.isChecked(a), disabled: !ctx.isEnabled(a), run: () => ctx.dispatch(a) };
 }
 
 export const SEPARATOR: MenuItem = { label: '', separator: true };

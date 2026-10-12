@@ -1,0 +1,107 @@
+/* Preview Features (ui/labs/preview-window.ts, preview-layouts.ts): five layouts over one set of parts.
+   Colours come from the theme variables only. */
+.preview-features .tool-body { width: 540px; }
+.tool-window.is-docked.preview-features .tool-body { width: auto; }
+.pf-body { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.pf-intro, .pf-foot-note, .pf-meta, .pf-empty { color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-foot { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.pf-grow { flex: 1; }
+
+/* The shared parts. */
+.pf-lamp {
+  flex: none; width: 8px; height: 8px; border-radius: 50%;
+  background: var(--shade-05); box-shadow: inset 0 1px 1px var(--lo), 0 1px 0 var(--hi);
+}
+.pf-lamp.is-on { background: var(--teal); box-shadow: 0 0 4px var(--teal), inset 0 1px 0 var(--hi); }
+.pf-name { font: 800 12px var(--font-title); white-space: nowrap; }
+.pf-title { font: 800 14px var(--font-title); color: var(--heading-ink); text-shadow: var(--emboss); white-space: nowrap; }
+.pf-count:not(:empty) {
+  padding: 0 5px; border-radius: 0; font: bold 9px/13px var(--font-ui);
+  color: var(--accent-ink); background: var(--accent-face);
+}
+.pf-about { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.pf-label { font: 800 11px var(--font-title); color: var(--ink-soft); text-shadow: var(--emboss); margin-top: 2px; }
+.pf-adds { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.pf-adds li { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink-soft); padding-left: 10px; position: relative; }
+.pf-adds li::before { content: ''; position: absolute; left: 2px; top: 6px; width: 3px; height: 3px; border-radius: 50%; background: var(--ink-faint); }
+.pf-actions { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ui-button.pf-try { padding: 0 10px; }
+.pf-head, .pf-title-row { display: flex; align-items: center; gap: 7px; min-width: 0; }
+
+/* Comments: a list and the field under it. */
+.pf-thread { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pf-notes { display: flex; flex-direction: column; gap: 2px; max-height: 180px; overflow-y: auto; }
+.pf-note { display: grid; grid-template-columns: max-content minmax(0, 1fr) max-content; gap: 8px; align-items: start; padding: 3px 4px; border-radius: 0; }
+.pf-note:hover { background: var(--light-40); }
+.pf-note-time { color: var(--ink-faint); font: 10px/16px var(--font-ui); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pf-note-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 16px; }
+.ui-button.mark-chip.pf-remove { width: 16px; height: 16px; opacity: 0; }
+.pf-note:hover .pf-remove, .pf-remove:focus-visible { opacity: 1; }
+.ui-button.mark-chip.pf-remove .glyph { width: 9px; height: 9px; }
+.pf-compose { display: flex; align-items: flex-start; gap: 6px; }
+.ui-text.pf-field { flex: 1; min-width: 0; resize: none; overflow-y: auto; font: 11px/16px var(--font-ui); padding: 3px 6px; height: 24px; }
+
+/* A heading that folds its body. */
+.pf-folding { display: flex; flex-direction: column; gap: 4px; }
+.pf-fold, .pf-opener { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; padding: 0; cursor: pointer; color: var(--ink-soft); font: 800 11px var(--font-title); }
+.pf-fold .glyph, .pf-opener .glyph { width: 8px; height: 8px; fill: currentColor; stroke: none; transform: rotate(-90deg); transition: transform 120ms; }
+.pf-fold.is-open .glyph { transform: none; }
+.pf-fold:hover, .pf-opener:hover { color: var(--ink); }
+
+/* 1 Wells: an inset stone well per feature. */
+.pf-wells { display: flex; flex-direction: column; gap: 8px; }
+.pf-well {
+  display: flex; flex-direction: column; gap: 5px; padding: 8px 10px; min-width: 0;
+  border: 1px solid var(--edge); background: var(--shade-05); box-shadow: inset 1px 1px 0 var(--lo), 1px 1px 0 var(--hi);
+}
+.pf-well .pf-meta { margin-left: 2px; }
+
+/* 2 Split: the list on the left, the picked feature on the right. */
+.pf-split { display: grid; grid-template-columns: 132px minmax(0, 1fr); gap: 12px; min-height: 250px; }
+.pf-nav {
+  display: flex; flex-direction: column; gap: 2px; padding: 4px; align-self: start;
+  border: 1px solid var(--edge); background: var(--shade-05); box-shadow: inset 1px 1px 0 var(--lo), 1px 1px 0 var(--hi);
+}
+.pf-nav-row { display: flex; align-items: center; gap: 7px; padding: 5px 7px; border: 0; border-radius: 0; background: none; cursor: pointer; color: var(--ink); text-align: left; }
+.pf-nav-row:hover { background: var(--light-40); }
+.pf-nav-row.is-picked { background: var(--accent-face); color: var(--accent-ink); box-shadow: var(--pressed); }
+.pf-nav-row.is-picked .pf-lamp { background: var(--shade-05); }
+.pf-nav-row.is-picked .pf-lamp.is-on { background: var(--hi); box-shadow: 0 0 4px var(--hi); }
+.pf-nav-row .pf-name { flex: 1; }
+.pf-page { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+/* 3 Ledger: a line per feature, a drawer under it. */
+.pf-ledger { display: flex; flex-direction: column; border: 1px solid var(--edge); box-shadow: inset 1px 1px 0 var(--lo), 1px 1px 0 var(--hi); }
+.pf-entry + .pf-entry { border-top: 1px solid var(--lo); box-shadow: inset 0 1px 0 var(--hi); }
+.pf-line { display: grid; grid-template-columns: 12px 8px 64px minmax(0, 1fr) max-content max-content; gap: 8px; align-items: center; padding: 6px 8px; }
+.pf-line.is-open .pf-opener .glyph { transform: none; }
+.pf-drawer { display: flex; flex-direction: column; gap: 6px; padding: 2px 10px 10px 36px; }
+.pf-ledger .pf-about { color: var(--ink-soft); }
+
+/* 4 Notebook: a sheet per feature, comments on ruled lines with the time in the margin. */
+.pf-notebook { display: flex; flex-direction: column; gap: 10px; }
+.pf-sheet { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.pf-sheet-head { display: flex; align-items: center; gap: 8px; padding-bottom: 3px; border-bottom: 2px solid var(--edge); }
+.pf-adds-line { color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 10px; }
+.pf-thread.is-ruled .pf-notes { gap: 0; }
+.pf-thread.is-ruled .pf-note { border-radius: 0; border-bottom: 1px solid var(--lo); padding: 3px 0; grid-template-columns: 96px minmax(0, 1fr) max-content; }
+.pf-thread.is-ruled .pf-note-time { border-right: 1px solid var(--select); padding-right: 6px; }
+.pf-thread.is-ruled .ui-text.pf-field { border-width: 0 0 1px; border-radius: 0; background: none; box-shadow: none; }
+
+/* 5 Tabs: a tab per feature and one for every comment. */
+.pf-tabbed { display: flex; flex-direction: column; gap: 8px; }
+.pf-tabs.segmented { display: flex; }
+.pf-tabs.segmented .ui-toggle { flex: 1; justify-content: center; }
+.pf-tab-page { min-height: 230px; }
+.pf-every .pf-note { padding-left: 0; }
+
+/* Docked in the left panel: narrower, so the split stacks and the ledger drops its descriptions. */
+.tool-window.is-docked .pf-split { grid-template-columns: minmax(0, 1fr); }
+.tool-window.is-docked .pf-nav { flex-direction: row; flex-wrap: wrap; }
+.tool-window.is-docked .pf-line { grid-template-columns: 12px 8px minmax(0, 1fr) max-content max-content; }
+.tool-window.is-docked .pf-line .pf-about { display: none; }
+.tool-window.is-docked .pf-drawer { padding-left: 10px; }
+.tool-window.is-docked .pf-foot-note { display: none; }
+
+/* Folded parts stay folded whatever their own display. */
+.pf-folding > [hidden], .pf-drawer[hidden] { display: none; }

@@ -15,7 +15,7 @@ function orrery(): { scene: Scene; ids: Record<string, string>; group: string } 
   const objects = [named('Planet', 1), named('Snow Moon', 2), named('Marble Moon', 3), named('Rock', 4)];
   const world = new World({ ...emptyScene(), objects, animation: { ...EMPTY_ANIMATION, enabled: true } });
   const ids = Object.fromEntries(objects.map((o) => [o.name, o.id as string]));
-  const group = world.group(new Set([ids['Snow Moon'], ids['Marble Moon']] as never), true) as string;
+  const group = world.group(new Set([ids['Snow Moon'], ids['Marble Moon']] as never)) as string;
   world.renameGroup(group as never, 'Moons');
   const a = world.scene.animation;
   const key = (id: string) => [{ time: 0, value: world.object(id as never)?.transform as never }];

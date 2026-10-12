@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { Ease } from '../../../model/scene.enums';
-import type { Animation, Key, Transform } from '../../../model/scene.types';
+import type { Animation, Key, ObjectKey, Transform } from '../../../model/scene.types';
 import { EMPTY_ANIMATION } from '../../scene.defaults';
-import { sharedEase, shiftDelta, shiftedRefs, withEase, withKeysEased, withKeysShifted, withTrack } from '../key-edits';
+import { landings, mergedObjectKey, sharedEase, shiftDelta, shiftedRefs, withEase, withKeysEased, withKeysShifted, withTrack } from '../key-edits';
 import { KeyTrack, trackKeys } from '../key-selection';
 
 const pose = (x: number): Transform => ({ position: [x, 0, 0], rotation: [0, 0, 0], size: [1, 1, 1] });
@@ -69,5 +69,46 @@ describe('a track replaced', () => {
     expect(withTrack(a, KeyTrack.Group, 'g', track(1)).groups?.g.map((k) => k.time)).toEqual([1]);
     expect(withTrack(a, KeyTrack.Object, 'a', []).objects).toEqual({});
     expect(withTrack(a, KeyTrack.Camera, '', [{ time: 2, value: {} }]).camera.map((k) => k.time)).toEqual([2]);
+  });
+});
+
+describe('the merge rule: a key landing on a key', () => {
+  const red = { colors: { diffuse: [1, 0, 0] } } as never;
+  const keyed = (time: number, x: number, extra: object = {}): Key<ObjectKey> => ({ time, value: { ...pose(x), ...extra } });
+
+  it('a moved object key takes the frame; what only the resting key held stays on it', () => {
+    const a = anim({ objects: { a: [keyed(0, 0), keyed(1, 1, { hidden: true }), keyed(2, 2, { material: red })] } });
+    const moved = withKeysShifted(a, [{ track: KeyTrack.Object, id: 'a', time: 1 }], 1);
+    expect(moved.objects.a.map((k) => k.time)).toEqual([0, 2]);
+    expect(moved.objects.a[1].value).toEqual({ ...pose(1), hidden: true, material: red });
+  });
+
+  it('copies land the shift away and the picked keys stay; a copy merges like a moved key', () => {
+    const a = anim({ objects: { a: track(0, 1, 3) } });
+    const refs = [0, 1].map((time) => ({ track: KeyTrack.Object, id: 'a', time }));
+    const copied = withKeysShifted(a, refs, 2, true);
+    expect(times(copied, KeyTrack.Object, 'a')).toEqual([0, 1, 2, 3]);
+    // The copy of the 1 s key took the 3 s frame, with its value.
+    expect(copied.objects.a[3].value.position[0]).toBe(1);
+    expect(landings(a, refs, 2, true)).toBe(1);
+  });
+
+  it('counts only real landings: picked keys moving together never land on each other', () => {
+    const a = anim({ objects: { a: track(0, 1, 2) }, camera: [{ time: 1, value: {} as never }, { time: 2, value: {} as never }] });
+    const row = [0, 1, 2].map((time) => ({ track: KeyTrack.Object, id: 'a', time }));
+    expect(landings(a, row, 1)).toBe(0);
+    expect(landings(a, [{ track: KeyTrack.Camera, id: '', time: 1 }], 1)).toBe(1);
+    expect(withKeysShifted(a, [{ track: KeyTrack.Camera, id: '', time: 1 }], 1).camera.map((k) => k.time)).toEqual([2]);
+  });
+
+  it('keeps the moved key values on camera keys, which hold everything', () => {
+    const a = anim({ camera: [{ time: 0, value: { fov: 1 } as never }, { time: 1, value: { fov: 2 } as never }] });
+    const moved = withKeysShifted(a, [{ track: KeyTrack.Camera, id: '', time: 0 }], 1);
+    expect(moved.camera).toEqual([{ time: 1, value: { fov: 1 } }]);
+  });
+
+  it('merges channel by channel: the moved key keeps its own material values', () => {
+    const blue = { colors: { diffuse: [0, 0, 1] } } as never;
+    expect(mergedObjectKey({ ...pose(5), material: red, hidden: false }, { ...pose(1), material: blue })).toEqual({ ...pose(1), material: blue, hidden: false });
   });
 });

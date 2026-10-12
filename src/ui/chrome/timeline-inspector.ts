@@ -24,7 +24,8 @@ const FLAG = [{ value: false, label: 'Off' }, { value: true, label: 'On' }] as c
 const DASH = '–';
 const TEXT = {
   empty: 'Click a key or a row to see what it changes',
-  many: 'Click one key to see its values · Del deletes',
+  many: 'Click one key to see its values',
+  moves: '←/→ a frame · Alt-drag copies · Del deletes',
   noKey: 'No key here · a typed value keys it',
   still: 'Not animated · a typed value keys it',
   same: 'Same as the key before',
@@ -123,7 +124,7 @@ export class KeyInspector {
     if (t.kind === 'many') {
       const ease = sharedEase(a, t.refs, (r) => trackKeys(a, r.track, r.id));
       const rows = new Set(t.refs.map((r) => `${r.track}:${r.id}`)).size;
-      this.show(`${t.refs.length} keys picked`, `on ${rows} row${rows === 1 ? '' : 's'}`, '', ease ?? null, []);
+      this.show(`${t.refs.length} keys`, `on ${rows} row${rows === 1 ? '' : 's'}`, '', ease ?? null, []);
       return;
     }
     const scene = this.ctx.world.scene;
@@ -163,7 +164,7 @@ export class KeyInspector {
   private build(order: readonly PropChange[], row?: LedgerRow): void {
     clearChildren(this.list);
     this.fields.clear();
-    if (this.target.kind === 'many') this.list.append(el('div', { cls: 'tl-insp-hint', text: TEXT.many }));
+    if (this.target.kind === 'many') this.list.append(el('div', { cls: 'tl-insp-hint', text: TEXT.many }), el('div', { cls: 'tl-insp-hint', text: TEXT.moves }));
     if (!row) return;
     // Headings only where there is more than the pose to show: an object's rows.
     if (order.some((c) => c.prop.group && c.prop.group !== PropGroup.Transform)) {

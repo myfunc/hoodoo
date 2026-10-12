@@ -5,7 +5,7 @@ import { PictureMode, ScrollPreference } from './world.enums';
 import type { KeyRef } from './animation/key-selection';
 import type { FeatureFlags } from './preview-features';
 import { DEFAULT_SETTINGS, type Settings } from './settings';
-import type { ToolPlaces } from './tool-places';
+import { DEFAULT_TOOL_PLACES, type ToolPlaces } from './tool-places';
 import { DEFAULT_CAMERA } from './scene.defaults';
 
 export enum PaletteTab {
@@ -42,8 +42,12 @@ export interface EditorState {
   readonly gizmo: boolean;
   readonly snap: boolean;
   readonly sidePanel: boolean;
+  /** The scene window takes the whole workspace: the side columns, the palette and the timeline hide (not remembered). */
+  readonly maximized: boolean;
   /** The left column: camera controls, render balls and docked tool windows. */
   readonly leftPanel: boolean;
+  /** Bryce's camera controls and render balls at the top of the left column; folded, the panels below take the room. */
+  readonly controlsOpen: boolean;
   /** Where Object Attributes, the Materials Lab and the Terrain Editor live, docked or floating (world/tool-places.ts). */
   readonly toolPlaces: ToolPlaces;
   readonly renderSamples: number;
@@ -62,7 +66,7 @@ export interface EditorState {
   readonly selectedKeys: readonly KeyRef[];
   /** Four Views: Wire or Render per pane; a pane not listed draws wires. */
   readonly quadModes: Readonly<Partial<Record<ViewKind, PaneMode>>>;
-  /** Preview features that are on (the Object Tree…): world/preview-features.ts. */
+  /** Preview features that are on (Play, Portals…): world/preview-features.ts. */
   readonly features: FeatureFlags;
   /** Personal settings from the Settings window (live quality…): world/settings.ts. */
   readonly settings: Settings;
@@ -91,8 +95,10 @@ export const INITIAL_EDITOR: EditorState = {
   gizmo: true,
   snap: false,
   sidePanel: true,
+  maximized: false,
   leftPanel: true,
-  toolPlaces: {},
+  controlsOpen: true,
+  toolPlaces: DEFAULT_TOOL_PLACES,
   renderSamples: DEFAULT_SAMPLES,
   hint: IDLE_HINT,
   doing: null,

@@ -23,11 +23,11 @@ describe('preview features', () => {
   afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
   it('switch on from ?flags= in the address', () => {
-    expect(featureInUrl(Feature.ObjectTree, '?flags=tree')).toBe(true);
-    expect(featureInUrl(Feature.ObjectTree, '?start=0&flags=other, tree')).toBe(true);
-    expect(featureInUrl(Feature.ObjectTree, '?flags=trees')).toBe(false);
-    expect(featureInUrl(Feature.ObjectTree, '?tree')).toBe(false);
-    expect(featureInUrl(Feature.ObjectTree, '')).toBe(false);
+    expect(featureInUrl(Feature.Portals, '?flags=portals')).toBe(true);
+    expect(featureInUrl(Feature.Portals, '?start=0&flags=other, portals')).toBe(true);
+    expect(featureInUrl(Feature.Portals, '?flags=portalss')).toBe(false);
+    expect(featureInUrl(Feature.Portals, '?portals')).toBe(false);
+    expect(featureInUrl(Feature.Portals, '')).toBe(false);
   });
 
   it('list every feature once, each with a name and a one-line description', () => {
@@ -42,30 +42,41 @@ describe('preview features', () => {
 
   it('remember one switch at a time and keep the other settings', () => {
     savePrefs({ showStart: false });
-    saveFeature(Feature.ObjectTree, true);
-    expect(loadPrefs()).toMatchObject({ showStart: false, features: [Feature.ObjectTree] });
-    saveFeature(Feature.ObjectTree, true);
-    expect(loadPrefs().features).toEqual([Feature.ObjectTree]);
-    saveFeature(Feature.ObjectTree, false);
+    saveFeature(Feature.Portals, true);
+    expect(loadPrefs()).toMatchObject({ showStart: false, features: [Feature.Portals] });
+    saveFeature(Feature.Portals, true);
+    expect(loadPrefs().features).toEqual([Feature.Portals]);
+    saveFeature(Feature.Portals, false);
     expect(loadPrefs().features).toEqual([]);
   });
 
   it('start a visit with the stored features plus those in the address, without storing the address', () => {
     expect(startFeatures(loadPrefs(), '')).toEqual({});
-    expect(startFeatures(loadPrefs(), '?flags=tree')).toEqual({ [Feature.ObjectTree]: true });
+    expect(startFeatures(loadPrefs(), '?flags=portals')).toEqual({ [Feature.Portals]: true });
     expect(loadPrefs().features).toEqual([]);
-    saveFeature(Feature.ObjectTree, true);
-    expect(startFeatures(loadPrefs(), '')).toEqual({ [Feature.ObjectTree]: true });
+    saveFeature(Feature.Portals, true);
+    expect(startFeatures(loadPrefs(), '')).toEqual({ [Feature.Portals]: true });
   });
 
-  it('read the 0.6.1 Object Tree switch and drop unknown or broken entries', () => {
+  it('ignore retired switches and drop unknown or broken entries', () => {
     data.set(KEY, JSON.stringify({ objectTree: true }));
-    expect(loadPrefs().features).toEqual([Feature.ObjectTree]);
-    data.set(KEY, JSON.stringify({ features: ['tree', 'nope', 7, 'tree'], objectTree: false }));
-    expect(loadPrefs().features).toEqual([Feature.ObjectTree]);
+    expect(loadPrefs().features).toEqual([]);
+    data.set(KEY, JSON.stringify({ features: ['portals', 'nope', 7, 'portals'] }));
+    expect(loadPrefs().features).toEqual([Feature.Portals]);
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     data.set(KEY, '{broken');
     expect(loadPrefs().features).toEqual([]);
+  });
+
+  it('ignore the retired tree id in stored prefs and the address', () => {
+    const warn = vi.spyOn(console, 'warn');
+    data.set(KEY, JSON.stringify({ features: ['tree', 'portals'] }));
+    expect(loadPrefs().features).toEqual([Feature.Portals]);
+    expect(startFeatures(loadPrefs(), '?flags=tree')).toEqual({ [Feature.Portals]: true });
+    data.clear();
+    expect(startFeatures(loadPrefs(), '?flags=tree')).toEqual({});
+    expect(startFeatures(loadPrefs(), '?flags=tree,portals')).toEqual({ [Feature.Portals]: true });
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 

@@ -63,10 +63,11 @@ export class Shell {
     this.workspace = el('div', { cls: 'workspace' }, [windows.column, center, right]);
     this.root = el('div', { cls: 'app' }, [this.menubar.el, this.workspace]);
     windows.onDock = (docked) => this.workspace.classList.toggle('has-dock', docked);
-    windows.mountControls(controls.el);
+    windows.mountControls(controls.el, controls.foot);
     const syncPanels = () => {
       this.workspace.classList.toggle('no-side', !ctx.editor.state.sidePanel);
       this.workspace.classList.toggle('no-left', !ctx.editor.state.leftPanel);
+      this.workspace.classList.toggle('is-maximized', ctx.editor.state.maximized);
     };
     ctx.editor.events.on('changed', syncPanels);
     syncPanels();

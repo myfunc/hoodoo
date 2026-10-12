@@ -324,7 +324,9 @@ Every display frame:
    program draws). It is noiseless: one ray a pixel, glass takes refraction
    and adds a sky glint for its reflection, shadow rays only from the first two
    hits, throughput fading with each bounce. Detail is faded by the ray's
-   footprint (pixel angle × distance, stretched at grazing angles): fractal
+   footprint (the view's pixel angle × distance, stretched at grazing angles;
+   the view's pixel, not the traced one, so a smaller trace keeps the
+   terrain's texture and the upscale resolves it over frames): fractal
    octaves, crests, strata lines and ripple waves finer than a pixel fade to
    their mean, checkers are box-filtered, far bumps calm (never all the way,
    or the sun's glitter on the sea shrinks to a disc), terrain marches with
@@ -333,21 +335,53 @@ Every display frame:
    second target with the first hit's distance, object and normal.
 2. **Ink** (Toon ink look only): outlines where the first hit changes object,
    breaks in depth or folds, never at a horizon.
-3. **Temporal upscale** to the view's size (`game-taa.glsl`): the sample is
-   jittered (Halton 2, 3, eight phases); the last average is found through the
+3. **Temporal upscale** to the view's size (`game-taa.glsl`, weights in
+   `game-upscale.ts`): the sample is jittered (Halton 2, 3; eight phases at
+   full size, 8 / size² below it up to 32, so the phases cover every view
+   pixel) and each view pixel takes the samples that land on it with a narrow
+   Gaussian into a full-size history. The last average is found through the
    camera's motion and each object's own (`game-motion.ts`: the plane, thrown
    props), read with a Catmull-Rom filter, clipped to the new samples' YCoCg
-   spread, and holds at most 12 frames at rest, 5 in fast motion.
+   spread, and holds at most 12 frames at rest, 5 in fast motion. Where the
+   history is lost (a first frame, a disocclusion, a reflection the clip
+   rejects) the pixel is rebuilt from its 3×3 traced neighbours with an
+   edge-adaptive kernel, the job FSR 1's EASU does: a structure tensor over
+   the four 2×2 quads finds the edge, and the Gaussian is narrow across it
+   (σ 0.3 traced pixels) and long along it (σ 1), round where it is flat
+   (σ 0.5). The pixel moves to its own average as the history gathers two
+   frames' weight. A lost pixel so takes a sloped edge, not a stair step.
 4. **Bloom** (six halved levels, 13-tap Karis-averaged down, tent up) and
    **light shafts** toward the sun on screen (32 steps at quarter size).
 5. **Composite** with the look (`game-looks.ts`): exposure, ACES or a soft
    shoulder, contrast, saturation, lift/gamma/gain, split toning, halation,
-   gradient map, fringe, vignette, soft focus, sharpening, scanlines, dither.
+   gradient map, fringe, vignette, soft focus, sharpening (RCAS from FSR 1:
+   held inside the neighbours' range, so it adds no halos; the look's amount,
+   a little more the smaller the trace), scanlines, dither.
 
-The traced size follows a fence alone (`GAME_PACE`, `MotionScale.paced`): a
-frame the GPU has not finished by the next animation frame was too big; a step
-up is tried after two calm seconds, and one that fails waits longer. While
-nothing changes it refines 32 frames, then rests.
+**Pacing and size** (`game-size.ts`). At most 60 pictures a second:
+`FramePacer` learns the display's refresh from the animation frames and on a
+120 or 144 Hz display draws every second one, so each picture has the 16.7 ms
+of a 60 Hz frame (0.11.1 aimed at the refresh there and fell to its floor).
+After each frame the fence is looked at every millisecond, which gives the GPU
+time of each frame. `GameSize` takes the median of the last five and predicts
+the size at which a frame takes 78 % of the budget. It climbs one step (1/32
+per side) after a run of frames with room: fewer frames with more room, more
+with less, and a little room still climbs, slowly. It drops only when slow
+frames (over 95 %) build up, three in a row or about every other one, never
+for one or two, toward the predicted size and four steps at most. A climb
+taken back within two seconds makes the next one wait twice as long, so a
+scene whose cost changes as the view turns settles instead of flipping. A
+resized view starts at the pixel count the last one settled at. While nothing
+changes it refines 32 frames, then rests.
+
+**Picture** (Settings `playResolution`; the Play panel on Tab, Render Options
+› Play): Sharp, Auto (the default) or Smooth sets the size's floor, in traced
+pixels per CSS pixel per side, since a retina screen looks as sharp at half
+its device pixels: Sharp 1.7 (0.85 of the device pixels at DPR 2, full size
+at DPR 1), Auto 0.6 (0.3 and 0.6), Smooth none (down to 0.25). The HUD and
+the display bar show the rate and size, `60 fps · 88% res`. `?gpuload=n`
+traces each frame n more times (blended, so a tile GPU cannot skip them): a
+GPU n + 1 times slower at tracing, to try the control on.
 
 **Looks.** `GAME_LOOK` in `game-looks.ts` picks one; `?look=<name>` on the URL
 compares them. Slide postcard is the default: deep colour, a red glow round
@@ -369,50 +403,113 @@ each): sea and sky 12.2 ms, object scan about 4, shadows 7.7, textures 4.6.
 
 | Technique | Verdict |
 |---|---|
-| Low internal size, temporal upscale and reprojection | Used: the size control keeps 0.5–0.88 per side on a retina screen, 1.0 at DPR 1 |
+| Low internal size, temporal upscale and reprojection | Used: the size control keeps 0.66–1.0 per side on a retina screen, 1.0 at DPR 1 |
+| Edge-rebuilding upscale (FSR 1 EASU) | Used where the history is lost: the edge-adaptive kernel over the 3×3 traced samples; elsewhere the jittered history resolves the view's pixels |
+| Contrast-adaptive sharpening (FSR 1 RCAS) | Used in place of the unsharp mask. Much more than the look's own amount made the slow pan shimmer (p95 up 8 %) |
 | Checkerboard or interleaved tracing | Not built: the jittered upscale already spreads samples over pixels and frames |
-| Low-size reflection pass | Not built: the cost is in the one program's registers, not in the bounces' pixels |
+| Low-size or half-rate reflection pass | Not built: the cost is in the one program's registers, not in the bounces' pixels |
 | Bounce falloff | Used: shadows from the first two hits, throughput cut-off growing per bounce |
+| Shadow rays only where they show (none for light too faint to see) | Tried: 0.5 of Gambit's 2 ms of shadows at 0.6, but the Canyon's water visibly lost its shadows; dropped |
+| Cheaper clouds | Not built: the clouds cost 0.7 ms at most |
 | Bounding culling / BVH (58 objects in Gambit) | The scan is about 20 %; a uniform block took most of it (22 → 17 ms); no BVH |
 | Shadow caching | Not built: shadows are 7.7 ms but change with every moving object |
-| Terrain distance LOD | Used: longer march steps by footprint |
+| Terrain distance LOD | Used: longer march steps by footprint, the view's pixel (no measurable cost over the traced one) |
 | Foveated or adaptive sampling | Not built: the size control is enough at 60 fps |
 
 **Measured.** `node tools/perf-play.mjs <url> <example|demo> walk|fly 8000`
-with `DPR=1` or `2`, a 1440×900 window, MacBook (Apple silicon, Chrome).
-Picture intervals over 8 s, 480 frames; "over 20 ms" is a missed 60 Hz refresh.
+with `DPR=1` or `2`, MacBook (Apple silicon, Chrome). Picture intervals over
+8 s, 480 frames, as median / p95; "missed" counts intervals over 20 ms (a
+missed 60 Hz refresh); the size is the range of traced sizes per side. 0.11.1
+and 0.11.2 were measured one after the other on the same, busier machine
+(p95 is 18 ms for both; the 0.11.1 table read 17 ms). 0.11.1 climbs one step
+every two calm seconds, so in 8 s it ends near the top of its range; 0.11.2
+reaches its size in a second or two.
 
-| Scene | Motion | DPR 2: median / p95, missed, traced size | DPR 1: median / p95, missed, size |
+A 1440×900 window at DPR 2 (a view of about 1720×1075):
+
+| Scene | Motion | 0.11.1 | 0.11.2 |
 |---|---|---|---|
-| Sunset Gambit | walk | 16.7 / 16.8 ms, 1, 0.56–0.75 | 16.6 / 17.5 ms, 0, 1.0 |
-| Sunset Gambit | fly | 16.7 / 17.5 ms, 0, 0.50–0.75 | 16.6 / 17.6 ms, 0, 1.0 |
-| Hoodoo Run | walk | 16.7 / 17.2 ms, 0, 0.63–0.88 | 16.6 / 17.5 ms, 0, 1.0 |
-| Hoodoo Run | fly | 16.7 / 17.3 ms, 0, 0.63–0.88 | 16.7 / 17.1 ms, 0, 1.0 |
-| Vapor Desk | walk | 16.6 / 17.6 ms, 0, 0.63–0.88 | 16.6 / 17.6 ms, 0, 1.0 |
-| Vapor Desk | fly | 16.6 / 17.4 ms, 0, 0.63–0.88 | 16.6 / 17.6 ms, 0, 1.0 |
-| Trapper Keeper Canyon | walk | 16.7 / 17.6 ms, 0, 0.50–0.75 | 16.7 / 17.4 ms, 0, 1.0 |
-| Trapper Keeper Canyon | fly | 16.7 / 17.3 ms, 0, 0.50–0.75 | 16.7 / 16.8 ms, 0, 1.0 |
+| Sunset Gambit | walk | 16.6 / 18.3 ms, 0 missed, 0.63–0.88 | 16.7 / 18.4 ms, 2 missed, 0.66–0.88 |
+| Sunset Gambit | fly | 16.7 / 18.4 ms, 0, 0.63–0.88 | 16.7 / 18.2 ms, 0, 0.63–1.0 |
+| Hoodoo Run | walk | 16.7 / 18.2 ms, 0, 0.63–0.88 | 16.6 / 18.3 ms, 0, 0.75–1.0 |
+| Hoodoo Run | fly | 16.7 / 18.3 ms, 0, 0.63–0.88 | 16.6 / 18.3 ms, 1, 0.91–1.0 |
+| Vapor Desk | walk | 16.7 / 18.4 ms, 10, 0.63–0.81 | 16.6 / 18.3 ms, 0, 0.66–0.88 |
+| Vapor Desk | fly | 16.7 / 18.2 ms, 0, 0.50–0.75 | 16.6 / 18.3 ms, 0, 0.81–1.0 |
+| Trapper Keeper Canyon | walk | 16.6 / 18.0 ms, 0, 0.50–0.75 | 16.6 / 18.3 ms, 0, 0.88 |
+| Trapper Keeper Canyon | fly | 16.7 / 18.3 ms, 0, 0.50–0.75 | 16.6 / 18.3 ms, 0, 0.78–1.0 |
 
-Every look holds 60 fps on Sunset Gambit at DPR 2 (median 16.6–16.7 ms; up
-to 6 of 360 frames missed while the size probes upward).
+At DPR 1 (a view of about 860×540) 0.11.2 traces at full size with no missed
+frame in every run (16.6–16.7 / 18.1–18.3 ms); 0.11.1 missed 26 of 480
+walking in Sunset Gambit (p95 32 ms, 0.50–1.0) and one flying.
 
-**Shimmer.** A slow pan (0.05° a frame, 90 frames) in the editor, each frame
-against the last one reprojected exactly; mean / p95 / p99 of the luma change
-(0–255). The live preview (Fast) for comparison:
+A weaker GPU, simulated two ways. A 2560×1440 window at DPR 2 (a view of about
+3230×2020, 2.2 times the pixels):
 
-| Scene | DPR 2 Fast | DPR 2 Game | DPR 1 Fast | DPR 1 Game |
-|---|---|---|---|---|
-| Sunset Gambit | 1.04 / 5.3 / 18.6 | 0.53 / 1.0 / 2.4 | 1.14 / 5.6 / 20.8 | 0.47 / 0.9 / 3.1 |
-| Hoodoo Run | 1.25 / 4.7 / 22.9 | 0.48 / 1.0 / 3.6 | 1.54 / 5.5 / 29.3 | 0.50 / 1.2 / 6.7 |
-| Vapor Desk | 1.91 / 9.9 / 34.3 | 0.82 / 2.8 / 10.4 | 2.68 / 13.8 / 55.0 | 0.96 / 4.7 / 12.6 |
-| Trapper Keeper Canyon | 3.40 / 19.7 / 43.8 | 0.87 / 2.7 / 8.3 | 3.25 / 19.2 / 45.9 | 0.96 / 3.6 / 9.1 |
+| Scene | Motion | 0.11.1 | 0.11.2, Auto |
+|---|---|---|---|
+| Sunset Gambit | walk | 16.6 / 18.4 ms, 2 missed, 0.31–0.38 | 16.7 / 18.5 ms, 12 missed, 0.30–0.38 |
+| Sunset Gambit | fly | 16.7 / 18.4 ms, 13, 0.25–0.38 | 16.7 / 18.3 ms, 0, 0.30–0.47 |
+| Hoodoo Run | walk | 16.6 / 18.3 ms, 0, 0.38–0.63 | 16.6 / 18.4 ms, 0, 0.38–0.56 |
+| Hoodoo Run | fly | 16.7 / 18.2 ms, 0, 0.38–0.63 | 16.6 / 18.4 ms, 0, 0.41–0.59 |
+| Vapor Desk | walk | 16.7 / 18.3 ms, 2, 0.31–0.38 | 16.6 / 18.4 ms, 0, 0.30–0.47 |
+| Vapor Desk | fly | 16.6 / 18.2 ms, 0, 0.25–0.50 | 16.6 / 18.4 ms, 1, 0.34–0.47 |
+| Trapper Keeper Canyon | walk | 16.7 / 18.3 ms, 2, 0.31–0.44 | 16.6 / 18.4 ms, 0, 0.30 |
+| Trapper Keeper Canyon | fly | 16.6 / 18.4 ms, 2, 0.31–0.50 | 16.6 / 18.4 ms, 0, 0.30–0.41 |
+
+And `?gpuload=2` (tracing three times as slow) in the 1440×900 window at
+DPR 2, walking, per choice:
+
+| Scene | Sharp | Auto | Smooth |
+|---|---|---|---|
+| Sunset Gambit | 50 / 67 ms, all missed, 0.85 | 16.7 / 18.6 ms, 14 missed, 0.30–0.47 | 16.7 / 18.4 ms, 0, 0.25–0.47 |
+| Vapor Desk | 34 / 50 ms, all missed, 0.85 | 16.6 / 18.3 ms, 1, 0.38–0.59 | 16.7 / 18.3 ms, 0, 0.31–0.63 |
+
+A 120 Hz display, simulated with animation frames on a timer (the headless
+compositor itself stays at 60 Hz), 1440×900 at DPR 2, walking: 0.11.1 drew
+a picture every 8–10 ms and fell to 0.25–0.63 (Sunset Gambit to its 0.25
+floor); 0.11.2 draws every 16.6–16.8 ms (p95 17.9–18.2) at 0.30–0.53. The
+sizes are lower than in the same window at 60 Hz: in this simulation the
+timer frames fall between the compositor's, which adds to the measured time,
+so a real 120 Hz display should sit nearer the 60 Hz sizes (not tried on one).
+
+Upscale quality: the mean absolute difference (0–255) from the same
+version's full-size frame, 60 frames into a fixed walk in Sunset Gambit at
+DPR 2 (1728×1080), and the gradient energy against it (1 is as sharp):
+0.11.1 at 0.625, 0.51 and 0.94; 0.11.2 at 0.625, 0.46 and 0.98; at 0.75,
+0.38 and 0.99; at 0.5, 0.57 and 0.96; at 0.4, 0.72 and 0.92.
+
+Every look holds 60 fps walking in Sunset Gambit at DPR 2 (median 16.6–16.7
+ms, p95 18.3–18.4, 0 to 3 of 480 frames missed, 0.53–0.84).
+
+**Shimmer.** A slow pan (0.05° a frame, 90 frames) in the editor at a fixed
+traced size, each frame against the last one reprojected exactly; mean / p95 /
+p99 of the luma change (0–255). The live preview (Fast) for comparison:
+
+| Scene | DPR 2 Fast | DPR 2 0.625: 0.11.1 | 0.11.2 | DPR 2 0.875: 0.11.2 | DPR 1 1.0: 0.11.1 | 0.11.2 |
+|---|---|---|---|---|---|---|
+| Sunset Gambit | 1.04 / 5.3 / 18.6 | 0.54 / 0.99 / 2.3 | 0.52 / 0.99 / 2.4 | 0.49 / 0.99 / 2.2 | 0.47 / 0.93 / 3.1 | 0.47 / 0.93 / 3.1 |
+| Hoodoo Run | 1.25 / 4.7 / 22.9 | 0.48 / 1.00 / 3.7 | 0.49 / 1.02 / 3.9 | 0.47 / 1.00 / 4.0 | 0.50 / 1.23 / 6.7 | 0.50 / 1.23 / 6.5 |
+| Vapor Desk | 1.91 / 9.9 / 34.3 | 0.83 / 2.97 / 10.6 | 0.84 / 3.18 / 10.7 | 0.80 / 2.98 / 10.0 | 0.96 / 4.70 / 12.5 | 0.94 / 4.58 / 12.0 |
+| Trapper Keeper Canyon | 3.40 / 19.7 / 43.8 | 0.90 / 2.92 / 8.9 | 0.89 / 2.99 / 8.9 | 0.83 / 2.83 / 7.5 | 1.01 / 4.04 / 10.3 | 1.00 / 4.01 / 10.0 |
+
+At the same size 0.11.2 shimmers as 0.11.1 did, except Vapor Desk's p95, 7 %
+higher (less sharpening, eight jitter phases and the old footprint each left
+it there). At the larger size 0.11.2 now holds, the mean is lower in every
+scene and p95 the same or lower; only Hoodoo Run's p99 is higher (4.0
+against 3.7).
 
 **Measuring on a Mac.** Timer queries on ANGLE over Metal are not to be
 trusted for this: during Play they also count the compositor's work and read
 two to three times high, and queries within one command buffer overlap. The
 same picture drawn twice in a row is skipped by the tile GPU's hidden-surface
-removal unless blending is on. So the size control uses the fence, and the
-numbers above are frame intervals.
+removal unless blending is on (`?gpuload` blends for this reason). So the
+size control uses the fence, and the numbers above are frame intervals. The
+fence is looked at by timers all set at once, one a millisecond: a chain of
+timers is stretched to 4 ms apart, which read every frame as 9, 13 or 17 ms.
+The GPU lowers its clock when it has time to spare, so a smaller frame does
+not take proportionally less; the control's prediction (time grows with the
+pixels) is a guide, and a small predicted room still gets a slow try. Other
+work on the machine moves single runs; compare medians.
 
 ## Keeping the shader quick to compile
 

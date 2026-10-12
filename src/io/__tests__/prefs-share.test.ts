@@ -24,7 +24,7 @@ describe('sharing settings', () => {
   });
 
   it('export every setting and import it back in another browser', () => {
-    savePrefs({ liveQuality: LiveQuality.Full, features: [Feature.ObjectTree] });
+    savePrefs({ liveQuality: LiveQuality.Full, features: [Feature.Portals] });
     const file = exportPrefs('0.10.0', new Date('2026-10-11T12:00:00Z'));
     const parsed = JSON.parse(file);
     expect(parsed).toMatchObject({ kind: 'hoodoo-settings', version: '0.10.0', exported: '2026-10-11T12:00:00.000Z' });

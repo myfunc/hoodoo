@@ -1,5 +1,151 @@
 # Changelog
 
+## 0.11.2 — 2026-10-12
+
+### Added
+- Move, rotate and size the selection from the keyboard, Blender style: G
+  moves it with the mouse in the plane facing you; inside, R rotates (about
+  the view direction), S sizes (evenly) and G goes back to Move. X, Y or Z
+  locks to that world axis and the same key unlocks it; Shift+X/Y/Z works in
+  the plane without that axis (Move in it, Size the other two). Typing a
+  number sets the amount exactly (metres, degrees or a factor; `-` flips the
+  sign, Backspace takes a digit back), Ctrl/Cmd snaps (the grid step from
+  Settings, 15°, 0.1). Enter or a click applies as one undo step named Move,
+  Rotate or Size, keyed at the playhead like any edit; Esc or a right click
+  puts everything back with no undo step. Several objects and groups turn and
+  size about their common centre, as the handles do. A thin line in the
+  axis colour runs through the pivot along the lock, the tag beside the
+  pointer reads "Move · Z · 1.50 · Enter apply · Esc cancel", and while it
+  runs R and S do not walk and digits do not recall bookmarks. X, Y or Z
+  pressed while dragging an object or a handle locks that drag as well.
+  Objects › Move / Rotate / Size Selection and the command palette start it
+  too, and Help › Keyboard Shortcuts lists its keys.
+- Preview Features is a window of its own (View › Preview Features…): each
+  feature with what it does, what it adds (its menu commands and the rest),
+  the version it came in, what it needs, a button straight into it (Add a
+  pair, Play now) and its switch. Turning Sandbox on turns Play on, and
+  turning Play off turns Sandbox off.
+- Comments on preview features: write one under a feature (Enter adds it,
+  Shift+Enter starts a new line), see them with their times, remove one with
+  its cross. They stay in this browser, travel with Settings › Export… (an
+  older file leaves them alone on import, and they never become a site
+  default), and Copy comments puts them all on the clipboard as text to send.
+  The window floats or docks in the left panel; `?pf=1`…`?pf=5` shows its five
+  layouts (Wells, Split, Ledger, Notebook, Tabs), Split being the default.
+- Picking keys on the timeline works the same on every row, the Camera and
+  Sun & Sky included: double-click empty space in a row to pick all its keys
+  (a group's with those of what it holds; Shift adds them to the picked
+  ones), Shift- or Cmd-click a key to add it or take it out, drag over empty
+  space to box keys across rows. Picked keys wear a ring in both themes and
+  the key inspector counts them ("4 keys"). Picking moves nothing, the camera
+  neither: a double-click puts the playhead back where it was.
+- Moving picked keys: drag any of them to move them all along whole frames,
+  Alt-drag to copy them, one undo step per drag; with the timeline focused,
+  Left and Right nudge them a frame (Shift: ten frames), one undo step per
+  press. They stop at zero and at the end of the scene, and the tooltip says
+  so. A key dropped on another merges with it: the moved key's values and
+  ease win, what only the other key held (an object key's material, light or
+  visibility) stays, and the tooltip counts the merges; Undo brings the other
+  key back.
+- Animation › Delete Selected Keys counts them ("Delete 4 Keys") and shows
+  its shortcut, Del (Backspace works too).
+- Noclip in Play, as in Garry's Mod: with the Walker, V flies where you
+  look (W A S D steer, Space up, Ctrl or C down, Shift three times faster)
+  with no gravity and through everything. The HUD line reads "Noclip" and
+  the hint lists V. V again lands you: inside something, at the nearest
+  place you fit; with none near, noclip stays on and the line says "no room
+  to stand here". A take recorded while flying keys the camera along the
+  flight. The plane keeps V for its view.
+- Maximize View: one button at the right end of the display bar (or the `
+  key, or View › Maximize View) hides both side columns, the Create palette
+  and the timeline, so the scene window takes the whole workspace, in Play
+  too. The same button or key brings them back as they were; asking for the
+  left or right panel brings everything back as well.
+- Sandbox with your own Garry's Mod: Tab › Garry's Mod › Choose folder…
+  and pick the GarrysMod folder (the one with garrysmod and sourceengine
+  inside). It is read in place and never uploaded; Chrome and Edge remember
+  it for the next visit (one Allow click when the browser asks again). With
+  it the Physics Gun is the game's own: the super gravity gun in Gordon's HEV
+  hands, lit by the scene, with its draw, idle and claw animations, Half-Life
+  2's walking bob and turn lag, the beam bending from the muzzle to what it
+  holds, its glows, and the game's sounds — the hold hum winding up and
+  down, the release, the unfreeze chirp and the undo click. A folder laid out
+  like the game's content (models, materials, sound, scripts) works too.
+  The HUD becomes Half-Life 2's, from the same files: its crosshair, the
+  HEALTH box in its own font, the weapon selection at the top (six slot
+  boxes, the open one with the glowing weapon icon and name, fading as in
+  the game) and Garry's Mod's notices springing in at the right with their
+  icons. Without one Sandbox keeps its own look.
+- Play's Picture choice, in the Play panel (Tab) and on the Render page
+  under Play: Sharp, Auto (the default) or Smooth, remembered. Sharp keeps
+  full detail even if a slower GPU then misses frames, Smooth holds 60 fps
+  and lets the picture go soft, Auto holds 60 fps down to a size that still
+  looks crisp. Play's readout and the display bar show the rate and the
+  traced size ("60 fps · 88% res"). `?gpuload=n` traces the picture n more
+  times a frame, to try it as on a slower GPU.
+
+### Changed
+- Sandbox's notices stay as long as Garry's Mod keeps them: an undo 2 s, an
+  unfreeze 3 s, a limit 6 s, a hint 20 s.
+- Sandbox outlines what the Physics Gun holds the way Garry's Mod does: a
+  soft halo in the weapon colour instead of a wireframe, flashing green when
+  you freeze a prop and red when you unfreeze it. Play's speed and frame
+  readout moves to the top right while Sandbox is on, clear of the hint.
+- Dragging empty space in the scene window turns the camera (pans a flat
+  view), as most 3D viewers do; Shift+drag on empty space draws the
+  selection box that a plain drag used to. Right-drag, Alt+drag, the
+  trackball and two-finger trackpad swipes still turn it too.
+- The left panel is a full panel now: Bryce's camera controls stay on top
+  under a Controls heading that folds them away (remembered; also Settings ›
+  Interface › Camera controls), the Render page sits docked below them, and
+  the hint line keeps the foot. Beside a docked page the controls pair up in
+  rows; with nothing docked the panel narrows to Bryce's column again.
+- The Render page gathers how the picture is drawn: Live picture (live
+  preview, quality, bounces), Render View (on, preset, size, rays, bounces,
+  shadows, lens, anti-aliasing, speed line), Final render (rays per pixel,
+  the scene's bounces) and, with Play on, the game look. It replaces Render
+  Options and starts docked for everyone; it still floats with the mark in
+  its title bar, and Render › Render Options… opens it.
+- The display bar under the scene lost its render controls (they are on the
+  Render page) and gained the left panel's toggle at its left end, mirroring
+  the scene panel's on the right. Play is a named chip on its own by the
+  status, apart from the timeline and the editing marks.
+- The Object Tree is no longer a preview: groups nest and have names, the
+  scene list is a tree with folders, and + Group sits in the Scene panel for
+  everyone. Its switch is gone from Preview Features, and `?flags=tree` does
+  nothing now.
+- Settings no longer has a Preview Features section: the window has it all.
+- Corners are square throughout the editor: buttons, fields, tabs, chips,
+  notices and the timeline's transport. Only dots, lamps and the render balls
+  stay round.
+- Play's picture is sharper at the same speed: where its history is lost
+  (a turn, behind a moving object, in reflections) edges are rebuilt from
+  the traced samples instead of showing their stair steps, sharpening is
+  FSR 1's contrast-adaptive kind, and far terrain keeps its texture at a
+  smaller traced size. The size control reads the GPU's time for every
+  frame and moves in small steps: never down for one slow frame, back up in
+  a second or two, then still instead of probing. On a retina MacBook it
+  holds 0.66–1.0 of the screen's pixels per side, up from 0.5–0.88.
+
+### Fixed
+- Walking with W A S D and R / C works while a tool window is open or docked,
+  the Render page included: only a modal window takes the scene's keys now.
+- The tag of a picked key on a motion path ("Key 2 · 2.0 s") reads in the
+  dark theme: it was dark ink on a dark tag.
+- Walking in Play no longer takes you into things. You could slip under
+  the surface of Hoodoo Run's hoodoos and other terrains; the knights' heads
+  and the kings' crosses in Sunset Gambit had no body; squashed spheres,
+  tori, pyramids and lathes collided a little inside what is drawn; a
+  platform could push you through a thin wall; a start, a teleport or a fall
+  back to the start inside an object left you there; an object keyed to
+  show up had no body and one keyed to hide stayed solid; and with the head
+  against a ceiling the camera could see through it. Every body now holds
+  what the picture draws, and a player pressed into something is moved to
+  the nearest place it fits.
+- On a 120 or 144 Hz display Play drew a picture every refresh, with half
+  the time for each, and fell to its smallest, blockiest size; it draws 60
+  a second now, each with a 60 Hz frame's time.
+
 ## 0.11.1 — 2026-10-12
 
 ### Fixed

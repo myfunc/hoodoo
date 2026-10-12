@@ -10,7 +10,6 @@ import { showToast } from '../panels/toast';
 import { APP_VERSION } from '../strings';
 import { Dialog, DialogStyle } from '../kit/dialog';
 import { clearChildren, el } from '../kit/dom';
-import { PREVIEW_NOTE, previewFeatureRows } from './preview-features';
 import { type SceneDepth, finalDepthRow, liveDepthRow } from './reflection-rows';
 import { type RowView, type SettingOption, type SettingRow, settingRow } from './setting-row';
 import './settings-window.css';
@@ -20,7 +19,6 @@ export enum SettingsSection {
   Interface = 'interface',
   Navigation = 'navigation',
   Render = 'render',
-  PreviewFeatures = 'preview',
 }
 
 const SHOW_SKIP = [{ value: true, label: 'Show' }, { value: false, label: 'Skip' }] as const;
@@ -64,7 +62,8 @@ const SECTIONS: readonly Section[] = [
         { value: ThemeMode.Dark, label: 'Dark', about: 'Dark stone chrome, the same icons and labs' },
         { value: ThemeMode.System, label: 'System', about: 'Light or dark as the system is set' },
       ]), e),
-      settingRow(remembered('leftPanel', 'Left panel', 'Camera controls, render balls, docked windows (Shift+Tab)', SHOWN_HIDDEN), e),
+      settingRow(remembered('leftPanel', 'Left panel', 'Camera controls, the Render page, docked windows (Shift+Tab)', SHOWN_HIDDEN), e),
+      settingRow(remembered('controlsOpen', 'Camera controls', 'Bryce’s crosses, trackball and render balls atop the left panel', [{ value: true, label: 'Shown' }, { value: false, label: 'Folded' }]), e),
       settingRow(remembered('sidePanel', 'Scene panel', 'Attributes, scene list, snapshots, history (Tab)', SHOWN_HIDDEN), e),
       settingRow(setting('hintLine', 'Hint line', 'Help for the control under the pointer, lower left', SHOWN_HIDDEN), e),
       settingRow(setting('snapGrid', 'Snap grid', 'Move step when grid snapping is on', SNAP_GRID_STEPS.map((value) => ({ value, label: String(value) }))), e),
@@ -112,7 +111,6 @@ const SECTIONS: readonly Section[] = [
       ...(depth ? [finalDepthRow(e, depth)] : []),
     ],
   },
-  { id: SettingsSection.PreviewFeatures, name: 'Preview Features', note: PREVIEW_NOTE, rows: (e) => previewFeatureRows().map((row) => settingRow(row, e)) },
 ];
 
 /** Everything the window can change, to put back on Cancel. */

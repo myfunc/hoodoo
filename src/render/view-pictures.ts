@@ -37,6 +37,7 @@ export class ViewPictures {
     this.realtime.bounces = s.settings.liveBounces;
     this.finalView = new FinalView(engine);
     this.game = new GameRenderer(engine);
+    this.game.setResolution(s.settings.playResolution);
   }
 
   /** The renderer that draws the single view by itself in state `s`, or null (Four Views, or Bryce's render on request). */
@@ -77,6 +78,7 @@ export class ViewPictures {
     if (s.renderSamples !== prev.renderSamples) this.realtime.target = s.renderSamples;
     this.realtime.quality = this.liveQuality(s);
     this.realtime.bounces = s.settings.liveBounces;
+    this.game.setResolution(s.settings.playResolution);
     this.refresh(scene);
     const before = this.rendererFor(prev);
     const now = this.rendererFor(s);
@@ -101,9 +103,9 @@ export class ViewPictures {
   run(): void {
     if (this.loop) return;
     this.loop = true;
-    const step = () => {
+    const step = (now: number) => {
       const r = this.active();
-      const more = r !== null && r.tick();
+      const more = r !== null && r.tick(now);
       if (r) this.emit(r.status());
       if (more) requestAnimationFrame(step);
       else this.loop = false;

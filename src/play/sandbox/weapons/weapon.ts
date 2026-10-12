@@ -19,7 +19,8 @@ export interface WeaponContext {
   /** E (use) and Shift are down. */
   readonly use: boolean;
   readonly snap: boolean;
-  notify(text: string, kind: NoticeKind): void;
+  /** A notice at the bottom right, with the game's sound for it when it has one. */
+  notify(text: string, kind: NoticeKind, sound?: string): void;
 }
 
 /** One fixed step of the mouse buttons and R for the weapon in hand. */
@@ -40,7 +41,8 @@ export interface WeaponView {
   /** The body held and the grabbed point on it. */
   readonly held: { readonly body: BodyId; readonly local: Vec3; readonly distance: number } | null;
   /** A body that was just frozen or unfrozen, and when (simulation seconds). */
-  readonly flash: { readonly body: BodyId; readonly time: number } | null;
+  /** A prop just frozen (true) or unfrozen (false): Garry's Mod flashes a green or red halo. */
+  readonly flash: { readonly body: BodyId; readonly time: number; readonly frozen: boolean } | null;
 }
 
 export interface Weapon {
@@ -56,3 +58,6 @@ export interface Weapon {
   /** Put away: let go of anything held. */
   holster(ctx: WeaponContext): void;
 }
+
+/** Garry's Mod's default weapon colour (cl_weaponcolor): the Physics Gun's glow, beam and halo. */
+export const DEFAULT_WEAPON_COLOR: readonly [number, number, number] = [0.3, 1.8, 2.1];

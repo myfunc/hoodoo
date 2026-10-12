@@ -6,7 +6,7 @@ import { bodyOf, groupBody, massOf } from '../../world/body-flags';
 import { chain, groupIndex } from '../../world/group-tree';
 import { sameTransform } from '../../world/group-transform';
 import { movedByScript, shownByRules } from '../../world/play/scripts';
-import { type BodyId, Motion, type Physics, type Pose } from './physics';
+import { ALL_LAYERS, type BodyId, Layer, Motion, type Physics, type Pose } from './physics';
 import { type Quat, conjQ, eulerOfQuat, mulQ, quatOfEuler, rotateQ } from './quat';
 import { ShapeType, placedShapes, shapesOf } from './shapes';
 
@@ -16,9 +16,11 @@ import { ShapeType, placedShapes, shapesOf } from './shapes';
  * player), or Dynamic when it is Physical. A Physical group is one dynamic body
  * made of its members' shapes. Negative and Intersect members of a boolean
  * group do not collide (the carved solid is approximated by its positives);
- * hidden objects do not either. Water that is not solid has a floor half the
- * player's height below it, so the player wades. `transforms` turns body poses
- * back into the objects' world transforms for the picture and for keys.
+ * hidden objects do not either, unless keys or a rule show them: an object
+ * whose visibility is keyed collides while the keys show it (`drive`). Water
+ * that is not solid has a floor half the player's height below it, so the
+ * player wades. `transforms` turns body poses back into the objects' world
+ * transforms for the picture and for keys.
  */
 
 /** A body that stands for scene objects: one object, or a whole group's members. */
@@ -54,7 +56,17 @@ const keyedOf = (scene: Scene) => {
     scripted(o) || (a.enabled && (moves(a.objects[o.id]) || chain(index, o.groupId).some((g) => moves(a.groups?.[g]))));
 };
 
-/** Whether an object takes part in collisions at all: never a trigger zone; a hidden one only when a rule shows it (`shown`). */
+/** Objects whose visibility is keyed: they collide only while the keys show them. */
+function keyedVisibility(scene: Scene): { readonly keyed: ReadonlySet<ObjectId>; readonly shown: ReadonlySet<ObjectId> } {
+  const a = scene.animation;
+  const tracks = a.enabled ? Object.entries(a.objects).filter(([, keys]) => keys.some((k) => k.value.hidden !== undefined)) : [];
+  return {
+    keyed: new Set(tracks.map(([id]) => id as ObjectId)),
+    shown: new Set(tracks.filter(([, keys]) => keys.some((k) => k.value.hidden === false)).map(([id]) => id as ObjectId)),
+  };
+}
+
+/** Whether an object takes part in collisions at all: never a trigger zone; a hidden one only when a rule or its keys show it (`shown`). */
 const collides = (o: SceneObject, shown: ReadonlySet<ObjectId>): boolean =>
   !o.zone && (!o.hidden || shown.has(o.id)) && bodyOf(o).solid && !(o.groupId && (o.boolean === BooleanMode.Negative || o.boolean === BooleanMode.Intersect));
 
@@ -70,11 +82,14 @@ const poseOf = (t: Transform): Pose => ({ position: t.position, rotation: quatOf
 export class SceneBodies {
   readonly items = new Map<BodyId, BodyItem>();
   private readonly byObject = new Map<ObjectId, BodyItem>();
+  /** Bodies of objects with keyed visibility, and whether they collide now. */
+  private readonly blinking = new Map<BodyId, boolean>();
 
   /** `skip`: objects that are not bodies at all (the plane a take recorded: it is the player's own). */
   constructor(private readonly physics: Physics, scene: Scene, playerHeight: number, skip?: ReadonlySet<ObjectId>) {
     const keyed = keyedOf(scene);
-    const shown = shownByRules(scene);
+    const visibility = keyedVisibility(scene);
+    const shown = new Set([...shownByRules(scene), ...visibility.shown]);
     const groups = new Map<GroupId, SceneObject[]>();
     for (const o of scene.objects) {
       if (o.kind === ShapeKind.WaterPlane && !o.hidden && !bodyOf(o).solid) this.waterFloor(o, playerHeight);
@@ -85,6 +100,8 @@ export class SceneBodies {
     }
     const index = groupIndex(scene);
     for (const [g, members] of groups) this.addGroup(g, members, index.get(g)?.body?.mass);
+    for (const item of this.items.values()) if (item.members.some((m) => visibility.keyed.has(m.id))) this.blinking.set(item.body, true);
+    this.blink(scene);
   }
 
   /** The body an object belongs to. */
@@ -103,14 +120,30 @@ export class SceneBodies {
     return [...this.items.values()].filter((i) => i.motion !== Motion.Fixed);
   }
 
-  /** Kinematic bodies follow the keys: their next pose is the objects' pose in `posed` (the scene at the next step's time). */
+  /** Kinematic bodies follow the keys: their next pose is the objects' pose in `posed` (the scene at the next step's time); keyed visibility turns collision on and off. */
   drive(posed: Scene): void {
     this.keyed(posed, (body, pose) => this.physics.setPose(body, pose));
+    this.blink(posed);
   }
 
   /** Kinematic bodies jump to the objects' pose in `posed` (scene time went back). */
   place(posed: Scene): void {
     this.keyed(posed, (body, pose) => this.physics.teleport(body, pose));
+    this.blink(posed);
+  }
+
+  /** Bodies with keyed visibility collide while one of their objects shows in `posed`; only a change is applied, so a rule's choice holds until the keys change. */
+  private blink(posed: Scene): void {
+    if (!this.blinking.size) return;
+    const hidden = new Map(posed.objects.map((o) => [o.id, o.hidden]));
+    for (const [body, was] of this.blinking) {
+      const item = this.items.get(body);
+      if (!item) continue;
+      const solid = item.members.some((m) => hidden.get(m.id) === false);
+      if (solid === was) continue;
+      this.blinking.set(body, solid);
+      this.physics.setLayer(body, item.motion === Motion.Dynamic ? Layer.Prop : Layer.World, solid ? ALL_LAYERS : 0);
+    }
   }
 
   private keyed(posed: Scene, move: (body: BodyId, pose: Pose) => void): void {

@@ -68,14 +68,14 @@ describe('undo', () => {
 });
 
 describe('notices', () => {
-  it('fade out and go', () => {
+  it('fade out and go after their kind\'s time (undo: 2 s)', () => {
     const n = new Notices();
     n.push('Undone Weld', NoticeKind.Undo, 0);
     expect(n.visible(100)[0].opacity).toBe(1);
-    const late = n.visible(3800)[0].opacity;
+    const late = n.visible(1800)[0].opacity;
     expect(late).toBeGreaterThan(0);
     expect(late).toBeLessThan(1);
-    expect(n.visible(5000)).toEqual([]);
+    expect(n.visible(2100)).toEqual([]);
   });
 
   it('keep the newest few', () => {

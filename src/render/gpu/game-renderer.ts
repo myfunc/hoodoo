@@ -3,12 +3,14 @@ import type { Vec3 } from '../../core/vec3';
 import type { Scene, SceneObject } from '../../model/scene.types';
 import { type ViewBasis, sameBasis } from '../../world/camera-math';
 import type { GameTarget, RayEngine } from './engine';
-import { GAME, GAME_PACE, type SunSpot, jitterAt, pixelAngle, startScale, sunOnScreen } from './game-frame';
+import { PlayResolution } from '../../world/settings';
+import { GAME, type SunSpot, jitterAt, pixelAngle, sunOnScreen } from './game-frame';
 import { type GameLook, LOOKS, type Look, lookFrom } from './game-looks';
 import { motionRows } from './game-motion';
 import { GamePost } from './game-post';
+import { FramePacer, GAME_SIZE, GameSize, startScale } from './game-size';
+import { jitterPhases } from './game-upscale';
 import { GpuFence } from './gpu-fence';
-import { MotionScale } from './motion-scale';
 import { packedObjects, skyUniforms } from './scene-packer';
 import type { RealtimeStatus, ViewRenderer } from './view-renderer';
 
@@ -20,24 +22,40 @@ const SUN_VISIBLE = 2;
 const NIGHT = 3;
 /** Jitter and noise indices wrap here, long before floats lose integers. */
 const FRAME_WRAP = 1 << 20;
+/** The traced picture's blend for `?gpuload` repeats: drawn over itself, so tile GPUs cannot skip it. */
+const LOAD_BLEND = 0.5;
+const LOAD_FLAG = 'gpuload';
+const LOAD_MAX = 16;
+/** How long after a frame the fence is watched, in budgets: a frame later than that is slow whatever its time. */
+const WATCH_BUDGETS = 2;
+/** The scene window draws at most this many device pixels per CSS pixel (viewport.ts). */
+const MAX_PIXEL_RATIO = 2;
+
+/** `?gpuload=<n>` traces each frame n more times: a GPU n + 1 times slower at tracing, to test the size control. */
+export function gpuLoadFrom(search: string): number {
+  const n = Math.round(Number(new URLSearchParams(search).get(LOAD_FLAG) ?? 0));
+  return Number.isFinite(n) ? Math.min(LOAD_MAX, Math.max(0, n)) : 0;
+}
 
 /**
  * READ ME — the game renderer: Play's picture (PictureMode.Game), built for 60 fps
- * with deep reflections. Every display frame it traces the noiseless game variant of
+ * with deep reflections. Every picture it traces the noiseless game variant of
  * the tracer (GAME_TRACE in 90-main.glsl: 4–5 mirror and glass bounces, shadow rays
- * from the first hit, detail faded by the ray's footprint) at a size MotionScale keeps
- * where every frame is finished by the next display frame (GAME_PACE), with the sample
- * jittered inside each pixel. GamePost then
- * upscales it into a running average at the view's size, reprojected through the
- * camera's motion and clipped to the new samples, so edges are smooth and nothing
- * shimmers; then bloom, light shafts and a look (game-looks.ts) onto the canvas.
- * While nothing changes it keeps refining for `GAME.settleFrames` frames, then rests.
+ * from the first hit, detail faded by the ray's footprint) at a size GameSize keeps where
+ * the GPU finishes each frame well inside its budget, with the sample jittered inside each
+ * pixel. GamePost then upsamples it into a running average at the view's size, reprojected
+ * through the camera's motion and clipped to the new samples, so edges are smooth, nothing
+ * shimmers and a still camera builds up the view's own detail; then bloom, light shafts and
+ * a look (game-looks.ts) onto the canvas. FramePacer keeps pictures at 60 a second on faster
+ * displays. While nothing changes it keeps refining for `GAME.settleFrames` frames, then rests.
  */
 export class GameRenderer implements ViewRenderer {
   /** Frames to refine for once nothing changes (the readouts show it as rays). */
   target: number = GAME.settleFrames;
   /** The grade (game-looks.ts); `?look=` on the URL picks another one to compare. */
   look: GameLook = lookFrom(location.search);
+  private readonly load = gpuLoadFrom(location.search);
+  private resolution = PlayResolution.Auto;
   private trace: GameTarget | null = null;
   private post: GamePost | null = null;
   private width = 0;
@@ -56,10 +74,13 @@ export class GameRenderer implements ViewRenderer {
   private sunDir: Vec3 | null = null;
   /** The traced objects of the last frame drawn, to tell how they moved since (game-motion.ts). */
   private drawn: readonly SceneObject[] | null = null;
-  private motion = new MotionScale(1, GAME_PACE);
+  private size = new GameSize(1);
+  /** Traced pixels the size control last settled at: a new view size starts from there. */
+  private settledPixels: number = GAME_SIZE.startPixels;
+  private readonly pacer = new FramePacer();
   private readonly fence: GpuFence;
+  /** A drawn frame whose GPU time the size control has not heard yet. */
   private pending = false;
-  private late = false;
   private fps = 0;
   private lastFrameEnd = 0;
   /** The post passes would not compile: the live preview draws instead (ViewPictures.rendererFor). */
@@ -85,12 +106,13 @@ export class GameRenderer implements ViewRenderer {
       this.logger.error('game renderer unavailable, the live preview draws instead', {}, error);
       return;
     }
+    if (this.width) this.settledPixels = this.width * this.height * this.size.scale * this.size.scale;
     this.width = width;
     this.height = height;
     this.engine.deleteGameTarget(this.trace);
     this.trace = this.engine.createGameTarget(width, height);
     this.post.resize(width, height, width, height);
-    this.motion = new MotionScale(startScale(width, height), GAME_PACE);
+    this.size = new GameSize(startScale(width, height, this.settledPixels), this.resolution, Math.min(window.devicePixelRatio || 1, MAX_PIXEL_RATIO));
     this.history = false;
     this.hasImage = false;
     this.changed = true;
@@ -106,6 +128,14 @@ export class GameRenderer implements ViewRenderer {
 
   get imageReady(): boolean {
     return this.hasImage;
+  }
+
+  /** The user's choice between a sharp and a smooth picture (Settings' playResolution). */
+  setResolution(resolution: PlayResolution): void {
+    if (resolution === this.resolution) return;
+    this.resolution = resolution;
+    this.size.mode = resolution;
+    this.changed = true;
   }
 
   reset(): void {
@@ -124,6 +154,7 @@ export class GameRenderer implements ViewRenderer {
     this.engine.deleteGameTarget(this.trace);
     this.trace = null;
     this.post?.release();
+    if (this.width) this.settledPixels = this.width * this.height * this.size.scale * this.size.scale;
     this.width = 0;
     this.height = 0;
     this.reset();
@@ -131,20 +162,18 @@ export class GameRenderer implements ViewRenderer {
 
   status(): RealtimeStatus {
     const settled = !this.changed && this.still >= this.target;
-    return { samples: Math.min(this.still, this.target), target: this.target, scale: this.motion.scale, fps: Math.round(this.fps), moving: !settled };
+    return { samples: Math.min(this.still, this.target), target: this.target, scale: this.size.scale, fps: Math.round(this.fps), moving: !settled, game: true };
   }
 
-  tick(): boolean {
+  tick(now: number = performance.now()): boolean {
     if (!this.trace || !this.scene || !this.basis) return false;
     if (!this.engine.isReady) return true;
     this.engine.prepareGame();
-    if (this.fence.busy) {
-      if (this.pending) this.late = true;
-      return true;
-    }
-    this.pace();
+    this.pacer.frame(now);
+    if (this.fence.busy) return true;
+    this.measured();
     if (!this.changed && this.still >= this.target) return false;
-    this.draw();
+    if (this.pacer.due) this.draw();
     return true;
   }
 
@@ -162,7 +191,7 @@ export class GameRenderer implements ViewRenderer {
     const post = this.post!;
     const target = this.trace!;
     const look = this.currentLook;
-    const scale = this.motion.scale;
+    const scale = this.size.scale;
     const w = Math.max(1, Math.round(this.width * scale));
     const h = Math.max(1, Math.round(this.height * scale));
     let motion: Float32Array | null = null;
@@ -177,36 +206,42 @@ export class GameRenderer implements ViewRenderer {
     // The traced picture covers the view's frustum whatever its rounding; the game camera is a pinhole.
     const view: ViewBasis = { ...this.basis!, aspect: this.width / this.height, lens: PINHOLE };
     engine.setView(view);
-    const jitter = jitterAt(this.frame);
+    const jitter = jitterAt(this.frame, jitterPhases(scale));
     const ready = engine.gameReady;
     const sun: SunSpot = this.sunDir ? sunOnScreen(view, this.sunDir) : { uv: [0, 0], strength: 0 };
-    engine.traceRows({
-      target, width: w, height: h, offsetX: 0, offsetY: 0, block: 1, rowStart: 0, rowEnd: h,
-      jitterX: jitter[0], jitterY: jitter[1], sample: this.frame, bounces: look.bounces, transparentBg: false, blend: 1,
-      game: { pixelAngle: pixelAngle(view, h), toonBands: look.toonBands },
-    });
+    // Detail fades at the view's pixel, not the traced one: the jittered frames add up to the view's detail.
+    const lodAngle = pixelAngle(view, this.height);
+    for (let i = 0; i <= this.load; i++) {
+      engine.traceRows({
+        target, width: w, height: h, offsetX: 0, offsetY: 0, block: 1, rowStart: 0, rowEnd: h,
+        jitterX: jitter[0], jitterY: jitter[1], sample: this.frame, bounces: look.bounces, transparentBg: false, blend: i ? LOAD_BLEND : 1,
+        game: { pixelAngle: lodAngle, toonBands: look.toonBands },
+      });
+    }
     // Until the game program is compiled the preview draws: no first hits to ink or reproject with.
     const src = look.ink && ready ? post.ink(target, w, h, look.ink) : target;
     post.upscale({ src, aux: target.aux, width: w, height: h, jitter, view, prev: this.prev ?? view, history: this.history && ready, motion });
     post.glow(look, sun);
     post.present(look);
     this.fence.mark();
+    this.fence.watch(this.pacer.budget * WATCH_BUDGETS);
+    this.pacer.drew();
     this.prev = view;
     this.history = true;
     this.frame = (this.frame + 1) % FRAME_WRAP;
     this.still = this.changed ? 0 : this.still + 1;
     this.changed = false;
     this.pending = true;
-    this.late = false;
     this.hasImage = true;
     this.countFrame();
   }
 
-  /** Once a frame is done, the size control learns whether it was late (still on the GPU at the next animation frame). */
-  private pace(): void {
+  /** Once a frame is done, the size control learns how long the GPU took (frames of the stand-in program do not count). */
+  private measured(): void {
     if (!this.pending) return;
     this.pending = false;
-    this.motion.paced(this.late);
+    const ms = this.fence.elapsed;
+    if (ms !== null && this.engine.gameReady) this.size.frame(ms, this.pacer.budget);
   }
 
   private countFrame(): void {

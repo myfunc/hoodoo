@@ -40,6 +40,8 @@ export const GLYPH = {
   sliders: ['M4 7h16M4 17h16', 'M9 4v6M15 14v6'],
   frame: ['M4 9V4h5', 'M15 4h5v5', 'M20 15v5h-5', 'M9 20H4v-5', 'M9 9h6v6H9z'],
   panel: ['M3 4h18v16H3z', 'M15 4v16', 'M17 8h2M17 11h2M17 14h2'],
+  /** Four corners pushed outward: the scene window fills the workspace. */
+  maximize: ['M4 9V4h5', 'M15 4h5v5', 'M20 15v5h-5', 'M9 20H4v-5', 'M4 4l6 6', 'M20 4l-6 6', 'M20 20l-6-6', 'M4 20l6-6'],
   move: ['M12 3v18M3 12h18', 'M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3'],
   rotate: ['M20 12a8 8 0 1 1-2.3-5.6', 'M20 4v4h-4'],
   resize: ['M4 20L20 4', 'M13 4h7v7', 'M11 20H4v-7'],

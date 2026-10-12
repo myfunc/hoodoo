@@ -1,23 +1,37 @@
 /* Sandbox (src/play/sandbox, docs/sandbox-mode.md): its HUD and beam layer over Play's. Play's colours — dark
    chips and Half-Life's amber — until the chosen look replaces them. Play's own hint gives way to the weapon's. */
 .play-layer.is-sandbox .play-hint { display: none; }
-.play-layer.is-sandbox .play-readout { bottom: 10px; }
+.play-layer.is-sandbox .play-readout { top: 10px; right: 10px; bottom: auto; }
 .sandbox-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+/* Garry's Mod's hands and guns, laid over the picture only (placed each frame). */
+.sandbox-hands { position: absolute; pointer-events: none; }
 .sbx-hud { position: absolute; inset: 0; pointer-events: none; font: 12px var(--font-ui); color: #eceae2; }
 .sbx-hud > * { position: absolute; white-space: nowrap; }
 
-.sbx-hint { left: 50%; bottom: 10px; transform: translateX(-50%); padding: 3px 9px; border-radius: 3px; background: rgba(14, 14, 16, 0.62); }
+.sbx-hint { left: 50%; bottom: 10px; transform: translateX(-50%); padding: 3px 9px; border-radius: 0; background: rgba(14, 14, 16, 0.62); }
 .sbx-weapon { right: 10px; bottom: 36px; font-weight: bold; color: #ffb020; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8); }
 
 .sbx-slots { left: 50%; top: 10px; transform: translateX(-50%); display: flex; gap: 5px; align-items: flex-start; }
-.sbx-slot { min-width: 22px; padding: 3px 6px 4px; border-radius: 3px; background: rgba(14, 14, 16, 0.62); }
+.sbx-slot { min-width: 22px; padding: 3px 6px 4px; border-radius: 0; background: rgba(14, 14, 16, 0.62); }
 .sbx-slot-number { font-weight: bold; color: #ffb020; }
 .sbx-slot.is-open { min-width: 120px; }
-.sbx-slot-name { margin-top: 3px; padding: 3px 6px; border-radius: 2px; background: rgba(255, 176, 32, 0.12); }
+.sbx-slot-name { margin-top: 3px; padding: 3px 6px; border-radius: 0; background: rgba(255, 176, 32, 0.12); }
 .sbx-slot-name.is-current { background: #ffb020; color: #1c1306; font-weight: bold; }
 
 .sbx-notices { right: 10px; bottom: 58px; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
-.sbx-notice { padding: 4px 10px 4px 8px; border-radius: 3px; background: rgba(14, 14, 16, 0.7); border-left: 3px solid #b9b7af; }
+.sbx-notice { padding: 4px 10px 4px 8px; border-radius: 0; background: rgba(14, 14, 16, 0.7); border-left: 3px solid #b9b7af; }
 .sbx-notice.is-undo { border-left-color: #6fd8ff; }
 .sbx-notice.is-spawn { border-left-color: #ffb020; }
 .sbx-notice.is-limit { border-left-color: #e0242a; }
+.sbx-notice.is-hint { border-left-color: #8fd35f; }
+
+/* The Play panel's Garry's Mod section (game-files-section.ts): one line of where the files stand, then its buttons. */
+.sbx-files { margin: 10px 0; }
+.sbx-files-line { margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #b9b7af; }
+.sbx-files-line.is-error { color: #ff8a7a; }
+
+/* Half-Life 2's HUD from the player's game files (src/ui/sandbox/hl2): over the picture, in place of Sandbox's own
+   slots, notices and weapon name, and of Play's crosshair. */
+.sandbox-hl2hud { position: absolute; pointer-events: none; }
+.sbx-hud.is-hl2 .sbx-slots, .sbx-hud.is-hl2 .sbx-notices, .sbx-hud.is-hl2 .sbx-weapon { display: none; }
+.play-layer.is-hl2 .play-cross { display: none; }

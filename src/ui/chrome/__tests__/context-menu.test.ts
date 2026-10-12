@@ -9,7 +9,7 @@ import { EditorStore } from '../../../world/editor-store';
 const actions = (entries: readonly unknown[]) => entries.filter((e) => e !== SEP && e !== CREATE);
 
 describe('context menus', () => {
-  it('offer the object commands (New Group is gated by the Object Tree, ui/feature-gate.ts); keys only with animation on', () => {
+  it('offer the object commands (New Group among them); keys only with animation on', () => {
     const plain = objectEntries({ animation: false });
     expect(actions(plain)).toEqual([
       Action.Group, Action.Ungroup, Action.NewGroup, Action.Duplicate, Action.Delete, Action.HideSelected, Action.Land,

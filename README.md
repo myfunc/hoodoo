@@ -88,7 +88,7 @@ and the Bryce sky: sun or moon, clouds, haze, fog, stars and soft shadows.
 
 ![A blue portal on the table shows the chessboard from the far side, where its orange partner stands](docs/images/portals.jpg)
 
-Turn Portals on in Settings › Preview Features: *Create Portal Pair* puts a
+Turn Portals on in View › Preview Features…: *Create Portal Pair* puts a
 blue and an orange oval in the scene, and looking into one you see out of the
 other — live and in the final render.
 
@@ -102,11 +102,12 @@ The scene window is ray traced while you work: shadows, reflections and
 refraction update as you drag, and the picture refines when you stop. Pick
 **Fast** (quickest while moving), **Full** (the finished tracer) or
 **Detailed** (glass and mirrors traced twice as deep, frames averaged under a
-still camera) in the display bar. Render then paints the final picture block
-by block, as Bryce did, with depth of field (click to focus, Alt+F). Render
-View (Opt/Alt+P) shows that final render in the scene window instead, refining
-in place while you orbit, drag and play; Render Options trades it for speed and
-sets how many reflections mirrors and glass get, up to 16. Snapshots
+still camera) on the Render page of the left panel, under Bryce's camera
+controls. Render then paints the final picture block by block, as Bryce did,
+with depth of field (click to focus, Alt+F). Render View (Opt/Alt+P) shows that
+final render in the scene window instead, refining in place while you orbit,
+drag and play; the same page trades it for speed and sets how many reflections
+mirrors and glass get, up to 16. Snapshots
 (B) keep a picture to compare with an A/B slider (Shift+B).
 
 ### The editor
@@ -123,16 +124,22 @@ gestures, and an installable offline app.
 
 | Do | How |
 |---|---|
-| Orbit, pan, dolly | Drag the trackball, or right-drag in the scene window; two-finger trackpad gestures; the wheel dollies |
+| Orbit, pan, dolly | Drag empty space in the scene window (or right-drag anywhere, or drag the trackball); two-finger trackpad gestures; the wheel dollies |
 | Walk and fly | W A S D, R / C up and down, Shift faster; right-drag + keys to look around |
-| Select, move | Click a wireframe; drag it, or its handles |
+| Select, move | Click a wireframe; drag it, or its handles; Shift+drag on empty space draws a selection box |
 | Resize quickly | Hold Z and drag, or scroll |
+| Move, rotate, size by keys | G moves the selection with the mouse; then R rotates, S sizes, G moves again |
+| Lock an axis | X, Y or Z (the same key again unlocks); Shift+X/Y/Z: the plane without that axis; X/Y/Z while dragging locks the drag too |
+| Exact amount, snapping | Type a number: metres, degrees or a factor (`-` flips the sign); hold Ctrl/Cmd to snap: grid step, 15°, 0.1 |
+| Apply / cancel | Enter or click / Esc or right-click: everything goes back |
 | Frame selection / scene | F / Shift+F |
 | Animation on / off | Shift+A |
 | Play / pause | Shift+Space |
 | Add key / animate camera | K / Shift+K |
 | Previous / next frame | `,` / `.` |
 | Previous / next key | Shift+`,` / Shift+`.` |
+| Pick keys on the timeline | Click, Shift/Cmd-click or drag a box; double-click a row picks all its keys |
+| Move, copy, delete picked keys | Drag them; ← / → a frame (Shift: 10); Alt+drag copies; Del deletes |
 | Render / stop | Ctrl/Cmd+R / Ctrl/Cmd+`.` |
 | Live preview on / off | P |
 | Render View on / off | Opt/Alt+P |

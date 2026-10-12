@@ -20,14 +20,14 @@ function setup() {
   const w = new World(emptyScene());
   const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(sphere);
   w.addObjects([a, b, c, d], 'Create');
-  const inner = w.group(ids(a, b), true)!;
+  const inner = w.group(ids(a, b))!;
   return { w, a, b, c, d, inner };
 }
 
 describe('nested groups', () => {
   it('groups whole groups and objects under their common parent', () => {
     const { w, a, b, c, inner } = setup();
-    const outer = w.group(ids(a, b, c), true)!;
+    const outer = w.group(ids(a, b, c))!;
     expect(groupOf(w, a)).toBe(inner);
     expect(groupOf(w, c)).toBe(outer);
     expect(parentOf(w, inner)).toBe(outer);
@@ -37,14 +37,14 @@ describe('nested groups', () => {
     const [e] = ['e'].map(sphere);
     w.addObjects([e], 'Create');
     w.reparent({ objects: [e.id], groups: [] }, inner);
-    const sub = w.group(ids(a, b), true)!;
+    const sub = w.group(ids(a, b))!;
     expect(parentOf(w, sub)).toBe(inner);
     expect(groupOf(w, e)).toBe(inner);
   });
 
   it('selects the outermost group with everything inside from any member', () => {
     const { w, a, b, c, d } = setup();
-    w.group(ids(a, b, c), true);
+    w.group(ids(a, b, c));
     expect(new Set(w.groupMembers(a.id))).toEqual(ids(a, b, c));
     expect(w.groupMembers(d.id)).toEqual([d.id]);
   });
@@ -57,7 +57,7 @@ describe('nested groups', () => {
 
   it('ungroup lifts the children one level', () => {
     const { w, a, b, c, inner } = setup();
-    const outer = w.group(ids(a, b, c), true)!;
+    const outer = w.group(ids(a, b, c))!;
     w.ungroup(ids(a, b, c));
     expect(groupIndex(w.scene).has(outer)).toBe(false);
     expect(groupOf(w, a)).toBe(inner);
@@ -69,7 +69,7 @@ describe('nested groups', () => {
 
   it('re-parents in one undo step and refuses loops', () => {
     const { w, a, b, c, inner } = setup();
-    const outer = w.group(ids(a, b, c), true)!;
+    const outer = w.group(ids(a, b, c))!;
     const steps = w.historyState().labels.length;
     expect(w.reparent({ objects: [], groups: [outer] }, inner)).toBe(false);
     expect(w.reparent({ objects: [], groups: [inner] }, inner)).toBe(false);
@@ -89,7 +89,7 @@ describe('nested groups', () => {
     const objs = Array.from({ length: SCENE_LIMITS.groupDepth + 2 }, (_, i) => sphere(`o${i}`));
     w.addObjects(objs, 'Create');
     let made = 0;
-    for (let i = 1; i < objs.length; i++) if (w.group(new Set(objs.slice(0, i + 1).map((o) => o.id)), true)) made++;
+    for (let i = 1; i < objs.length; i++) if (w.group(new Set(objs.slice(0, i + 1).map((o) => o.id)))) made++;
     expect(made).toBe(SCENE_LIMITS.groupDepth);
   });
 
@@ -107,7 +107,7 @@ describe('nested groups', () => {
 
   it('duplicates nested groups into fresh nested groups', () => {
     const { w, a, b, c, inner } = setup();
-    const outer = w.group(ids(a, b, c), true)!;
+    const outer = w.group(ids(a, b, c))!;
     w.duplicate(ids(a, b, c));
     const [a2, , c2] = w.scene.objects.slice(4);
     const inner2 = a2.groupId!;
@@ -117,14 +117,15 @@ describe('nested groups', () => {
     expect(w.selection.has(a2.id)).toBe(true);
   });
 
-  it('keeps flat groups exactly as before', () => {
+  it('duplicates named groups and dissolves the selected group', () => {
     const w = new World(emptyScene());
     const [a, b, c] = ['a', 'b', 'c'].map(sphere);
     w.addObjects([a, b, c], 'Create');
     const g = w.group(ids(a, b))!;
     w.duplicate(ids(a, b));
-    expect(w.scene.groups).toBeUndefined();
-    expect(serializeScene(w.scene).scene).not.toHaveProperty('groups');
+    expect(groupIndex(w.scene).get(g)?.name).toBe('Group 1');
+    expect(w.scene.groups).toHaveLength(2);
+    expect(serializeScene(w.scene).scene.groups).toEqual(w.scene.groups);
     w.select([a.id], SelectMode.Replace);
     w.ungroup(w.selection);
     expect(groupOf(w, a)).toBeNull();
@@ -133,7 +134,7 @@ describe('nested groups', () => {
   });
 });
 
-describe('groups made in the Object Tree', () => {
+describe('named groups', () => {
   const names = (w: World) => treeRows(w.scene).map((r) => [r.depth, r.group?.name ?? r.object?.name]);
 
   it('New Group wraps a single item, or makes an empty group that stays', () => {
@@ -168,7 +169,7 @@ describe('groups made in the Object Tree', () => {
 
   it('deleting every object of a group deletes it and the groups inside; locked objects keep theirs', () => {
     const { w, a, b, c, inner } = setup();
-    const outer = w.group(ids(a, b, c), true)!;
+    const outer = w.group(ids(a, b, c))!;
     const sub = w.newGroup(new Set(), inner)!;
     w.removeObjects(ids(a), 'Clear');
     expect(groupIndex(w.scene).has(inner)).toBe(true);
@@ -182,20 +183,20 @@ describe('groups made in the Object Tree', () => {
 
   it('dissolve one group by id and lift what it held', () => {
     const { w, a, b, c, inner } = setup();
-    const outer = w.group(ids(a, b, c), true)!;
+    const outer = w.group(ids(a, b, c))!;
     w.ungroupGroups(new Set([outer]));
     expect(parentOf(w, inner)).toBeNull();
     expect(groupOf(w, c)).toBeNull();
     expect(groupOf(w, a)).toBe(inner);
   });
 
-  it('keep flat deletion flat', () => {
+  it('deleting every member removes the named group', () => {
     const w = new World(emptyScene());
     const [a, b, c] = ['a', 'b', 'c'].map(sphere);
     w.addObjects([a, b, c], 'Create');
     w.group(ids(a, b));
     w.removeObjects(ids(a, b), 'Clear');
-    expect(w.scene.groups).toBeUndefined();
+    expect(groupIndex(w.scene).size).toBe(0);
     expect(w.scene.objects.map((o) => o.name)).toEqual(['c']);
   });
 });
@@ -203,7 +204,7 @@ describe('groups made in the Object Tree', () => {
 describe('nested groups in files', () => {
   it('round-trip names, nesting and folding', () => {
     const { w, a, b, c, inner } = setup();
-    const outer = w.group(ids(a, b, c), true)!;
+    const outer = w.group(ids(a, b, c))!;
     w.setGroupCollapsed(inner, true);
     const back = roundTrip(w.scene);
     expect(back.groups).toEqual(w.scene.groups);
@@ -273,7 +274,7 @@ describe('nested groups in files', () => {
 
   it('keep objects of a nested scene selectable as one family after reopening', () => {
     const { w, a, b, c } = setup();
-    w.group(ids(a, b, c), true);
+    w.group(ids(a, b, c));
     const back = new World(roundTrip(w.scene));
     expect(new Set(back.groupMembers(a.id as ObjectId))).toEqual(ids(a, b, c));
   });

@@ -10,6 +10,8 @@ export interface RealtimeStatus {
   readonly moving: boolean;
   /** Render View only (final-view.ts): the time a pass takes and how far the picture is from its target. */
   readonly final?: FinalProgress;
+  /** The game renderer's picture (game-renderer.ts): `scale` is its traced size per side. */
+  readonly game?: boolean;
 }
 
 /** Render View's readout: one pass of rays over the picture, the time left to the target, the time so far. */
@@ -33,8 +35,8 @@ export interface ViewRenderer {
   resize(width: number, height: number): void;
   /** The scene or the camera changed; the same pair again keeps refining. */
   update(scene: Scene, basis: ViewBasis): void;
-  /** One animation frame of work; false once there is nothing left to do until the next change. */
-  tick(): boolean;
+  /** One animation frame of work (`now`: the frame's time, ms); false once there is nothing left to do until the next change. */
+  tick(now?: number): boolean;
   /** Draws the current picture again (before the canvas is copied). */
   present(): void;
   /** Forgets the picture: the next update starts afresh. */

@@ -11,7 +11,7 @@ import { tickLabel } from './timeline-time';
 
 /** Pixels: the sheet's rows, the ruler, and the margin that keeps a key at either end whole. */
 export const SHEET = { row: 18, ruler: 18, pad: 7, keyHit: 6 } as const;
-const RIVET = { r: 4.5, picked: 5.5, summary: 2.5, ring: 7.5, ringLine: 1.5, shelf: 4, highlight: 0.35 } as const;
+const RIVET = { r: 4.5, picked: 5.5, pickedRing: 7, summary: 2.5, summaryPicked: 3.5, ring: 7.5, ringLine: 1.5, shelf: 4, highlight: 0.35 } as const;
 /** The narrowest stretch of time a scale may show, in seconds. */
 const MIN_SCALE_S = 1e-3;
 const NEEDLE = { line: 2, bead: 4, beadY: 6 } as const;
@@ -46,6 +46,8 @@ const SURFACE_DEFAULTS = {
   pastHatch: 'rgba(90,92,98,0.2)',
   overviewTop: '#e8e7e1',
   overviewBottom: '#f6f5f0',
+  /** The ring around a picked key: dark on the paper, light on the dark sheet. */
+  pickedRing: 'rgba(42,30,0,0.8)',
 } as const;
 type Surfaces = Record<keyof typeof SURFACE_DEFAULTS, string>;
 /** The CSS variable of each surface: --tl-ruler-top for rulerTop. */
@@ -235,8 +237,8 @@ export interface LaneRow {
   /** The row's top on the canvas. */
   readonly y: number;
   readonly keys: readonly RowKey[];
-  /** Folded group: the times of the keys inside it. */
-  readonly summary: readonly number[];
+  /** Folded group: the times of the keys inside it, picked where one of them is. */
+  readonly summary: readonly { readonly time: number; readonly picked: boolean }[];
   readonly selected: boolean;
 }
 
@@ -306,15 +308,15 @@ export function paintLanes(g: CanvasRenderingContext2D, cw: number, ch: number, 
   paintEnd(g, end, ch, false);
   for (const row of f.rows) {
     const y = row.y + SHEET.row / 2;
-    for (const t of row.summary) paintRivet(g, xOf(s, t), y, RIVET.summary, PEWTER, Ease.Smooth);
+    for (const m of row.summary) paintRivet(g, xOf(s, m.time), y, m.picked ? RIVET.summaryPicked : RIVET.summary, m.picked ? PICKED : PEWTER, Ease.Smooth);
     for (const k of row.keys) {
       const x = xOf(s, k.time);
       if (x < -SHEET.pad || x > cw + SHEET.pad) continue;
-      if (k.hot) {
-        g.strokeStyle = C.ring;
+      if (k.hot || k.picked) {
+        g.strokeStyle = k.hot ? C.ring : S.pickedRing;
         g.lineWidth = RIVET.ringLine;
         g.beginPath();
-        g.arc(x, y, RIVET.ring, 0, Math.PI * 2);
+        g.arc(x, y, k.hot ? RIVET.ring : RIVET.pickedRing, 0, Math.PI * 2);
         g.stroke();
       }
       paintRivet(g, x, y, k.picked ? RIVET.picked : RIVET.r, k.picked ? PICKED : k.ghost ? GHOST : COPPER, k.ease);

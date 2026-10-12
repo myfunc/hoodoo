@@ -13,9 +13,10 @@ it: an airplane, triggers and loops, a faster game render and Sandbox
   picture (Fast), the HUD goes over it and the pointer locks. Physics loads on
   first use, so the editor never downloads it.
 - **Play.** Mouse looks; W A S D move, Space jumps (a wheel notch jumps too),
-  Ctrl or C ducks, K records, Tab frees the pointer and shows the setup panel
-  (Walker or Plane, player presets and sizes or the plane's settings, Record,
-  Resume, Exit). A click on the picture plays again. Leaving the window pauses.
+  Ctrl or C ducks, V turns noclip on and off (*Noclip* below), K records, Tab
+  frees the pointer and shows the setup panel (Walker or Plane, player
+  presets and sizes or the plane's settings, Record, Resume, Exit). A click
+  on the picture plays again. Leaving the window pauses.
 - **Fly.** With Plane chosen (it is remembered), the mouse is the stick: W/S or
   Shift/Ctrl throttle, arrows and A/D pitch and roll, Space boosts, V switches
   chase and cockpit, R starts over. See *The plane* below.
@@ -103,7 +104,14 @@ pyramids, tori and lathes as convex hulls; terrains and lattices as height
 fields; disks and squares as thin boxes; the ground as a half-space. Water
 that is not solid gets a floor half the player's height below it. Boolean
 groups are approximated: Negative and Intersect members are left out; hidden
-objects are not solid.
+objects are not solid, and one keyed to show is solid only while it shows.
+Every body holds what the picture draws, so the player meets the surface it
+sees (`shapes.ts`): polygon hulls are drawn around the round shape, not inside
+it (a torus with a thin tube gets more pieces); a lathe is its outline plus
+its blocks (the king's cross) and its head (the knight's), each a hull; a
+terrain's samples are raised by a quarter of the cell's twist, the most the
+picture's smooth (bilinear) surface rises above the height field's
+triangles.
 
 **Wrapper** (`physics.ts`, class `Physics`). Ids are numbers; poses are
 `{ position: Vec3, rotation: Quat }`; units are scene units and seconds.
@@ -145,12 +153,13 @@ interface Behaviour { start?(ctx); step?(ctx); dispose?(ctx) }   // before actor
 ```
 
 `ActorInput` is `{ move: [right, up, forward], buttons, wheel, arrows? }` with
-buttons Jump, Duck, Use, Attack, Attack2, Reload, View; `up` is Shift (+) and
-Ctrl (−), `arrows` the arrow keys as [right, up]. `ActorContext` gives `physics`,
-`events`, `dt`, `time`. `PlaySim.addActor`, `removeActor`, `addBehaviour`;
-`driver` is the actor the keys and camera follow. The bus `sim.events` carries
-`tick` (after each step), `contact` (bodies with `events` or sensors), `jump`,
-`land`, `jointBroken` and `record`.
+buttons Jump, Duck, Use, Attack, Attack2, Reload, View, Speed (Shift); `up`
+is Shift (+) and Ctrl (−), `arrows` the arrow keys as [right, up].
+`ActorContext` gives `physics`, `events`, `dt`, `time`. `PlaySim.addActor`,
+`removeActor`, `addBehaviour`; `driver` is the actor the keys and camera
+follow. The bus `sim.events` carries `tick` (after each step), `contact`
+(bodies with `events` or sensors), `jump`, `land`, `jointBroken` and
+`record`.
 
 **The walker** (`fps-actor.ts`, `pmove.ts`) is pm_shared.c: friction 4 with
 stop speed 100, accelerate 10, air accelerate 10 with the 30-unit wish cap,
@@ -161,6 +170,38 @@ height); Settings keeps the player: height, eyes, radius, jump, speed and
 gravity factors, mouse; presets Human (1.8), Tiny (0.18) and Giant (18). The
 player's own box only meets props: what it walks into is pushed with its
 momentum, and a prop can rest on its head.
+
+**Staying out of things.** The hull is swept for every move, at any speed.
+The sweep (`Physics.traceBox`) reports a surface it starts touching and moves
+into, leaves a convex shape it starts inside only by moving out of it, and
+keeps a small skin off mesh and terrain faces; an overlap test asks terrains
+for contacts, and a hull under a terrain's surface counts as inside it.
+Half-Life's unstick takes a nudge only along an open path. Stuck for half a
+second (a platform pressing the player into a wall), the player goes to the
+nearest place the hull fits, reached straight if it can be: `freeSpot` in
+`pmove.ts` tries 26 directions at growing distances up to eight heights. A
+spawn, a teleport or a fall back to the start inside something is placed the
+same way. A moving platform's shove is a sweep too, so it stops at a wall.
+The eye stays 2 units (of 72) under the hull's top, so the camera's near
+plane is never past a ceiling the head touches.
+
+**Noclip** (V, the walker only; the plane keeps V for its view): Garry's Mod's
+fly mode. W A S D move where the view points (looking up, forward climbs),
+Space rises, Ctrl or C sinks, Shift is three times faster. Top speed is
+twice the run (640 units); the flight accelerates toward it (5) and friction
+(4, at least a quarter of the top speed's worth) stops it in about half a
+second when the keys let go. No gravity, nothing collides, and the player's
+box stops pushing props; the HUD line reads "Noclip · 640 u/s" and the hint
+lists V. Recording keys the camera along the flight as it does walking.
+Turning noclip off where the hull fits lands right there; inside something
+it moves the player to the nearest place the hull fits (`freeSpot`, eight
+heights); with none, noclip stays on and the HUD line says "Noclip · no room
+to stand here" for two seconds.
+
+Sandbox gets it the same way: V reaches the walker. Its code may also call
+`sim.player.setNoclip(on)` (false when no place was found and noclip stayed
+on) and read `sim.player.noclip`; the flight itself is `noclipMove` in
+`pmove.ts`, for any actor with a hull.
 
 ## The plane
 
@@ -330,7 +371,14 @@ ramp.
   feelers (rays), so a thin pole can pass between them. Keys of a plane flying
   straight east or west with a bank sit near the Euler angles' gimbal lock;
   every frame is keyed, so playback between frames may wobble there.
-- Sandbox still needs: a noclip move mode, objects added to the picture at run
+- Walls and floors: a terrain's body may stand up to a cell proud of a steep
+  cliff (its raised samples); a stone's body is the ellipsoid inside its noise
+  bumps, so a bump can stand a little out of it; a Boolean group still
+  collides as its positive members, its cuts filled.
+- Noclip ends when the player's settings change or another actor takes over
+  (the walker starts afresh); zones still see a flying player; a player
+  pressed into a wall waits half a second before it is moved out.
+- Sandbox still needs: objects added to the picture at run
   time (the picture is the start scene plus body poses), a 2D overlay canvas,
   and a session call to give up and ask back the pointer around menus.
 - Scripts: clips and behaviours move objects in Play only, not in Record's

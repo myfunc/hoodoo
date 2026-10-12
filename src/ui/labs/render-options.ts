@@ -1,12 +1,12 @@
 import { Action } from '../../input/actions';
 import { shortcutOf } from '../../input/bindings';
-import { liveBounces } from '../../render/gpu/live-quality';
 import type { RealtimeStatus } from '../../render/gpu/view-renderer';
 import {
   RenderPreset, type RenderViewOptions, ShadowQuality, VIEW_SAMPLES, VIEW_SCALES, finalBounces, renderViewOptions, withOption,
 } from '../../world/render-setup';
 import { Feature, isFeatureOn } from '../../world/preview-features';
-import { changeSetting } from '../../world/settings';
+import { RENDER_SAMPLE_CHOICES } from '../../world/editor-store';
+import { type PlayResolution, changeSetting } from '../../world/settings';
 import { LiveQuality, PictureMode } from '../../world/world.enums';
 import { speedLine } from '../chrome/picture-readout';
 import { type UiContext, hintOn } from '../context';
@@ -15,6 +15,7 @@ import { Choice, type Dial } from '../kit/controls';
 import { DialogStyle } from '../kit/dialog';
 import { el } from '../kit/dom';
 import type { ToolContent } from '../kit/tool-window';
+import { PLAY_PICTURE, PLAY_RESOLUTIONS } from './play-picture';
 import { FINAL_DEPTH_ABOUT, depthDial, sceneDepth } from './reflection-rows';
 import './render-options.css';
 
@@ -33,6 +34,12 @@ const PRESETS: readonly Item<RenderPreset>[] = [
   { value: RenderPreset.Final, label: 'Final', hint: 'What Render draws, at full size, refined to 64 rays' },
   { value: RenderPreset.Custom, label: 'Custom', hint: 'Your own options: change any row below' },
 ];
+/** Live quality: what moving frames trace (render/gpu/live-quality.ts). */
+const QUALITIES: readonly Item<LiveQuality>[] = [
+  { value: LiveQuality.Fast, label: 'Fast', hint: 'While you move: one reflection, hard shadows, 60 fps' },
+  { value: LiveQuality.Full, label: 'Full', hint: 'While you move: the finished look, grainier, 60 fps' },
+  { value: LiveQuality.Detailed, label: 'Detailed', hint: 'While you move or play: glass and mirrors deep, ~30 fps' },
+];
 const SHADOWS: readonly Item<ShadowQuality>[] = [
   { value: ShadowQuality.Off, label: 'Off', hint: 'Soft shadows drawn hard: quicker' },
   { value: ShadowQuality.Low, label: 'Low', hint: 'One shadow ray per light, as Render' },
@@ -47,21 +54,27 @@ interface Row {
 }
 
 /**
- * READ ME — Render › Render Options…: how Render View draws and how deep mirrors
- * and glass are traced. A tool window (ui/kit/tool-window.ts): it floats over the
- * scene or docks on the left, and every change applies at once. The Render View
- * rows are personal settings (a preset or Custom, world/render-setup.ts); the
- * Render reflections belong to the scene; the live depth is personal too. The
- * speed line shows what the options cost while Render View is on.
+ * READ ME — the Render page of the left panel (Render › Render Options… opens
+ * it): everything about how the picture is drawn, in one place. Live picture:
+ * the live preview while you edit, its quality and depth (personal settings).
+ * Render View: the final render in the scene window, a preset or Custom
+ * (world/render-setup.ts), with a speed line while it is on. Final render: its
+ * rays per pixel and the scene's own bounce depth. Play: the game look, while
+ * that preview is on. A tool window (ui/kit/tool-window.ts): docked in the
+ * panel at first, it can float over the scene; every change applies at once.
  */
 export class RenderOptionsTool implements ToolContent {
-  readonly title = 'Render Options';
+  readonly title = 'Render';
   readonly tab = 'Render';
   readonly style = DialogStyle.Stone;
   readonly cls = 'render-options';
   readonly body: HTMLElement;
+  private readonly liveOn: Choice<boolean>;
+  private readonly quality: Choice<LiveQuality>;
+  private readonly renderRays: Choice<number>;
   private readonly mode: Choice<boolean>;
   private readonly game: Choice<boolean>;
+  private readonly picture: Choice<PlayResolution>;
   private readonly preset: Choice<RenderPreset>;
   private readonly scale: Choice<number>;
   private readonly samples: Choice<number>;
@@ -71,7 +84,6 @@ export class RenderOptionsTool implements ToolContent {
   private readonly antialias: Choice<boolean>;
   private readonly finalDepth: Dial;
   private readonly liveDepth: Dial;
-  private readonly liveAbout: HTMLElement;
   private readonly speed: HTMLElement;
   private stops: (() => void)[] = [];
   private shownDepth = 0;
@@ -82,8 +94,13 @@ export class RenderOptionsTool implements ToolContent {
   constructor(private readonly ctx: UiContext) {
     const e = ctx.editor;
     const set = (patch: Partial<RenderViewOptions>) => this.change(patch);
+    this.liveOn = this.choice(OFF_ON, (liveRender) => e.update({ liveRender }));
+    this.quality = this.choice(QUALITIES.map(({ value, label }) => ({ value, label })), (q) => changeSetting(e, 'liveQuality', q));
+    QUALITIES.forEach((q, i) => hintOn(ctx, this.quality.el.children[i] as HTMLElement, { title: `Live ${q.label}`, text: q.hint }));
+    this.renderRays = this.choice(RENDER_SAMPLE_CHOICES.map((n) => ({ value: n as number, label: String(n) })), (renderSamples) => e.update({ renderSamples }));
     this.mode = this.choice(OFF_ON, (on) => e.update(on ? { picture: PictureMode.Final, quad: false } : { picture: PictureMode.Edit }));
     this.game = this.choice(OFF_ON, (on) => e.update(on ? { picture: PictureMode.Game, quad: false } : { picture: PictureMode.Edit }));
+    this.picture = this.choice(PLAY_RESOLUTIONS, (r) => changeSetting(e, 'playResolution', r));
     this.preset = this.choice(PRESETS.map(({ value, label }) => ({ value, label })), (p) => changeSetting(e, 'renderViewPreset', p));
     PRESETS.forEach((p, i) => hintOn(ctx, this.preset.el.children[i] as HTMLElement, { title: `Preset ${p.label}`, text: p.hint }));
     this.scale = this.choice(VIEW_SCALES.map((v) => ({ value: v as number, label: `${v * PERCENT}%` })), (scale) => set({ scale }));
@@ -96,14 +113,14 @@ export class RenderOptionsTool implements ToolContent {
     const depth = sceneDepth(ctx.world);
     this.finalDepth = depthDial(depth.get(), (n) => depth.set(n), false);
     this.liveDepth = depthDial(e.state.settings.liveBounces, (n) => changeSetting(e, 'liveBounces', n), true);
-    this.liveAbout = el('div', { cls: 'ro-about' });
     this.speed = el('div', { cls: 'ro-speed' });
     const key = shortcutOf(Action.ToggleRenderView);
-    // Play's own row: there only while the Play preview is on (Settings › Preview Features).
+    // Play's own row: there only while the Play preview is on (View › Preview Features…).
     const play = el('div', { cls: 'ro-play' }, [
       el('div', { cls: 'ro-heading', text: 'Play' }),
       this.rows([
         { name: 'Game look', hint: 'Play’s picture in the scene window: 60 fps, deep mirrors, its own grade', control: this.game.el },
+        { name: PLAY_PICTURE.name, hint: PLAY_PICTURE.hint, control: this.picture.el },
       ]),
     ]);
     showWhile(e, Feature.Play, play);
@@ -112,6 +129,13 @@ export class RenderOptionsTool implements ToolContent {
       if (state.picture === PictureMode.Game && !isFeatureOn(state.features, Feature.Play)) e.update({ picture: PictureMode.Edit });
     });
     this.body = el('div', { cls: 'ro-body' }, [
+      el('div', { cls: 'ro-heading is-first', text: 'Live picture' }),
+      this.rows([
+        { name: 'Live preview', hint: `The scene renders itself while you edit (${shortcutOf(Action.ToggleLiveRender)})`, control: this.liveOn.el },
+        { name: 'Quality', hint: 'What the live picture traces while you move', control: this.quality.el },
+        { name: 'Bounces', hint: 'Mirror and glass bounces of the live picture; a personal setting', control: this.liveDepth.el },
+      ]),
+      el('div', { cls: 'ro-heading', text: 'Render View' }),
       this.rows([
         { name: 'Render View', hint: `The final render in the scene window, refining in place (${key})`, control: this.mode.el },
         { name: 'Preset', hint: 'Draft is quick, Final is what Render draws', control: this.preset.el },
@@ -123,12 +147,11 @@ export class RenderOptionsTool implements ToolContent {
         { name: 'Anti-aliasing', hint: 'Rays spread over each pixel: smooth edges', control: this.antialias.el },
       ]),
       this.speed,
-      el('div', { cls: 'ro-heading', text: 'Bounces elsewhere' }),
+      el('div', { cls: 'ro-heading', text: 'Final render' }),
       this.rows([
-        { name: 'Final render', hint: FINAL_DEPTH_ABOUT, control: this.finalDepth.el },
-        { name: 'Live edit', hint: 'Mirror and glass bounces of the live picture; a personal setting', control: this.liveDepth.el },
+        { name: 'Rays/pixel', hint: `Anti-aliasing of Render (${shortcutOf(Action.Render)}) and of copies; more is smoother`, control: this.renderRays.el },
+        { name: 'Bounces', hint: FINAL_DEPTH_ABOUT, control: this.finalDepth.el },
       ]),
-      this.liveAbout,
       play,
     ]);
     this.sync();
@@ -169,6 +192,7 @@ export class RenderOptionsTool implements ToolContent {
     const on = s.picture === PictureMode.Final;
     this.mode.set(on);
     this.game.set(s.picture === PictureMode.Game);
+    this.picture.set(s.settings.playResolution);
     this.preset.set(s.settings.renderViewPreset);
     this.scale.set(o.scale);
     this.samples.set(o.samples);
@@ -180,8 +204,12 @@ export class RenderOptionsTool implements ToolContent {
     const depth = finalBounces(this.ctx.world.scene);
     if (depth !== this.shownDepth) this.finalDepth.set(depth);
     this.shownDepth = depth;
+    this.liveOn.set(s.liveRender);
+    this.quality.set(s.settings.liveQuality);
+    // Render View or the game look draws the picture: the live quality waits until it is off.
+    this.quality.el.classList.toggle('is-idle', s.picture !== PictureMode.Edit);
     this.liveDepth.set(s.settings.liveBounces);
-    this.liveAbout.textContent = `Render: saved with the scene · Live: Detailed traces ${liveBounces(LiveQuality.Detailed, s.settings.liveBounces)}`;
+    this.renderRays.set(s.renderSamples);
     this.body.classList.toggle('is-off', !on);
     if (!on) this.speed.textContent = `Off · turn on above or press ${shortcutOf(Action.ToggleRenderView)}`;
     else if (!this.measuring) this.speed.textContent = 'Measuring…';

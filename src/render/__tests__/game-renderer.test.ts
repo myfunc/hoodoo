@@ -5,10 +5,9 @@ import type { SceneObject } from '../../model/scene.types';
 import type { ViewBasis } from '../../world/camera-math';
 import { createObject } from '../../world/objects.factory';
 import { emptyScene } from '../../world/scene.defaults';
-import { GAME, GAME_PACE, bloomSizes, bloomWeight, cameraRows, jitterAt, pixelAngle, startScale, sunOnScreen } from '../gpu/game-frame';
+import { GAME, bloomSizes, bloomWeight, cameraRows, jitterAt, pixelAngle, sunOnScreen } from '../gpu/game-frame';
 import { GAME_LOOK, GameLook, LOOKS, lookFrom } from '../gpu/game-looks';
 import { MOTION_ROWS, motionRows } from '../gpu/game-motion';
-import { MOTION_SCALE, MotionScale } from '../gpu/motion-scale';
 import { MAX_OBJECTS, TEXEL_FLOATS } from '../gpu/render.constants';
 import { packScene, packedObjects, scanRows } from '../gpu/scene-packer';
 import { DEFINES_AT, GAME_DEFINE, TRACE_SOURCE, withDefines } from '../gpu/trace-source';
@@ -62,10 +61,10 @@ describe('Game renderer frame maths', () => {
     expect(bloomWeight(0.5, 3)).toBeCloseTo(1.75, 9);
   });
 
-  it('starts at about its pixel budget, never above the view', () => {
-    expect(startScale(640, 480)).toBe(1);
-    const s = startScale(2880, 1800);
-    expect(2880 * 1800 * s * s).toBeCloseTo(GAME.startPixels, 0);
+  it('jitters through more phases when asked, still repeating after them', () => {
+    const spots = Array.from({ length: 24 }, (_, i) => jitterAt(i, 24));
+    expect(new Set(spots.map((s) => s.join())).size).toBe(24);
+    expect(jitterAt(27, 24)).toEqual(jitterAt(3, 24));
   });
 });
 
@@ -132,16 +131,5 @@ describe('Object motion for the temporal upscale', () => {
     const hidden = { ...ball([1, 0, 0], 2), hidden: true };
     const light = createObject(createEntry('radial'), { seed: 3 });
     expect(packedObjects({ ...emptyScene(), objects: [hidden, light, shown] })).toEqual([shown]);
-  });
-});
-
-describe('Game pacing', () => {
-  it('climbs a step only after its own calm stretch', () => {
-    const m = new MotionScale(0.5, GAME_PACE);
-    for (let i = 0; i < GAME_PACE.upFrames - 1; i++) m.paced(false);
-    expect(m.scale).toBe(0.5);
-    m.paced(false);
-    expect(m.scale).toBe(0.5 + GAME_PACE.step);
-    expect(GAME_PACE.upFrames).not.toBe(MOTION_SCALE.upFrames);
   });
 });

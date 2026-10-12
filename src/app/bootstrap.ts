@@ -159,7 +159,11 @@ export async function startApp(root: HTMLElement): Promise<void> {
     });
     start.open();
   };
-  commands = new Commands(ctx, { openStart, sceneOpened: (name, fromFile) => tracker.begin(name, fromFile), sceneSaved: () => tracker.saved() });
+  commands = new Commands(ctx, {
+    openStart, sceneOpened: (name, fromFile) => tracker.begin(name, fromFile), sceneSaved: () => tracker.saved(),
+    // The scene window's input is made below; a command runs only after start-up.
+    transform: (job) => input.transform.start(job),
+  });
   const shell = new Shell(ctx, (entry) => createFromPalette(world, entry), (item) => createGameItem(world, item));
   root.replaceChildren(shell.root);
   // Browser automation (tests, screenshots) drives the editor directly; people get the welcome window,

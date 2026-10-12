@@ -1,10 +1,12 @@
 import { Button, Choice, NumberField, Toggle } from '../ui/kit/controls';
 import { el } from '../ui/kit/dom';
+import { PLAY_PICTURE, PLAY_RESOLUTIONS } from '../ui/labs/play-picture';
 import { type PlaneSettings, PlayActor, isPlaneSettings } from '../world/plane-settings';
 import { PlayerPreset, type PlayerSettings, isPlayerSettings, presetPlayer } from '../world/player-settings';
+import type { PlayResolution } from '../world/settings';
 
 const ACTORS: readonly { value: PlayActor; label: string; title: string }[] = [
-  { value: PlayActor.Walker, label: 'Walker', title: 'Half-Life’s walk: W A S D, Space jumps' },
+  { value: PlayActor.Walker, label: 'Walker', title: 'Half-Life’s walk: W A S D, Space jumps, V noclip' },
   { value: PlayActor.Plane, label: 'Plane', title: 'A toy plane: the mouse flies it, W and S throttle' },
 ];
 
@@ -43,6 +45,9 @@ export interface PlayPanelHooks {
   readonly record: () => void;
   readonly resume: () => void;
   readonly exit: () => void;
+  /** Play's picture: sharp, smooth or both (kept in Settings). */
+  readonly resolution: () => PlayResolution;
+  readonly setResolution: (r: PlayResolution) => void;
 }
 
 /**
@@ -63,6 +68,7 @@ export class PlayPanel {
   private readonly planeGrid: HTMLElement;
   private readonly planeFields = new Map<PlaneNumber, NumberField>();
   private readonly invert: Toggle;
+  private readonly picture: Choice<PlayResolution>;
 
   constructor(private readonly hooks: PlayPanelHooks) {
     this.presets = new Choice({
@@ -86,6 +92,7 @@ export class PlayPanel {
     this.invert = new Toggle({ label: 'Invert pitch', value: hooks.plane().invertPitch, title: 'Mouse and arrows pitch like a stick: pull back to climb', onChange: (v) => this.changePlane({ invertPitch: v }) });
     this.planeGrid.append(this.invert.el);
     this.title = el('div', { cls: 'play-panel-title', text: 'Player' });
+    this.picture = new Choice({ items: PLAY_RESOLUTIONS, value: hooks.resolution(), cls: 'segmented play-picture', onChange: (r) => hooks.setResolution(r) });
     this.recordButton = new Button({ cls: 'play-record', content: el('span', { cls: 'play-rec-dot' }), label: 'Record', title: 'Record the camera and what moves as keys (K)', onClick: () => { hooks.record(); this.sync(); } });
     const resume = new Button({ label: 'Resume', title: 'Back to the game (click the picture or Tab)', onClick: () => hooks.resume() });
     const exit = new Button({ label: 'Exit', title: 'Leave Play (Esc)', onClick: () => hooks.exit() });
@@ -95,12 +102,19 @@ export class PlayPanel {
       this.presets.el,
       grid,
       this.planeGrid,
+      el('div', { cls: 'play-panel-title', text: PLAY_PICTURE.name, title: PLAY_PICTURE.hint }),
+      this.picture.el,
       el('div', { cls: 'play-actions' }, [this.recordButton.el, resume.el, exit.el]),
     ]);
     // Clicks on the panel stay on the panel (the layer behind it resumes play on a click).
     this.el.addEventListener('mousedown', (e) => e.stopPropagation());
     this.el.addEventListener('click', (e) => e.stopPropagation());
     this.sync();
+  }
+
+  /** A section a mode adds above Record, Resume and Exit (Sandbox's Garry's Mod files). */
+  addSection(section: HTMLElement): void {
+    this.el.insertBefore(section, this.el.lastElementChild);
   }
 
   /** Shows the settings and the record state as they are now. */
@@ -111,6 +125,7 @@ export class PlayPanel {
     const plane = this.hooks.plane();
     for (const [key, field] of this.planeFields) field.set(plane[key]);
     this.invert.set(plane.invertPitch);
+    this.picture.set(this.hooks.resolution());
     const flying = this.hooks.actor() === PlayActor.Plane;
     this.actors.set(this.hooks.actor());
     this.title.textContent = flying ? 'Plane' : 'Player';

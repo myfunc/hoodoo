@@ -1,12 +1,13 @@
+import { KEY } from '../../core/keys';
 import { Action } from '../../input/actions';
 import { Ease } from '../../model/scene.enums';
 import { type KeyRef, isKeyPicked } from '../../world/animation/key-selection';
 import { frameTime, sameTime } from '../../world/animation/keying';
 import type { UiContext } from '../context';
 import { formatClock } from './timeline-time';
-import { RetimeDrag, keyName, pickBand, pickKey, selectRow } from './timeline-edits';
+import { HeldAt, RetimeDrag, type Retimed, keyName, nudgeKeys, pickBand, pickKey, pickRowKeys, selectRow } from './timeline-edits';
 import { type LaneRow, SHEET, type Scale, fitCanvas, paintLanes, pxPerSecond, scaleOf, timeOf, xOf } from './timeline-paint';
-import { type LedgerRow, isRowSelected, rowKeys, rowRef } from './timeline-rows';
+import { type LedgerRow, isRowSelected, keysBetween, rowKeys, rowRef } from './timeline-rows';
 import type { LedgerState, LedgerTip } from './timeline-state';
 import { panWindow, zoomWindow } from './timeline-window';
 
@@ -14,10 +15,19 @@ import { panWindow, zoomWindow } from './timeline-window';
 const DRAG_PX = 3;
 /** Pinch or Ctrl+wheel: zoom this much per wheel pixel. */
 const ZOOM_PER_PX = 0.01;
+/** Shift+arrow nudges the picked keys this many frames. */
+const NUDGE_FAR = 10;
 const EASE_NAMES: Readonly<Record<Ease, string>> = { [Ease.Smooth]: '', [Ease.Linear]: ' · linear', [Ease.In]: ' · ease in', [Ease.Out]: ' · ease out' };
+/** One line each, in the hint area under the left column. */
 const HINTS = {
-  key: { title: 'Key', text: 'Drag to retime · Del deletes' },
-  empty: { title: 'Ledger', text: 'Drag to box keys' },
+  key: { title: 'Drag: move', text: 'Alt: copy · ←/→: a frame' },
+  empty: { title: 'Drag: box keys', text: 'Double-click: row keys' },
+} as const;
+/** What a retime drag adds to the tooltip. */
+const DRAG_NOTES = {
+  copy: ' · copy',
+  held: { [HeldAt.None]: '', [HeldAt.Start]: ' · stops at 0', [HeldAt.End]: ' · stops at the end' },
+  merge: (n: number) => ` · merges ${n} key${n === 1 ? '' : 's'}`,
 } as const;
 
 enum Press {
@@ -31,23 +41,36 @@ interface Down {
   readonly time: number;
   readonly x: number;
   readonly y: number;
-  readonly shift: boolean;
+  /** Shift or Cmd: keys are added to the picked ones (or taken out). */
+  readonly add: boolean;
   /** The picked keys when the press began. */
   readonly before: readonly KeyRef[];
 }
 
+/** Before a press: the playhead and the picked keys, for a double-click to go back to. */
+interface BeforePress {
+  readonly time: number;
+  readonly keys: readonly KeyRef[];
+}
+
 /**
- * The ruled sheet of the ledger: one row per track, a copper rivet per key. Click
- * a key to pick it (its item is selected too), Shift-click to add one, drag
- * picked keys to move them along whole frames, drag empty space to box keys, and
- * click empty space to select the row and bring the playhead there. Double-click
- * a key to jump to it. Pinch or Ctrl+wheel zooms, a sideways swipe scrolls time,
- * the wheel scrolls rows.
+ * The ruled sheet of the ledger: one row per track, a copper rivet per key; the
+ * Camera and Sun & Sky rows work like the rest. Click a key to pick it (its item
+ * is selected too), Shift- or Cmd-click to add one or take it out, double-click
+ * empty space in a row to pick all its keys (Shift adds them), drag empty space
+ * to box keys across rows. Drag a picked key to move all picked keys along whole
+ * frames (Alt copies them); with the sheet focused, Left and Right nudge them a
+ * frame, Shift ten. A click on empty space selects the row and brings the
+ * playhead there; double-click a key to jump to it. Pinch or Ctrl+wheel zooms, a
+ * sideways swipe scrolls time, the wheel scrolls rows.
  */
 export class LedgerLanes {
   readonly canvas: HTMLCanvasElement;
   private readonly g: CanvasRenderingContext2D;
   private down: Down | null = null;
+  /** Before the latest press, and before the first click of a double-click. */
+  private pressed: BeforePress | null = null;
+  private first: BeforePress | null = null;
   private retime: RetimeDrag | null = null;
   private band: { x0: number; y0: number; x1: number; y1: number } | null = null;
   private hot: KeyRef | null = null;
@@ -55,6 +78,8 @@ export class LedgerLanes {
   constructor(private readonly ctx: UiContext, private readonly state: LedgerState, private readonly scroller: HTMLElement, private readonly tip: LedgerTip, private readonly changed: () => void) {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'tl-lanes';
+    // Focusable, so the arrows can nudge the picked keys.
+    this.canvas.tabIndex = 0;
     const g = this.canvas.getContext('2d');
     if (!g) throw new Error('2D canvas unavailable');
     this.g = g;
@@ -113,7 +138,9 @@ export class LedgerLanes {
           hot: !!this.hot && this.hot.track === ref.track && this.hot.id === ref.id && sameTime(this.hot.time, k.time, a.fps),
         };
       });
-      const summary = [...new Set(row.inside.flatMap((t) => rowKeys(a, { ...row, track: t.track, trackId: t.id }).map((k) => k.time)))];
+      // A folded group's marks of the keys inside: picked where any key at that time is.
+      const inside = row.inside.flatMap((t) => rowKeys(a, { ...row, track: t.track, trackId: t.id }).map((k) => ({ time: k.time, picked: isKeyPicked(picked, { track: t.track, id: t.id, time: k.time }, a.fps) })));
+      const summary = [...new Set(inside.map((m) => m.time))].map((time) => ({ time, picked: inside.some((m) => m.picked && m.time === time) }));
       lanes.push({ y: this.rowTop(i), keys, summary, selected: isRowSelected(row, w.selection, w.rig) });
     }
     paintLanes(this.g, cw, ch, { scale: this.scale, fps: a.fps, duration: a.duration, now: w.time, rows: lanes, band: this.band });
@@ -128,14 +155,17 @@ export class LedgerLanes {
     c.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       e.preventDefault();
+      c.focus({ preventScroll: true });
       c.setPointerCapture(e.pointerId);
       this.tip.hide();
       if (this.ctx.editor.state.playing) this.ctx.dispatch(Action.PlayPause);
       const p = local(e);
       const key = this.keyAt(p.x, p.y);
       const before = this.ctx.editor.state.selectedKeys;
-      if (key) pickKey(this.ctx, key.row, key.time, e.shiftKey);
-      this.down = { press: key ? Press.Key : Press.Empty, row: key?.row ?? this.rowAt(p.y), time: key?.time ?? timeOf(this.scale, p.x), x: p.x, y: p.y, shift: e.shiftKey, before };
+      this.pressed = { time: this.ctx.world.time, keys: before };
+      const add = e.shiftKey || e.metaKey || e.ctrlKey;
+      if (key) pickKey(this.ctx, key.row, key.time, add);
+      this.down = { press: key ? Press.Key : Press.Empty, row: key?.row ?? this.rowAt(p.y), time: key?.time ?? timeOf(this.scale, p.x), x: p.x, y: p.y, add, before };
     });
     c.addEventListener('pointermove', (e) => {
       const p = local(e);
@@ -145,7 +175,7 @@ export class LedgerLanes {
         return;
       }
       const moved = Math.hypot(p.x - d.x, p.y - d.y) > DRAG_PX;
-      if (d.press === Press.Key && !d.shift && (this.retime || moved)) this.dragKeys(d, p.x, e);
+      if (d.press === Press.Key && !d.add && (this.retime || moved)) this.dragKeys(d, p.x, e);
       if (d.press === Press.Empty && (this.band || moved)) {
         this.band = { x0: d.x, y0: d.y, x1: p.x, y1: p.y };
         this.changed();
@@ -160,15 +190,15 @@ export class LedgerLanes {
         this.retime = null;
         this.tip.hide();
       } else if (this.band) {
-        pickBand(this.ctx, d.before, this.keysInBand(this.band), d.shift);
+        pickBand(this.ctx, d.before, this.keysInBand(this.band), d.add);
         this.band = null;
-      } else if (d.press === Press.Key && !d.shift && d.row && this.ctx.editor.state.selectedKeys.length > 1) {
+      } else if (d.press === Press.Key && !d.add && d.row && this.ctx.editor.state.selectedKeys.length > 1) {
         // A click (no drag) on one of several picked keys picks it alone.
         selectRow(this.ctx, d.row, false);
         this.ctx.editor.update({ selectedKeys: [rowRef(d.row, d.time)] });
       } else if (d.press === Press.Empty && d.row) {
-        selectRow(this.ctx, d.row, d.shift);
-        if (!d.shift) this.ctx.editor.update({ selectedKeys: [] });
+        selectRow(this.ctx, d.row, d.add);
+        if (!d.add) this.ctx.editor.update({ selectedKeys: [] });
         this.ctx.world.setTime(Math.min(this.ctx.world.scene.animation.duration, Math.max(0, d.time)));
       }
       this.changed();
@@ -179,31 +209,53 @@ export class LedgerLanes {
       if (!this.down) this.setHot(null);
       this.tip.hide();
     });
+    // A first click (not the second of a double-click) keeps what was before it.
+    c.addEventListener('click', (e) => { if (e.detail <= 1) this.first = this.pressed; });
     c.addEventListener('dblclick', (e) => {
       const p = local(e);
       const key = this.keyAt(p.x, p.y);
-      if (key) this.ctx.world.setTime(key.time);
+      if (key) {
+        this.ctx.world.setTime(key.time);
+        return;
+      }
+      const row = this.rowAt(p.y);
+      const first = this.first;
+      this.first = null;
+      if (!row) return;
+      // The clicks brought the playhead here: it goes back, so picking a row's keys moves nothing (the camera neither).
+      if (first) this.ctx.world.setTime(first.time);
+      pickRowKeys(this.ctx, row, e.shiftKey || e.metaKey || e.ctrlKey, first?.keys);
+      this.changed();
     });
+    c.addEventListener('keydown', (e) => this.key(e));
     c.addEventListener('wheel', (e) => this.wheel(e, local(e).x), { passive: false });
+  }
+
+  /** Left and Right nudge the picked keys a frame (Shift: ten); the other keys go on to the app's shortcuts. */
+  private key(e: KeyboardEvent): void {
+    const dir = e.key === KEY.ArrowLeft ? -1 : e.key === KEY.ArrowRight ? 1 : 0;
+    if (!dir || e.altKey || e.metaKey || e.ctrlKey || !this.ctx.editor.state.selectedKeys.length) return;
+    e.preventDefault();
+    e.stopPropagation();
+    nudgeKeys(this.ctx, dir * (e.shiftKey ? NUDGE_FAR : 1));
   }
 
   private dragKeys(d: Down, x: number, e: PointerEvent): void {
     const a = this.ctx.world.scene.animation;
-    if (!this.retime) this.retime = new RetimeDrag(this.ctx, a, this.ctx.editor.state.selectedKeys);
-    const shift = this.retime.move(timeOf(this.scale, x) - timeOf(this.scale, d.x));
-    if (d.row) this.tip.show(`${keyName(d.row, d.time)} → ${formatClock(frameTime(d.time + shift, a.fps))}`, e.clientX, e.clientY);
+    if (!this.retime) this.retime = new RetimeDrag(this.ctx, a, this.ctx.editor.state.selectedKeys, e.altKey);
+    const r = this.retime.move(timeOf(this.scale, x) - timeOf(this.scale, d.x), e.altKey);
+    if (d.row) this.tip.show(`${keyName(d.row, d.time)} → ${formatClock(frameTime(d.time + r.delta, a.fps))}${dragNotes(r, e.altKey)}`, e.clientX, e.clientY);
   }
 
-  /** Keys whose rivets sit inside the box. */
+  /** Keys whose rivets sit inside the box: on the rows whose middles it covers, between the times at its sides. */
   private keysInBand(b: { x0: number; y0: number; x1: number; y1: number }): KeyRef[] {
-    const [lx, hx, ly, hy] = [Math.min(b.x0, b.x1), Math.max(b.x0, b.x1), Math.min(b.y0, b.y1), Math.max(b.y0, b.y1)];
-    const a = this.ctx.world.scene.animation;
-    const s = this.scale;
-    return this.state.rows.flatMap((row, i) => {
+    const [ly, hy] = [Math.min(b.y0, b.y1), Math.max(b.y0, b.y1)];
+    const rows = this.state.rows.filter((_row, i) => {
       const y = this.rowTop(i) + SHEET.row / 2;
-      if (y < ly || y > hy) return [];
-      return rowKeys(a, row).filter((k) => xOf(s, k.time) >= lx && xOf(s, k.time) <= hx).map((k) => rowRef(row, k.time));
+      return y >= ly && y <= hy;
     });
+    const s = this.scale;
+    return keysBetween(this.ctx.world.scene.animation, rows, timeOf(s, Math.min(b.x0, b.x1)), timeOf(s, Math.max(b.x0, b.x1)));
   }
 
   private hover(x: number, y: number, e: PointerEvent): void {
@@ -248,4 +300,9 @@ export class LedgerLanes {
       this.scroller.scrollTop += e.deltaY;
     }
   }
+}
+
+/** " · copy · merges 1 key": what the tooltip of a retime drag adds to the key's new time. */
+function dragNotes(r: Retimed, copy: boolean): string {
+  return `${copy ? DRAG_NOTES.copy : ''}${DRAG_NOTES.held[r.held]}${r.merges ? DRAG_NOTES.merge(r.merges) : ''}`;
 }

@@ -1,5 +1,6 @@
 import { Logger } from '../core/log';
 import { type EditorState, INITIAL_EDITOR, RENDER_SAMPLE_CHOICES } from '../world/editor-store';
+import { type FeatureNotes, notesFrom } from '../world/feature-notes';
 import { Feature, type FeatureFlags, PREVIEW_FEATURES } from '../world/preview-features';
 import { DEFAULT_SETTINGS, type Settings, settingsFrom } from '../world/settings';
 import { toolPlacesFrom } from '../world/tool-places';
@@ -7,20 +8,22 @@ import { ScrollPreference } from '../world/world.enums';
 import { SITE_DEFAULTS } from './site-defaults';
 
 /** Editor state kept as you left it between visits; the Settings window shows it too. */
-export const REMEMBERED = ['scroll', 'renderSamples', 'sidePanel', 'liveRender', 'leftPanel', 'toolPlaces'] as const;
+export const REMEMBERED = ['scroll', 'renderSamples', 'sidePanel', 'liveRender', 'leftPanel', 'controlsOpen', 'toolPlaces'] as const;
 export type Remembered = Pick<EditorState, (typeof REMEMBERED)[number]>;
 
 /** Settings that outlive a session: the Settings window's (world/settings.ts), the remembered editor state, preview features. */
 export interface Prefs extends Settings, Remembered {
-  /** Preview features switched on in the Settings window. */
+  /** Preview features switched on in the Preview Features window. */
   readonly features: readonly Feature[];
+  /** Comments left there on preview features (world/feature-notes.ts): kept and exported, never a site default. */
+  readonly featureNotes: FeatureNotes;
 }
 
 const KEY = 'hoodoo.prefs.v1';
 /** Marks an exported settings file (Settings › Export…). */
 const EXPORT_KIND = 'hoodoo-settings';
 const EXPORT_INDENT = 2;
-const DEFAULTS: Prefs = { ...DEFAULT_SETTINGS, ...rememberedOf(INITIAL_EDITOR), features: [] };
+const DEFAULTS: Prefs = { ...DEFAULT_SETTINGS, ...rememberedOf(INITIAL_EDITOR), features: [], featureNotes: {} };
 const FLAGS_PARAM = 'flags';
 const SCROLLS: ReadonlySet<unknown> = new Set(Object.values(ScrollPreference));
 const SAMPLES: ReadonlySet<unknown> = new Set(RENDER_SAMPLE_CHOICES);
@@ -29,15 +32,14 @@ const logger = Logger.create('Prefs');
 
 /** The part of the editor state that is remembered. */
 export function rememberedOf(s: Remembered): Remembered {
-  return { scroll: s.scroll, renderSamples: s.renderSamples, sidePanel: s.sidePanel, liveRender: s.liveRender, leftPanel: s.leftPanel, toolPlaces: s.toolPlaces };
+  return { scroll: s.scroll, renderSamples: s.renderSamples, sidePanel: s.sidePanel, liveRender: s.liveRender, leftPanel: s.leftPanel, controlsOpen: s.controlsOpen, toolPlaces: s.toolPlaces };
 }
 
 const flag = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback);
 
-/** Stored features: known ids only; 0.6.1 kept the Object Tree as `objectTree: true`. */
+/** Stored features: known ids only (a feature that left preview drops out). */
 function featuresOf(raw: Record<string, unknown>): Feature[] {
-  if (Array.isArray(raw.features)) return [...new Set(raw.features.filter((f): f is Feature => KNOWN.has(f)))];
-  return raw.objectTree === true ? [Feature.ObjectTree] : [];
+  return Array.isArray(raw.features) ? [...new Set(raw.features.filter((f): f is Feature => KNOWN.has(f)))] : [];
 }
 
 /** Prefs from stored or exported values; anything missing or invalid falls back to Hoodoo's defaults. */
@@ -48,9 +50,12 @@ export function prefsFrom(raw: Record<string, unknown>): Prefs {
     renderSamples: SAMPLES.has(raw.renderSamples) ? (raw.renderSamples as number) : DEFAULTS.renderSamples,
     sidePanel: flag(raw.sidePanel, DEFAULTS.sidePanel),
     leftPanel: flag(raw.leftPanel, DEFAULTS.leftPanel),
-    toolPlaces: toolPlacesFrom(raw.toolPlaces),
+    controlsOpen: flag(raw.controlsOpen, DEFAULTS.controlsOpen),
+    // A window never moved keeps its default place (the Render page docked).
+    toolPlaces: { ...DEFAULTS.toolPlaces, ...toolPlacesFrom(raw.toolPlaces) },
     liveRender: flag(raw.liveRender, DEFAULTS.liveRender),
     features: featuresOf(raw),
+    featureNotes: notesFrom(raw.featureNotes),
   };
 }
 
@@ -95,7 +100,10 @@ export function importPrefs(text: string): boolean {
   try {
     const data = JSON.parse(text) as Record<string, unknown> | null;
     if (data?.kind !== EXPORT_KIND || typeof data.prefs !== 'object' || data.prefs === null) return false;
-    savePrefs(prefsFrom({ ...SITE_DEFAULTS, ...(data.prefs as Record<string, unknown>) }));
+    const raw = data.prefs as Record<string, unknown>;
+    // A file without comments (an older one) leaves the comments written here alone.
+    const { featureNotes, ...settings } = prefsFrom({ ...SITE_DEFAULTS, ...raw });
+    savePrefs(raw.featureNotes === undefined ? settings : { ...settings, featureNotes });
     return true;
   } catch (error) {
     logger.warn('settings file unreadable', {}, error);

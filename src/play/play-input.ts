@@ -15,7 +15,10 @@ export const PLAY_KEYS = {
   /** The plane: throttle up and down beside W and S, the view, and the arrows' stick. */
   throttleUp: ['ShiftLeft', 'ShiftRight'],
   throttleDown: ['ControlLeft', 'ControlRight'],
+  /** The plane's view; the walker's noclip (Garry's Mod's V). */
   view: 'KeyV',
+  /** Faster: the walker's noclip (Shift is the plane's throttle too). */
+  speed: ['ShiftLeft', 'ShiftRight'],
   arrows: { right: 'ArrowRight', left: 'ArrowLeft', up: 'ArrowUp', down: 'ArrowDown' },
   record: 'KeyK',
   setup: 'Tab',
@@ -24,6 +27,7 @@ export const PLAY_KEYS = {
 
 const MOUSE_BUTTONS: Readonly<Record<number, Button>> = { 0: Button.Attack, 2: Button.Attack2 };
 const DUCK: ReadonlySet<string> = new Set(PLAY_KEYS.duck);
+const SPEED: ReadonlySet<string> = new Set(PLAY_KEYS.speed);
 const UP_KEYS: ReadonlySet<string> = new Set(PLAY_KEYS.throttleUp);
 const DOWN_KEYS: ReadonlySet<string> = new Set(PLAY_KEYS.throttleDown);
 
@@ -119,6 +123,7 @@ export class PlayInput {
     if (this.held.has(PLAY_KEYS.use)) buttons.add(Button.Use);
     if (this.held.has(PLAY_KEYS.reload)) buttons.add(Button.Reload);
     if (this.held.has(PLAY_KEYS.view)) buttons.add(Button.View);
+    if (held.some((k) => SPEED.has(k))) buttons.add(Button.Speed);
     const wheel = this.wheel;
     this.wheel = 0;
     return { move, buttons, wheel, arrows };

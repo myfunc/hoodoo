@@ -15,7 +15,7 @@ const MOUSE: readonly [string, string][] = [
   ['Drag a handle cube', 'Stretch along it (Shift: evenly, Alt: from the far side)'],
   ['Drag the pale square', 'Resize evenly (Alt: keep the base)'],
   ['Drag a ring', 'Turn about its axis (Shift: 15° steps)'],
-  ['Drag on empty space', 'Box-select'],
+  ['Drag on empty space', 'Turn the camera (flat views: pan); Shift+drag box-selects'],
   ['Right-drag / Alt-drag', 'Trackball the camera'],
   ['W A S D, R / C over the scene', 'Walk the camera, rise and sink (Shift = faster); flat views pan'],
   ['Right-drag + W A S D, R C, E Q', 'Fly the camera and look around (Shift = faster)'],
@@ -29,6 +29,19 @@ const MOUSE: readonly [string, string][] = [
   ['Drag the camera in flat views', 'Move it in Top, Front or Side; drag the cross at its aim to turn it'],
   ['Drag the sun in flat views', 'Turn it round its ring: the middle is overhead in Top'],
   ['Point at a path key, drag it', 'The key rings and shows its time; the tag names what moves'],
+];
+
+/** G's keyboard Move, Rotate and Size (input/key-transform.ts): Help › Keyboard Shortcuts lists them on their own. */
+const TRANSFORM: readonly [string, string][] = [
+  ['G', 'Move the selection with the mouse (the scene window owns the keys until Enter or Esc)'],
+  ['R / S, G', 'Switch to Rotate / Size, back to Move'],
+  ['X, Y, Z', 'Lock to that axis; the same key again unlocks'],
+  ['Shift+X, Y, Z', 'Lock to the plane without that axis: Move in it, Size the other two'],
+  ['0–9 . - Bksp', 'Type the amount: metres, degrees or a factor'],
+  ['Hold Ctrl/Cmd', 'Snap: the grid step, 15°, 0.1'],
+  ['Enter / click', 'Apply as one undo step'],
+  ['Esc / right-click', 'Cancel: everything goes back'],
+  ['X, Y, Z while dragging', 'Lock the drag of an object or a handle to that axis'],
 ];
 
 const QOL: readonly string[] = [
@@ -64,8 +77,11 @@ export function openShortcuts(flags: FeatureFlags): void {
       cols.append(el('div', { style: { display: 'flex', justifyContent: 'space-between', gap: '8px' } }, [el('span', { text: info.label }), el('b', { text: shortcutOf(a) })]));
     }
   }
+  const wide = ([k, v]: readonly [string, string]) => el('div', { style: { gridColumn: 'span 3', display: 'flex', gap: '12px' } }, [el('b', { text: k, style: { width: '220px' } }), el('span', { text: v })]);
+  cols.append(el('div', { cls: 'stone-section-title', text: 'Move, Rotate, Size: G', style: { gridColumn: '1 / -1' } }));
+  for (const row of TRANSFORM) cols.append(wide(row));
   cols.append(el('div', { cls: 'stone-section-title', text: 'Mouse', style: { gridColumn: '1 / -1' } }));
-  for (const [k, v] of MOUSE) cols.append(el('div', { style: { gridColumn: 'span 3', display: 'flex', gap: '12px' } }, [el('b', { text: k, style: { width: '220px' } }), el('span', { text: v })]));
+  for (const row of MOUSE) cols.append(wide(row));
   openInfo('Keyboard & Mouse', cols);
 }
 

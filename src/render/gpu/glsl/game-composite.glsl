@@ -2,9 +2,12 @@
 precision highp float;
 // The game renderer's last pass (game-renderer.ts): the upscaled HDR picture with its
 // bloom and light shafts, through a look (game-looks.ts) onto the canvas. In order: a
-// chromatic fringe toward the corners, sharpening, bloom, halation and shafts, exposure
-// and a tone curve, an S-curve, saturation, a gradient map, lift / gamma / gain, split
-// toning, vignette, scanlines and a fixed dither against banding.
+// chromatic fringe toward the corners, contrast-adaptive sharpening, bloom, halation and
+// shafts, exposure and a tone curve, an S-curve, saturation, a gradient map, lift / gamma /
+// gain, split toning, vignette, scanlines and a fixed dither against banding.
+// The sharpening is RCAS (after AMD FidelityFX Super Resolution 1, MIT): the centre pulls
+// away from its four neighbours by the most that keeps it inside their range, so edges get
+// crisp without halos or clipping. It runs on c / (1 + max(c)), where the range is 0..1.
 uniform sampler2D uHdr;
 uniform sampler2D uBloom;
 uniform sampler2D uShafts;
@@ -20,7 +23,7 @@ uniform vec3 uHighlightTint;
 uniform vec3 uBloomTint;
 uniform vec3 uHalation;
 uniform vec3 uShaftTint;
-// Chromatic fringe (output pixels at the corners), vignette, soft focus, sharpening.
+// Chromatic fringe (output pixels at the corners), vignette, soft focus, sharpening (RCAS, 0..1; game-upscale.ts).
 uniform vec4 uLens;
 // Scanlines, gradient map amount, the bloom's total weight (to show it as a blur for soft focus).
 uniform vec3 uExtra;
@@ -34,6 +37,8 @@ out vec4 fragColor;
 #define SHOULDER_KNEE 0.75
 #define CONTRAST_PIVOT 0.45
 #define VIGNETTE_START 0.35
+// RCAS's strongest negative lobe (FSR 1: 0.25 - 1/16).
+#define RCAS_LIMIT 0.1875
 
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
 
@@ -65,6 +70,26 @@ float hash12(vec2 p) {
 
 vec3 hdrAt(vec2 uv) { return texture(uHdr, uv).rgb; }
 
+vec3 squash(vec3 c) { return c / (1.0 + max(c.r, max(c.g, c.b))); }
+vec3 unsquash(vec3 c) { return c / max(1.0 - max(c.r, max(c.g, c.b)), 1e-4); }
+
+// RCAS on `e` (the centre, already fringed) with the neighbours of the pixel at uv, at strength 0..1.
+vec3 rcas(vec2 uv, vec3 centre, float amount) {
+  vec2 px = 1.0 / uOutSize;
+  vec3 b = squash(hdrAt(uv + vec2(0.0, px.y)));
+  vec3 d = squash(hdrAt(uv - vec2(px.x, 0.0)));
+  vec3 f = squash(hdrAt(uv + vec2(px.x, 0.0)));
+  vec3 h = squash(hdrAt(uv - vec2(0.0, px.y)));
+  vec3 e = squash(centre);
+  vec3 mn = min(min(b, d), min(f, h));
+  vec3 mx = max(max(b, d), max(f, h));
+  vec3 hitMin = mn / (4.0 * mx + 1e-5);
+  vec3 hitMax = (1.0 - mx) / (4.0 * mn - 4.0);
+  vec3 lobes = max(-hitMin, hitMax);
+  float lobe = max(-RCAS_LIMIT, min(max(lobes.r, max(lobes.g, lobes.b)), 0.0)) * amount;
+  return unsquash((lobe * (b + d + f + h) + e) / (4.0 * lobe + 1.0));
+}
+
 void main() {
   vec2 uv = vUv;
   vec2 cc = uv - 0.5;
@@ -73,11 +98,7 @@ void main() {
   float r = length(cc * vec2(aspect, 1.0)) / length(vec2(0.5 * aspect, 0.5));
   vec2 fringe = cc * r * r * uLens.x * 2.0 / uOutSize;
   vec3 col = vec3(hdrAt(uv + fringe).r, hdrAt(uv).g, hdrAt(uv - fringe).b);
-  if (uLens.w > 0.0) {
-    vec2 px = 1.0 / uOutSize;
-    vec3 around = 0.25 * (hdrAt(uv + vec2(px.x, 0.0)) + hdrAt(uv - vec2(px.x, 0.0)) + hdrAt(uv + vec2(0.0, px.y)) + hdrAt(uv - vec2(0.0, px.y)));
-    col = max(col + (col - around) * uLens.w, 0.0);
-  }
+  if (uLens.w > 0.0) col = max(rcas(uv, col, uLens.w), 0.0);
   vec3 bloom = texture(uBloom, uv).rgb;
   // Soft focus: toward the bloom seen as a blur of the whole picture (the dream look keeps its threshold near 0).
   col = mix(col, bloom / uExtra.z, uLens.z);

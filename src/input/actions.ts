@@ -43,6 +43,8 @@ export enum Action {
   QuadView = 'quad-view',
   ToggleSidePanel = 'toggle-side-panel',
   ToggleLeftPanel = 'toggle-left-panel',
+  /** The scene window alone: both side columns, the palette and the timeline hide; again brings them back. */
+  MaximizeView = 'maximize-view',
   ToggleDepthCue = 'toggle-depth-cue',
   ToggleGrid = 'toggle-grid',
   ToggleGizmo = 'toggle-gizmo',
@@ -104,6 +106,10 @@ export enum Action {
   LinkPortals = 'link-portals',
   CreateTriggerZone = 'create-trigger-zone',
   Play = 'play',
+  /** G: a keyboard Move of the selection; inside it R rotates and S sizes (input/key-transform.ts). */
+  MoveSelection = 'move-selection',
+  RotateSelection = 'rotate-selection',
+  SizeSelection = 'size-selection',
 }
 
 /** Actions that take a numeric argument (bookmark slots). */

@@ -3,11 +3,8 @@ import { Action } from '../../input/actions';
 import { shortcutOf } from '../../input/bindings';
 import type { RenderProgress } from '../../render/gpu/progressive';
 import type { RealtimeStatus } from '../../render/gpu/realtime';
-import { RENDER_SAMPLE_CHOICES } from '../../world/editor-store';
-import { changeSetting } from '../../world/settings';
-import { LiveQuality, PictureMode } from '../../world/world.enums';
 import { type UiContext, hintOn } from '../context';
-import { Button, Choice, Select } from '../kit/controls';
+import { Button, Select } from '../kit/controls';
 import { el, glyph } from '../kit/dom';
 import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
 import { VIEW_NAMES } from '../strings';
@@ -34,30 +31,26 @@ interface ToggleButton {
 /** What each display toggle shows: its mark and the hint. */
 const TOGGLES: Partial<Record<Action, { mark: readonly string[]; title: string; text: string }>> = {
   [Action.QuadView]: { mark: GLYPH.quad, title: 'Four Views', text: 'Top, Camera, Front and Side at once' },
-  [Action.ToggleLiveRender]: { mark: GLYPH.live, title: 'Live Render', text: 'Keep ray-tracing while you edit (off: Bryce renders on request)' },
+  [Action.ToggleLeftPanel]: { mark: GLYPH.panel, title: 'Left Panel', text: 'Camera controls and the Render page' },
   [Action.ToggleGrid]: { mark: GLYPH.grid, title: 'Ground Grid', text: 'The pink grid on the ground plane' },
   [Action.ToggleDepthCue]: { mark: GLYPH.depthCue, title: 'Depth Cue', text: 'Far wireframes fade' },
   [Action.ToggleGizmo]: { mark: GLYPH.handles, title: 'Move Handles', text: 'Drag an axis arrow to move along it' },
   [Action.ToggleSnap]: { mark: GLYPH.snap, title: 'Snap to Grid', text: 'Moves land on the grid' },
   [Action.ToggleSidePanel]: { mark: GLYPH.panel, title: 'Scene Panel', text: 'Attributes, scene list, snapshots and history' },
+  [Action.MaximizeView]: { mark: GLYPH.maximize, title: 'Maximize View', text: 'The scene window alone; again brings the panels back' },
   [Action.ToggleAnimation]: { mark: GLYPH.film, title: 'Animation', text: 'Timeline with keys, play, movies' },
-  [Action.Play]: { mark: GLYPH.walk, title: 'Play', text: 'Play: walk the scene' },
 };
 
-/** Live quality segments: what moving frames trace (render/gpu/live-quality.ts); hints fit the narrow hint line. */
-const QUALITIES: readonly { value: LiveQuality; label: string; text: string }[] = [
-  { value: LiveQuality.Fast, label: 'Fast', text: 'Moving: one reflection, sharp' },
-  { value: LiveQuality.Full, label: 'Full', text: 'Moving: finished look, grainy' },
-  { value: LiveQuality.Detailed, label: 'Detailed', text: 'Moving: glass traced deep' },
-];
-
-/** Bottom strip under the scene window: view, display toggles (Bryce-style marks) and render status. */
+/**
+ * Bottom strip under the scene window: the panels' toggles at its ends, undo, the
+ * view, display marks, zoom, the timeline, the status, and Play on its own. How the
+ * picture renders lives on the left panel's Render page (ui/labs/render-options.ts).
+ */
 export class DisplayBar {
   readonly el: HTMLElement;
   private readonly status: HTMLElement;
   private readonly toggles: ToggleButton[] = [];
   private readonly viewSelect: Select<ViewKind>;
-  private readonly quality: Choice<LiveQuality>;
   private readonly undo: Button;
   private readonly redo: Button;
 
@@ -68,37 +61,21 @@ export class DisplayBar {
       title: 'View',
       onChange: (k) => ctx.dispatch(VIEW_ACTIONS[k]),
     });
-    const samples = new Select<number>({
-      items: RENDER_SAMPLE_CHOICES.map((n) => ({ value: n, label: n === 1 ? 'No anti-aliasing' : `${n} rays/px` })),
-      value: ctx.editor.state.renderSamples,
-      title: 'Anti-aliasing quality of Render',
-      onChange: (n) => ctx.editor.update({ renderSamples: n }),
-    });
-    this.quality = new Choice<LiveQuality>({
-      items: QUALITIES,
-      value: ctx.editor.state.settings.liveQuality,
-      cls: 'segmented live-quality',
-      onChange: (q) => changeSetting(ctx.editor, 'liveQuality', q),
-    });
-    QUALITIES.forEach((q, i) => hintOn(ctx, this.quality.el.children[i] as HTMLElement, { title: `Live ${q.label}`, text: q.text }));
     this.undo = new Button({ cls: 'ghost', title: `Undo (${shortcutOf(Action.Undo)})`, content: glyph(GLYPH.undo, GLYPH_BOX), onClick: () => ctx.dispatch(Action.Undo) });
     this.redo = new Button({ cls: 'ghost', title: `Redo (${shortcutOf(Action.Redo)})`, content: glyph(GLYPH.redo, GLYPH_BOX), onClick: () => ctx.dispatch(Action.Redo) });
     this.status = el('span', { cls: 'status' });
+    const left = this.toggle(Action.ToggleLeftPanel);
+    left.classList.add('is-mirrored');
     this.el = el('div', { cls: 'display-bar' }, [
+      left,
+      el('div', { cls: 'sep' }),
       this.undo.el,
       this.redo.el,
       el('div', { cls: 'sep' }),
       this.viewSelect.el,
       this.toggle(Action.QuadView),
       el('div', { cls: 'sep' }),
-      this.toggle(Action.ToggleLiveRender),
-      this.quality.el,
-      samples.el,
-      this.renderViewChip(),
-      this.tool(Action.RenderOptions, GLYPH.sliders, 'Render Options', 'Size, rays, reflections and shadows of Render View'),
-      el('div', { cls: 'sep' }),
       this.toggle(Action.ToggleAnimation),
-      this.playChip(),
       el('div', { cls: 'sep' }),
       this.toggle(Action.ToggleGrid),
       this.toggle(Action.ToggleDepthCue),
@@ -110,14 +87,13 @@ export class DisplayBar {
       this.tool(Action.FrameSelected, GLYPH.frame, 'Frame Selection', 'Fit the selection in the view'),
       el('div', { cls: 'grow' }),
       this.status,
+      ...this.playGroup(),
+      el('div', { cls: 'sep' }),
+      this.toggle(Action.MaximizeView),
       this.toggle(Action.ToggleSidePanel),
     ]);
     ctx.editor.events.on('changed', ({ state }) => {
       this.viewSelect.set(state.view);
-      samples.set(state.renderSamples);
-      this.quality.set(state.settings.liveQuality);
-      // Render View (or the game look) draws the picture: the live quality waits until it is off.
-      this.quality.el.classList.toggle('is-idle', state.picture !== PictureMode.Edit);
       this.sync();
     });
     ctx.world.events.on('history', () => this.sync());
@@ -146,11 +122,17 @@ export class DisplayBar {
     this.status.textContent = `${d.width} × ${d.height}`;
   }
 
-  /** Play (preview feature): walk the scene; hidden while the feature is off. */
-  private playChip(): HTMLElement {
-    const chip = this.toggle(Action.Play);
-    showWhile(this.ctx.editor, Feature.Play, chip);
-    return chip;
+  /** Play (preview feature) on its own, apart from the editing marks: a named chip; hidden while the feature is off. */
+  private playGroup(): HTMLElement[] {
+    const action = Action.Play;
+    const key = shortcutOf(action);
+    const button = new Button({ cls: 'mark-chip text-chip play-chip', content: el('span', { cls: 'chip-inner' }, [glyph(GLYPH.walk, GLYPH_BOX), el('span', { text: 'Play' })]), onClick: () => this.ctx.dispatch(action) });
+    button.el.setAttribute('aria-label', `Play (${key})`);
+    hintOn(this.ctx, button.el, { title: 'Play', text: `Walk or fly the scene in first person. Shortcut ${key}` });
+    this.toggles.push({ action, button });
+    const sep = el('div', { cls: 'sep' });
+    for (const node of [sep, button.el]) showWhile(this.ctx.editor, Feature.Play, node);
+    return [sep, button.el];
   }
 
   private toggle(action: Action): HTMLElement {
@@ -162,17 +144,6 @@ export class DisplayBar {
 
   private tool(action: Action, mark: readonly string[], title: string, text: string): HTMLElement {
     return this.markButton(action, mark, title, text).el;
-  }
-
-  /** Render View on or off: a chip with its name, so the mode is plain to see. */
-  private renderViewChip(): HTMLElement {
-    const action = Action.ToggleRenderView;
-    const key = shortcutOf(action);
-    const button = new Button({ cls: 'mark-chip text-chip', label: 'Render View', onClick: () => this.ctx.dispatch(action) });
-    button.el.setAttribute('aria-label', `Render View (${key})`);
-    hintOn(this.ctx, button.el, { title: 'Render View', text: `The final render in the view, refining in place. Shortcut ${key}` });
-    this.toggles.push({ action, button });
-    return button.el;
   }
 
   /** A stone chip with a mark; the hint area names it (no slow browser tooltip). */

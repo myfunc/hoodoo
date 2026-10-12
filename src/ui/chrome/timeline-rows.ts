@@ -1,6 +1,7 @@
 import type { ObjectId } from '../../model/scene.ids';
 import type { Animation, Key, Scene } from '../../model/scene.types';
 import { type KeyRef, KeyTrack, trackKeys, trackName } from '../../world/animation/key-selection';
+import { selectionTracks } from '../../world/animation/loops';
 import { treeRows } from '../../world/group-tree';
 import { RIG_NAMES } from '../../world/rig';
 import { Rig } from '../../world/world.enums';
@@ -69,6 +70,22 @@ const rigRow = (rig: Rig): LedgerRow => ({
 export const rowKeys = (a: Animation, row: LedgerRow): readonly Key<unknown>[] => trackKeys(a, row.track, row.trackId);
 
 export const rowRef = (row: LedgerRow, time: number): KeyRef => ({ track: row.track, id: row.trackId, time });
+
+/** The tracks whose keys a row shows: its own, and a folded group's insides too. */
+const shownTracks = (row: LedgerRow): readonly { readonly track: KeyTrack; readonly id: string }[] => [{ track: row.track, id: row.trackId }, ...row.inside];
+
+/** The keys the rows show from `t0` to `t1`: what a box drawn over them picks. */
+export function keysBetween(a: Animation, rows: readonly LedgerRow[], t0: number, t1: number): KeyRef[] {
+  return rows.flatMap((row) => shownTracks(row).flatMap((t) =>
+    trackKeys(a, t.track, t.id).filter((k) => k.time >= t0 && k.time <= t1).map((k) => ({ track: t.track, id: t.id, time: k.time }))));
+}
+
+/** Every key of a row: its own track's, and for a group the keys of what it holds too (nested groups and objects). */
+export function rowKeyRefs(scene: Scene, row: LedgerRow): KeyRef[] {
+  const inner = row.kind === RowKind.Group && row.members.length ? selectionTracks(scene, new Set(row.members)) : [];
+  const tracks = [{ track: row.track, id: row.trackId }, ...inner.filter((t) => t.track !== row.track || t.id !== row.trackId)];
+  return tracks.flatMap((t) => trackKeys(scene.animation, t.track, t.id).map((k) => ({ track: t.track, id: t.id, time: k.time })));
+}
 
 /** The row is what the scene has selected: its object, its whole group, or the camera or the sun. */
 export function isRowSelected(row: LedgerRow, selection: ReadonlySet<ObjectId>, rig: Rig | null): boolean {

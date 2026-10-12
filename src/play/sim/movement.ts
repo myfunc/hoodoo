@@ -39,6 +39,13 @@ export const HL = {
   skin: 0.03125,
   /** Player mass for pushing physical bodies, kilograms at human size. */
   mass: 80,
+  /** The eye stays at least this far under the top of the hull: a ceiling the head touches is never at the eye. */
+  eyeInset: 2,
+  /** Noclip's top speed (twice the run), Shift's factor on it, and sv_noclipaccelerate and sv_friction's feel. */
+  noclipSpeed: 640,
+  noclipFast: 3,
+  noclipAccelerate: 5,
+  noclipFriction: 4,
 } as const;
 
 /** sqrt(2 · 800 · 45): Half-Life's jump speed, which `fastUp` is a share of. */
@@ -78,6 +85,10 @@ export interface Tuning {
   readonly standView: number;
   readonly duckView: number;
   readonly mass: number;
+  readonly noclipSpeed: number;
+  readonly noclipFast: number;
+  readonly noclipAccelerate: number;
+  readonly noclipFriction: number;
 }
 
 /** The movement of a player with these settings. */
@@ -87,7 +98,8 @@ export function tuningOf(p: PlayerSettings): Tuning {
   const gravity = HL.gravity * unit * p.gravityScale;
   const jumpSpeed = Math.sqrt(2 * gravity * p.jumpHeight);
   const duckHeight = (HL.duckHeight / HL_HULL.height) * p.height;
-  const duckEye = Math.min(duckHeight, p.eyeHeight * (HL.duckEye / HL_HULL.eye));
+  const inset = HL.eyeInset * unit;
+  const duckEye = Math.min(duckHeight - inset, p.eyeHeight * (HL.duckEye / HL_HULL.eye));
   return {
     unit,
     gravity,
@@ -114,8 +126,12 @@ export function tuningOf(p: PlayerSettings): Tuning {
     skin: HL.skin * unit,
     standHalf: [p.radius, p.height / 2, p.radius],
     duckHalf: [p.radius, duckHeight / 2, p.radius],
-    standView: p.eyeHeight - p.height / 2,
+    standView: Math.min(p.eyeHeight, p.height - inset) - p.height / 2,
     duckView: duckEye - duckHeight / 2,
     mass: HL.mass * (p.height / HUMAN_HEIGHT) ** MASS_EXPONENT,
+    noclipSpeed: HL.noclipSpeed * speed,
+    noclipFast: HL.noclipFast,
+    noclipAccelerate: HL.noclipAccelerate,
+    noclipFriction: HL.noclipFriction,
   };
 }

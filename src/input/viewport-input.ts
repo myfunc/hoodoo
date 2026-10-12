@@ -3,7 +3,7 @@ import { ViewKind } from '../model/scene.enums';
 import type { ObjectId } from '../model/scene.ids';
 import type { Camera, SceneObject } from '../model/scene.types';
 import type { SceneView, ViewCell } from '../render/viewport';
-import type { GizmoPart } from '../render/wire/gizmo';
+import { GizmoKind, type GizmoPart } from '../render/wire/gizmo';
 import type { KeyHandle } from '../render/wire/motion-paths';
 import { keyRefOf, pickRect } from '../render/wire/picking';
 import type { RigPart } from '../render/wire/rig-glyphs';
@@ -23,6 +23,7 @@ import { GizmoDrag, gizmoCursor } from './gizmo-drag';
 import { gizmoPartAt, nearGizmo, pickObject, surfacePoint } from './pick';
 import { QuickResize } from './quick-resize';
 import { SceneKeys } from './scene-keys';
+import { type DragLock, KeyTransform } from './key-transform';
 import { RigDrag } from './rig-drag';
 import { clearDoing, handleName, movingName, showDoing } from './drag-names';
 import { CameraNav } from './camera-nav';
@@ -84,21 +85,25 @@ interface Press {
   readonly keyDrag?: KeyDrag;
   /** The camera or sun glyph part pressed (RigPress). */
   readonly rig?: RigPart;
+  /** The handle pressed (Handle). */
+  readonly part?: GizmoPart;
 }
 
 /**
  * READ ME — the scene window's pointer state machine:
- * Idle → Pressing → (MoveObjects | BoxSelect) on the left button,
+ * Idle → Pressing → MoveObjects on an object, Orbit (Pan in a flat view) on empty space,
+ * BoxSelect on empty space with Shift, on the left button;
  * Handle on a handle of the selection (move tip, resize cube, rotate ring: gizmo-drag.ts),
  * KeyPress → KeyDrag on a motion-path key square (path-keys.ts),
  * RigPress → RigDrag on the camera's or the sun's glyph (rig-drag.ts),
- * Orbit (right / Alt-left), Pan (middle / Space-left), Fly (right + WASD/RC/QE), Resize (Z held + left).
+ * Orbit (empty-space left / right / Alt-left), Pan (middle / Space-left), Fly (right + WASD/RC/QE), Resize (Z held + left).
  * A right press let go before it travels DRAG_THRESHOLD_PX is a right click: the context menu.
  * A band that holds key squares picks those keys; otherwise it selects objects.
  * Keys: over the scene window (or with it focused) WASD walk and R/C rise and sink (camera-walk.ts).
  * Scrolling: a mouse wheel dollies; on a trackpad two fingers orbit (Shift or
  * Option: pan, Cmd: dolly) and a pinch zooms — in Safari a two-finger twist turns too.
  * With Z held any scroll or pinch resizes the selection instead; Alt, Shift and Cmd keep their meaning.
+ * G: a keyboard Move, Rotate or Size takes the pointer and keys; X, Y, Z lock a drag (key-transform.ts).
  * It reads the view for picking and sends commands to World or EditorStore.
  */
 export class ViewportInput {
@@ -119,6 +124,8 @@ export class ViewportInput {
   private readonly handles: GizmoDrag;
   private readonly rigs: RigDrag;
   private readonly nav: CameraNav;
+  /** G's keyboard Move, Rotate or Size; the command palette starts it too. */
+  readonly transform: KeyTransform;
   /** A right press that has not travelled yet: letting go opens the context menu, the camera waits. */
   private rightClick = false;
 
@@ -137,10 +144,14 @@ export class ViewportInput {
     this.nav = new CameraNav(world, editor);
     const walk = new CameraWalk(world, editor, { walkCell: () => this.walkCell(), onFly: () => this.onFly(), idle: () => this.state === Gesture.Idle });
     this.resize = new QuickResize(world, editor, () => this.state === Gesture.Idle);
+    this.transform = new KeyTransform(el, world, editor, view, {
+      pointer: () => (this.sceneKeys.inside ? [this.last.x, this.last.y] : null), drag: () => this.lockableDrag(),
+      idle: () => this.state === Gesture.Idle, ended: () => this.updateHover(this.last.x, this.last.y),
+    });
     this.sceneKeys = new SceneKeys(el, editor, walk, this.resize, {
       flying: () => this.flyArmed,
       resizeChanged: () => this.updateHover(this.last.x, this.last.y),
-    });
+    }, this.transform);
     el.addEventListener('pointerdown', (e) => this.down(e));
     el.addEventListener('pointermove', (e) => this.move(e));
     el.addEventListener('pointerup', (e) => this.up(e));
@@ -174,6 +185,7 @@ export class ViewportInput {
 
   private down(e: PointerEvent): void {
     const { x, y } = this.local(e);
+    if (this.transform.press(e.button)) return;
     const cell = this.view.cellAt(x, y);
     if (!cell) return;
     if (this.editor.state.pickingFocus && e.button === BUTTON_LEFT) {
@@ -212,7 +224,7 @@ export class ViewportInput {
     }
     const part = this.gizmoAt(cell, x, y);
     if (part && this.handles.begin(part, cell, x, y)) {
-      this.press = { ...base, target: null };
+      this.press = { ...base, target: null, part };
       this.state = Gesture.Handle;
       showDoing(this.editor, handleName(this.world, part), false);
       return;
@@ -232,6 +244,7 @@ export class ViewportInput {
     const dx = x - this.last.x;
     const dy = y - this.last.y;
     this.last = { x, y };
+    if (this.transform.pointer(x, y, e)) return;
     const p = this.press;
     if (this.state === Gesture.Idle || !p) {
       this.updateHover(x, y);
@@ -246,6 +259,12 @@ export class ViewportInput {
       this.rigs.begin(p.rig, p.cell, p.x, p.y);
       this.state = Gesture.RigDrag;
       this.view.hover = { object: null, gizmo: null, near: false, rig: p.rig };
+    }
+    if (this.state === Gesture.Pressing && Math.hypot(x - p.x, y - p.y) > DRAG_THRESHOLD_PX && !p.target && !p.shift) {
+      // Empty space: a plain drag turns the camera (pans a flat view); Shift+drag draws the selection box.
+      const turn = isPerspective(p.cell.kind);
+      this.state = turn ? Gesture.Orbit : Gesture.Pan;
+      this.nav.beginGesture(p.cell, turn ? 'Camera trackball' : 'Camera pan');
     }
     if (this.state === Gesture.Pressing && Math.hypot(x - p.x, y - p.y) > DRAG_THRESHOLD_PX) {
       this.state = p.target ? Gesture.MoveObjects : Gesture.BoxSelect;
@@ -298,6 +317,7 @@ export class ViewportInput {
     this.box.remove();
     this.handles.end();
     this.rigs.end();
+    this.transform.endDrag();
     clearDoing(this.editor);
     if (this.state === Gesture.KeyDrag || this.state === Gesture.RigDrag) this.view.hover = { object: null, gizmo: null, near: false };
     this.world.endGesture();
@@ -379,7 +399,7 @@ export class ViewportInput {
     e.preventDefault();
     const { x, y } = this.local(e);
     const cell = this.view.cellAt(x, y);
-    if (!cell || this.state !== Gesture.Idle) return;
+    if (!cell || this.state !== Gesture.Idle || this.transform.active) return;
     const device = this.scroll.classify(e);
     if (device === ScrollDevice.Trackpad && !this.trackpadSeen) {
       this.trackpadSeen = true;
@@ -427,7 +447,7 @@ export class ViewportInput {
     e.preventDefault();
     const { x, y } = this.local(e);
     const cell = this.view.cellAt(x, y);
-    if (!cell || this.state !== Gesture.Idle) return;
+    if (!cell || this.state !== Gesture.Idle || this.transform.active) return;
     this.scrollGesture(cell, 'Camera dolly');
     const scale = Math.max(GESTURE_MIN_SCALE, e.scale);
     this.nav.zoomBy(cell, this.gestureScale / scale);
@@ -448,6 +468,7 @@ export class ViewportInput {
 
   /** Where held keys move the camera: the right-dragged view, the view under the pointer, or the main view when focused. */
   private walkCell(): { cell: ViewCell; flying: boolean } | null {
+    if (this.transform.active) return null;
     if (this.press) return this.flyArmed ? { cell: this.press.cell, flying: true } : null;
     if (this.state !== Gesture.Idle) return null;
     const keys = this.sceneKeys;
@@ -459,6 +480,14 @@ export class ViewportInput {
   private onFly(): void {
     this.state = Gesture.Fly;
     this.rightClick = false;
+  }
+
+  /** A drag of objects or of a handle, which X, Y and Z lock (key-transform.ts). */
+  private lockableDrag(): DragLock | null {
+    const p = this.press;
+    const objects = this.state === Gesture.MoveObjects;
+    if (!p || (!objects && this.state !== Gesture.Handle)) return null;
+    return { cell: p.cell, x: p.x, y: p.y, start: p.start, job: p.part?.kind ?? GizmoKind.Move, objects, now: [this.last.x, this.last.y] };
   }
 
   /** Z + press: resizes the selection, or the object under the pointer when nothing is selected. */

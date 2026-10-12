@@ -26,11 +26,15 @@ const SIZES = { view: 112, cross: 78, trackball: 124, ball: 20, midBall: 26, big
 type CamFn = (c: Camera, dx: number, dy: number) => Camera;
 
 /**
- * The left column of Bryce 2: nano preview, view control, three camera crosses,
- * the big trackball, the five render balls and the hint text, on light chrome.
+ * The controls of Bryce 2's left column: nano preview, view control, three camera
+ * crosses, the big trackball and the five render balls, on light chrome; `foot`
+ * is the hint text and the object count under them. In the narrow column they
+ * stack as Bryce had them; beside docked panels they pair up in rows.
  */
 export class ControlPanel {
   readonly el: HTMLElement;
+  /** The hint and the object count: the foot of the left column. */
+  readonly foot: HTMLElement;
   private readonly nano: HTMLCanvasElement;
   private readonly hintTitle: HTMLElement;
   private readonly hintText: HTMLElement;
@@ -80,16 +84,11 @@ export class ControlPanel {
     this.hintText = el('span', { cls: 'hint-text' });
     this.stats = el('div', { cls: 'stats' });
     this.el = el('aside', { cls: 'controls' }, [
-      nano,
-      view,
-      this.viewLabel,
-      el('div', { cls: 'ctrl-row' }, [crossXY, crossYZ]),
-      crossXZ,
-      trackball,
+      el('div', { cls: 'ctrl-pair' }, [nano, el('div', { cls: 'ctrl-view' }, [view, this.viewLabel])]),
+      el('div', { cls: 'ctrl-pair' }, [el('div', { cls: 'ctrl-crosses' }, [el('div', { cls: 'ctrl-row' }, [crossXY, crossYZ]), crossXZ]), trackball]),
       el('div', { cls: 'ctrl-row balls' }, balls),
-      el('div', { cls: 'hint' }, [this.hintTitle, this.hintText]),
-      this.stats,
     ]);
+    this.foot = el('div', { cls: 'column-foot' }, [el('div', { cls: 'hint' }, [this.hintTitle, this.hintText]), this.stats]);
     ctx.editor.events.on('changed', ({ state }) => {
       this.hintTitle.textContent = state.hint.title;
       this.hintText.textContent = state.hint.text;

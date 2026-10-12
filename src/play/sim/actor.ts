@@ -12,8 +12,10 @@ export enum Button {
   Attack = 'attack',
   Attack2 = 'attack2',
   Reload = 'reload',
-  /** Switches the view (the plane: chase or cockpit). */
+  /** Switches the view (the plane: chase or cockpit); the walker's noclip. */
   View = 'view',
+  /** Shift: faster (the walker's noclip). */
+  Speed = 'speed',
 }
 
 /** One fixed step of input. */

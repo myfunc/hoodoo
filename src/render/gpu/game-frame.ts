@@ -1,13 +1,10 @@
 import { type Vec3, dot } from '../../core/vec3';
 import type { ViewBasis } from '../../world/camera-math';
 import { HALTON_X, HALTON_Y, halton } from './halton';
-import { MOTION_SCALE, type MotionTuning } from './motion-scale';
 
 /** Game renderer tuning (game-renderer.ts, measured in docs/rendering.md). */
 export const GAME = {
-  /** The first frames trace about this many pixels; then the fence decides (GAME_PACE). */
-  startPixels: 600000,
-  /** Sub-pixel jitter phases (Halton 2, 3) before the pattern repeats. */
+  /** Sub-pixel jitter phases (Halton 2, 3) before the pattern repeats, at full size (game-upscale.ts adds more below it). */
   jitterPhases: 8,
   /** Frames to keep refining once nothing changes; then the loop rests. */
   settleFrames: 32,
@@ -23,9 +20,9 @@ export const GAME = {
   sunFacing: 0.25,
 } as const;
 
-/** This frame's sample position inside its traced pixel, 0..1 (Halton 2, 3; never the centre twice). */
-export function jitterAt(frame: number): [number, number] {
-  const i = (frame % GAME.jitterPhases) + 1;
+/** This frame's sample position inside its traced pixel, 0..1 (Halton 2, 3 over `phases` frames; never the centre twice). */
+export function jitterAt(frame: number, phases: number = GAME.jitterPhases): [number, number] {
+  const i = (frame % phases) + 1;
   return [halton(i, HALTON_X), halton(i, HALTON_Y)];
 }
 
@@ -86,17 +83,4 @@ export function bloomWeight(spread: number, levels: number = GAME.bloomLevels): 
   let w = 0;
   for (let i = 0; i < levels; i++) w += spread ** i;
   return w;
-}
-
-/**
- * The game renderer's size control goes by the fence alone: a frame the GPU has not finished
- * by the next animation frame was too big. (Timer queries on ANGLE over Metal also count the
- * compositor's work during Play and read two to three times high.) A step up is tried after
- * two calm seconds, and one that fails waits up to a minute before the next try.
- */
-export const GAME_PACE: MotionTuning = { ...MOTION_SCALE, upFrames: 120, maxHold: 3600 };
-
-/** The first trace size for a `width`×`height` view: about `GAME.startPixels`, at most the view's own. */
-export function startScale(width: number, height: number): number {
-  return Math.min(1, Math.sqrt(GAME.startPixels / Math.max(1, width * height)));
 }

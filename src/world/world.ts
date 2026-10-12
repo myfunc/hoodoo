@@ -206,6 +206,16 @@ export class World {
     this.show({ ...base, objects: base.objects.map((o) => (ids.has(o.id) ? { ...o, material } : o)) });
   }
 
+  /**
+   * Shows the objects as `fn` makes them, unrecorded like previewMaterial (locked
+   * ones stay): a keyboard Move, Rotate or Size while it runs. Escape is endPreview;
+   * applying is endPreview, then one updateObjects.
+   */
+  previewObjects(ids: ReadonlySet<ObjectId>, fn: (o: SceneObject) => SceneObject): void {
+    const base = (this.previewBase ??= this.scene);
+    this.show({ ...base, objects: base.objects.map((o) => (ids.has(o.id) && !o.locked ? fn(o) : o)) });
+  }
+
   endPreview(): void {
     const base = this.previewBase;
     this.previewBase = null;
@@ -259,21 +269,11 @@ export class World {
     this.commit(camera ? 'Save camera' : 'Clear camera', { ...this.scene, bookmarks }, ChangeKind.Views);
   }
 
-  /**
-   * Bryce's Group: the selected objects form one flat group. With `nested` (the
-   * Object Tree preview) whole groups in the selection go inside the new group,
-   * which sits in their common parent.
-   */
-  group(ids: ReadonlySet<ObjectId>, nested = false): GroupId | null {
-    if (nested) {
-      const id = newGroupId();
-      const next = grouped(this.scene, ids, id, freshGroupName(this.scene));
-      return next && this.commit('Group', next, ChangeKind.Objects) ? id : null;
-    }
-    if (ids.size < 2) return null;
-    const groupId = newGroupId();
-    this.updateObjects(ids, 'Group', (o) => ({ ...o, groupId }), true);
-    return groupId;
+  /** Groups nest: whole groups in the selection go inside a named group in their common parent. */
+  group(ids: ReadonlySet<ObjectId>): GroupId | null {
+    const id = newGroupId();
+    const next = grouped(this.scene, ids, id, freshGroupName(this.scene));
+    return next && this.commit('Group', next, ChangeKind.Objects) ? id : null;
   }
 
   /** Dissolves the selected groups; what they held moves up one level (to the top in a flat scene). */

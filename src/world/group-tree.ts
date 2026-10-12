@@ -3,7 +3,7 @@ import type { GroupNode, Scene, SceneObject } from '../model/scene.types';
 import { GROUP_NAME, SCENE_LIMITS } from './scene.validate';
 
 /**
- * READ ME — the Object Tree (preview): groups nest. An object points at its
+ * READ ME — the Object Tree: groups nest. An object points at its
  * innermost group, a group at its parent. Plain groups (top level, default name,
  * unfolded) need no table entry, so a scene without nesting keeps the flat shape
  * of every older file. Functions here are pure; World records their results,

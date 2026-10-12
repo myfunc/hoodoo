@@ -11,8 +11,13 @@ export enum ToolId {
   Attributes = 'attributes',
   Materials = 'materials',
   Terrain = 'terrain',
-  /** Render › Render Options… (ui/labs/render-options.ts). */
-  RenderOptions = 'render-options',
+  /**
+   * The Render page of the left panel (ui/labs/render-options.ts). Its id changed from
+   * 'render-options' when it became the panel's default page: places kept for the old floating window drop.
+   */
+  RenderOptions = 'render',
+  /** View › Preview Features… (ui/labs/preview-window.ts). */
+  PreviewFeatures = 'preview-features',
 }
 
 /** Where a tool window lives: docked in the left column, or floating with its top-left corner at x, y (CSS px). */
@@ -25,6 +30,9 @@ export interface ToolPlace {
 }
 
 export type ToolPlaces = Readonly<Partial<Record<ToolId, ToolPlace>>>;
+
+/** A first visit: the Render page sits docked and open in the left panel, under the camera controls. */
+export const DEFAULT_TOOL_PLACES: ToolPlaces = { [ToolId.RenderOptions]: { docked: true, open: true } };
 
 export interface Box {
   readonly width: number;

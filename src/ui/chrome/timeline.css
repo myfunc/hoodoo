@@ -12,7 +12,7 @@
   --tl-row-rule: #ddd9cc;
   --tl-head-ink: #8a877d;
   display: flex; flex-direction: column; gap: 3px; margin: 4px 8px 0; padding: 2px 6px 6px; overflow: hidden;
-  border: 1px solid #8e9095; border-radius: 4px;
+  border: 1px solid #8e9095; border-radius: 0;
   background: linear-gradient(#fdfdfd, #e3e4e6 14%, #cfd1d4 32%, #e8e9eb 60%, #dcdde0);
   box-shadow: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.25);
 }
@@ -23,11 +23,11 @@
 .tl-bar-label { font-size: 10px; color: var(--ink-soft); margin-right: -4px; }
 .tl-transport { display: flex; align-items: center; flex: none; }
 .tl-transport {
-  padding: 2px 6px 2px 9px; border-radius: 14px;
+  padding: 2px 6px 2px 9px; border-radius: 0;
   background: linear-gradient(#a6a9ad, #e4e5e7); box-shadow: inset 0 1px 3px rgba(0,0,0,0.45), 0 1px 0 #fff;
 }
 .ui-button.tl-button {
-  position: relative; width: 28px; height: 19px; padding: 0; margin-left: -4px; border-radius: 50%;
+  position: relative; width: 28px; height: 19px; padding: 0; margin-left: -4px; border-radius: 0;
   display: flex; align-items: center; justify-content: center; color: #1d6f72; cursor: pointer;
   border: 1px solid #7b7e83; background: radial-gradient(ellipse at 50% 28%, #fff, #e6e7e9 40%, #a9acb1 86%, #c8cace);
   box-shadow: 0 1px 2px rgba(0,0,0,0.35);
@@ -47,7 +47,7 @@
    and the frame line that opens Animation Setup. */
 .tl-clock {
   flex: none; display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px 0 6px;
-  border-radius: 3px; background: linear-gradient(#c6c8cb, #eceded); box-shadow: inset 0 1px 2px rgba(0,0,0,0.4), 0 1px 0 #fff;
+  border-radius: 0; background: linear-gradient(#c6c8cb, #eceded); box-shadow: inset 0 1px 2px rgba(0,0,0,0.4), 0 1px 0 #fff;
 }
 .tl-clock-row { display: flex; align-items: center; gap: 3px; white-space: nowrap; }
 .tl-time { font: 700 14px/1 var(--font-title); color: #2f3033; text-shadow: 0 1px 0 rgba(255,255,255,0.7); font-variant-numeric: tabular-nums; }
@@ -55,7 +55,7 @@
 .tl-clock .ui-number.tl-total {
   width: 58px; height: 17px; padding: 0 2px; text-align: center; cursor: text;
   font: 700 14px/1 var(--font-title); color: var(--teal-dark); font-variant-numeric: tabular-nums;
-  border: 1px solid #9a9ca0; border-radius: 2px; background: linear-gradient(#e2e3e5, #fbfbfb);
+  border: 1px solid #9a9ca0; border-radius: 0; background: linear-gradient(#e2e3e5, #fbfbfb);
   box-shadow: inset 0 1px 2px rgba(0,0,0,0.3);
 }
 .tl-clock .ui-number.tl-total:hover { border-color: var(--teal); }
@@ -87,6 +87,10 @@
 .strip-on .tl-sheet > .tl-strip { grid-column: 2; grid-row: 2; display: block; height: 42px; cursor: pointer; }
 .tl-names { position: relative; grid-column: 1; grid-row: 3; min-height: 0; overflow-y: auto; overflow-x: hidden; border-right: 1px solid var(--tl-rule); }
 .tl-lanes { grid-column: 2; grid-row: 3; height: 100%; min-height: 0; }
+/* Picked keys wear a ring that stands out from the sheet: light on the dark ledger. */
+:root[data-theme=dark] .animation-on .timeline { --tl-picked-ring: #fff2b8; }
+/* Pressed, the sheet takes the keyboard (Left and Right nudge the picked keys): a thin teal line says so. */
+.tl-lanes:focus { outline: 1px solid var(--teal); outline-offset: -1px; }
 .tl-zoom {
   grid-column: 1; grid-row: 4; display: flex; align-items: center; gap: 5px; padding: 0 5px; overflow: hidden;
   font-size: 9px; color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums;
@@ -114,7 +118,7 @@
 .tl-name-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ui-button.tl-key-here {
   flex: none; width: 15px; height: 15px; padding: 0; display: flex; align-items: center; justify-content: center;
-  border: 1px solid #8e9095; border-radius: 3px; background: linear-gradient(#fff, #d8d9dc); box-shadow: none;
+  border: 1px solid #8e9095; border-radius: 0; background: linear-gradient(#fff, #d8d9dc); box-shadow: none;
 }
 .ui-button.tl-key-here:hover { border-color: var(--teal); background: linear-gradient(#fff, #e6f2f1); }
 .ui-button.tl-key-here .glyph { width: 11px; height: 11px; fill: none; stroke: #1d6f72; stroke-width: 2.6; stroke-linejoin: round; }

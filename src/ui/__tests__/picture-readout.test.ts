@@ -20,6 +20,11 @@ describe('picture readouts', () => {
     expect(pictureLine({ ...live, samples: 16 })).toBe('Live · converged 16 rays/px');
   });
 
+  it('give the game picture its rate and traced size', () => {
+    expect(pictureLine({ ...live, moving: true, scale: 0.90625, game: true })).toBe('Game · 60 fps · 91% res');
+    expect(pictureLine({ ...live, scale: 0.75, game: true })).toBe('Game · still · 75% res');
+  });
+
   it('name Render View and say how far it is', () => {
     const s = { ...live, target: 64, final };
     expect(pictureLine({ ...s, moving: true, fps: 24 })).toBe('Render View · 24 fps');

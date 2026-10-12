@@ -4,7 +4,8 @@ import type { Trace, Tracer } from '../pmove';
 /**
  * An exact little world for movement tests: axis-aligned boxes and solid
  * half-spaces (n·x < d is inside). Sweeps keep `skin` from surfaces the way the
- * physics layer's do.
+ * physics layer's do, and a sweep that starts inside something and leaves it
+ * (along the way out of least depth) is not held by it, as the physics layer's.
  */
 export interface Box {
   readonly min: Vec3;
@@ -44,7 +45,12 @@ export class BoxWorld implements Tracer {
   /** The box grown by the hull: a ray against it, entering at distance `skin`. */
   private boxHit(b: Box, start: Vec3, dir: Vec3, half: Vec3): Hit | null {
     const inside = [0, 1, 2].every((i) => start[i] > b.min[i] - half[i] && start[i] < b.max[i] + half[i]);
-    if (inside) return { t: 0, normal: ZERO3, solid: true, body: BOX_BODY };
+    if (inside) {
+      // The shallowest way out: a move along it leaves.
+      const depths = [0, 1, 2].flatMap((i) => [{ d: start[i] - (b.min[i] - half[i]), n: scale(AXES[i], -1) }, { d: b.max[i] + half[i] - start[i], n: AXES[i] }]);
+      const out = depths.reduce((a, c) => (c.d < a.d ? c : a));
+      return dot(dir, out.n) > 0 ? null : { t: 0, normal: ZERO3, solid: true, body: BOX_BODY };
+    }
     let t0 = -Infinity;
     let t1 = Infinity;
     let normal: Vec3 = ZERO3;
@@ -74,8 +80,8 @@ export class BoxWorld implements Tracer {
     const n = normalize(p.normal);
     const reach = Math.abs(half[0] * n[0]) + Math.abs(half[1] * n[1]) + Math.abs(half[2] * n[2]);
     const s0 = dot(n, start) - p.d - reach;
-    if (s0 < 0) return { t: 0, normal: n, solid: true, body: PLANE_BODY };
     const along = dot(n, dir);
+    if (s0 < 0) return along > 0 ? null : { t: 0, normal: n, solid: true, body: PLANE_BODY };
     if (s0 <= this.skin) return along < 0 ? { t: 0, normal: n, solid: false, body: PLANE_BODY } : null;
     if (along >= 0) return null;
     const t = (s0 - this.skin) / -along;

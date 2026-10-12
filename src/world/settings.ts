@@ -37,6 +37,13 @@ export enum MessageTime {
   Long = 'long',
 }
 
+/** Play's picture: the traced size first (may dip under 60 fps), 60 fps first, or both (render/gpu/game-size.ts). */
+export enum PlayResolution {
+  Sharp = 'sharp',
+  Auto = 'auto',
+  Smooth = 'smooth',
+}
+
 /**
  * Personal settings from the Settings window. They outlive the session
  * (io/prefs.ts stores them) and code reads them as `editor.state.settings`;
@@ -70,6 +77,8 @@ export interface Settings {
   readonly playActor: PlayActor;
   /** The plane's speed, turn rate and pitch direction (world/plane-settings.ts). */
   readonly plane: PlaneSettings;
+  /** Play's picture: sharp, smooth or both (PlayResolution). */
+  readonly playResolution: PlayResolution;
   /** The start window's examples: their order and the hidden ones (world/example-list.ts). */
   readonly examples: ExampleList;
 }
@@ -91,6 +100,7 @@ export const DEFAULT_SETTINGS: Settings = {
   player: DEFAULT_PLAYER,
   playActor: PlayActor.Walker,
   plane: DEFAULT_PLANE,
+  playResolution: PlayResolution.Auto,
   examples: DEFAULT_EXAMPLE_LIST,
 };
 
@@ -116,6 +126,7 @@ const CHECKS: { readonly [K in keyof Settings]: Check } = {
   player: isPlayerSettings,
   playActor: isPlayActor,
   plane: isPlaneSettings,
+  playResolution: oneOf(Object.values(PlayResolution)),
   examples: isExampleList,
 };
 

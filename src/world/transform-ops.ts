@@ -1,4 +1,4 @@
-import { multiply, rotationEuler, transformDir } from '../core/mat4';
+import { type Mat4, multiply, rotationEuler, transformDir } from '../core/mat4';
 import { Rng } from '../core/rng';
 import { type Vec3, add, mul, scale, sub, withAxis } from '../core/vec3';
 import type { ObjectId } from '../model/scene.ids';
@@ -51,7 +51,15 @@ export function turned(objs: readonly SceneObject[], axis: number, degrees: numb
   const box = unionBox(objs.map(worldBox));
   const center = box ? boxSphere(box).center : [0, 0, 0] as Vec3;
   const step = withAxis([0, 0, 0], axis, degrees);
-  const turn = rotationEuler(step);
+  return turnedBy(objs, rotationEuler(step), center, step);
+}
+
+/**
+ * The objects turned as one body by the rotation `turn` about `center`; `step`
+ * (Euler degrees) is how far each angle is expected to move, so the angles
+ * read back keep turning the short way. The keyboard Rotate turns about the view this way.
+ */
+export function turnedBy(objs: readonly SceneObject[], turn: Mat4, center: Vec3, step: Vec3 = [0, 0, 0]): Map<ObjectId, SceneObject> {
   return new Map(objs.map((o) => {
     const t = o.transform;
     const position = add(center, transformDir(turn, sub(t.position, center)));

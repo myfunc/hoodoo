@@ -1,9 +1,9 @@
-import { type Vec3, add, dot, scale, sub } from '../../core/vec3';
+import { type Vec3, ZERO3, add, dot, length, scale, sub } from '../../core/vec3';
 import type { PlayerSettings } from '../../world/player-settings';
 import { type Actor, type ActorContext, type ActorInput, Button, type Eye } from './actor';
 import { type Tuning, tuningOf } from './movement';
 import { type BodyId, Layer, Motion, type Physics, type Pose } from './physics';
-import { type PlayerState, type Tracer, eyeOf, hullOf, newPlayer, playerMove, unstick } from './pmove';
+import { type PlayerState, type Tracer, eyeOf, freeSpot, hullOf, newPlayer, noclipMove, playerMove, unstick } from './pmove';
 import { IDENTITY_Q, conjQ, mulQ, rotateQ } from './quat';
 import { ShapeType } from './shapes';
 
@@ -12,6 +12,14 @@ const DEG_PER_PX = 0.12;
 const PITCH_LIMIT = 89;
 /** Platforms moving into the player shove it this many times per step at most. */
 const PUSHES = 2;
+/** How far, in player heights, a hull inside something looks for a place to stand. */
+const FREE_REACH = 8;
+/** Steps stuck before the wider look (half a second): a door pressing on the player usually moves on first. */
+const STUCK_STEPS = 50;
+/** Steps the HUD says why noclip stayed on. */
+const NOTICE_STEPS = 200;
+const NOCLIP_LABEL = 'Noclip';
+const NO_ROOM = 'no room to stand here';
 
 /**
  * READ ME — the first-person walker: Half-Life's movement (pmove.ts) on the
@@ -20,6 +28,13 @@ const PUSHES = 2;
  * the cube of the height); what it stands on carries it when keys move it, and
  * a moving platform shoves it out of the way. Its own box in the physics world
  * only meets props, so a crate dropped on the player rests on its head.
+ *
+ * Noclip (V, or `setNoclip` from Sandbox): Garry's Mod's fly mode. The view
+ * steers, Space rises, Ctrl sinks, Shift speeds; no gravity, nothing collides
+ * and the box stops pushing props. Turning it off inside something moves the
+ * player to the nearest place the hull fits (`freeSpot`); with none near,
+ * noclip stays on and the HUD line says so. A spawn, a teleport or a fall back
+ * to the start inside something is placed the same way on the next step.
  */
 export class FpsActor implements Actor {
   readonly id = 'player';
@@ -33,6 +48,15 @@ export class FpsActor implements Actor {
   private wasDucked = false;
   /** The kinematic body under the player and where it was before the step. */
   private carrier: { body: BodyId; pose: Pose } | null = null;
+  private flying = false;
+  /** V was down last step: a press toggles noclip once. */
+  private viewHeld = false;
+  /** Steps left showing why noclip stayed on. */
+  private notice = 0;
+  /** Steps the hull has been stuck with no near way out. */
+  private stuck = 0;
+  /** Placed somewhere new (spawn, teleport, respawn): the next step moves it out of anything it is in. */
+  private settle = true;
 
   /** `spawn`: the eye at the start (and after a fall); `from`: where the eye is now when the player changes mid-play. */
   constructor(private readonly physics: Physics, spawn: Eye, private readonly settings: PlayerSettings, private readonly killY: number, from: Eye = spawn) {
@@ -54,8 +78,55 @@ export class FpsActor implements Actor {
     this.pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, this.pitch - dy * k));
   }
 
+  /** Noclip is on: flying through everything. */
+  get noclip(): boolean {
+    return this.flying;
+  }
+
+  /**
+   * Noclip on or off. Off lands where the player is, or at the nearest place within eight heights
+   * where the hull fits; with none, noclip stays on, the HUD says so, and the answer is false.
+   */
+  setNoclip(on: boolean): boolean {
+    if (on === this.flying) return true;
+    const p = this.state;
+    if (on) {
+      this.flying = true;
+      this.notice = 0;
+      this.carrier = null;
+      p.ground = null;
+      this.physics.setLayer(this.body, Layer.Player, 0);
+      return true;
+    }
+    const spot = this.place(false);
+    if (!spot) {
+      this.notice = NOTICE_STEPS;
+      return false;
+    }
+    if (spot !== p.origin) p.velocity = ZERO3;
+    p.origin = spot;
+    this.flying = false;
+    this.notice = 0;
+    this.physics.setLayer(this.body, Layer.Player, Layer.Prop);
+    this.physics.setPose(this.body, { position: p.origin, rotation: IDENTITY_Q });
+    return true;
+  }
+
   step(input: ActorInput, ctx: ActorContext): void {
     const p = this.state;
+    const view = input.buttons.has(Button.View);
+    if (view && !this.viewHeld) this.setNoclip(!this.flying);
+    this.viewHeld = view;
+    if (this.notice > 0) this.notice--;
+    if (this.flying) {
+      this.fly(input, ctx.dt);
+      return;
+    }
+    if (this.settle) {
+      this.settle = false;
+      const spot = this.place(false);
+      if (spot) p.origin = spot;
+    }
     const ground = p.ground;
     this.carrier = ground !== null && this.physics.motion(ground) === Motion.Kinematic ? { body: ground, pose: this.physics.pose(ground) } : null;
     const fall = -p.velocity[1];
@@ -75,18 +146,23 @@ export class FpsActor implements Actor {
   afterPhysics(): void {
     const p = this.state;
     const t = this.tuning;
+    if (this.flying) {
+      this.physics.setPose(this.body, { position: p.origin, rotation: IDENTITY_Q });
+      return;
+    }
     if (this.carrier && p.ground === this.carrier.body) {
       const now = this.physics.pose(this.carrier.body);
       const before = this.carrier.pose;
       const moved = add(rotateQ(mulQ(now.rotation, conjQ(before.rotation)), sub(p.origin, before.position)), now.position);
       p.origin = this.tracer.trace(p.origin, moved, hullOf(p, t)).end;
     }
+    // A shove is a sweep too: a platform pushes the player up to a wall, never through it.
     for (let i = 0; i < PUSHES; i++) {
       const pusher = this.physics.overlapsBox(p.origin, hullOf(p, t), t.skin, { layers: Layer.World, exclude: this.body });
       if (pusher === null || this.physics.motion(pusher) !== Motion.Kinematic) break;
-      p.origin = add(p.origin, scale(this.physics.velocityAt(pusher, p.origin), this.physics.dt));
+      p.origin = this.tracer.trace(p.origin, add(p.origin, scale(this.physics.velocityAt(pusher, p.origin), this.physics.dt)), hullOf(p, t)).end;
     }
-    unstick(p, t, this.tracer);
+    this.unstuck();
     if (p.origin[1] < this.killY) this.respawn();
     this.physics.setPose(this.body, { position: p.origin, rotation: IDENTITY_Q });
   }
@@ -102,22 +178,26 @@ export class FpsActor implements Actor {
     if (dv[1] > 0) p.ground = null;
   }
 
-  /** The player's feet at `feet`, standing still, looking the same way (a teleporter). */
+  /** The player's feet at `feet`, standing still, looking the same way (a teleporter); out of anything there on the next step. */
   teleport(feet: Vec3): void {
     const p = this.state;
     p.origin = [feet[0], feet[1] + hullOf(p, this.tuning)[1] + this.tuning.skin, feet[2]];
     p.velocity = [0, 0, 0];
     p.ground = null;
+    this.settle = true;
     this.physics.setPose(this.body, { position: p.origin, rotation: IDENTITY_Q });
   }
 
-  /** Ground speed in Half-Life units a second, the speedometer of bunny hoppers. */
+  /** Ground speed in Half-Life units a second, the speedometer of bunny hoppers; in noclip the speed through the air. */
   get speed(): number {
-    return Math.hypot(this.state.velocity[0], this.state.velocity[2]) / this.tuning.unit;
+    const v = this.state.velocity;
+    return (this.flying ? length(v) : Math.hypot(v[0], v[2])) / this.tuning.unit;
   }
 
   readout(): string {
-    return `${Math.round(this.speed)} u/s`;
+    const speed = `${Math.round(this.speed)} u/s`;
+    if (!this.flying) return speed;
+    return `${NOCLIP_LABEL} · ${this.notice > 0 ? NO_ROOM : speed}`;
   }
 
   dispose(): void {
@@ -154,5 +234,35 @@ export class FpsActor implements Actor {
     this.yaw = this.spawn.yaw;
     this.pitch = this.spawn.pitch;
     p.ground = null;
+    this.settle = true;
+  }
+
+  /** Noclip's flight on this step's keys: the view steers, Space and Ctrl (or C) rise and sink, Shift speeds. */
+  private fly(input: ActorInput, dt: number): void {
+    const b = input.buttons;
+    const up = (b.has(Button.Jump) ? 1 : 0) - (b.has(Button.Duck) ? 1 : 0);
+    noclipMove(this.state, { forward: input.move[2], side: input.move[0], up, fast: b.has(Button.Speed), yaw: this.yaw, pitch: this.pitch }, this.tuning, dt);
+    this.physics.setPose(this.body, { position: this.state.origin, rotation: IDENTITY_Q });
+  }
+
+  /** Where the hull fits nearest the player now (itself when it fits), or null; `straight`: by an open path first. */
+  private place(straight: boolean): Vec3 | null {
+    const p = this.state;
+    return freeSpot(p.origin, hullOf(p, this.tuning), this.tracer, FREE_REACH * this.settings.height, straight);
+  }
+
+  /** Half-Life's nudge out of what the hull is in; stuck for half a second, the nearest open place, reached straight if it can be. */
+  private unstuck(): void {
+    const p = this.state;
+    if (unstick(p, this.tuning, this.tracer)) {
+      this.stuck = 0;
+      return;
+    }
+    if (++this.stuck < STUCK_STEPS) return;
+    this.stuck = 0;
+    const spot = this.place(true);
+    if (!spot) return;
+    p.origin = spot;
+    p.velocity = ZERO3;
   }
 }

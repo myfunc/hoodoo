@@ -55,7 +55,7 @@ describe('Play body flags', () => {
     const w = new World(emptyScene());
     const [a, b] = [make('cube'), make('sphere')];
     w.addObjects([a, b], 'Create');
-    const g = w.group(new Set([a.id, b.id]), true)!;
+    const g = w.group(new Set([a.id, b.id]))!;
     w.setGroupBody(g, { physical: true });
     expect(groupBody(groupIndex(w.scene).get(g)).physical).toBe(true);
     expect(groupBody(groupIndex(roundTrip(w.scene)).get(g)).physical).toBe(true);

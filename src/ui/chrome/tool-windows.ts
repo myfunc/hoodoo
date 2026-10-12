@@ -1,29 +1,30 @@
 import { KEY, TEXT_TAGS } from '../../core/keys';
 import { ToolId, floatSpot, isDocked, reopened, withDocked, withOpen, withSpot } from '../../world/tool-places';
-import type { UiContext } from '../context';
+import { type UiContext, hintOn } from '../context';
 import { Choice } from '../kit/controls';
 import { isModalOpen } from '../kit/dialog';
-import { clearChildren, el } from '../kit/dom';
+import { clearChildren, el, glyph } from '../kit/dom';
+import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
 import { type ToolContent, ToolWindow } from '../kit/tool-window';
 import { AttributesTool } from '../labs/attributes-dialog';
 import { MaterialsLab } from '../labs/materials-lab';
 import { TerrainEditor } from '../labs/terrain-editor';
 import { RenderOptionsTool } from '../labs/render-options';
+import { PreviewFeaturesTool } from '../labs/preview-window';
 import './dock.css';
 
 /** Floating windows stack above the scene and below the modal veil (z-index 500). */
 const FLOAT_Z = 450;
 /** Pop-ups that take Esc for themselves. */
 const POPUPS = '.ui-menu, .ui-picker, .mm';
-const CONTROLS = 'controls';
-type Tab = ToolId | typeof CONTROLS;
-const ORDER: readonly ToolId[] = [ToolId.Attributes, ToolId.Materials, ToolId.Terrain, ToolId.RenderOptions];
+const ORDER: readonly ToolId[] = [ToolId.RenderOptions, ToolId.Attributes, ToolId.Materials, ToolId.Terrain, ToolId.PreviewFeatures];
 
 const BUILD: Readonly<Record<ToolId, (ctx: UiContext) => ToolContent>> = {
   [ToolId.Attributes]: (ctx) => new AttributesTool(ctx),
   [ToolId.Materials]: (ctx) => new MaterialsLab(ctx),
   [ToolId.Terrain]: (ctx) => new TerrainEditor(ctx),
   [ToolId.RenderOptions]: (ctx) => new RenderOptionsTool(ctx),
+  [ToolId.PreviewFeatures]: (ctx) => new PreviewFeaturesTool(ctx),
 };
 
 interface Entry {
@@ -45,42 +46,64 @@ export function toolWindows(ctx: UiContext): ToolWindows {
 }
 
 /**
- * READ ME — Object Attributes, the Materials Lab and the Terrain Editor as
- * windows that leave the scene usable. Each opens where it lived last
- * (EditorState.toolPlaces, remembered in prefs): floating over the scene, or
- * docked in the left column, where a tab strip switches between the camera
- * controls and the docked windows. Esc closes the front floating window.
+ * READ ME — the left panel and the tool windows. The panel stacks Bryce's
+ * camera controls (a heading folds them away, remembered as `controlsOpen`)
+ * over the docked windows, with the hint line at its foot. Render, Object
+ * Attributes, the Materials Lab and the Terrain Editor are windows that leave
+ * the scene usable: each opens where it lived last (EditorState.toolPlaces,
+ * remembered in prefs), floating over the scene or docked in the panel, where a
+ * tab strip switches between them when there are several. Render starts docked.
+ * Esc closes the front floating window.
  */
 export class ToolWindows {
-  /** The left column: the dock tabs over the control panel and the docked windows. */
+  /** The left panel: the camera controls, the docked windows under them, the hint line at the foot. */
   readonly column: HTMLElement;
   /** The dock got its first window or lost its last: the column widens or narrows. */
   onDock: (docked: boolean) => void = () => undefined;
   private readonly tabs: HTMLElement;
   private readonly pages: HTMLElement;
-  private controls: HTMLElement | null = null;
+  private readonly controls: HTMLElement;
+  private readonly dock: HTMLElement;
   private readonly entries = new Map<ToolId, Entry>();
   /** Floating windows, the front one last. */
   private stack: ToolId[] = [];
-  private active: Tab = CONTROLS;
+  private active: ToolId | null = null;
 
   constructor(private readonly ctx: UiContext) {
     this.tabs = el('div', { cls: 'dock-tabs' });
     this.pages = el('div', { cls: 'dock-pages' });
-    this.column = el('div', { cls: 'left-column' }, [this.tabs, this.pages]);
+    this.dock = el('div', { cls: 'dock-section' }, [this.tabs, this.pages]);
+    this.controls = el('section', { cls: 'controls-section' }, [this.foldHead()]);
+    this.column = el('div', { cls: 'left-column' }, [this.controls, this.dock]);
     ctx.editor.events.on('changed', ({ state, previous }) => {
       if (state.toolPlaces !== previous.toolPlaces) this.settle();
+      if (state.controlsOpen !== previous.controlsOpen) this.fold();
     });
+    this.fold();
     window.addEventListener('keydown', (e) => this.escape(e), true);
     window.addEventListener('resize', () => { for (const id of this.stack) this.keepOnPage(id); });
   }
 
-  /** The control panel: the column's first page, under the Controls tab. The windows docked open last time come back. */
-  mountControls(node: HTMLElement): void {
-    this.controls = node;
-    this.pages.prepend(node);
+  /** The control panel at the top and its hint line at the foot. The windows docked open last time come back. */
+  mountControls(node: HTMLElement, foot: HTMLElement): void {
+    this.controls.append(node);
+    this.column.append(foot);
     this.layout();
     for (const id of reopened(this.ctx.editor.state.toolPlaces, ORDER)) this.open(id, false);
+  }
+
+  /** The heading over the camera controls: a click folds them away or opens them again. */
+  private foldHead(): HTMLElement {
+    const head = el('button', { cls: 'controls-head', attrs: { type: 'button' } }, [glyph(GLYPH.triangleDown, GLYPH_BOX), el('span', { text: 'Controls' })]);
+    head.addEventListener('click', () => this.ctx.editor.update({ controlsOpen: !this.ctx.editor.state.controlsOpen }));
+    hintOn(this.ctx, head, { title: 'Controls', text: 'Fold the camera controls: room for the panels' });
+    return head;
+  }
+
+  private fold(): void {
+    const open = this.ctx.editor.state.controlsOpen;
+    this.controls.classList.toggle('is-folded', !open);
+    this.controls.firstElementChild?.setAttribute('aria-expanded', String(open));
   }
 
   isOpen(id: ToolId): boolean {
@@ -155,7 +178,7 @@ export class ToolWindows {
       win.el.style.cssText = '';
       if (win.el.parentElement !== this.pages) this.pages.append(win.el);
       this.active = id;
-      if (reveal && !this.ctx.editor.state.leftPanel) this.ctx.editor.update({ leftPanel: true });
+      if (reveal && (!this.ctx.editor.state.leftPanel || this.ctx.editor.state.maximized)) this.ctx.editor.update({ leftPanel: true, maximized: false });
     } else {
       const arriving = win.isDocked || !win.el.isConnected;
       win.setDocked(false);
@@ -220,22 +243,20 @@ export class ToolWindows {
       const e = this.entries.get(id);
       return e?.open && e.win.isDocked;
     });
-    if (this.active !== CONTROLS && !docked.includes(this.active)) this.active = docked.at(-1) ?? CONTROLS;
+    if (this.active === null || !docked.includes(this.active)) this.active = docked.at(-1) ?? null;
     clearChildren(this.tabs);
-    this.tabs.hidden = !docked.length;
-    if (docked.length) {
-      const items = [
-        { value: CONTROLS as Tab, label: 'Controls', title: 'Camera crosses, trackball and render balls' },
-        ...docked.map((id) => ({ value: id as Tab, label: this.entries.get(id)?.content.tab ?? id, title: this.entries.get(id)?.content.title })),
-      ];
-      this.tabs.append(new Choice<Tab>({ cls: 'segmented', items, value: this.active, onChange: (t) => { this.active = t; this.show(docked); } }).el);
+    // One docked window needs no tabs: its own title bar names it.
+    this.tabs.hidden = docked.length < 2;
+    this.dock.hidden = !docked.length;
+    if (docked.length > 1 && this.active) {
+      const items = docked.map((id) => ({ value: id, label: this.entries.get(id)?.content.tab ?? id, title: this.entries.get(id)?.content.title }));
+      this.tabs.append(new Choice<ToolId>({ cls: 'segmented', items, value: this.active, onChange: (t) => { this.active = t; this.show(docked); } }).el);
     }
     this.show(docked);
     this.onDock(docked.length > 0);
   }
 
   private show(docked: readonly ToolId[]): void {
-    if (this.controls) this.controls.hidden = this.active !== CONTROLS;
     for (const id of docked) {
       const node = this.entries.get(id)?.win.el;
       if (node) node.hidden = id !== this.active;

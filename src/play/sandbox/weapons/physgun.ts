@@ -2,6 +2,7 @@ import { add, scale } from '../../../core/vec3';
 import { Button } from '../../sim/actor';
 import { Layer } from '../../sim/physics';
 import { NoticeKind, WeaponId } from '../sandbox.enums';
+import { SANDBOX_SOUNDS } from '../sandbox-sounds';
 import { type Grip, gripOf, holdTarget, pullToward, reached, snapped, turned } from './grip';
 import type { Weapon, WeaponContext, WeaponInput, WeaponView } from './weapon';
 
@@ -119,7 +120,7 @@ export class PhysicsGun implements Weapon {
     const body = (this.grip as Grip).body;
     this.release(ctx);
     ctx.props.freeze(body);
-    this.flash = { body, time: ctx.time };
+    this.flash = { body, time: ctx.time, frozen: true };
     this.spent = true;
   }
 
@@ -127,7 +128,7 @@ export class PhysicsGun implements Weapon {
   private reload(ctx: WeaponContext): void {
     if (ctx.time - this.lastReload < PHYSGUN.doubleR) {
       const n = ctx.props.unfreezeAll();
-      if (n) ctx.notify(unfrozeText(n), NoticeKind.Info);
+      if (n) ctx.notify(unfrozeText(n), NoticeKind.Info, SANDBOX_SOUNDS.unfroze);
       else if (!this.unfrozeOne) ctx.notify('Nothing frozen', NoticeKind.Info);
       this.lastReload = -Infinity;
       return;
@@ -137,8 +138,8 @@ export class PhysicsGun implements Weapon {
     this.unfrozeOne = !!hit && ctx.props.isFrozen(hit.body);
     if (!hit || !this.unfrozeOne) return;
     ctx.props.unfreeze(hit.body);
-    ctx.notify(unfrozeText(1), NoticeKind.Info);
-    this.flash = { body: hit.body, time: ctx.time };
+    ctx.notify(unfrozeText(1), NoticeKind.Info, SANDBOX_SOUNDS.unfroze);
+    this.flash = { body: hit.body, time: ctx.time, frozen: false };
   }
 
   /** Where the beam goes when nothing is held: the first surface on the aim, or the end of the range. */

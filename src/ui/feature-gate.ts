@@ -11,7 +11,6 @@ import { Feature, type FeatureFlags, isFeatureOn } from '../world/preview-featur
  * must name every Feature) and hides its other controls with `showWhile`.
  */
 export const FEATURE_ACTIONS: Readonly<Record<Feature, readonly Action[]>> = {
-  [Feature.ObjectTree]: [Action.NewGroup],
   [Feature.Portals]: [Action.CreatePortals, Action.LinkPortals],
   [Feature.Play]: [Action.Play, Action.CreateTriggerZone],
   // Sandbox has no editor commands: it is what Play carries (src/play/sandbox).

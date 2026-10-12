@@ -36,12 +36,15 @@ describe('preview features in the interface', () => {
       }
       expect([...none].filter((a) => !on.has(a)), `${f} on removed something`).toEqual([]);
     }
+    expect(none.has(Action.NewGroup)).toBe(true);
+    expect(actionShown({}, Action.NewGroup)).toBe(true);
+    expect(shownEntries<Action | typeof SEP>([Action.NewGroup], {}, SEP)).toEqual([Action.NewGroup]);
     expect(offered(ALL_ON).has(Action.NewGroup)).toBe(true);
   });
 
   it('menus lose the hidden items without doubled or dangling separators', () => {
-    expect(shownEntries([Action.NewGroup, SEP, Action.Group, SEP, Action.NewGroup], {}, SEP)).toEqual([Action.Group]);
-    expect(shownEntries([Action.Group, SEP, Action.NewGroup, SEP, Action.Land], {}, SEP)).toEqual([Action.Group, SEP, Action.Land]);
+    expect(shownEntries([Action.CreatePortals, SEP, Action.Group, SEP, Action.CreatePortals], {}, SEP)).toEqual([Action.Group]);
+    expect(shownEntries([Action.Group, SEP, Action.CreatePortals, SEP, Action.Land], {}, SEP)).toEqual([Action.Group, SEP, Action.Land]);
     for (const m of MENUS) {
       const items = shownEntries(m.items, {}, SEP);
       expect(items[0]).not.toBe(SEP);
@@ -53,9 +56,9 @@ describe('preview features in the interface', () => {
   it('a feature control is hidden while the feature is off and comes back when it is on', () => {
     const editor = new EditorStore();
     const node = { hidden: false } as HTMLElement;
-    showWhile(editor, Feature.ObjectTree, node);
+    showWhile(editor, Feature.Portals, node);
     expect(node.hidden).toBe(true);
-    editor.update({ features: { [Feature.ObjectTree]: true } });
+    editor.update({ features: { [Feature.Portals]: true } });
     expect(node.hidden).toBe(false);
     editor.update({ features: {} });
     expect(node.hidden).toBe(true);

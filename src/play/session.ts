@@ -18,6 +18,7 @@ import './play.css';
 
 const logger = Logger.create('Play');
 const MS_PER_S = 1000;
+const PERCENT = 100;
 /** The HUD's text changes at most this often. */
 const READOUT_MS = 100;
 const UNDO_LABEL = 'Record take';
@@ -69,6 +70,8 @@ class PlaySession {
   private last = 0;
   private lastReadout = 0;
   private fps = 0;
+  /** The picture's traced size, per cent of the view per side (the game renderer adapts it). */
+  private res = 0;
   private paused = true;
   private ended = false;
   /** Record was switched off by the user (not by a full track). */
@@ -104,6 +107,8 @@ class PlaySession {
       record: () => this.record(),
       resume: () => this.input.lock(),
       exit: () => this.exit(),
+      resolution: () => this.ctx.editor.state.settings.playResolution,
+      setResolution: (r) => changeSetting(this.ctx.editor, 'playResolution', r),
     });
     this.hud.setPanel(this.panel.el);
     this.showActor(editor.state.settings.playActor);
@@ -115,13 +120,17 @@ class PlaySession {
     this.input.lock();
     this.off.push(
       view.events.on('layout', () => this.hud.place(view.pictureFrame())),
-      view.events.on('live', (st) => { this.fps = st.fps; }),
+      view.events.on('live', (st) => {
+        this.fps = st.fps;
+        this.res = Math.round(st.scale * PERCENT);
+      }),
       onSetting(editor, 'player', (p: PlayerSettings) => this.sim?.setPlayer(p)),
       onSetting(editor, 'playActor', (a: PlayActor) => {
         this.sim?.setActor(a);
         this.showActor(a);
       }),
       onSetting(editor, 'plane', (p: PlaneSettings) => this.sim?.setPlane(p)),
+      onSetting(editor, 'playResolution', () => this.panel.sync()),
     );
     this.hud.place(view.pictureFrame());
     this.automate();
@@ -188,6 +197,7 @@ class PlaySession {
     this.sandbox = new Sandbox({
       layer: this.hud.el, sim, scene: world.scene, picture: () => view.pictureFrame(),
       active: () => !this.paused, freePointer: (on) => this.freePointer(on), toast: (m) => this.ctx.toast(m),
+      addPanelSection: (section) => this.panel.addSection(section),
     });
   }
 
@@ -239,7 +249,7 @@ class PlaySession {
       this.lastReadout = now;
       const take = sim.recording ? sim.time - (sim.takeStart ?? sim.time) : null;
       this.hud.recording(take);
-      this.hud.setReadout(`${sim.driver.readout?.() ?? ''} · ${this.fps} fps`);
+      this.hud.setReadout(`${sim.driver.readout?.() ?? ''} · ${this.fps} fps · ${this.res}% res`);
       const gauge = sim.driver.gauge?.();
       this.hud.setGauge(gauge?.level ?? null, gauge?.hot);
     }

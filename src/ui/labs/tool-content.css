@@ -41,7 +41,7 @@
 .lab-target:empty { display: none; }
 .lab-buttons { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
 .lab-presets { display: grid; gap: 4px; max-height: 196px; overflow-y: auto; }
-.lab-preset { cursor: pointer; border-radius: 2px; }
+.lab-preset { cursor: pointer; border-radius: 0; }
 .lab-channels { display: grid; grid-template-columns: 120px minmax(0, 1fr) 64px; gap: 4px 10px; align-items: center; }
 .lab-channels > span { white-space: nowrap; }
 .lab-channels.lab-dots-head { gap: 0 10px; }

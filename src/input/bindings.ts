@@ -75,6 +75,10 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.LinkPortals]: { label: 'Link Two Portals', menu: MenuName.Objects, chords: [] },
   [Action.CreateTriggerZone]: { label: 'Create Trigger Zone', menu: MenuName.Objects, chords: [] },
   [Action.Play]: { label: 'Play: Walk the Scene', menu: MenuName.View, chords: [c('KeyP', { shift: true })] },
+  // G starts a keyboard Move; R and S switch it to Rotate and Size from inside only, as they walk outside it (TRANSFORM_KEYS).
+  [Action.MoveSelection]: { label: 'Move Selection', menu: MenuName.Objects, chords: [c('KeyG')] },
+  [Action.RotateSelection]: { label: 'Rotate Selection', menu: MenuName.Objects, chords: [] },
+  [Action.SizeSelection]: { label: 'Size Selection', menu: MenuName.Objects, chords: [] },
   [Action.FrameSelected]: { label: 'Frame Selection', menu: MenuName.View, chords: [c('KeyF')] },
   [Action.FrameAll]: { label: 'Frame Scene', menu: MenuName.View, chords: [c('KeyF', { shift: true })] },
   [Action.ViewCamera]: { label: 'Camera View', menu: MenuName.View, chords: [c('Digit1', { alt: true }), c('Numpad0')] },
@@ -85,6 +89,7 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.QuadView]: { label: 'Four Views', menu: MenuName.View, chords: [c('KeyQ')] },
   [Action.ToggleSidePanel]: { label: 'Scene Panel', menu: MenuName.View, chords: [c('Tab')] },
   [Action.ToggleLeftPanel]: { label: 'Left Panel', menu: MenuName.View, chords: [c('Tab', { shift: true })] },
+  [Action.MaximizeView]: { label: 'Maximize View', menu: MenuName.View, chords: [c('Backquote')] },
   [Action.ToggleDepthCue]: { label: 'Depth Cue', menu: MenuName.View, chords: [] },
   [Action.ToggleGrid]: { label: 'Ground Grid', menu: MenuName.View, chords: [c('KeyG', { alt: true })] },
   [Action.ToggleGizmo]: { label: 'Move Handles', menu: MenuName.View, chords: [c('KeyT')] },
@@ -146,7 +151,7 @@ const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(naviga
 const KEY_NAMES: Readonly<Record<string, string>> = {
   Delete: 'Del', Backspace: 'Bksp', Escape: 'Esc', Equal: '+', Minus: '-', Slash: '/', Period: '.', Home: 'Home',
   NumpadAdd: 'Num+', NumpadSubtract: 'Num-', Tab: 'Tab', F12: 'F12', Comma: ',', Space: 'Space', End: 'End',
-  ArrowUp: '↑', ArrowDown: '↓',
+  ArrowUp: '↑', ArrowDown: '↓', Backquote: '`',
 };
 const CODE_PREFIXES = ['Key', 'Digit', 'Numpad'] as const;
 
@@ -205,3 +210,11 @@ export const FLY_KEYS: Readonly<Record<string, readonly [number, number, number]
 
 /** Held with a selection: drag left/right in the scene window or scroll to resize it (Bryce's Resize tool). */
 export const RESIZE_KEY = 'KeyZ';
+
+/**
+ * A keyboard Move, Rotate or Size (key-transform.ts) owns the keyboard while it runs: G, R and S
+ * pick the job, X, Y and Z lock to that world axis (again: unlock; Shift: the plane without it).
+ * X, Y and Z also lock a drag of objects or of a handle.
+ */
+export const TRANSFORM_KEYS = { move: 'KeyG', rotate: 'KeyR', size: 'KeyS' } as const;
+export const AXIS_KEYS: readonly string[] = ['KeyX', 'KeyY', 'KeyZ'];

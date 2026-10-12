@@ -5,7 +5,7 @@
   border: 1px solid var(--edge); background: var(--shade-05);
   box-shadow: inset 1px 1px 0 var(--lo), 1px 1px 0 var(--hi);
 }
-.settings-tab { padding: 4px 8px; border-radius: 2px; font: bold 11px/14px var(--font-ui); color: var(--ink-soft); white-space: nowrap; cursor: pointer; }
+.settings-tab { padding: 4px 8px; border-radius: 0; font: bold 11px/14px var(--font-ui); color: var(--ink-soft); white-space: nowrap; cursor: pointer; }
 .settings-tab:hover { color: var(--ink); background: var(--light-40); }
 .settings-tab.is-on { color: var(--accent-ink); background: var(--accent-face); box-shadow: var(--pressed); }
 .settings-tab:focus-visible { outline: 1px dotted var(--ink); }

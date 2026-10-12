@@ -1,12 +1,10 @@
-import { transformPoint } from '../../core/mat4';
 import type { Vec3 } from '../../core/vec3';
 import type { SceneObject } from '../../model/scene.types';
-import { wireLines } from '../../render/wire/wire-shapes';
 import { type Frame, WireProjector } from '../../render/wire/wireframe';
-import { objectMatrix } from '../../world/bounds';
 import { cameraBasis } from '../../world/camera-math';
 import type { PlayFrame, PlaySim } from '../sim/play-sim';
-import type { WeaponView } from './weapons/weapon';
+import { HaloPainter, type Rgb, silhouettes } from './halo';
+import { DEFAULT_WEAPON_COLOR, type WeaponView } from './weapons/weapon';
 
 /**
  * The beam colours and sizes until the owner's chosen look replaces them: Garry's Mod's blue,
@@ -23,9 +21,14 @@ const BEAM = {
   waves: 14,
   segments: 60,
 } as const;
-/** A light wire over the held object: the object itself must stay in sight under it. */
-const OUTLINE = { color: '#6fd8ff', width: 1, alpha: 0.35 } as const;
-const FLASH = { color: '#dff6ff', width: 1.5, alpha: 0.9, seconds: 0.35 } as const;
+/**
+ * Garry's Mod's halos (gamemodes/sandbox cl_init.lua, effects phys_freeze/phys_unfreeze):
+ * the held prop glows in the weapon colour, jittered by up to 0.3 a channel and 1–2 pixels
+ * wide every frame; freezing flashes green, unfreezing red, fading over 0.3 s.
+ */
+const HALO = { jitter: 0.3, sizes: [1, 2], pxPerSize: 1.5, flashSeconds: 0.3 } as const;
+const FROZEN: Rgb = [0, 1, 0];
+const UNFROZEN: Rgb = [1, 0, 0];
 /** Where the beam leaves the picture: the bottom edge, right of centre (no gun drawn yet). */
 const MUZZLE = { x: 0.78, y: 1.02 } as const;
 /** Points this close to the eye or behind it are not drawn. */
@@ -36,12 +39,13 @@ type Pt = readonly [number, number];
 /**
  * READ ME — Sandbox's 2D layer over the picture: the Physics Gun's beam from
  * the bottom of the picture to what it holds (bending toward the crosshair when
- * the body lags), the held object's outline and a short flash when a prop is
- * frozen or let go. It projects with the play frame's camera, as the wires do.
+ * the body lags), the held object's halo and the green or red flash when a
+ * prop is frozen or unfrozen. It projects with the play frame's camera, as the wires do.
  */
 export class Overlay {
   readonly canvas: HTMLCanvasElement;
   private readonly g: CanvasRenderingContext2D;
+  private readonly halos = new HaloPainter();
 
   constructor() {
     this.canvas = document.createElement('canvas');
@@ -49,7 +53,8 @@ export class Overlay {
     this.g = this.canvas.getContext('2d') as CanvasRenderingContext2D;
   }
 
-  draw(frame: PlayFrame, picture: Frame | null, view: WeaponView, sim: PlaySim): void {
+  /** `beam` false when the hands layer draws Garry's Mod's own beam. */
+  draw(frame: PlayFrame, picture: Frame | null, view: WeaponView, sim: PlaySim, beam = true): void {
     const { canvas, g } = this;
     const dpr = window.devicePixelRatio || 1;
     const [w, h] = [canvas.clientWidth, canvas.clientHeight];
@@ -65,10 +70,17 @@ export class Overlay {
       const ids = new Set(sim.bodies.items.get(body)?.members.map((m) => m.id) ?? []);
       return frame.scene.objects.filter((o) => ids.has(o.id));
     };
-    if (view.held) this.outline(proj, objects(view.held.body), OUTLINE.color, OUTLINE.width, OUTLINE.alpha);
-    const flash = view.flash && sim.time - view.flash.time < FLASH.seconds ? view.flash : null;
-    if (flash) this.outline(proj, objects(flash.body), FLASH.color, FLASH.width, FLASH.alpha * (1 - (sim.time - flash.time) / FLASH.seconds));
-    if (view.firing && view.end) this.beam(proj, picture, view);
+    if (view.held) {
+      const jitter = (c: number) => c + (Math.random() * 2 - 1) * HALO.jitter;
+      const size = HALO.sizes[Math.floor(Math.random() * HALO.sizes.length)];
+      this.halos.paint(g, silhouettes(proj, objects(view.held.body)), DEFAULT_WEAPON_COLOR.map(jitter) as unknown as Rgb, 1, size * HALO.pxPerSize);
+    }
+    const age = view.flash ? sim.time - view.flash.time : Infinity;
+    if (view.flash && age < HALO.flashSeconds) {
+      const fade = 1 - Math.sqrt(age / HALO.flashSeconds);
+      this.halos.paint(g, silhouettes(proj, objects(view.flash.body)), view.flash.frozen ? FROZEN : UNFROZEN, fade, HALO.sizes[0] * HALO.pxPerSize);
+    }
+    if (beam && view.firing && view.end) this.beam(proj, picture, view);
   }
 
   private beam(proj: WireProjector, picture: Frame, view: WeaponView): void {
@@ -105,27 +117,6 @@ export class Overlay {
     g.beginPath();
     g.arc(end[0], end[1], BEAM.widths[1] / 2 + 1, 0, Math.PI * 2);
     g.fill();
-  }
-
-  private outline(proj: WireProjector, objects: readonly SceneObject[], color: string, width: number, alpha: number): void {
-    const g = this.g;
-    g.save();
-    g.globalAlpha = Math.max(0, alpha);
-    g.strokeStyle = color;
-    g.lineWidth = width;
-    g.beginPath();
-    for (const o of objects) {
-      const m = objectMatrix(o);
-      const lines = wireLines(o);
-      for (let i = 0; i < lines.length; i += 2) {
-        const s = proj.segment(proj.view(transformPoint(m, lines[i])), proj.view(transformPoint(m, lines[i + 1])));
-        if (!s) continue;
-        g.moveTo(s[0], s[1]);
-        g.lineTo(s[2], s[3]);
-      }
-    }
-    g.stroke();
-    g.restore();
   }
 
   private screen(proj: WireProjector, p: Vec3): Pt | null {

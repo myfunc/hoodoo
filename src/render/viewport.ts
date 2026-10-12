@@ -13,16 +13,16 @@ import { QuadLive } from './gpu/quad-live';
 import type { RealtimeRenderer, RealtimeStatus } from './gpu/realtime';
 import { PREVIEW_BOUNCES, PREVIEW_SAMPLES } from './gpu/render.constants';
 import { finalBounces } from '../world/render-setup';
-import { PictureMode } from '../world/world.enums';
-import { CONVERGE_FACTOR, ViewPictures, drawPictureTab } from './view-pictures';
+import { CONVERGE_FACTOR, ViewPictures } from './view-pictures';
+import { drawCellLabel, drawCellLine, fitFrame } from './view-cells';
 import { type Frame, type GizmoHandles, type SegmentIndex, WireProjector, drawWireframe } from './wire/wireframe';
 import { type KeyHandle, drawMotionPaths } from './wire/motion-paths';
+import { type AxisGuide, drawAxisGuide } from './wire/axis-guide';
 import { type RigHandles, type RigPart, drawFocusReticle, drawRig } from './wire/rig-glyphs';
 import type { KeyRef } from '../world/animation/key-selection';
 import { rigFlags } from '../world/rig';
 import { Rig } from '../world/world.enums';
 import { type GizmoPart, samePart } from './wire/gizmo';
-import { Tone, tonedTable } from './tone';
 import type { PlayQuality } from '../world/world.enums';
 
 /** One drawable view inside the scene window (one in single view, four in quad view). */
@@ -48,30 +48,9 @@ export interface ViewportEvents {
 }
 
 const QUAD_KINDS: readonly ViewKind[] = [ViewKind.Top, ViewKind.Camera, ViewKind.Front, ViewKind.Side];
-const CELL_MARGIN = 6;
 const MAX_DPR = 2;
 /** Four Views pictures get one pixel per CSS pixel: a quarter of the work on a retina screen. */
 const QUAD_PIXEL_RATIO = 1;
-/** The tab on the picture while Render View draws it, and while the game look is previewed. */
-const RENDER_VIEW_TAB = 'Render View';
-const GAME_TAB = 'Game look';
-const LABEL_FONT = 'bold 10px Geneva, Verdana, sans-serif';
-/** The view names and the Four Views cell lines, and the tab under a name over a rendered pane. */
-const LABEL_INK = tonedTable({
-  [Tone.Light]: { text: 'rgba(40,40,40,0.75)', tab: 'rgba(236,235,231,0.85)' },
-  [Tone.Dark]: { text: 'rgba(222,220,212,0.8)', tab: 'rgba(22,22,24,0.8)' },
-});
-const LABEL_OFFSET = 14;
-/** Over a rendered pane the view name sits on a pale tab so it stays readable. */
-const LABEL_TAB = { padX: 3, top: 3, height: 15 } as const;
-const VIEW_LABELS: Readonly<Record<ViewKind, string>> = {
-  [ViewKind.Camera]: 'Camera',
-  [ViewKind.Director]: "Director's View",
-  [ViewKind.Top]: 'Top',
-  [ViewKind.Front]: 'Front',
-  [ViewKind.Side]: 'Side',
-};
-
 export interface Hover {
   readonly object: ObjectId | null;
   /** The selection's handle under the pointer, and whether the pointer is near enough for the rings. */
@@ -132,6 +111,8 @@ export class SceneView {
   private height = 0;
   /** Play mode's source of frames, while a session runs. */
   private play: PlaySource | null = null;
+  /** The locked axes of a keyboard Move, Rotate or Size while it runs (input/key-transform.ts). */
+  private guideState: AxisGuide | null = null;
 
   constructor(
     private readonly world: World,
@@ -189,6 +170,12 @@ export class SceneView {
   set hover(h: Hover) {
     if (sameHover(h, this.hoverState)) return;
     this.hoverState = h;
+    this.requestDraw();
+  }
+
+  set guide(guide: AxisGuide | null) {
+    if (guide === this.guideState) return;
+    this.guideState = guide;
     this.requestDraw();
   }
 
@@ -484,6 +471,7 @@ export class SceneView {
       const proj = new WireProjector(basis, cell.frame);
       const h = this.hoverState;
       cell.rig = drawRig(g, scene, proj, cell.kind, { selected: this.world.rig, hover: h.rig ?? null });
+      if (this.guideState) drawAxisGuide(g, proj, this.guideState);
       // Paths are for editing: hidden while the show plays.
       const paths = scene.animation.enabled && s.motionPaths && !s.playing;
       const camera = cell.kind !== ViewKind.Camera && !rigFlags(scene, Rig.Camera).hidden;
@@ -491,36 +479,9 @@ export class SceneView {
       cell.keys = paths ? drawMotionPaths(g, scene, proj, this.world.selection, { camera, overRender, keys: s.selectedKeys, focus, cameraSelected: this.world.rig === Rig.Camera }) : [];
       if (cell.kind === ViewKind.Camera) drawFocusReticle(g, cell.frame, basis, scene.camera);
       if (cell.kind === ViewKind.Director) drawFocusReticle(g, cell.frame, basis, s.director);
-      if (s.quad) this.drawLabel(cell, overRender);
-      else if (s.picture === PictureMode.Final) drawPictureTab(g, cell.frame, RENDER_VIEW_TAB);
-      else if (s.picture === PictureMode.Game) drawPictureTab(g, cell.frame, GAME_TAB);
+      drawCellLabel(g, cell, s.quad, s.picture, overRender);
       g.restore();
-      if (s.quad) {
-        g.strokeStyle = LABEL_INK.text;
-        g.strokeRect(cell.rect.x + 0.5, cell.rect.y + 0.5, cell.rect.w - 1, cell.rect.h - 1);
-      }
+      if (s.quad) drawCellLine(g, cell.rect);
     }
   }
-
-  private drawLabel(cell: ViewCell, overRender: boolean): void {
-    const g = this.g;
-    const text = VIEW_LABELS[cell.kind];
-    const x = cell.rect.x + CELL_MARGIN;
-    g.font = LABEL_FONT;
-    if (overRender) {
-      g.fillStyle = LABEL_INK.tab;
-      g.fillRect(x - LABEL_TAB.padX, cell.rect.y + LABEL_TAB.top, g.measureText(text).width + LABEL_TAB.padX * 2, LABEL_TAB.height);
-    }
-    g.fillStyle = LABEL_INK.text;
-    g.fillText(text, x, cell.rect.y + LABEL_OFFSET);
-  }
-}
-
-/** Largest document-aspect rectangle centred in a cell, with a small margin. */
-export function fitFrame(rect: Frame, aspect: number): Frame {
-  const w0 = Math.max(rect.w - CELL_MARGIN * 2, 1);
-  const h0 = Math.max(rect.h - CELL_MARGIN * 2, 1);
-  const w = Math.min(w0, h0 * aspect);
-  const h = w / aspect;
-  return { x: rect.x + (rect.w - w) / 2, y: rect.y + (rect.h - h) / 2, w, h };
 }

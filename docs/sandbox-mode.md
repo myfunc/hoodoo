@@ -6,8 +6,8 @@ the Hoodoo library, weld, rope and hinge them into contraptions, fit them with
 thrusters, wheels and balloons, and undo with Z. It plays like Garry's Mod and
 uses its keys.
 
-Status: design. Building starts once the Play foundation is in; names in the
-contract below follow `docs/play-mode.md` when it lands.
+Status: building. The core, the Physics Gun and the game's own look (below)
+are in; the rest follows *Order of work*.
 
 ## Principles
 
@@ -22,6 +22,40 @@ contract below follow `docs/play-mode.md` when it lands.
 - **The Bryce look.** Stone grey, Geneva, compact segmented choices, one-line
   hints. The look of the HUD and the guns is picked from drawn variants
   before it is built.
+
+## The game's own look
+
+Hoodoo ships no Valve or Facepunch file. The player points Sandbox at their
+own Garry's Mod (Tab › Garry's Mod › Choose folder…) and it is read in place
+(`src/io/source/game-folder.ts`): the VPKs and loose content the game mounts,
+in gameinfo's order, never addons, downloads or saves. Chrome and Edge keep
+the folder (IndexedDB) and ask at most once a visit; other browsers ask each
+time through a folder input. A folder laid out like the game's content works
+too (a private copy for a machine without the game). `?gamefiles=<url>`
+serves such a folder over HTTP for development and scripted checks.
+
+From the files (`src/io/source/**` reads VPK, VMT, VTF, MDL/VVD/VTX with
+their animations, WAV and soundscripts):
+
+- **Hands** (`src/play/sandbox/viewmodel/`): the weapon's c_ model with the
+  HEV arms bone-merged onto it, posed by its sequences and the claws' pose
+  parameter, moved by Half-Life 2's bob and lag, shaded as VertexLitGeneric
+  with Phong and lit by the scene's sky and sun, on a canvas over the picture
+  in the viewmodel's own field of view (54° for the Physics Gun, 62° for the
+  Tool Gun, horizontal on a 4:3 screen as in Source).
+- **Beam and glows:** Source's quadratic beam from the muzzle attachment to
+  the held point, bending toward the aim, in the world's perspective, and
+  the glow sprites at both ends, in the weapon colour (`cl_weaponcolor`,
+  0.30 1.80 2.10 by default).
+- **Halos** around what the gun holds, freezes and unfreezes, as `halo.Add`
+  draws them (`halo.ts`; drawn without the files too).
+- **Sounds** (`game-sounds.ts`, `sandbox-sounds.ts`): soundscripts and waves
+  through WebAudio. The gravity gun's hold hum winds up and down like
+  weapon_physcannon's motor, Weapon_Physgun.Off plays when the beam stops,
+  and notices sound as in the sandbox gamemode. `?mute=1` mixes them
+  silently; `__hoodooSandbox.heard()` reports what played and the level.
+
+Without the files Sandbox keeps its own look: the 2D beam over the picture.
 
 ## Controls
 

@@ -15,7 +15,9 @@ if (data.kind !== 'hoodoo-settings' || typeof data.prefs !== 'object') {
   process.exit(1);
 }
 const only = flag === '--only' && list ? new Set(list.split(',')) : null;
-const prefs = Object.fromEntries(Object.entries(data.prefs).filter(([k]) => !only || only.has(k)));
+// Comments left on preview features are the owner's notes, not settings for everyone.
+const PERSONAL = new Set(['featureNotes']);
+const prefs = Object.fromEntries(Object.entries(data.prefs).filter(([k]) => !PERSONAL.has(k) && (!only || only.has(k))));
 const target = new URL('../src/io/site-defaults.ts', import.meta.url);
 const source = readFileSync(target, 'utf8');
 const head = source.slice(0, source.indexOf('export const SITE_DEFAULTS'));

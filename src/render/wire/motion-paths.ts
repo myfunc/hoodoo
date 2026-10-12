@@ -48,6 +48,8 @@ const PATH_LIGHT = {
   keyEdge: 'rgba(255,255,255,0.85)' as string,
   picked: '#ffd030',
   pickedEdge: '#2a2a2a',
+  /** The picked key's tag text. */
+  pickedInk: '#2a2a2a' as string,
   /** Paths inside a selected keyed group: there, but quiet. */
   faint: 'rgba(208, 32, 42, 0.32)' as string,
   keyFaint: 2,
@@ -62,6 +64,7 @@ const PATH_DARK: typeof PATH_LIGHT = {
   selected: WIRE_TONES[Tone.Dark].selected,
   camera: '#52cfca',
   keyEdge: 'rgba(16, 16, 18, 0.85)',
+  pickedInk: '#ffd030',
   faint: 'rgba(255, 79, 74, 0.36)',
 };
 const PATH = tonedTable({ [Tone.Light]: PATH_LIGHT, [Tone.Dark]: PATH_DARK });
@@ -134,7 +137,7 @@ function drawKeyFocus(g: CanvasRenderingContext2D, x: number, y: number, r: numb
   g.arc(x, y, r + RING.gap, 0, Math.PI * 2);
   g.stroke();
   g.lineWidth = 1;
-  drawTag(g, `Key ${index + 1} · ${time.toFixed(SECONDS_DIGITS)} s`, x, y, PATH.pickedEdge, TAG.keyDy);
+  drawTag(g, `Key ${index + 1} · ${time.toFixed(SECONDS_DIGITS)} s`, x, y, PATH.pickedInk, TAG.keyDy);
 }
 
 /** How the scene window wants a key shown: under the pointer, or held by a drag. */

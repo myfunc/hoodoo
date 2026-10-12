@@ -9,6 +9,8 @@ import type { Tuning } from './movement';
  * a `Tracer`: a box swept through the world, as the engine's hull traces were.
  * One addition from Source: after a walk the player is pressed down a step
  * height onto the ground (StayOnGround), so slopes and stairs down hold.
+ * Noclip is PM_NoClip with Source's acceleration (FullNoClipMove), flying where
+ * the view points; `freeSpot` finds where a hull fits when it ends inside.
  */
 
 /** What a sweep of the hull met. */
@@ -27,7 +29,10 @@ export interface Trace {
 }
 
 export interface Tracer {
-  /** Sweeps an axis-aligned box of half-extents `half` from `start` to `end`. */
+  /**
+   * Sweeps an axis-aligned box of half-extents `half` from `start` to `end`. A box that starts inside
+   * something and moves out of it is not held by it; `start` = `end` asks whether the box fits there.
+   */
   trace(start: Vec3, end: Vec3, half: Vec3): Trace;
 }
 
@@ -37,6 +42,18 @@ export interface Touch {
   readonly normal: Vec3;
   readonly point: Vec3 | null;
   readonly velocity: Vec3;
+}
+
+/** One step of noclip input: the walk's keys, Space and Ctrl as up and down, Shift for speed, the view's pitch. */
+export interface FlyCmd {
+  readonly forward: number;
+  readonly side: number;
+  /** Up (+) and down, -1..1. */
+  readonly up: number;
+  readonly fast: boolean;
+  readonly yaw: number;
+  /** Degrees above the horizon, Hoodoo's camera pitch. */
+  readonly pitch: number;
 }
 
 /** One step of input, as Half-Life's usercmd. */
@@ -101,11 +118,20 @@ export const eyeOf = (p: PlayerState): Vec3 => [p.origin[0], p.origin[1] + p.vie
 const flat = (v: Vec3): Vec3 => [v[0], 0, v[2]];
 const withY = (v: Vec3, y: number): Vec3 => [v[0], y, v[2]];
 const isZero = (v: Vec3): boolean => v[0] === 0 && v[1] === 0 && v[2] === 0;
+/** The 26 ways to the cells around one, up first and down last: `freeSpot` walks out along them. */
+const AROUND: readonly Vec3[] = [1, 0, -1].flatMap((y) => [0, 1, -1].flatMap((x) => [0, 1, -1].map((z): Vec3 => [x, y, z])))
+  .filter((d) => !isZero(d)).map((d) => scale(d, 1 / length(d)));
 
 /** Heading as flat forward and right vectors (camera-math's convention). */
 export function moveAxes(yawDeg: number): { forward: Vec3; right: Vec3 } {
   const y = yawDeg * DEG;
   return { forward: [-Math.sin(y), 0, -Math.cos(y)], right: [Math.cos(y), 0, -Math.sin(y)] };
+}
+
+/** Where the view points, pitch included (camera-math's cameraAxes without bank). */
+function viewForward(yawDeg: number, pitchDeg: number): Vec3 {
+  const [y, p] = [yawDeg * DEG, pitchDeg * DEG];
+  return [-Math.sin(y) * Math.cos(p), Math.sin(p), -Math.cos(y) * Math.cos(p)];
 }
 
 /** PM_ClipVelocity: the velocity along the plane, bounced by `overbounce`; tiny components snap to zero. */
@@ -364,18 +390,71 @@ function checkVelocity(p: PlayerState, t: Tuning): void {
   p.velocity = p.velocity.map((c) => Math.max(-t.maxVelocity, Math.min(t.maxVelocity, c))) as unknown as Vec3;
 }
 
-/** PM_CheckStuck: a hull that starts inside something is nudged to the nearest free place; false when none is near. */
+/** The hull goes straight from `from` to `to` meeting nothing but what it starts in and leaves. */
+function clear(from: Vec3, to: Vec3, half: Vec3, tracer: Tracer): boolean {
+  const tr = tracer.trace(from, to, half);
+  return !tr.startSolid && tr.fraction === 1;
+}
+
+/**
+ * PM_CheckStuck: a hull that starts inside something is nudged to the nearest free place; false when
+ * none is near. A place counts only when the way to it is clear, so a nudge never crosses a thin wall.
+ */
 export function unstick(p: PlayerState, t: Tuning, tracer: Tracer): boolean {
   const half = hullOf(p, t);
   if (fits(p.origin, half, tracer)) return true;
   for (const d of UNSTICK) {
     const at = add(p.origin, scale(d, t.stepSize));
-    if (fits(at, half, tracer)) {
+    if (fits(at, half, tracer) && clear(p.origin, at, half, tracer)) {
       p.origin = at;
       return true;
     }
   }
   return false;
+}
+
+/**
+ * The nearest place within `reach` where a hull of `half` fits, walking out from `origin` in steps of
+ * its smaller half-extent along 26 ways (up first); `origin` itself when it fits, null when nothing
+ * near does. `straight`: first only places the hull can get to in a straight line, then any.
+ */
+export function freeSpot(origin: Vec3, half: Vec3, tracer: Tracer, reach: number, straight = false): Vec3 | null {
+  if (fits(origin, half, tracer)) return origin;
+  const step = Math.min(half[0], half[1]);
+  const rings = Math.ceil(reach / step);
+  for (const way of straight ? [true, false] : [false]) {
+    for (let k = 1; k <= rings; k++) {
+      for (const d of AROUND) {
+        const at = add(origin, scale(d, k * step));
+        if (fits(at, half, tracer) && (!way || clear(origin, at, half, tracer))) return at;
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Noclip: PM_NoClip's flight where the view points (Space and Ctrl straight up and down), with Source's
+ * FullNoClipMove feel: it accelerates toward the wished speed and friction bleeds the rest, at least a
+ * quarter of the top speed's worth, so letting go stops it in about half a second. No gravity, nothing
+ * collides, nothing is stood on.
+ */
+export function noclipMove(p: PlayerState, cmd: FlyCmd, t: Tuning, dt: number): void {
+  const wish = add(add(scale(viewForward(cmd.yaw, cmd.pitch), cmd.forward), scale(moveAxes(cmd.yaw).right, cmd.side)), [0, cmd.up, 0]);
+  const top = t.noclipSpeed * (cmd.fast ? t.noclipFast : 1);
+  const amount = length(wish);
+  if (amount > 0) p.velocity = accelerate(p.velocity, scale(wish, 1 / amount), Math.min(amount, 1) * top, t.noclipAccelerate, dt);
+  const speed = length(p.velocity);
+  if (speed < t.minWalkSpeed) p.velocity = ZERO3;
+  else {
+    const drop = Math.max(speed, top / 4) * t.noclipFriction * dt;
+    p.velocity = scale(p.velocity, Math.max(speed - drop, 0) / speed);
+  }
+  p.origin = add(p.origin, scale(p.velocity, dt));
+  p.ground = null;
+  p.touched = [];
+  p.jumped = false;
+  p.landed = false;
 }
 
 /** PM_PlayerMove for a walking player, in Half-Life's order. */

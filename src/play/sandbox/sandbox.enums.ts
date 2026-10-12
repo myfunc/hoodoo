@@ -12,4 +12,6 @@ export enum NoticeKind {
   Undo = 'undo',
   Spawn = 'spawn',
   Limit = 'limit',
+  /** A first-time hint, as Garry's Mod's cl_hints.lua shows them. */
+  Hint = 'hint',
 }

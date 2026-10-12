@@ -13,6 +13,10 @@ import { type ShapeSpec, ShapeType } from './shapes';
  * (a body pulled toward a target that still collides), freezing, CCD, rays and
  * the player's hull sweeps are all here. Queries see the world as of the last
  * `step`: a body added or moved in between is found after the next one.
+ * A terrain is only its surface to Rapier, and Rapier's overlap query does not
+ * see height fields at all: the queries here ask each terrain for a contact and
+ * also count a hull under its surface, inside the ground the picture shows, as
+ * overlapping (`inTerrain`).
  */
 
 export type Rapier = typeof RAPIER;
@@ -126,6 +130,9 @@ const MIN_LENGTH = 1e-9;
 const MAX_TRACE_TRIES = 4;
 /** A move this close to parallel to a surface it touches slides along it (the normal has float noise). */
 const PARALLEL = 1e-3;
+/** Rapier's shape kinds made of many pieces (ShapeType's numbers): leaving one piece says nothing of the others. */
+const PIECEWISE = new Set([4, 6, 7, 8]);
+const UP: Vec3 = [0, 1, 0];
 
 let loading: Promise<Rapier> | null = null;
 
@@ -162,6 +169,8 @@ export class Physics {
   private readonly boxes = new Map<string, RAPIER.Cuboid>();
   private readonly balls = new Map<number, RAPIER.Ball>();
   private readonly hooks: RAPIER.PhysicsHooks;
+  /** Height fields (terrains) and their extent in their own frame: X and Z half-widths, the highest point. */
+  private readonly fields = new Map<RAPIER.Collider, Vec3>();
 
   constructor(private readonly R: Rapier, gravity: number, readonly dt: number) {
     this.world = new R.World({ x: 0, y: -gravity, z: 0 });
@@ -190,7 +199,8 @@ export class Physics {
       if (spec.friction !== undefined) c.setFriction(spec.friction);
       if (spec.restitution !== undefined) c.setRestitution(spec.restitution);
       if (spec.events) c.setActiveEvents(R.ActiveEvents.COLLISION_EVENTS);
-      this.world.createCollider(c, body);
+      const collider = this.world.createCollider(c, body);
+      if (s.type === ShapeType.HeightField) this.fields.set(collider, [s.scale[0] / 2, s.scale[1] * s.heights.reduce((m, h) => Math.max(m, h), 0), s.scale[2] / 2]);
     }
     if (spec.tag !== undefined) this.tags.set(body.handle, spec.tag);
     return body.handle;
@@ -198,6 +208,7 @@ export class Physics {
 
   removeBody(id: BodyId): void {
     const b = this.body(id);
+    for (const c of this.fields.keys()) if (c.parent()?.handle === id) this.fields.delete(c);
     if (b) this.world.removeRigidBody(b);
     this.tags.delete(id);
     this.holds.delete(id);
@@ -441,34 +452,77 @@ export class Physics {
     return s;
   }
 
-  /** `shape` swept unturned from `start` to `end`; `inner` (the shape less half the skin) tells a start inside something. */
+  /**
+   * `shape` swept unturned from `start` to `end`, stopping `skin` short of what it meets; `inner` (the
+   * shape less half the skin) tells a start inside something. A move along or away from a surface it
+   * already touches (the ground under a walk) looks again without the skin, so the rest of that body
+   * still stops it: a terrain's wall ahead, the floor under a slide down a cliff. Only a convex piece
+   * met exactly and not entered is passed by whole (it cannot be met again on a straight path); a
+   * terrain met so is stepped off by the skin first.
+   */
   private sweep(shape: RAPIER.Shape, inner: RAPIER.Shape, start: Vec3, end: Vec3, skin: number, opts: QueryOptions): Trace {
     const dir = sub(end, start);
+    const len = length(dir);
     const filter = groups(ALL_LAYERS, opts.layers ?? Layer.World | Layer.Prop);
     const flags = this.R.QueryFilterFlags.EXCLUDE_SENSORS;
     const exclude = this.body(opts.exclude ?? -1) ?? undefined;
-    const free: Trace = { fraction: 1, end, normal: ZERO3, startSolid: false, body: null, point: null };
-    if (length(dir) < MIN_LENGTH) return this.overlaps(start, inner, opts) === null ? free : { ...free, end: start, fraction: 0, startSolid: true };
-    const leaving = new Set<number>();
-    const skip = (c: RAPIER.Collider) => !leaving.has(c.handle);
+    const free = (from: Vec3): Trace => ({ fraction: 1, end: add(from, dir), normal: ZERO3, startSolid: false, body: null, point: null });
+    if (len < MIN_LENGTH) return this.overlaps(start, inner, opts) === null ? free(start) : { ...free(start), end: start, fraction: 0, startSolid: true };
+    const passed = new Set<number>();
+    const skip = (c: RAPIER.Collider) => !passed.has(c.handle);
+    const cast = (from: Vec3, gap: number) => this.world.castShape(rv(from), rq(IDENTITY_Q), rv(dir), shape, gap, 1, false, flags, filter, undefined, exclude, passed.size ? skip : undefined);
+    const into = (hit: RAPIER.ColliderShapeCastHit) => dot(dir, v3(hit.normal1)) < -PARALLEL * len;
+    const met = (from: Vec3, hit: RAPIER.ColliderShapeCastHit, fraction: number): Trace => {
+      const out = { fraction, end: add(from, scale(dir, fraction)), normal: v3(hit.normal1), startSolid: false, body: hit.collider.parent()?.handle ?? -1, point: v3(hit.witness1) };
+      return fraction === 0 && this.overlaps(from, inner, opts) !== null ? { ...out, startSolid: true } : out;
+    };
+    let from = start;
+    let last: RAPIER.ColliderShapeCastHit | null = null;
     for (let i = 0; i < MAX_TRACE_TRIES; i++) {
-      const hit = this.world.castShape(rv(start), rq(IDENTITY_Q), rv(dir), shape, skin, 1, true, flags, filter, undefined, exclude, leaving.size ? skip : undefined);
-      if (!hit) return free;
-      const normal = v3(hit.normal1);
-      const body = hit.collider.parent()?.handle ?? -1;
-      const out = { fraction: hit.time_of_impact, end: add(start, scale(dir, hit.time_of_impact)), normal, startSolid: false, body, point: v3(hit.witness1) };
-      if (hit.time_of_impact > 0 || dot(dir, normal) < -PARALLEL * length(dir)) {
-        if (hit.time_of_impact === 0 && this.overlaps(start, inner, opts) !== null) return { ...out, startSolid: true };
-        return out;
-      }
-      leaving.add(hit.collider.handle);
+      const hit = cast(from, skin);
+      if (!hit) return free(from);
+      if (hit.time_of_impact > 0 || into(hit)) return met(from, hit, hit.time_of_impact);
+      const ahead = cast(from, 0);
+      if (!ahead) return free(from);
+      if (ahead.time_of_impact > 0) return met(from, ahead, Math.max(0, ahead.time_of_impact - skin / len));
+      if (into(ahead)) return met(from, ahead, 0);
+      last = ahead;
+      if (PIECEWISE.has(ahead.collider.shape.type)) from = add(from, scale(v3(ahead.normal1), skin));
+      else passed.add(ahead.collider.handle);
     }
-    return free;
+    // Wedged between surfaces it touches: it stays (never through).
+    return last ? met(from, last, 0) : free(from);
   }
 
+  /** A body overlapping `shape` at `center`, or a terrain it is in; null when it is free. */
   private overlaps(center: Vec3, shape: RAPIER.Shape, opts: QueryOptions): BodyId | null {
-    const c = this.world.intersectionWithShape(rv(center), rq(IDENTITY_Q), shape, this.R.QueryFilterFlags.EXCLUDE_SENSORS, groups(ALL_LAYERS, opts.layers ?? Layer.World | Layer.Prop), undefined, this.body(opts.exclude ?? -1) ?? undefined);
-    return c ? (c.parent()?.handle ?? -1) : null;
+    const layers = opts.layers ?? Layer.World | Layer.Prop;
+    const c = this.world.intersectionWithShape(rv(center), rq(IDENTITY_Q), shape, this.R.QueryFilterFlags.EXCLUDE_SENSORS, groups(ALL_LAYERS, layers), undefined, this.body(opts.exclude ?? -1) ?? undefined);
+    if (c) return c.parent()?.handle ?? -1;
+    return this.inTerrain(center, shape, layers, opts.exclude);
+  }
+
+  /**
+   * The terrain `shape` at `center` is in: crossing its surface (a contact, which Rapier's overlap
+   * query skips for height fields), or wholly under it, between its base and its surface.
+   */
+  private inTerrain(center: Vec3, shape: RAPIER.Shape, layers: number, exclude?: BodyId): BodyId | null {
+    for (const [c, [hx, hy, hz]] of this.fields) {
+      const body = c.parent()?.handle ?? -1;
+      const g = c.collisionGroups();
+      if (body === exclude || !c.isEnabled() || !((g >>> GROUP_SHIFT) & layers) || !(g & ALL_LAYERS)) continue;
+      const contact = c.contactShape(shape, rv(center), rq(IDENTITY_Q), 0);
+      if (contact && contact.distance < 0) return body;
+      const t = c.translation();
+      const r = c.rotation();
+      const turn: Quat = [r.x, r.y, r.z, r.w];
+      const local = rotateQ(conjQ(turn), sub(center, v3(t)));
+      if (Math.abs(local[0]) > hx || Math.abs(local[2]) > hz || local[1] < -MIN_LENGTH || local[1] > hy) continue;
+      const ray = new this.R.Ray(rv(center), rv(rotateQ(turn, UP)));
+      // Nothing of the field is above `hy`: a ray twice that long reaches the top with room for float error.
+      if (c.castRay(ray, 2 * hy, true) >= 0) return body;
+    }
+    return null;
   }
 
   private motorOf(joint: RAPIER.ImpulseJoint, m: { speed: number; force: number }): void {

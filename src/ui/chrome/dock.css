@@ -10,6 +10,34 @@
 body .app .workspace { grid-template-columns: var(--left-col) minmax(0, 1fr) var(--side-col); }
 
 .left-column, .right-column { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+/* The left panel wears Bryce's light column chrome; its sections stack in it. */
+.left-column {
+  background: var(--column-bg);
+  border-right: 1px solid var(--column-edge); box-shadow: inset -1px 0 0 var(--hi), 1px 0 2px var(--shade-12);
+}
+
+/* Camera controls under a heading that folds them away (tool-windows.ts). */
+.controls-section { flex: none; display: flex; flex-direction: column; min-height: 0; }
+.controls-head {
+  display: flex; align-items: center; gap: 5px; padding: 6px 10px 2px; border: 0; background: none;
+  font: 800 11px var(--font-title); color: var(--column-label); text-shadow: var(--emboss); cursor: pointer; text-align: left;
+}
+.controls-head:hover { color: var(--title-ink); }
+.controls-head:focus-visible { outline: 1px dotted var(--ink); outline-offset: -2px; }
+.controls-head .glyph { width: 9px; height: 9px; fill: currentColor; stroke: none; transition: transform 120ms; }
+.controls-section.is-folded .controls-head .glyph { transform: rotate(-90deg); }
+.controls-section.is-folded > .controls { display: none; }
+/* The narrow column stacks the controls as Bryce did; beside docked panels they pair up in rows. */
+.controls .ctrl-pair, .controls .ctrl-view, .controls .ctrl-crosses { display: contents; }
+.workspace.has-dock .controls .ctrl-pair { display: flex; align-items: center; justify-content: center; gap: 18px; flex: none; }
+.workspace.has-dock .controls .ctrl-view, .workspace.has-dock .controls .ctrl-crosses { display: flex; flex-direction: column; align-items: center; }
+.workspace.has-dock .controls .ctrl-icon.view { margin: -10px 0 -4px; }
+.workspace.has-dock .controls .ctrl-icon.trackball { margin-top: 0; }
+
+/* Docked windows under the controls; the hint line at the foot of the column. */
+.dock-section { flex: 1; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid var(--lo); box-shadow: inset 0 1px 0 var(--hi); }
+.dock-section[hidden] { display: none; }
+.left-column > .column-foot { flex: none; margin-top: auto; display: flex; flex-direction: column; align-items: center; padding: 4px 8px 8px; }
 .right-column > .side-panel { flex: 1; }
 .workspace.no-left .left-column > :not(.edge-grip) { display: none; }
 
@@ -18,7 +46,6 @@ body .app .workspace { grid-template-columns: var(--left-col) minmax(0, 1fr) var
 .dock-tabs .ui-choice.segmented { display: flex; }
 .dock-tabs .segmented .ui-toggle { flex: 1; justify-content: center; min-width: 0; }
 .dock-pages { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.dock-pages > .controls { flex: 1; }
 .dock-pages > [hidden], .dock-tabs[hidden] { display: none; }
 
 /* The grips: a tab on the scene's edge, beside the column it hides; it stays there to bring it back. */
@@ -30,6 +57,13 @@ body .app .workspace { grid-template-columns: var(--left-col) minmax(0, 1fr) var
   display: flex; align-items: center; justify-content: center; color: var(--ink-soft); opacity: 0.8;
 }
 .ui-button.edge-tab:hover { opacity: 1; color: var(--teal); }
-.edge-grip-left .ui-button.edge-tab { left: 0; border-left: 0; border-radius: 0 4px 4px 0; }
-.edge-grip-right .ui-button.edge-tab { right: 0; border-right: 0; border-radius: 4px 0 0 4px; }
+.edge-grip-left .ui-button.edge-tab { left: 0; border-left: 0; border-radius: 0; }
+.edge-grip-right .ui-button.edge-tab { right: 0; border-right: 0; border-radius: 0; }
 .ui-button.edge-tab .glyph { width: 10px; height: 10px; fill: currentColor; stroke: none; vertical-align: 0; }
+
+/* Maximize View (the display bar's corners, `): the scene window alone. The side columns and their grips, the palette
+   and the timeline hide; the menu bar and the display bar stay, so the same button brings everything back. */
+body .app .workspace.is-maximized { grid-template-columns: minmax(0, 1fr); }
+.workspace.is-maximized > .left-column, .workspace.is-maximized > .right-column { display: none; }
+.workspace.is-maximized > .center > :is(.palette-titles, .shelf, .timeline) { display: none; }
+.workspace.is-maximized > .center { grid-template-rows: minmax(0, 1fr) var(--displaybar-h); }
