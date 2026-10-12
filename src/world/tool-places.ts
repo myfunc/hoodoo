@@ -85,13 +85,13 @@ export const reopened = (places: ToolPlaces, order: readonly ToolId[]): ToolId[]
 /**
  * Where a floating window opens on a page of `page` size: where it was left, moved
  * back inside the page if the browser got smaller; the first time centred, as the
- * dialogs open. Nothing goes above `top` (the menu bar).
+ * dialogs open. Nothing goes above `top` (the menu bar) or left of `left` (the tool rail).
  */
-export function floatSpot(place: ToolPlace | undefined, win: Box, page: Box, top: number): { x: number; y: number } {
-  const maxX = Math.max(0, page.width - win.width);
+export function floatSpot(place: ToolPlace | undefined, win: Box, page: Box, top: number, left = 0): { x: number; y: number } {
+  const maxX = Math.max(left, page.width - win.width);
   const maxY = Math.max(top, page.height - win.height);
-  if (place?.x === undefined || place.y === undefined) return { x: Math.round(maxX / 2), y: Math.round(clamp((page.height - win.height) / 2, top, maxY)) };
-  return { x: clamp(place.x, 0, maxX), y: clamp(place.y, top, maxY) };
+  if (place?.x === undefined || place.y === undefined) return { x: Math.round(clamp((page.width - win.width) / 2, left, maxX)), y: Math.round(clamp((page.height - win.height) / 2, top, maxY)) };
+  return { x: clamp(place.x, left, maxX), y: clamp(place.y, top, maxY) };
 }
 
 /** What Object Attributes shows: the first selected object, as the Attributes command always opened. */

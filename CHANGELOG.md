@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.12.1 — 2026-10-12
+
+### Added
+- The tool rail: named buttons down the left edge open and close Controls,
+  Render, Object Attributes, the Materials Lab, the Terrain Editor, the
+  Tutorial Book and Preview Features (Portals & Triggers and Cloud while their
+  features are on). A lit button is on view, a lamp marks a docked window open
+  behind another; click again to put it away. Controls and Render show
+  together or apart, and the rail stays when the panel is hidden.
+
+### Changed
+- The dock widens (up to 520 px) when the page on view would not fit, so a
+  wider system font no longer cuts a row off; the floating Render window is as
+  wide as its widest row.
+- Esc closes a floating window only while the pointer is over it, so leaving a
+  move, a mode or a menu no longer closes Render by surprise.
+- The bottom bar packs tighter by the width of the scene column, not the
+  window's.
+
+### Removed
+- The Controls heading and the dock's tab strip: the rail does both.
+
 ## 0.12.0 — 2026-10-12
 
 ### Added

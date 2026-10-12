@@ -41,6 +41,13 @@ describe('tool window places', () => {
     expect(floatSpot({ docked: false, x: 1400, y: -50 }, WIN, PAGE, MENU)).toEqual({ x: 1040, y: MENU });
     expect(floatSpot({ docked: false, x: 10, y: 10 }, { width: 2000, height: 1200 }, PAGE, MENU)).toEqual({ x: 0, y: MENU });
   });
+
+  it('keep the tool rail clear', () => {
+    const RAIL = 54;
+    expect(floatSpot({ docked: false, x: 10, y: 60 }, WIN, PAGE, MENU, RAIL)).toEqual({ x: RAIL, y: 60 });
+    expect(floatSpot(undefined, { width: 1590, height: 400 }, PAGE, MENU, RAIL).x).toBe(RAIL);
+    expect(floatSpot(undefined, WIN, PAGE, MENU, RAIL)).toEqual({ x: 520, y: 300 });
+  });
 });
 
 describe('following the selection', () => {

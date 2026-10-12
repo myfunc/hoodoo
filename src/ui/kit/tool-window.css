@@ -1,6 +1,6 @@
 /* Tool windows (ui/kit/tool-window.ts): the dialog dress without the veil. Colours come from the theme variables only. */
 .tool-window { min-width: 0; }
-.tool-window.is-floating { position: fixed; z-index: 450; max-height: calc(100vh - var(--menubar-h) - 12px); }
+.tool-window.is-floating { position: fixed; z-index: 450; max-height: calc(100vh - var(--menubar-h) - 12px); max-width: calc(100vw - 8px); }
 .tool-window.is-floating.is-placing { visibility: hidden; }
 
 .tool-bar { display: flex; align-items: center; gap: 6px; padding: 8px 10px 4px 16px; flex: none; min-width: 0; }

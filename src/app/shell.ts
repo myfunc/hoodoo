@@ -12,6 +12,7 @@ import { Palette } from '../ui/chrome/palette';
 import { SelectionTag } from '../ui/chrome/selection-tag';
 import { ShaderLoader } from '../ui/chrome/shader-loader';
 import { Timeline } from '../ui/chrome/timeline';
+import { ToolRail } from '../ui/chrome/tool-rail';
 import { toolWindows } from '../ui/chrome/tool-windows';
 import { el } from '../ui/kit/dom';
 import { HistoryPanel } from '../ui/panels/history-panel';
@@ -58,16 +59,22 @@ export class Shell {
     // Both side columns hide (View menu, Shift+Tab / Tab, the grips on the scene's edge); the left one
     // also hosts docked tool windows and widens for them (ui/chrome/tool-windows.ts).
     const windows = toolWindows(ctx);
+    windows.column.prepend(new ToolRail(ctx, windows).el);
     windows.column.append(new EdgeGrip(ctx, GripSide.Left).el);
     const right = el('div', { cls: 'right-column' }, [side, new EdgeGrip(ctx, GripSide.Right).el]);
     this.workspace = el('div', { cls: 'workspace' }, [windows.column, center, right]);
     this.root = el('div', { cls: 'app' }, [this.menubar.el, this.workspace]);
-    windows.onDock = (docked) => this.workspace.classList.toggle('has-dock', docked);
+    windows.onDock = (docked) => {
+      this.workspace.classList.toggle('has-dock', docked);
+      this.workspace.classList.toggle('left-bare', !ctx.editor.state.controlsOpen && !docked);
+    };
+    windows.onDockWidth = (width) => this.workspace.style.setProperty('--dock-w', `${width}px`);
     windows.mountControls(controls.el, controls.foot);
     const syncPanels = () => {
       this.workspace.classList.toggle('no-side', !ctx.editor.state.sidePanel);
       this.workspace.classList.toggle('no-left', !ctx.editor.state.leftPanel);
       this.workspace.classList.toggle('is-maximized', ctx.editor.state.maximized);
+      this.workspace.classList.toggle('left-bare', !ctx.editor.state.controlsOpen && !this.workspace.classList.contains('has-dock'));
     };
     ctx.editor.events.on('changed', syncPanels);
     syncPanels();

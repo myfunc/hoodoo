@@ -311,11 +311,14 @@ input { font: inherit; }
 .display-bar .status { flex-shrink: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .display-bar .sep { width: 1px; height: 16px; background: var(--shade-15); box-shadow: 1px 0 0 var(--hi); }
 .display-bar .grow { flex: 1; }
-/* Live quality Fast | Full | Detailed (ui/chrome/display-bar.ts); a narrow window packs the bar tighter so it still fits. */
+/* Live quality Fast | Full | Detailed (ui/chrome/display-bar.ts); a narrow scene column packs the bar tighter so it still fits. */
 .display-bar .live-quality .ui-toggle { padding: 1px 6px; }
-@media (max-width: 1240px) {
-  .display-bar { gap: 3px; padding: 0 6px; }
+/* Packed by the scene column's own width (the tool rail and a wide dock take room too), not the window's. */
+.center { container-type: inline-size; container-name: scene-column; }
+@container scene-column (max-width: 860px) {
+  .display-bar { gap: 2px; padding: 0 4px; }
   .display-bar .live-quality .ui-toggle { padding: 1px 4px; }
+  .display-bar .sep { margin: 0 1px; }
 }
 
 /* ---------- side panel (modern additions), dressed as Bryce palettes ---------- */

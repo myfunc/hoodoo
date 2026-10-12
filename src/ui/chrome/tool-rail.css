@@ -1,0 +1,21 @@
+/* The tool rail (ui/chrome/tool-rail.ts): named buttons down the left edge. Colours come from the theme variables only. */
+.tool-rail {
+  flex: none; width: var(--rail-w); display: flex; flex-direction: column; align-items: stretch; gap: 2px;
+  padding: 6px 0; overflow-y: auto; scrollbar-width: none;
+  border-right: 1px solid var(--lo); box-shadow: inset -1px 0 0 var(--hi);
+}
+.tool-rail::-webkit-scrollbar { display: none; }
+.rail-button {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 6px 2px 5px; border: 0; border-radius: 0; background: none; cursor: pointer;
+  color: var(--column-label);
+}
+.rail-button[hidden] { display: none; }
+.rail-button .glyph { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.rail-label { font: bold 9px/1 var(--font-ui); white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.rail-button:hover { color: var(--title-ink); background: var(--teal-wash); }
+.rail-button:focus-visible { outline: 1px dotted var(--ink); outline-offset: -2px; }
+.rail-button.is-on { color: var(--teal-ink); background: var(--teal-wash-on); box-shadow: inset 3px 0 0 var(--teal); }
+/* Open but behind another docked page: a lamp, not lit. */
+.rail-lamp { position: absolute; top: 5px; right: 6px; width: 5px; height: 5px; border-radius: 50%; display: none; background: var(--teal); opacity: 0.55; }
+.rail-button.is-behind .rail-lamp { display: block; }

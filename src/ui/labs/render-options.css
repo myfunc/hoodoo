@@ -4,7 +4,8 @@
 .ui-dial.depth-dial .ui-dial-label { display: none; }
 .settings-rows .ui-dial.depth-dial { width: 180px; }
 
-.render-options .tool-body { width: 300px; }
+/* Floating: as wide as its widest row (a wider system font must not cut a segment off), within the page. */
+.render-options .tool-body { min-width: 300px; width: max-content; max-width: calc(100vw - 24px); }
 .tool-window.is-docked.render-options .tool-body { width: auto; }
 .ro-body { display: flex; flex-direction: column; gap: 6px; }
 .ro-rows { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 5px 10px; align-items: center; }

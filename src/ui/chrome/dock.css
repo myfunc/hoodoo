@@ -1,31 +1,26 @@
 /* The side columns (app/shell.ts, ui/chrome/tool-windows.ts, edge-grip.ts): both hide, the left one docks tool windows.
    Colours come from the theme variables only. */
-:root { --dock-w: 320px; }
+:root { --dock-w: 320px; --rail-w: 54px; }
 
 /* One grid for every state, so hiding or docking only changes a column width (outranks .workspace.no-side in styles.css). */
-.workspace { --left-col: var(--left-w); --side-col: var(--side-w); }
-.workspace.has-dock { --left-col: var(--dock-w); }
-.workspace.no-left { --left-col: 0px; }
+.workspace { --left-col: calc(var(--left-w) + var(--rail-w)); --side-col: var(--side-w); }
+.workspace.has-dock { --left-col: calc(var(--dock-w) + var(--rail-w)); }
+/* Nothing on view beside the tool rail (tool-rail.ts), or the panel hidden: the rail stays, alone. */
+.workspace.no-left, .workspace.left-bare { --left-col: var(--rail-w); }
 .workspace.no-side { --side-col: 0px; }
 body .app .workspace { grid-template-columns: var(--left-col) minmax(0, 1fr) var(--side-col); }
 
 .left-column, .right-column { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.left-column { flex-direction: row; }
+.left-body { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 /* The left panel wears Bryce's light column chrome; its sections stack in it. */
 .left-column {
   background: var(--column-bg);
   border-right: 1px solid var(--column-edge); box-shadow: inset -1px 0 0 var(--hi), 1px 0 2px var(--shade-12);
 }
 
-/* Camera controls under a heading that folds them away (tool-windows.ts). */
+/* Camera controls; the rail's Controls button folds them away (tool-windows.ts). */
 .controls-section { flex: none; display: flex; flex-direction: column; min-height: 0; }
-.controls-head {
-  display: flex; align-items: center; gap: 5px; padding: 6px 10px 2px; border: 0; background: none;
-  font: 800 11px var(--font-title); color: var(--column-label); text-shadow: var(--emboss); cursor: pointer; text-align: left;
-}
-.controls-head:hover { color: var(--title-ink); }
-.controls-head:focus-visible { outline: 1px dotted var(--ink); outline-offset: -2px; }
-.controls-head .glyph { width: 9px; height: 9px; fill: currentColor; stroke: none; transition: transform 120ms; }
-.controls-section.is-folded .controls-head .glyph { transform: rotate(-90deg); }
 .controls-section.is-folded > .controls { display: none; }
 /* The narrow column stacks the controls as Bryce did; beside docked panels they pair up in rows. */
 .controls .ctrl-pair, .controls .ctrl-view, .controls .ctrl-crosses { display: contents; }
@@ -39,14 +34,10 @@ body .app .workspace { grid-template-columns: var(--left-col) minmax(0, 1fr) var
 .dock-section[hidden] { display: none; }
 .left-column > .column-foot { flex: none; margin-top: auto; display: flex; flex-direction: column; align-items: center; padding: 4px 8px 8px; }
 .right-column > .side-panel { flex: 1; }
-.workspace.no-left .left-column > :not(.edge-grip) { display: none; }
+.workspace.no-left .left-body, .workspace.left-bare .left-body { display: none; }
 
-/* Dock tabs: Controls and each docked window; one page shows at a time. */
-.dock-tabs { flex: none; padding: 6px 8px 5px; box-shadow: inset -1px 0 0 var(--lo), inset 0 -1px 0 var(--lo); }
-.dock-tabs .ui-choice.segmented { display: flex; }
-.dock-tabs .segmented .ui-toggle { flex: 1; justify-content: center; min-width: 0; }
 .dock-pages { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.dock-pages > [hidden], .dock-tabs[hidden] { display: none; }
+.dock-pages > [hidden] { display: none; }
 
 /* The grips: a tab on the scene's edge, beside the column it hides; it stays there to bring it back. */
 .edge-grip { position: absolute; top: 50%; z-index: 6; width: 0; height: 0; }

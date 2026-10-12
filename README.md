@@ -142,6 +142,12 @@ WebM movies of the timeline, four views and a Director's View, nine camera
 bookmarks, a command palette with every action, right-click menus, trackpad
 gestures, and an installable offline app.
 
+The tool rail on the left edge opens every panel by name: Controls, Render,
+Object, Materials, Terrain, Tutorials, Preview (and Portals or Cloud while
+those features are on). A lit button is on view; click it again to put it away.
+Each window floats over the scene or docks in the left panel, and the dock
+widens when a page needs the room.
+
 ## Keyboard and mouse
 
 | Do | How |
