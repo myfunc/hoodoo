@@ -20,6 +20,8 @@ The dev tools in `tools/` drive a headless Chrome with a real GPU backend
 | `tools/shot.mjs <url> <out.png>` | screenshot once the renderer is ready |
 | `tools/interact.mjs <url> <prefix> '<steps json>'` | scripted clicks, drags, keys and screenshots |
 | `tools/perf.mjs "<url>?cold"` | first-start profile: long tasks, worst frame, time to picture |
+| `tools/contrast.mjs <url> [--theme light\|dark] [--variant <look>] [--json out.json]` | contrast of every text, control, glyph and icon against the pixels behind it, in the editor, a menu, Settings, the Materials Lab, the command palette and the material menu; prints the lowest ratios |
+| `tools/apply-settings.mjs <hoodoo-settings.json> [--only k,k]` | makes an exported settings file the defaults for every visitor (writes `src/io/site-defaults.ts`) |
 | `tools/perf-interact.mjs <url> [demo\|waltz] [drag\|orbit] [ms]` | frame times while dragging or orbiting (`DPR=2`, `W`/`H`, `SHOTS=<prefix>`) |
 | `tools/compile-lab.html` | shader compile time per feature (`?only=full,noTerrain`, `?async`) |
 | `tools/probe.html` | page responsiveness during the first compile, posted to `?report=<url>` |
@@ -57,3 +59,8 @@ Other conventions:
 - Heavy GLSL functions have exactly one call site and loops have dynamic bounds
   (`uLoopGuard`): see `docs/rendering.md` for why.
 - Every new behaviour gets a test where it can run without a GPU.
+- Chrome colours are CSS variables named by role (`ui/theme.css`, dark values in
+  `ui/theme-dark.css`), so both themes follow; only what sits on a rendered
+  picture and the dark labs keep fixed colours. A canvas painter keeps a
+  light and a dark table (`tonedTable` in `render/tone.ts`) or reads a variable
+  with `cssColor` (`ui/theme.ts`), and repaints on `onThemeChange`.

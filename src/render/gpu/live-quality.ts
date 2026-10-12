@@ -1,11 +1,12 @@
+import { BOUNCES } from '../../world/render-setup';
 import { LiveQuality } from '../../world/world.enums';
 
 /** What the live view traces while things move, for one Settings › Live quality choice. */
 export interface LiveMode {
   /** Draw moving frames with the interaction variant of the tracer (FAST_PREVIEW in 90-main.glsl). */
   readonly fast: boolean;
-  /** Mirror and glass bounces, moving and settled. */
-  readonly bounces: number;
+  /** Mirror and glass bounces, moving and settled, as a multiple of Settings › Live reflections. */
+  readonly depth: number;
   /** While nothing changes between moves, the moving frame keeps averaging rays at its size. */
   readonly refine: boolean;
   /**
@@ -25,10 +26,18 @@ export interface LiveMode {
  * two rays a frame at 30 fps looked no better and paced worse (docs/rendering.md).
  */
 export const LIVE_MODES: Readonly<Record<LiveQuality, LiveMode>> = {
-  [LiveQuality.Fast]: { fast: true, bounces: 4, refine: false, keep: 0, cost: 0.8 },
-  [LiveQuality.Full]: { fast: false, bounces: 4, refine: true, keep: 0, cost: 1 },
-  [LiveQuality.Detailed]: { fast: false, bounces: 8, refine: true, keep: 0.75, cost: 1.3 },
+  [LiveQuality.Fast]: { fast: true, depth: 1, refine: false, keep: 0, cost: 0.8 },
+  [LiveQuality.Full]: { fast: false, depth: 1, refine: true, keep: 0, cost: 1 },
+  [LiveQuality.Detailed]: { fast: false, depth: 2, refine: true, keep: 0.75, cost: 1.3 },
 };
+
+/**
+ * Bounces a quality traces for Settings › Live reflections `base` (4 by default:
+ * Fast and Full trace 4, Detailed 8). Fast's moving frames stay at one reflection.
+ */
+export function liveBounces(quality: LiveQuality, base: number): number {
+  return Math.min(BOUNCES.max, Math.max(BOUNCES.min, Math.round(base)) * LIVE_MODES[quality].depth);
+}
 
 /**
  * How many independent rays an average is worth after keeping `keep` of one worth `old`

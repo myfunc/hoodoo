@@ -1,5 +1,131 @@
 # Changelog
 
+## 0.10.0 — 2026-10-12
+
+### Added
+- A dark theme: Settings › Interface › Theme, Light, Dark or System (System
+  follows the system's light or dark setting). It switches at once and is
+  remembered. Every surface goes dark: menus, the palettes and their shelf,
+  the left column, the scene window, the display bar, the timeline, the side
+  panels, the labs and windows, the start window, tooltips and messages. The
+  stone and paper are painted dark rather than inverted; the icons are
+  rendered again for dark chrome (a lighter teal, a dusk sky in the pearls, lit
+  gold bulbs on the lights, a faint rim of light, deeper shadows); the
+  wireframe, grid, motion paths and selection read in lighter inks on the
+  dark stone. Text keeps 4.5:1 against its surface; tools/contrast.mjs
+  measures it from screenshots.
+- Settings › Export… saves every setting as hoodoo-settings.json (and copies
+  it); Import… loads such a file. tools/apply-settings.mjs turns an exported
+  file into the defaults every visitor starts with: a visitor keeps what they
+  changed, and only the differences from the defaults are stored.
+- Render View (Render › Render View, Opt/Alt+P, or the Render View chip in
+  the display bar): the scene window shows the final render, with every
+  reflection, soft shadows and depth of field, refining in place. Any change
+  starts it over; orbit, drag and play keep working, and it keeps refining
+  while nothing moves. A teal tab on the picture and the display bar say
+  when it is on.
+- Render Options (Render › Render Options…, or the sliders chip beside Render
+  View): a window that floats over the scene or docks on the left. Presets
+  Draft, Balanced, Final and Custom, then resolution, rays per pixel,
+  reflections, soft shadows (Off, Low, High), depth of field and
+  anti-aliasing, with the frames a second, the time a pass takes and the time
+  left to the target. Changes apply at once and are remembered.
+- Reflection depth, 1 to 16 bounces of mirrors and glass. Render reflections
+  belong to the scene and are saved with it: Render, Render to Image and
+  movies trace that deep (6 as before). Live reflections are a personal
+  setting (4 as before; Detailed traces twice as many). Both are in Settings
+  › Render and in Render Options; two facing mirrors now show as many
+  receding copies as you allow.
+- The left panel hides for a wider scene: View › Left Panel (Shift+Tab), the
+  small tab on the scene's edge, or Settings › Interface › Left panel. The
+  Scene panel gets the same tab on its edge. Both are remembered.
+- Object Attributes, the Materials Lab and the Terrain Editor are windows
+  that leave the scene usable: no veil, no OK. They follow the selection,
+  apply every change at once (one undo step each, a dial drag is one), and
+  Esc closes a floating one. The mark beside the close box, Dock on the
+  left, puts a window in the left column, where tabs switch between it and
+  the camera controls; the mark beside it floats it again. Each window
+  remembers where it lives, and a docked one comes back with the next visit.
+- Lights: Object Attributes shows a light's colour, intensity, falloff (with
+  how far it reaches before it is half as bright) and a spot's cone, over a
+  live preview of the light on a ball. The Attributes panel shows the colour,
+  intensity and a spot's cone of a selected light in place, with Light
+  Settings… for the rest.
+- The timeline is a ledger: one row per animated thing, as a tree — the
+  Camera, the Sun & Sky (the sun's and the sky's keys), groups with what they
+  hold, objects — each key a copper rivet on a ruled sheet. Rows shows
+  Animated, All or Selected; a group folds and then marks the keys inside it.
+  The ruler counts seconds and, zoomed in, frame numbers. The overview strip
+  under the sheet shows the whole scene: drag its teal window to scroll, its
+  edges to zoom (double-click shows all; pinch or Ctrl+wheel zooms too), and
+  a 30-second or 5-minute scene stays easy to work in. While it plays, a
+  zoomed sheet pages along with the playhead.
+- Every row has a Key here diamond: it keys the camera, the sun, a group or an
+  object where it is at the playhead, filled while a key is there (a click
+  then takes that key away).
+- Keys on the ledger: click one (its object is selected too), Shift-click to
+  add more, drag across empty space to box them; drag picked keys to move
+  them together on whole frames, Del deletes them. A click on a row selects
+  it and brings the playhead there; selecting in the scene or the scene list
+  marks its row. Pointing at a key names it: Snow Moon · 0:04.0.
+- The key inspector, docked at the right end of the ledger: for the picked key
+  (or the selected row at the playhead) each value from the key before to this
+  one, what changed first — place, turn and size for objects and groups; place,
+  aim and lens for the camera; direction, colours, shadows, fog, haze, clouds
+  and stars for the Sun & Sky row. Type a value to set the key (a new key where
+  there is none), one undo step.
+- Ease per key: Smooth, Linear, Ease in (slows into the key) or Ease out
+  (starts slowly from it), in the inspector, for one key or all picked ones.
+  Linear keys show as diamonds, eased ones with a flat shelf on the slow side;
+  the motion paths follow. Eases are saved with the scene.
+- Film strip (Strip Off | On): the camera's picture along the ruler, one per
+  second or a step that suits the zoom. The pictures are ray-traced small in
+  the background, only while nothing plays or drags, kept, and made again a
+  moment after the scene changes. Click one to go there.
+- Three new examples, each an 8-second loop: Vapor Desk (a globe under a
+  glass bell, an Ionic column with a light bulb, a magnifying glass and
+  compact discs on checker decks over blue water, under a rainbow), Pyramid
+  Valley (golden pyramids sending beams of light up from the hills of a green
+  valley with a river and purple flowers, a golden disc in front) and Marble
+  Dream (a marble head with a little window in its cheek, on a fluted
+  pedestal among glass arches, on an endless lavender checkerboard).
+- The start window's examples can be arranged: Edit beside Examples puts a ×
+  on each card to hide it and lets cards be dragged into a new order; Hidden
+  (n) shows the hidden ones, a click brings one back, and Reset returns to the
+  original list. Built-in examples are only hidden, never removed. The list is
+  a setting: remembered, exported with Settings › Export…, and
+  tools/apply-settings.mjs can make it the list every visitor starts with.
+- New textures: Iridescent (a rainbow sheen that shifts with the viewing
+  angle), Light Beam (bright where it faces you, fading upward) and Rainbow
+  (spectrum bands near a disc's rim).
+- New materials: White Marble and Grey Marble (Rocks), Flower Meadow (Planes &
+  Terrains), Light Beam and Rainbow (Clouds & Fog), Compact Disc and Hologram
+  (Wild & Fun), Tinted Glass, Emerald Glass and Ruby Glass (Glass).
+- Two turned shapes, a fluted Ionic column and a fluted pedestal; for now
+  only the examples use them (they are not on the Create palette yet).
+- Play (preview feature; View › Preview Features…): walk the scene in first
+  person with Half-Life's movement. View › Play: Walk the Scene (Shift+P) or
+  the walker chip in the display bar; the Camera view becomes your eyes and the
+  pointer locks. W A S D, Space jumps (or a wheel notch), Ctrl or C ducks;
+  bunny hopping and air strafing work as they did in Half-Life. Steps, slopes,
+  walls and keyed platforms behave as solid ground; physical objects fall,
+  tumble and are pushed. Esc leaves and the scene is as it was.
+- Play's setup panel (Tab): the player Human, Tiny (a tenth) or Giant (ten
+  times), or your own height, eyes, radius, jump, speed, gravity and mouse;
+  kept in Settings.
+- Record in Play (K or the red dot): the take starts at the playhead and
+  becomes keys at the scene's frame rate, for the camera and for every
+  physical object that moved, in one undo step.
+- Attributes › Physics while Play is on: Solid, Physical and the mass of an
+  object, and Physical for a whole group (one body). Saved with the scene;
+  older files open as before.
+
+### Changed
+- The ledger replaces the Time Palette's three grooves; Add Key, Remove Key
+  and Animate Camera stay in the Animation menu and on K, Alt+K and Shift+K.
+- The scene handles use the Outline look (thick axis lines, round tips, square
+  grips) without a dark rim, and chess sets use the natural knight head.
+
 ## 0.9.0 — 2026-10-11
 
 ### Added

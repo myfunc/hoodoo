@@ -135,7 +135,7 @@ describe('lathe objects', () => {
     file.scene.objects[2].shapeParam = 42;
     file.scene.objects[3].shapeParam = 'king';
     const odd = deserializeScene(file);
-    expect(odd.objects[2].shapeParam).toBe(LatheProfile.King);
+    expect(odd.objects[2].shapeParam).toBe(LatheProfile.Pedestal);
     expect(odd.objects[3].shapeParam).toBe(LatheProfile.Pawn);
   });
 

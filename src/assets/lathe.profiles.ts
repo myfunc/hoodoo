@@ -1,9 +1,10 @@
 import { LatheProfile } from '../model/scene.enums';
 import { CHESS_SPECS } from './chess.profiles';
+import { COLUMN_SPECS } from './column.profiles';
 import { type LatheProfileData, compileProfile } from './lathe';
 
 /** Every Lathe profile, compiled once, indexed by LatheProfile (an object's `shapeParam`). */
-export const LATHE_PROFILES: readonly LatheProfileData[] = CHESS_SPECS.map(compileProfile);
+export const LATHE_PROFILES: readonly LatheProfileData[] = [...CHESS_SPECS, ...COLUMN_SPECS].map(compileProfile);
 
 const LAST = LATHE_PROFILES.length - 1;
 

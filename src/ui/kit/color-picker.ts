@@ -147,17 +147,18 @@ export interface SwatchOptions {
 export class ColorSwatch {
   readonly el: HTMLElement;
   private readonly chip: HTMLElement;
+  /** The colour the picker opens on: the last one picked or set. */
+  private current: Rgb;
 
   constructor(o: SwatchOptions) {
+    this.current = o.value;
     this.chip = el('div', { cls: 'ui-swatch-chip' });
     this.el = el('div', { cls: 'ui-swatch', title: o.title ?? 'Click to pick a colour', attrs: { tabindex: '0' } }, [
       this.chip,
       o.label ? el('span', { cls: 'ui-swatch-label', text: o.label }) : null,
     ]);
-    let current = o.value;
     this.el.addEventListener('click', () =>
-      openColorPicker(this.el, current, (c, final) => {
-        current = c;
+      openColorPicker(this.el, this.current, (c, final) => {
         this.set(c);
         if (final) o.onCommit(c);
         else o.onInput(c);
@@ -167,6 +168,7 @@ export class ColorSwatch {
   }
 
   set(c: Rgb): void {
+    this.current = c;
     this.chip.style.background = rgbToHex(c);
   }
 }

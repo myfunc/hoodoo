@@ -1,3 +1,4 @@
+import { Ease } from '../../model/scene.enums';
 import type { Animation, Key, Scene, Transform } from '../../model/scene.types';
 import { localOf } from '../group-pose';
 import { groupIndex } from '../group-tree';
@@ -19,10 +20,10 @@ export const frameTime = (t: number, fps: number): number => Math.round(t * fps)
 
 export const sameTime = (a: number, b: number, fps: number): boolean => Math.abs(a - b) < 0.5 / fps;
 
-/** The keys with `value` set at `time`, replacing a key on the same frame. */
-export function withKey<T>(keys: readonly Key<T>[], time: number, value: T, fps: number): Key<T>[] {
+/** The keys with `value` set at `time`, replacing a key on the same frame (which keeps its ease, unless one is given). */
+export function withKey<T>(keys: readonly Key<T>[], time: number, value: T, fps: number, ease = keys.find((k) => sameTime(k.time, time, fps))?.ease ?? Ease.Smooth): Key<T>[] {
   const rest = keys.filter((k) => !sameTime(k.time, time, fps));
-  return [...rest, { time, value }].sort((a, b) => a.time - b.time);
+  return [...rest, { time, value, ...(ease !== Ease.Smooth ? { ease } : {}) }].sort((a, b) => a.time - b.time);
 }
 
 export function withoutKey<T>(keys: readonly Key<T>[], time: number, fps: number): Key<T>[] {
@@ -99,5 +100,5 @@ export function retimed<T>(keys: readonly Key<T>[], from: number, to: number, a:
   const moving = keys.find((k) => sameTime(k.time, from, a.fps));
   if (!moving) return keys;
   const time = Math.min(a.duration, Math.max(0, frameTime(to, a.fps)));
-  return withKey(withoutKey(keys, from, a.fps), time, moving.value, a.fps);
+  return withKey(withoutKey(keys, from, a.fps), time, moving.value, a.fps, moving.ease ?? Ease.Smooth);
 }

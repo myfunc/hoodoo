@@ -1,0 +1,165 @@
+/* ---------- Animation timeline: the ledger (ui/chrome/timeline*.ts) ----------
+   Bryce 3D's Time Palette as a ledger: a silver bar with overlapping oval VCR buttons, a red stop and an
+   engraved readout; under it a ruled paper sheet, one row per track, copper rivets for keys; the overview
+   strip of the whole scene with its teal window; the key inspector docked on the right; a film strip. */
+.timeline { display: none; }
+.animation-on .timeline {
+  --tl-names-w: 164px;
+  --tl-insp-w: 236px;
+  --tl-rows-h: clamp(90px, 13vh, 216px);
+  --tl-paper: #f3f1ea;
+  --tl-rule: #b9b5a8;
+  --tl-row-rule: #ddd9cc;
+  --tl-head-ink: #8a877d;
+  display: flex; flex-direction: column; gap: 3px; margin: 4px 8px 0; padding: 2px 6px 6px; overflow: hidden;
+  border: 1px solid #8e9095; border-radius: 4px;
+  background: linear-gradient(#fdfdfd, #e3e4e6 14%, #cfd1d4 32%, #e8e9eb 60%, #dcdde0);
+  box-shadow: inset 0 1px 0 #fff, inset 0 -1px 0 rgba(0,0,0,0.12), 0 2px 4px rgba(0,0,0,0.25);
+}
+
+/* The bar: VCR buttons, the readout, Loop; the row filter and the film strip switch on the right. */
+.tl-bar { display: flex; align-items: center; gap: 8px; height: 28px; min-width: 0; white-space: nowrap; }
+.tl-bar-gap { flex: 1; min-width: 0; }
+.tl-bar-label { font-size: 10px; color: var(--ink-soft); margin-right: -4px; }
+.tl-transport { display: flex; align-items: center; flex: none; }
+.tl-transport {
+  padding: 2px 6px 2px 9px; border-radius: 14px;
+  background: linear-gradient(#a6a9ad, #e4e5e7); box-shadow: inset 0 1px 3px rgba(0,0,0,0.45), 0 1px 0 #fff;
+}
+.ui-button.tl-button {
+  position: relative; width: 28px; height: 19px; padding: 0; margin-left: -4px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; color: #1d6f72; cursor: pointer;
+  border: 1px solid #7b7e83; background: radial-gradient(ellipse at 50% 28%, #fff, #e6e7e9 40%, #a9acb1 86%, #c8cace);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.35);
+}
+.ui-button.tl-button:hover { background: radial-gradient(ellipse at 50% 28%, #fff, #f0f1f2 45%, #b9bcc0 88%, #d4d6d9); z-index: 2; }
+.ui-button.tl-button:active, .ui-button.tl-button.is-active {
+  background: radial-gradient(ellipse at 50% 70%, #f4f5f6, #d2d4d7 50%, #9a9da2); box-shadow: inset 0 1px 3px rgba(0,0,0,0.45); color: #0f5558;
+}
+.ui-button.tl-button .glyph { width: 11px; height: 11px; stroke: currentColor; stroke-width: 2.4; fill: none; stroke-linejoin: round; }
+.tl-transport .ui-button.tl-button .glyph { fill: currentColor; stroke-width: 2; }
+.ui-button.tl-button.tl-stop, .ui-button.tl-button.tl-play { width: 34px; height: 23px; z-index: 1; }
+.ui-button.tl-button.tl-stop { color: #d42a1e; }
+.ui-button.tl-button.tl-play .glyph { width: 13px; height: 13px; }
+.ui-button.tl-button.tl-loop { width: 30px; height: 20px; margin-left: 0; }
+
+/* "0:03.2 / 0:08.0  frame 48 / 120 · 15 fps": the playhead, the length as an engraved field you can type into,
+   and the frame line that opens Animation Setup. */
+.tl-clock {
+  flex: none; display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px 0 6px;
+  border-radius: 3px; background: linear-gradient(#c6c8cb, #eceded); box-shadow: inset 0 1px 2px rgba(0,0,0,0.4), 0 1px 0 #fff;
+}
+.tl-clock-row { display: flex; align-items: center; gap: 3px; white-space: nowrap; }
+.tl-time { font: 700 14px/1 var(--font-title); color: #2f3033; text-shadow: 0 1px 0 rgba(255,255,255,0.7); font-variant-numeric: tabular-nums; }
+.tl-of { font: 700 12px/1 var(--font-title); color: #8a8b8f; }
+.tl-clock .ui-number.tl-total {
+  width: 58px; height: 17px; padding: 0 2px; text-align: center; cursor: text;
+  font: 700 14px/1 var(--font-title); color: var(--teal-dark); font-variant-numeric: tabular-nums;
+  border: 1px solid #9a9ca0; border-radius: 2px; background: linear-gradient(#e2e3e5, #fbfbfb);
+  box-shadow: inset 0 1px 2px rgba(0,0,0,0.3);
+}
+.tl-clock .ui-number.tl-total:hover { border-color: var(--teal); }
+.tl-clock .ui-number.tl-total:focus { outline: none; border-color: var(--teal); background: #fff; color: #2f3033; }
+.tl-frame { font-size: 9px; color: #5d5e62; font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; }
+.tl-frame:hover { color: var(--teal-dark); text-decoration: underline; }
+.timeline .segmented .ui-toggle { padding: 1px 7px; font-size: 9.5px; }
+
+/* The sheet: names | time | inspector across; ruler, film strip, rows and overview down. */
+.tl-sheet {
+  display: grid; min-height: 0;
+  grid-template-columns: var(--tl-names-w) minmax(0, 1fr) var(--tl-insp-w);
+  grid-template-rows: 18px 0 var(--tl-rows-h) 16px;
+  border: 1px solid #8a8985; background: var(--tl-paper); box-shadow: inset 0 1px 3px rgba(0,0,0,0.25);
+}
+.strip-on .tl-sheet { grid-template-rows: 18px 42px var(--tl-rows-h) 16px; }
+.tl-sheet > canvas { display: block; width: 100%; min-width: 0; }
+.tl-corner {
+  grid-column: 1; grid-row: 1; display: flex; align-items: center; justify-content: space-between; padding: 0 5px 0 6px;
+  font-size: 9px; color: var(--tl-head-ink); white-space: nowrap;
+  border-right: 1px solid var(--tl-rule); background: linear-gradient(#ecebe4, #dedcd3); box-shadow: inset 0 -1px 0 var(--tl-rule);
+}
+.tl-ruler { grid-column: 2; grid-row: 1; height: 18px; cursor: pointer; }
+.tl-strip-side, .tl-strip { display: none; }
+.strip-on .tl-strip-side {
+  grid-column: 1; grid-row: 2; display: flex; align-items: center; padding-left: 6px;
+  font: bold 9px var(--font-ui); color: #b8b8b2; background: #1d1d20; border-right: 1px solid #000;
+}
+.strip-on .tl-sheet > .tl-strip { grid-column: 2; grid-row: 2; display: block; height: 42px; cursor: pointer; }
+.tl-names { position: relative; grid-column: 1; grid-row: 3; min-height: 0; overflow-y: auto; overflow-x: hidden; border-right: 1px solid var(--tl-rule); }
+.tl-lanes { grid-column: 2; grid-row: 3; height: 100%; min-height: 0; }
+.tl-zoom {
+  grid-column: 1; grid-row: 4; display: flex; align-items: center; gap: 5px; padding: 0 5px; overflow: hidden;
+  font-size: 9px; color: var(--ink-soft); white-space: nowrap; font-variant-numeric: tabular-nums;
+  border-top: 1px solid var(--tl-rule); border-right: 1px solid var(--tl-rule); background: linear-gradient(#ecebe4, #dedcd3);
+}
+.ui-button.tl-fit { height: 12px; padding: 0 5px; font: bold 9px/10px var(--font-ui); }
+.ui-button.tl-fit[hidden] { display: none; }
+.tl-overview { grid-column: 2; grid-row: 4; height: 16px; border-top: 1px solid var(--tl-rule); cursor: pointer; }
+
+/* Name plates: fold triangle, icon, name and the Key here diamond. */
+.tl-name {
+  display: flex; align-items: center; gap: 4px; height: 18px; padding-right: 3px; cursor: default;
+  font-size: 10.5px; white-space: nowrap; border-bottom: 1px solid var(--tl-row-rule);
+}
+.tl-name:hover { background: rgba(0,0,0,0.035); }
+.tl-name.is-selected { background: rgba(200,40,45,0.13); color: var(--select); font-weight: bold; }
+.tl-name.kind-group { font-weight: bold; }
+.tl-twisty { flex: none; width: 10px; height: 10px; margin-left: 3px; fill: var(--ink-soft); stroke: none; }
+.tl-name-glyph { flex: none; width: 12px; height: 12px; stroke: var(--teal-dark); fill: none; stroke-width: 2.2; stroke-linejoin: round; }
+.tl-name.is-selected .tl-name-glyph { stroke: var(--select); }
+.tl-name-ball {
+  flex: none; width: 11px; height: 11px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #9fe0dc, #2b8a8a 45%, #0f3f3f 90%); box-shadow: 1px 1px 1px rgba(0,0,0,0.3);
+}
+.tl-name-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ui-button.tl-key-here {
+  flex: none; width: 15px; height: 15px; padding: 0; display: flex; align-items: center; justify-content: center;
+  border: 1px solid #8e9095; border-radius: 3px; background: linear-gradient(#fff, #d8d9dc); box-shadow: none;
+}
+.ui-button.tl-key-here:hover { border-color: var(--teal); background: linear-gradient(#fff, #e6f2f1); }
+.ui-button.tl-key-here .glyph { width: 11px; height: 11px; fill: none; stroke: #1d6f72; stroke-width: 2.6; stroke-linejoin: round; }
+.ui-button.tl-key-here.is-active { background: linear-gradient(#fff, #e9e3dc); box-shadow: none; }
+.ui-button.tl-key-here.is-active .glyph { fill: #c8622c; stroke: #6a2c0e; }
+.tl-names-empty { padding: 6px; font-size: 10px; color: var(--ink-faint); white-space: nowrap; }
+
+/* The key inspector: what the key changes, from the key before to this one. */
+.tl-inspector {
+  grid-column: 3; grid-row: 1 / -1; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+  border-left: 1px solid var(--tl-rule); background: linear-gradient(#f6f6f4, #e8e8e4);
+}
+.tl-insp-head {
+  flex: none; display: flex; align-items: center; gap: 6px; height: 18px; padding: 0 6px; white-space: nowrap;
+  background: linear-gradient(#ecebe4, #dedcd3); box-shadow: inset 0 -1px 0 var(--tl-rule);
+}
+.tl-insp-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; font: bold 10.5px var(--font-ui); color: var(--ink); }
+.tl-insp-where { flex: none; font-size: 9px; color: var(--tl-head-ink); font-variant-numeric: tabular-nums; }
+.tl-insp-ease-row { flex: none; display: flex; align-items: center; gap: 6px; min-height: 21px; padding: 2px 5px; white-space: nowrap; overflow: hidden; }
+.tl-insp-ease[hidden], .tl-insp-note[hidden] { display: none; }
+.timeline .tl-insp-ease .ui-toggle { padding: 1px 5px; }
+.tl-insp-note { font-size: 9.5px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; }
+.tl-inspector.is-empty .tl-insp-ease-row { flex: 1; justify-content: center; }
+.tl-insp-list { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-bottom: 2px; }
+.tl-prop {
+  display: grid; grid-template-columns: 88px 46px 10px minmax(0, 1fr); align-items: center; gap: 3px;
+  height: 18px; padding: 0 5px; font-size: 10px; white-space: nowrap; color: var(--ink-faint);
+}
+.tl-prop.is-changed { color: var(--ink); }
+.tl-prop.is-changed .tl-insp-label { font-weight: bold; }
+.tl-insp-label { overflow: hidden; text-overflow: ellipsis; }
+.tl-insp-from { text-align: right; font-variant-numeric: tabular-nums; overflow: hidden; }
+.tl-insp-from.is-swatch { justify-self: end; width: 16px; height: 11px; border: 1px solid #77766f; }
+.tl-insp-arrow { color: var(--ink-faint); text-align: center; }
+.ui-number.tl-insp-field { width: 100%; height: 15px; padding: 0 3px; font-size: 10px; text-align: right; font-variant-numeric: tabular-nums; }
+.tl-prop .ui-swatch-chip { width: 26px; height: 12px; }
+.tl-prop .ui-select { min-width: 0; height: 15px; font-size: 10px; }
+.tl-prop .ui-select .glyph { width: 9px; height: 9px; }
+.timeline .tl-prop .segmented .ui-toggle { padding: 0 6px; font-size: 9px; line-height: 13px; }
+.tl-insp-hint { padding: 4px 6px; font-size: 9.5px; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tl-insp-sep { height: 15px; padding: 2px 5px 0; font-size: 9px; color: var(--tl-head-ink); white-space: nowrap; border-top: 1px solid var(--tl-row-rule); }
+
+/* The ledger's tooltip: "Snow Moon · 0:04.0". */
+.tl-tip {
+  position: fixed; z-index: 1200; padding: 2px 5px; pointer-events: none; white-space: nowrap;
+  font: 11px var(--font-ui); color: #222; background: #ffffe1; border: 1px solid #767676; box-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+}
+.tl-tip[hidden] { display: none; }

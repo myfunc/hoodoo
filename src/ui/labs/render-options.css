@@ -1,0 +1,23 @@
+/* Render Options (ui/labs/render-options.ts) and the reflection dials it shares with Settings › Render.
+   Colours come from the theme variables only. */
+.ui-dial.depth-dial { grid-template-columns: minmax(0, 1fr) 22px; width: 150px; }
+.ui-dial.depth-dial .ui-dial-label { display: none; }
+.settings-rows .ui-dial.depth-dial { width: 180px; }
+
+.render-options .tool-body { width: 300px; }
+.tool-window.is-docked.render-options .tool-body { width: auto; }
+.ro-body { display: flex; flex-direction: column; gap: 6px; }
+.ro-rows { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 5px 10px; align-items: center; }
+.ro-rows > .ui-choice.segmented, .ro-rows > .ui-dial { justify-self: start; }
+.ro-name { font: 800 11px var(--font-title); white-space: nowrap; }
+.ro-heading { margin-top: 4px; font: 800 12px var(--font-title); white-space: nowrap; }
+.ro-about { color: var(--ink-soft); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ro-speed {
+  padding: 3px 6px; border: 1px solid var(--lo); border-radius: 2px; box-shadow: inset 1px 1px 0 var(--lo), 1px 1px 0 var(--hi);
+  font: bold 10px/14px var(--font-ui); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ro-body.is-off .ro-speed { color: var(--ink-soft); font-weight: normal; }
+
+/* The display bar's Render View chip (ui/chrome/display-bar.ts): the mark-chip dress with its name instead of a mark. */
+.ui-button.mark-chip.text-chip { width: auto; padding: 0 7px; font: bold 10px/16px var(--font-ui); }
+.display-bar .ui-choice.is-idle { opacity: 0.45; }

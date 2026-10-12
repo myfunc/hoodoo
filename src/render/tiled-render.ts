@@ -1,10 +1,10 @@
 import type { Scene } from '../model/scene.types';
 import type { ViewBasis } from '../world/camera-math';
+import { finalBounces } from '../world/render-setup';
 import { jitter } from './gpu/halton';
 import type { Thumbnailer } from './thumbs';
 
 const TILE = 256;
-const BOUNCES = 6;
 
 
 export interface ExportJob {
@@ -17,7 +17,7 @@ export interface ExportJob {
   readonly isCancelled: () => boolean;
 }
 
-/** Renders the picture in tiles (one tile per frame) so huge images do not stall the GPU. */
+/** Renders the picture in tiles (one tile per frame) so huge images do not stall the GPU; as deep as the scene's final render. */
 export async function renderImage(thumbs: Thumbnailer, job: ExportJob): Promise<HTMLCanvasElement | null> {
   const out = document.createElement('canvas');
   out.width = job.width;
@@ -29,6 +29,7 @@ export async function renderImage(thumbs: Thumbnailer, job: ExportJob): Promise<
   const target = thumbs.target(TILE, TILE);
   const cols = Math.ceil(job.width / TILE);
   const rows = Math.ceil(job.height / TILE);
+  const bounces = finalBounces(job.scene);
   for (let ty = 0; ty < rows; ty++) {
     for (let tx = 0; tx < cols; tx++) {
       if (job.isCancelled()) return null;
@@ -43,7 +44,7 @@ export async function renderImage(thumbs: Thumbnailer, job: ExportJob): Promise<
         e.traceRows({
           target, width: job.width, height: job.height, offsetX: tx * TILE, offsetY, block: 1, rowStart: 0, rowEnd: th,
           jitterX, jitterY,
-          sample: s, bounces: BOUNCES, transparentBg: false, blend: 1 / (s + 1),
+          sample: s, bounces, transparentBg: false, blend: 1 / (s + 1),
         });
       }
       e.canvas.width = tw;

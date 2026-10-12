@@ -72,10 +72,10 @@ describe('carved heads', () => {
     for (const [x, y, z, r] of head.dents) expect(headSdf(head, [x, y, z - r], false)).toBeLessThan(0);
   });
 
-  it('come in five styles, each wider at the cheek than at the muzzle, the tournament head by default', () => {
+  it('come in five styles, each wider at the cheek than at the muzzle, the natural head by default', () => {
     expect(STYLES).toHaveLength(5);
-    expect(KNIGHT_STYLE).toBe(KnightStyle.Tournament);
-    expect(LATHE_PROFILES[LatheProfile.Knight]).toEqual(compileProfile(knightSpec(KnightStyle.Tournament)));
+    expect(KNIGHT_STYLE).toBe(KnightStyle.Natural);
+    expect(LATHE_PROFILES[LatheProfile.Knight]).toEqual(compileProfile(knightSpec(KnightStyle.Natural)));
     for (const style of STYLES) {
       const h = KNIGHT_HEADS[style];
       // Wide and firm: the cheek is at least 19 mm across, the muzzle narrower but still broad.

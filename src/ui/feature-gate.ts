@@ -13,6 +13,7 @@ import { Feature, type FeatureFlags, isFeatureOn } from '../world/preview-featur
 export const FEATURE_ACTIONS: Readonly<Record<Feature, readonly Action[]>> = {
   [Feature.ObjectTree]: [Action.NewGroup],
   [Feature.Portals]: [Action.CreatePortals, Action.LinkPortals],
+  [Feature.Play]: [Action.Play],
 };
 
 const OWNER = new Map<Action, Feature>(

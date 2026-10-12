@@ -1,0 +1,366 @@
+/* The dark theme (ui/theme.ts sets <html data-theme="dark" data-variant="…">).
+   A look is a handful of seed colours (--d-*) below; the block after them turns the
+   seeds into the roles theme.css names, so every look keeps Bryce's construction:
+   embossed titles, bevelled faces, grained stone, teal icons and accents.
+   Text keeps 4.5:1 on its surface, edges of controls 3:1 (tools/contrast.mjs). */
+
+/* ---------- the looks (ui/theme-variants.ts lists them; DARK_VARIANT picks one) ---------- */
+:root[data-theme=dark][data-variant=slate] {
+  --d-deep: #0e1011;
+  --d-well: #1c1f21;
+  --d-ground: #292c2e;
+  --d-stone: #383c3e;
+  --d-face-lo: #33373a;
+  --d-face-hi: #4a4f53;
+  --d-face-hot: #575d61;
+  --d-column-hi: #4c5155;
+  --d-edge: #868d91;
+  --d-edge-hi: #9aa1a5;
+  --d-ink: #e8eae7;
+  --d-ink-soft: #c5c9c9;
+  --d-ink-faint: #aab0b2;
+  --d-title: #dde0de;
+  --d-tab: #a9afb1;
+  --d-accent: #2f9898;
+  --d-accent-deep: #1a6262;
+  --d-accent-ink: #62d4ce;
+  --d-select: #ff7b72;
+  --d-hot: #3a3ea6;
+  --d-tip: #45412f;
+  --d-tip-ink: #f3efd9;
+}
+:root[data-theme=dark][data-variant=graphite] {
+  --d-deep: #0b0b0c;
+  --d-well: #18191b;
+  --d-ground: #252629;
+  --d-stone: #323336;
+  --d-face-lo: #2b2c2f;
+  --d-face-hi: #4d4f53;
+  --d-face-hot: #5a5c61;
+  --d-column-hi: #4f5156;
+  --d-edge: #85878c;
+  --d-edge-hi: #9c9ea3;
+  --d-ink: #ebebeb;
+  --d-ink-soft: #cdced1;
+  --d-ink-faint: #a9abaf;
+  --d-title: #e0e1e4;
+  --d-tab: #a6a8ac;
+  --d-accent: #2f9898;
+  --d-accent-deep: #1a6262;
+  --d-accent-ink: #62d4ce;
+  --d-select: #ff7b72;
+  --d-hot: #3a3ea6;
+  --d-tip: #3e3c34;
+  --d-tip-ink: #f1eee2;
+}
+:root[data-theme=dark][data-variant=midnight] {
+  --d-deep: #04090d;
+  --d-well: #0c161c;
+  --d-ground: #121d25;
+  --d-stone: #1b2932;
+  --d-face-lo: #182630;
+  --d-face-hi: #2a3e4a;
+  --d-face-hot: #34505f;
+  --d-column-hi: #2c414d;
+  --d-edge: #6d8b99;
+  --d-edge-hi: #87a3b0;
+  --d-ink: #e3eef1;
+  --d-ink-soft: #b9cdd4;
+  --d-ink-faint: #94afb9;
+  --d-title: #d2e4e9;
+  --d-tab: #91acb6;
+  --d-accent: #26a2a2;
+  --d-accent-deep: #126464;
+  --d-accent-ink: #5ee0da;
+  --d-select: #ff7f76;
+  --d-hot: #22678a;
+  --d-tip: #213847;
+  --d-tip-ink: #e3eef1;
+}
+:root[data-theme=dark][data-variant=walnut] {
+  --d-deep: #120d09;
+  --d-well: #1f1813;
+  --d-ground: #2c231c;
+  --d-stone: #3a2e25;
+  --d-face-lo: #382c23;
+  --d-face-hi: #5b4737;
+  --d-face-hot: #6a5341;
+  --d-column-hi: #5a4637;
+  --d-edge: #9e866c;
+  --d-edge-hi: #b39b80;
+  --d-ink: #f2e8da;
+  --d-ink-soft: #d8c7b0;
+  --d-ink-faint: #bba992;
+  --d-title: #efd9b4;
+  --d-tab: #b9a68d;
+  --d-accent: #2f9898;
+  --d-accent-deep: #1a6262;
+  --d-accent-ink: #6ad2c6;
+  --d-select: #ff8070;
+  --d-hot: #7a4718;
+  --d-tip: #4e3b27;
+  --d-tip-ink: #f6ead2;
+}
+:root[data-theme=dark][data-variant=lab] {
+  --d-deep: #0a0a0b;
+  --d-well: #1b1b1e;
+  --d-ground: #262629;
+  --d-stone: #323236;
+  --d-face-lo: #333337;
+  --d-face-hi: #56565c;
+  --d-face-hot: #66666c;
+  --d-column-hi: #4b4b51;
+  --d-edge: #8a8a90;
+  --d-edge-hi: #a0a0a6;
+  --d-ink: #e6e6e0;
+  --d-ink-soft: #cbcbc6;
+  --d-ink-faint: #ababa5;
+  --d-title: #e0c890;
+  --d-tab: #ada590;
+  --d-accent: #2f9898;
+  --d-accent-deep: #1a6262;
+  --d-accent-ink: #e8b860;
+  --d-select: #ff7b72;
+  --d-hot: #8a5a14;
+  --d-tip: #45402c;
+  --d-tip-ink: #f3ecd2;
+  /* The labs' amber switch instead of the teal one. */
+  --accent-face: linear-gradient(#e6b056, #a8701e);
+  --accent-ink: #1c1306;
+}
+
+/* ---------- the roles, from the seeds ---------- */
+:root[data-theme=dark] {
+  color-scheme: dark;
+  --ink: var(--d-ink);
+  --ink-soft: var(--d-ink-soft);
+  --ink-faint: var(--d-ink-faint);
+  --hi: rgba(255, 255, 255, 0.07);
+  --lo: rgba(0, 0, 0, 0.5);
+  --teal: var(--d-accent);
+  --teal-dark: var(--d-accent-deep);
+  --select: var(--d-select);
+  --lab-ink: #d4d4ce;
+  --lab-soft: #a8a8a2;
+
+  --body-bg: var(--d-ground);
+  --scene-bg: var(--d-ground);
+  --stone-bg: var(--d-stone);
+  --menubar-bg: linear-gradient(var(--d-face-hi), var(--d-face-lo));
+  --menubar-edge: var(--d-deep);
+  --menu-bg: var(--d-face-lo);
+  --menu-hot-bg: var(--d-hot);
+  --menu-hot-ink: #fff;
+  --menu-hot-hint: rgba(255, 255, 255, 0.78);
+  --menu-hint: var(--d-ink-soft);
+  --menu-off: var(--d-edge);
+  --menu-sep: var(--d-deep);
+  --paper-rule: var(--d-edge);
+  --column-bg: linear-gradient(90deg, var(--d-face-lo), var(--d-column-hi) 45%, var(--d-face-lo));
+  --column-edge: var(--d-deep);
+  --column-label: var(--d-ink-soft);
+  --column-faint: var(--d-ink-soft);
+  --nano-edge: var(--d-deep);
+  --title-ink: var(--d-title);
+  --heading-ink: var(--d-title);
+  --tab-ink: var(--d-tab);
+  --tab-ink-hover: var(--d-ink-soft);
+  --tab-ink-on: var(--d-title);
+  --family-label: var(--d-ink-faint);
+  /* Light letters are pressed into dark stone: the shadow sits above them, a faint sheen below. */
+  --emboss: 0 -1px 0 rgba(0, 0, 0, 0.6);
+  --emboss-deep: 0 -1px 0 rgba(0, 0, 0, 0.65), 0 1px 0 rgba(255, 255, 255, 0.05);
+  --emboss-strong: 0 -1px 0 rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.05);
+  --name-emboss: 0 -1px 0 rgba(0, 0, 0, 0.45);
+  --shelf-bg: linear-gradient(rgba(255, 255, 255, 0) 20%, rgba(255, 255, 255, 0.05));
+  --lip-bg: linear-gradient(var(--d-face-hot), var(--d-face-lo) 60%, var(--d-well));
+  --thumb-bg: linear-gradient(var(--d-edge-hi), var(--d-edge));
+  --edge: var(--d-edge);
+  --edge-strong: var(--d-edge);
+  --edge-input: var(--d-edge);
+  --edge-dark: var(--d-deep);
+  --edge-darker: var(--d-deep);
+  --well-edge: var(--d-deep);
+  --chip-edge: var(--d-edge);
+  --face: linear-gradient(var(--d-face-hi), var(--d-face-lo));
+  --face-hover: linear-gradient(var(--d-face-hot), var(--d-face-hi));
+  --face-pressed: linear-gradient(var(--d-well), var(--d-face-lo));
+  --dropdown-face: linear-gradient(var(--d-face-hi), var(--d-face-lo));
+  --pane-mode-face: linear-gradient(var(--d-face-hi), var(--d-face-lo));
+  --chip-face: linear-gradient(var(--d-face-hi), var(--d-face-lo));
+  --chip-face-hover: linear-gradient(var(--d-face-hot), var(--d-face-hi));
+  --chip-ink: var(--d-ink-soft);
+  --chip-ink-hover: var(--d-ink);
+  --tag-face: linear-gradient(var(--d-face-hi), var(--d-face-lo));
+  --tag-face-hover: linear-gradient(var(--d-face-hot), var(--d-face-hi));
+  --seg-ink: var(--d-ink-soft);
+  --seg-ink-hover: var(--d-ink);
+  --bevel: rgba(255, 255, 255, 0.1);
+  --pressed: inset 0 1px 3px rgba(0, 0, 0, 0.5);
+  --pressed-deep: inset 0 1px 3px rgba(0, 0, 0, 0.55);
+  --field: var(--d-well);
+  --dot-face: radial-gradient(circle at 35% 30%, var(--d-edge-hi), var(--d-face-lo) 75%);
+  --dot-on: radial-gradient(circle at 35% 30%, #ffc0b0, var(--select) 55%, #7a1512);
+  /* A chosen switch: deep enough under white letters for 4.5:1 at its lightest. */
+  --accent-face: linear-gradient(#2a8282, #1f7272 60%, #155656);
+  --accent-ink: #fff;
+  --teal-ink: var(--d-accent-ink);
+  --teal-glow: rgba(80, 200, 200, 0.55);
+  --teal-wash: rgba(90, 210, 205, 0.12);
+  --teal-wash-strong: rgba(90, 210, 205, 0.18);
+  --teal-wash-on: rgba(90, 210, 205, 0.18);
+  --teal-edge: rgba(110, 220, 215, 0.5);
+  --select-wash: rgba(255, 110, 100, 0.1);
+  --select-ring: rgba(255, 110, 100, 0.4);
+  --row-selected: linear-gradient(90deg, rgba(255, 100, 90, 0.2), rgba(255, 100, 90, 0.05));
+  --drop-wash: rgba(0, 0, 0, 0.4);
+  --rail: var(--d-well);
+  --notch: var(--d-ink-faint);
+  --scroll-thumb: var(--d-edge);
+  --scroll-thumb-webkit: var(--d-edge);
+  --sun-edge: #e2aa3c;
+  --sun-fill: rgba(255, 210, 58, 0.4);
+  --tip-ink: var(--d-tip-ink);
+  --tip-bg: var(--d-tip);
+  --toast-bg: rgba(12, 13, 14, 0.92);
+  --toast-ink: #eee;
+  --toast-soft: #b4b4b0;
+  --toast-button-ink: var(--d-ink);
+  --overlay: rgba(0, 0, 0, 0.45);
+  --overlay-deep: rgba(0, 0, 0, 0.55);
+  --lab-edge: #000;
+  --icon-rim: rgba(255, 255, 255, 0.22);
+  --shade-05: rgba(0, 0, 0, 0.18);
+  --shade-06: rgba(0, 0, 0, 0.2);
+  --shade-08: rgba(0, 0, 0, 0.24);
+  --shade-10: rgba(0, 0, 0, 0.28);
+  --shade-12: rgba(0, 0, 0, 0.32);
+  --shade-15: rgba(0, 0, 0, 0.36);
+  --shade-18: rgba(0, 0, 0, 0.4);
+  --shade-20: rgba(0, 0, 0, 0.42);
+  --shade-22: rgba(0, 0, 0, 0.45);
+  --shade-25: rgba(0, 0, 0, 0.5);
+  --shade-28: rgba(0, 0, 0, 0.52);
+  --shade-30: rgba(0, 0, 0, 0.55);
+  --shade-35: rgba(0, 0, 0, 0.6);
+  --light-35: rgba(255, 255, 255, 0.06);
+  --light-40: rgba(255, 255, 255, 0.07);
+  --light-45: rgba(255, 255, 255, 0.08);
+  --light-50: rgba(255, 255, 255, 0.05);
+  /* Shadows on dark stone need weight to show at all. */
+  --cast-20: rgba(0, 0, 0, 0.45);
+  --cast-22: rgba(0, 0, 0, 0.5);
+  --cast-25: rgba(0, 0, 0, 0.5);
+  --cast-28: rgba(0, 0, 0, 0.55);
+  --cast-30: rgba(0, 0, 0, 0.58);
+  --cast-32: rgba(0, 0, 0, 0.6);
+  --cast-35: rgba(0, 0, 0, 0.62);
+  --cast-40: rgba(0, 0, 0, 0.65);
+}
+
+/* ---------- what the light theme leaves to the browser ---------- */
+:root[data-theme=dark] ::selection { background: rgba(90, 210, 205, 0.35); color: #fff; }
+:root[data-theme=dark] .ui-number,
+:root[data-theme=dark] .ui-inline-input,
+:root[data-theme=dark] .cmdk input { color: var(--ink); caret-color: var(--teal-ink); }
+:root[data-theme=dark] .ui-inline-input { background: var(--field); }
+:root[data-theme=dark] .cmdk input::placeholder { color: var(--ink-faint); }
+/* A light hairline on the windows' top edge: dark stone on a dark workspace needs a lit rim. */
+:root[data-theme=dark] .ui-dialog-stone,
+:root[data-theme=dark] .start-window,
+:root[data-theme=dark] .ui-menu,
+:root[data-theme=dark] .mm,
+:root[data-theme=dark] .cmdk { border-top-color: var(--d-edge); }
+/* The offer toast's button sits on the dark toast in both themes. */
+:root[data-theme=dark] .toast { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12); }
+/* Picture wells (nano preview, sky thumbnails) sink a little deeper into dark chrome. */
+:root[data-theme=dark] .nano { box-shadow: -5px 6px 8px var(--cast-22), inset 1px 1px 2px rgba(0, 0, 0, 0.6); }
+/* The teal pebbles behind the panel marks: a lower highlight keeps the white mark readable. */
+:root[data-theme=dark] .panel-mark { background: radial-gradient(circle at 35% 30%, #3a9a9a, #237878 55%, #144c4c); }
+/* A chip that is on: its dark teal face gets a lit teal rim, so it stands off the dark bar. */
+:root[data-theme=dark] .ui-button.mark-chip.is-active,
+:root[data-theme=dark] .ui-button.mark-chip.is-on { border-color: var(--d-accent-ink); }
+/* Round buttons (OK, Cancel, close): their thin rim is antialiased on a curve, so it is drawn lighter. */
+:root[data-theme=dark] .ui-dialog-stone .ui-round,
+:root[data-theme=dark] .ui-button.start-close { border-color: var(--d-edge-hi); }
+/* A toggle's dot gets the same light rim: the dark ring of the light theme vanishes on dark stone. The labs keep theirs. */
+:root[data-theme=dark] .ui-dot { box-shadow: inset 0 0 0 1px var(--d-edge-hi), 0 1px 0 var(--hi); }
+:root[data-theme=dark] .ui-dialog-lab .ui-dot { box-shadow: inset 0 0 0 1px #000; }
+/* The tabs that fold the side columns away. */
+:root[data-theme=dark] .ui-button.edge-tab { opacity: 1; }
+/* The eye and lock of each scene row stay quiet, but readable. */
+:root[data-theme=dark] .outliner-row .glyph { opacity: 0.5; }
+:root[data-theme=dark] .outliner-row .glyph:hover { opacity: 0.85; }
+:root[data-theme=dark] .outliner-row .glyph.on { opacity: 0.9; }
+/* The rendered icons: the shadow they cast gets weight, and a faint rim of light on the edge
+   facing the key light lifts dark shapes (granite, wood, water) off the dark stone. */
+:root[data-theme=dark] .ctrl-icon { filter: drop-shadow(-1px -1px 0 var(--icon-rim)) drop-shadow(-5px 7px 5px var(--cast-28)); }
+:root[data-theme=dark] .ctrl-icon.trackball { filter: drop-shadow(-1px -1px 0 var(--icon-rim)) drop-shadow(-7px 9px 7px var(--cast-30)); }
+:root[data-theme=dark] .ctrl-icon.render-ball { filter: drop-shadow(-1px -1px 0 var(--icon-rim)) drop-shadow(-3px 4px 3px var(--cast-30)); }
+:root[data-theme=dark] .tray-icon canvas { filter: drop-shadow(-1px -1px 0 var(--icon-rim)) drop-shadow(2px 3px 1.5px var(--cast-32)); }
+:root[data-theme=dark] .tray-tool canvas { filter: drop-shadow(-1px -1px 0 var(--icon-rim)) drop-shadow(2px 3px 1.5px var(--cast-30)); }
+:root[data-theme=dark] .outliner-icon,
+:root[data-theme=dark] .props-icon { filter: drop-shadow(-0.5px -0.5px 0 var(--icon-rim)) drop-shadow(1px 1px 0.5px var(--cast-30)); }
+:root[data-theme=dark] .fatal,
+:root[data-theme=dark] .ui-dialog-body a { color: var(--ink); }
+
+/* ---------- the timeline (ui/chrome/timeline*.ts): Bryce 3D's Time Palette in dark metal, a dark ledger ----------
+   The --tl-* variables are the ledger's paper and rules; its canvases read the same names
+   (ui/theme.ts cssColor), so the painted ruler, rows and overview follow the theme too. */
+:root[data-theme=dark] .animation-on .timeline {
+  --tl-paper: var(--d-well);
+  --tl-rule: #4a5054;
+  --tl-row-rule: #2c3134;
+  --tl-head-ink: var(--d-ink-faint);
+  --tl-ruler-top: var(--d-face-hi);
+  --tl-ruler-bottom: var(--d-face-lo);
+  --tl-tick: rgba(255, 255, 255, 0.4);
+  --tl-seconds: var(--d-ink);
+  --tl-frames: var(--d-ink-faint);
+  --tl-text-shadow: rgba(0, 0, 0, 0.6);
+  --tl-frame-column: rgba(255, 255, 255, 0.04);
+  --tl-label-column: rgba(255, 255, 255, 0.12);
+  --tl-past: rgba(0, 0, 0, 0.25);
+  --tl-past-hatch: rgba(255, 255, 255, 0.08);
+  --tl-overview-top: var(--d-face-lo);
+  --tl-overview-bottom: var(--d-well);
+  border-color: var(--d-deep);
+  background: linear-gradient(var(--d-face-hot), var(--d-face-hi) 14%, var(--d-face-lo) 32%, var(--d-face-hi) 60%, var(--d-face-lo));
+  box-shadow: inset 0 1px 0 var(--bevel), inset 0 -1px 0 rgba(0, 0, 0, 0.4), 0 2px 5px rgba(0, 0, 0, 0.55);
+}
+:root[data-theme=dark] .tl-transport { background: linear-gradient(var(--d-well), var(--d-face-lo)); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7), 0 1px 0 var(--bevel); }
+:root[data-theme=dark] .ui-button.tl-button {
+  color: var(--teal-ink); border-color: var(--d-deep);
+  background: radial-gradient(ellipse at 50% 28%, var(--d-edge-hi), var(--d-face-hot) 40%, var(--d-face-lo) 86%, var(--d-face-hi));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+:root[data-theme=dark] .ui-button.tl-button:hover { background: radial-gradient(ellipse at 50% 28%, var(--d-edge-hi), var(--d-face-hot) 45%, var(--d-face-hi) 88%, var(--d-face-hot)); }
+:root[data-theme=dark] .ui-button.tl-button:active,
+:root[data-theme=dark] .ui-button.tl-button.is-active { background: radial-gradient(ellipse at 50% 70%, var(--d-face-hi), var(--d-face-lo) 50%, var(--d-well)); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.7); color: var(--d-accent-ink); }
+:root[data-theme=dark] .ui-button.tl-button.tl-stop { color: var(--select); }
+:root[data-theme=dark] .tl-clock { background: linear-gradient(var(--d-well), var(--d-face-lo)); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.7), 0 1px 0 var(--bevel); }
+:root[data-theme=dark] .tl-time { color: var(--ink); text-shadow: var(--emboss); }
+:root[data-theme=dark] .tl-of,
+:root[data-theme=dark] .tl-frame { color: var(--ink-soft); }
+:root[data-theme=dark] .tl-clock .ui-number.tl-total { color: var(--teal-ink); border-color: var(--d-edge); background: linear-gradient(var(--d-deep), var(--d-well)); box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.6); }
+:root[data-theme=dark] .tl-clock .ui-number.tl-total:focus { background: var(--d-deep); color: var(--ink); }
+:root[data-theme=dark] .tl-frame:hover { color: var(--teal-ink); }
+:root[data-theme=dark] .tl-sheet { border-color: var(--d-deep); box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6); }
+:root[data-theme=dark] .tl-corner,
+:root[data-theme=dark] .tl-zoom,
+:root[data-theme=dark] .tl-insp-head { background: linear-gradient(var(--d-face-hi), var(--d-face-lo)); }
+:root[data-theme=dark] .tl-inspector { background: linear-gradient(var(--d-face-lo), var(--d-ground)); }
+:root[data-theme=dark] .tl-name:hover { background: rgba(255, 255, 255, 0.05); }
+:root[data-theme=dark] .tl-name.is-selected { background: rgba(255, 100, 90, 0.16); }
+:root[data-theme=dark] .tl-name-glyph { stroke: var(--teal-ink); }
+:root[data-theme=dark] .ui-button.tl-key-here { border-color: var(--d-edge); background: linear-gradient(var(--d-face-hi), var(--d-face-lo)); }
+:root[data-theme=dark] .ui-button.tl-key-here:hover { background: linear-gradient(var(--d-face-hot), var(--d-face-hi)); }
+:root[data-theme=dark] .ui-button.tl-key-here .glyph { stroke: var(--teal-ink); }
+:root[data-theme=dark] .ui-button.tl-key-here.is-active { background: linear-gradient(var(--d-face-hi), var(--d-well)); }
+:root[data-theme=dark] .ui-button.tl-key-here.is-active .glyph { fill: #e07a40; stroke: #2a1206; }
+:root[data-theme=dark] .tl-insp-from.is-swatch { border-color: var(--d-edge); }
+:root[data-theme=dark] .tl-tip { color: var(--tip-ink); background: var(--tip-bg); border-color: var(--d-edge); box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.6); }
+
+/* ---------- other windows' details ---------- */
+/* The light preview is a dark stage in both themes. */
+:root[data-theme=dark] .light-preview { background: #3b3b3b; }

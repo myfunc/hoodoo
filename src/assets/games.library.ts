@@ -34,6 +34,9 @@ const PIECE_NAMES: Readonly<Record<LatheProfile, string>> = {
   [LatheProfile.Bishop]: 'Bishop',
   [LatheProfile.Queen]: 'Queen',
   [LatheProfile.King]: 'King',
+  // Not chess pieces: the turned stone of assets/column.profiles.ts.
+  [LatheProfile.Column]: 'Column',
+  [LatheProfile.Pedestal]: 'Pedestal',
 };
 const FIRST_STRIPE = 9;
 

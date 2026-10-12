@@ -6,8 +6,10 @@ import { type Target, createTarget, deleteTarget } from './gl';
 import { GpuFence } from './gpu-fence';
 import { GpuTimer } from './gpu-timer';
 import { jitter } from './halton';
-import { LIVE_MODES, type LiveMode, raysWorth } from './live-quality';
+import { DEFAULT_LIVE_BOUNCES } from '../../world/render-setup';
+import { LIVE_MODES, type LiveMode, liveBounces, raysWorth } from './live-quality';
 import { MOTION_SCALE, MotionScale } from './motion-scale';
+import type { RealtimeStatus, ViewRenderer } from './view-renderer';
 
 /** Real-time viewport tuning. */
 export const REALTIME = {
@@ -24,13 +26,7 @@ export const REALTIME = {
   shrink: 0.6,
 } as const;
 
-export interface RealtimeStatus {
-  readonly samples: number;
-  readonly target: number;
-  readonly scale: number;
-  readonly fps: number;
-  readonly moving: boolean;
-}
+export type { RealtimeStatus } from './view-renderer';
 
 /** Where finished frames go when the renderer is one of several sharing the canvas (Four Views). */
 export interface PresentTarget {
@@ -60,7 +56,7 @@ const RAY_INDEX_WRAP = 1 << 20;
  * Several renderers can share one canvas (Four Views): each then draws into its
  * `output` rectangle, and `share` splits the frame budget between them.
  */
-export class RealtimeRenderer {
+export class RealtimeRenderer implements ViewRenderer {
   private accum: Target | null = null;
   /** The last moving frame: half float (it averages rays) and filtered when shown larger. */
   private preview: Target | null = null;
@@ -82,6 +78,9 @@ export class RealtimeRenderer {
   private rayIndex = 0;
   private qualityNow = LiveQuality.Fast;
   private mode: LiveMode = LIVE_MODES[LiveQuality.Fast];
+  /** Settings › Live reflections; the quality scales it (live-quality.ts). */
+  private base = DEFAULT_LIVE_BOUNCES;
+  private depth = liveBounces(LiveQuality.Fast, DEFAULT_LIVE_BOUNCES);
   /** The preview program was ready at the last preview frame. */
   private fastSeen = false;
   private width = 0;
@@ -155,14 +154,30 @@ export class RealtimeRenderer {
   /** What moving frames trace; a choice with another bounce depth starts the settled picture over. */
   set quality(q: LiveQuality) {
     if (q === this.qualityNow) return;
-    const depthChanged = LIVE_MODES[q].bounces !== this.mode.bounces;
     this.qualityNow = q;
     this.mode = LIVE_MODES[q];
     this.previewTimer.reset();
     this.previewBasis = null;
     // The next moving frame starts afresh rather than adding rays of another kind to this one.
     this.previewDue = true;
-    if (!depthChanged || !this.scene) return;
+    this.deepen();
+  }
+
+  /** Settings › Live reflections: the bounces Fast and Full trace, Detailed twice as many. */
+  set bounces(base: number) {
+    if (base === this.base) return;
+    this.base = base;
+    this.previewDue = true;
+    this.deepen();
+  }
+
+  /** Takes up the depth of the quality and the setting; a new depth starts the picture over. */
+  private deepen(): void {
+    const depth = liveBounces(this.qualityNow, this.base);
+    if (depth === this.depth) return;
+    this.depth = depth;
+    this.previewBasis = null;
+    if (!this.scene) return;
     // Shown as a change: one moving frame of the new kind, then the settled average again.
     this.lastChange = performance.now();
     this.restart();
@@ -238,7 +253,7 @@ export class RealtimeRenderer {
     const [jx, jy] = jitter(this.samples);
     this.timer.measure((rowEnd - rowStart) * w, () => this.engine.traceRows({
       target: this.accum!, width: w, height: h, offsetX: 0, offsetY: 0, block: 1, rowStart, rowEnd,
-      jitterX: jx, jitterY: jy, sample: this.samples, bounces: this.mode.bounces, transparentBg: false,
+      jitterX: jx, jitterY: jy, sample: this.samples, bounces: this.depth, transparentBg: false,
       blend: 1 / (this.samples + 1),
     }));
     this.fence.mark();
@@ -299,7 +314,7 @@ export class RealtimeRenderer {
     this.previewTimer.measure(w * h, () => {
       this.engine.traceRows({
         target: into, width: w, height: h, offsetX: 0, offsetY: 0, block: 1, rowStart: 0, rowEnd: h,
-        jitterX: jx, jitterY: jy, sample: seed, bounces: mode.bounces, transparentBg: false,
+        jitterX: jx, jitterY: jy, sample: seed, bounces: this.depth, transparentBg: false,
         blend: refine ? 1 / (this.previewRays + 1) : 1, fast: mode.fast,
       });
       if (still) this.keepHistory(w, h, keep);

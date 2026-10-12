@@ -73,6 +73,8 @@ uniform float uBlock;
 uniform vec2 uJitter;
 uniform int uSample;
 uniform int uMaxBounces;
+// Shadow rays per light at each shaded point (soft shadows: Render View's High traces several).
+uniform int uShadowRays;
 uniform int uTransparentBg;
 
 uniform vec3 uSunDir;

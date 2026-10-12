@@ -1,0 +1,130 @@
+/* The interface's colours as variables: Bryce's light stone here, the dark theme in
+   theme-dark.css (on <html data-theme="dark">). The styles (styles.css and the windows'
+   own sheets) name a role, never a colour; ui/theme.ts switches the theme. Things that
+   sit on a rendered picture (badges, the splash, the compare tags) and the dark labs
+   look the same in both themes and keep their own colours. */
+:root {
+  /* surfaces under the generated stone tiles (kit/texture.ts), shown until a tile lands */
+  --body-bg: #9c9b96;
+  --scene-bg: #aeada8;
+  --stone-bg: #d6d5d0;
+  /* the menu bar, menus and the command palette's highlight */
+  --menubar-bg: linear-gradient(#f4f4f2, #dcdcd8);
+  --menubar-edge: #8d8c88;
+  --menu-bg: #f2f2ef;
+  --menu-hot-bg: #2c2c8a;
+  --menu-hot-ink: #fff;
+  --menu-hot-hint: #ccd;
+  --menu-hint: #888;
+  --menu-off: #aaa;
+  --menu-sep: #bbb;
+  --paper-rule: #999;
+  /* the left column's brushed chrome */
+  --column-bg: linear-gradient(90deg, #d9d9d9, #f6f6f6 45%, #e2e2e2);
+  --column-edge: rgba(0,0,0,0.22);
+  --column-label: #6a6b6d;
+  --column-faint: #8a8b8d;
+  --nano-edge: #77787a;
+  /* embossed titles: palette tabs, panel names, dialog headings */
+  --title-ink: #555;
+  --heading-ink: #4a4a48;
+  --tab-ink: #9a9995;
+  --tab-ink-hover: #6e6d69;
+  --tab-ink-on: #3f3f3d;
+  --family-label: #8a8985;
+  --emboss: 0 1px 0 var(--hi);
+  --emboss-deep: 0 1px 0 var(--hi), 0 -1px 0 rgba(0,0,0,0.08);
+  --emboss-strong: 0 1px 0 var(--hi), 0 -1px 0 rgba(0,0,0,0.12);
+  --name-emboss: 0 1px 0 rgba(255,255,255,0.6);
+  /* the palettes' shelf and its slider lip */
+  --shelf-bg: linear-gradient(rgba(255,255,255,0) 20%, rgba(255,255,255,0.38));
+  --lip-bg: linear-gradient(#cfceca, #a9a8a4 60%, #8f8e8a);
+  --thumb-bg: linear-gradient(#f2f1ec, #c2c1bc);
+  /* edges, from the faint stone line to the window frame */
+  --edge: #8a8985;
+  --edge-strong: #7d7c78;
+  --edge-input: #777;
+  --edge-dark: #555;
+  --edge-darker: #444;
+  --well-edge: #7a7975;
+  --chip-edge: #6a6a66;
+  /* raised faces: buttons, segmented choices, chips, selects; the bevel is their lit top edge */
+  --face: linear-gradient(#fbfbfa, #d3d2ce);
+  --face-hover: linear-gradient(#fff, #e3e2de);
+  --face-pressed: linear-gradient(#c5c4c0, #e5e4e0);
+  --dropdown-face: linear-gradient(#fbfbfa, #d9d8d4);
+  --pane-mode-face: linear-gradient(rgba(251,251,250,0.92), rgba(211,210,206,0.92));
+  --chip-face: linear-gradient(#f6f6f4, #cfcec9);
+  --chip-face-hover: linear-gradient(#fff, #dddcd7);
+  --chip-ink: #77766f;
+  --chip-ink-hover: #3f3f3d;
+  --tag-face: linear-gradient(#f6f6f4, #c9c8c4);
+  --tag-face-hover: linear-gradient(#fff, #e2e1dd);
+  --seg-ink: #5f5e59;
+  --seg-ink-hover: #2f2f2d;
+  --bevel: #fff;
+  --pressed: inset 0 1px 2px rgba(0,0,0,0.25);
+  --pressed-deep: inset 0 1px 2px rgba(0,0,0,0.3);
+  --field: #fbfbf8;
+  --dot-face: radial-gradient(circle at 35% 30%, #fff, #bdbcb8 70%);
+  --dot-on: radial-gradient(circle at 35% 30%, #ff8a7a, var(--select) 60%, #6d1013);
+  /* the teal accent: a chosen toggle, teal words and marks on the stone, its washes */
+  --accent-face: linear-gradient(#5fb8b8, var(--teal) 60%, var(--teal-dark));
+  --accent-ink: #fff;
+  --teal-ink: var(--teal-dark);
+  --teal-glow: rgba(43,138,138,0.6);
+  --teal-wash: rgba(27,94,94,0.12);
+  --teal-wash-strong: rgba(27,94,94,0.16);
+  --teal-wash-on: rgba(43,138,138,0.22);
+  --teal-edge: rgba(27,94,94,0.5);
+  /* the selection */
+  --select-wash: rgba(200,40,45,0.08);
+  --select-ring: rgba(200,40,45,0.35);
+  --row-selected: linear-gradient(90deg, rgba(200,40,45,0.18), rgba(200,40,45,0.05));
+  --drop-wash: rgba(255,255,255,0.4);
+  /* the history rail, scrollbars, the sun's mark in the scene list */
+  --rail: #a3a29e;
+  --notch: #5f5e59;
+  --scroll-thumb: #8f8e8a;
+  --scroll-thumb-webkit: #9d9c98;
+  --sun-edge: #a0700a;
+  --sun-fill: rgba(255,210,58,0.45);
+  /* tooltips beside the selection, messages, the veil under a dialog */
+  --tip-ink: #222;
+  --tip-bg: #fffbe0;
+  --toast-bg: rgba(30,30,32,0.88);
+  --toast-ink: #eee;
+  --toast-soft: #aaa;
+  --toast-button-ink: #222;
+  --overlay: rgba(30,30,32,0.35);
+  --overlay-deep: rgba(30,30,32,0.45);
+  --lab-edge: #111;
+  /* Shading by strength: black for shadows, grooves and lines, white for sheens. Dark chrome
+     needs stronger shadows and much fainter sheens, so the dark theme rescales both. */
+  --shade-05: rgba(0, 0, 0, 0.05);
+  --shade-06: rgba(0,0,0,0.06);
+  --shade-08: rgba(0,0,0,0.08);
+  --shade-10: rgba(0,0,0,0.1);
+  --shade-12: rgba(0,0,0,0.12);
+  --shade-15: rgba(0,0,0,0.15);
+  --shade-18: rgba(0,0,0,0.18);
+  --shade-20: rgba(0,0,0,0.2);
+  --shade-22: rgba(0,0,0,0.22);
+  --shade-25: rgba(0,0,0,0.25);
+  --shade-28: rgba(0,0,0,0.28);
+  --shade-30: rgba(0,0,0,0.3);
+  --shade-35: rgba(0,0,0,0.35);
+  --light-35: rgba(255,255,255,0.35);
+  --light-40: rgba(255,255,255,0.4);
+  --light-45: rgba(255,255,255,0.45);
+  --light-50: rgba(255,255,255,0.5);
+  /* cast shadows: icons on the chrome, windows on the workspace */
+  --cast-20: rgba(0,0,0,0.2);
+  --cast-22: rgba(0,0,0,0.22);
+  --cast-25: rgba(0,0,0,0.25);
+  --cast-28: rgba(0,0,0,0.28);
+  --cast-30: rgba(0,0,0,0.3);
+  --cast-32: rgba(0,0,0,0.32);
+  --cast-35: rgba(0,0,0,0.35);
+  --cast-40: rgba(0,0,0,0.4);
+}

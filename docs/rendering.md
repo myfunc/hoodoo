@@ -32,7 +32,7 @@ skipping.
 - A thin lens for depth of field (the aperture is 0 by default: Bryce 2's
   camera is a pinhole).
 
-## Two ways to render
+## Three ways to render
 
 - **Classic** (`progressive.ts`): Bryce's block-by-block render — 16×16 blocks
   down to 2×2 sweeping down the picture, then anti-aliasing passes with Halton
@@ -42,6 +42,19 @@ skipping.
   quality); once nothing has changed for
   140 ms it accumulates the full tracer at full resolution, one ray per pixel
   per frame, to the chosen rays per pixel.
+- **Render View** (`final-view.ts`, Opt/Alt+P): the final render in the scene
+  window, refining in place, with options to trade it for speed (below).
+
+Which one draws the single view is the editor's `picture` (`PictureMode` in
+`world/world.enums.ts`) together with Live on or off; `ViewPictures`
+(`render/view-pictures.ts`) picks the renderer and runs its loop. The live
+preview and Render View implement one interface, `ViewRenderer`
+(`gpu/view-renderer.ts`): resize, update with a scene and a view, tick once an
+animation frame, present, reset, and a status for the readouts. Another mode
+(the game renderer of Play) plugs in the same way: a `PictureMode` value, a
+class implementing `ViewRenderer`, and one case in `ViewPictures.rendererFor`.
+If it needs another variant of the tracer, `FAST_SOURCE` in `engine.ts` shows
+how one is compiled from the same source with a `#define`.
 
 ## The live view while things move
 
@@ -133,11 +146,13 @@ keeps the steady size and the 10 ms budget above, each with its own
   reflection, hard shadows. Glass looks milky while it moves: the ray that
   enters it only looks up the sky on its way out.
 - **Full** draws moving frames with the full tracer: soft shadows, the lens,
-  four bounces with the stochastic mirror-or-glass choice. One ray per change
+  the live reflection depth (4 by default, below) with the stochastic
+  mirror-or-glass choice. One ray per change
   is grainy on glass and mirrors; when a change does not come in the next
   frame (an animation's own frames, a pause in a drag) the moving frame keeps
   averaging rays at its size.
-- **Detailed** traces eight bounces, moving and settled, so light goes through
+- **Detailed** traces twice the live depth (8 by default, at most 16), moving
+  and settled, so light goes through
   both walls of a glass cylinder, into the water's reflection of it and back.
   While the camera holds still (an object is dragged or resized, an animation
   plays without a camera path) each new frame keeps three quarters of the last
@@ -181,6 +196,117 @@ At DPR 1 every mode holds 60 fps in the same runs (p95 18.0–18.4 ms, at most o
 frame over 33 ms in 476), Fast at full size, Full and Detailed at 0.75–1.
 Animation-frame deltas stayed at 16.7 / 16.8 ms and there were no long tasks in
 any run.
+
+## Reflection depth
+
+How many times a ray may bounce off a mirror or pass through glass is a number
+from 1 to 16 (`BOUNCES` in `src/world/render-setup.ts`), set apart for the
+finished picture and for the live one:
+
+- **Render reflections** (default 6) belongs to the scene: Render, Render to
+  Image, movies and Render View's Final preset trace it. It is saved in the
+  scene file as `render.bounces` (absent means the default, so older files read
+  as before), travels in share links, and a change is one undo step. A scene of
+  two facing mirrors needs it, and whoever opens the file should get the same
+  render.
+- **Live reflections** (default 4) belongs to the user, like the live quality,
+  since it trades speed on this machine: `liveBounces` in Settings, saved with
+  the other preferences. Full traces it, Detailed twice that (at most 16), and
+  the settled live picture of Fast and Full traces it too. Fast's moving frames
+  keep their one compiled reflection.
+
+Both are dials in Settings › Render and in Render Options; values outside the
+range are clamped when a scene is read.
+
+Each bounce continues one path (mirror or glass, chosen at random), so a deeper
+setting costs only for the rays that are still bouncing; most of a picture's
+rays leave after two or three. Render View, Final preset, 64 rays, MacBook
+(Apple silicon, Chrome), production build, 1440×900 at DPR 2; the machine was
+shared, so single numbers vary by about 10%:
+
+| Depth | Facing mirrors, camera square on (1968×1476): GPU per pass | Sunset Gambit (1728×1080): wall clock per pass, 64 rays |
+|---|---|---|
+| 1 | 6.6 ms | 68 ms, 4.4 s |
+| 2 | 9.6 ms | 82 ms, 5.2 s |
+| 6 (default) | 9.1 ms | 77 ms, 4.9 s |
+| 12 | 9.5 ms | 92 ms, 5.9 s |
+| 16 | 9.6 ms | 105 ms, 6.7 s |
+
+In the mirror corridor only the middle of the picture keeps bouncing, so depth
+past 2 is nearly free there and shows as many receding copies. On Sunset Gambit,
+with its polished board, water and billiard balls, 16 bounces cost about a third
+more than 6. The shader change that came with it (shadow rays counted in
+slots, see Soft shadows) costs nothing measurable: `__hoodoo.bench()` gives 8.94 ms before and
+8.70 ms after on the opening scene, 22.20 and 22.24 ms on Sunset Gambit.
+
+Live, the steady size absorbs a deeper setting: orbiting Sunset Gambit in Full
+at 4 and at 12 bounces both showed a picture every 16.8–17.7 ms (median), with
+moving frames at 0.38–0.44 and 0.25–0.44 of full size.
+
+## Render View
+
+The scene window shows the final render, refining in place
+(`FinalView`, `src/render/gpu/final-view.ts`): on and off from the display bar's
+Render View button, Render › Render View or Opt/Alt+P, with a teal tab in the
+view's corner while it is on. Orbiting, dragging and playing work as usual; any
+change starts the picture over, and while nothing changes it refines to the
+rays per pixel asked for. Render (Cmd/Ctrl+R) in Render View refines on to four
+times that. Four Views leaves it: it draws one view.
+
+Each pass traces one ray through every pixel of the picture and adds it to the
+average. Passes are cut into strips of about one animation frame of GPU time
+(14 ms, measured with timer queries), and a fence keeps one strip in flight, so
+the page stays responsive however slow a pass is; a cheap pass runs several
+times a frame (at most eight). The first pass of a picture is always finished,
+with the scene and view it began with, so a picture shows while things keep
+moving; a pass that would only refine a stale picture is dropped. The canvas
+is the traced size and the page scales it up.
+
+Render Options (Render › Render Options…, or the sliders button beside Render
+View) is a tool window like the others: floating or docked, open while you
+work. It sets what Render View traces:
+
+| Option | Choices | Effect |
+|---|---|---|
+| Resolution | 25 / 50 / 75 / 100% | of the view's device pixels |
+| Rays/pixel | 4 / 16 / 64 / 256 / 1024 | where refining stops |
+| Reflections | 1–16 | bounces |
+| Soft shadows | Off / Low / High | Off draws them hard; High traces 4 shadow rays a light (`uShadowRays`), Low 1 |
+| Depth of field | Off / On | Off draws a pinhole camera |
+| Anti-aliasing | Off / On | Off traces every ray through the pixel's centre |
+
+Presets set them all at once; changing one option makes it Custom, and Custom
+is remembered. The preset and the Custom options are preferences
+(`renderViewPreset`, `renderViewCustom` in Settings).
+
+| Preset | Resolution | Rays | Reflections | Soft shadows | Lens, AA |
+|---|---|---|---|---|---|
+| Draft | 50% | 4 | 2 | Off | off |
+| Balanced | 75% | 16 | 4 | Low | on |
+| Final (default) | 100% | 64 | the scene's | Low | on |
+
+The panel shows the speed: pictures a second and time a pass while things
+move, then rays done, time left and time a pass; the display bar shows a
+shorter line.
+
+Time between pictures shown (median / p95 / max, pictures over 33 ms) during
+8 s runs, and a still picture refined to the preset's rays, Sunset Gambit,
+`VIEW=final PRESET=<name> node tools/perf-interact.mjs`, same MacBook,
+production build, 1440×900 at DPR 2:
+
+| Preset | Orbit | Drag | Playing | Still: per pass, to target |
+|---|---|---|---|---|
+| Draft | 17.2 / 50 / 83 ms, 65 of 340 | 33.5 / 51 / 218 ms, 132 of 213 | 49.2 / 84 / 101 ms * | 38 ms, 4 rays in 0.15 s |
+| Balanced | 50 / 68 / 100 ms | 66 / 117 / 760 ms | 66 / 85 / 116 ms * | 55 ms, 16 rays in 0.9 s |
+| Final | 85 / 230 / 717 ms | 101 / 133 / 144 ms | 83 / 101 / 117 ms * | 82–94 ms, 64 rays in 5.2–6.0 s |
+
+\* Sunset Gambit plays at 15 frames a second, so 67 ms between pictures is
+every frame of the animation.
+
+Animation-frame deltas stayed at 16.7 ms (median) and there were no long tasks;
+some runs had a single delta of 130–170 ms, as the live view's drag runs (100–133 ms).
+For editing at 60 fps the live view stays the tool; Draft moves at about that
+rate, Final shows each picture finished.
 
 ## Keeping the shader quick to compile
 
@@ -240,3 +366,10 @@ off smoothly instead of clipping. The disc, the lamp radius and the roll-off
 scale linearly with the dial; 100 is the Bryce 3D look (sun disc 0.045, lamp
 radius 0.35, roll-off 0.25). Nothing else differs, so a scene keeps its light
 and colours at any setting, and sky keys can animate the dial.
+
+Render View's Soft shadows option changes how they are traced, not the scene:
+Off draws the disc and radii as points (the roll-off stays), High aims
+`uShadowRays` = 4 shadow rays at each light per hit. The loop in `radiance()`
+queues (sun + lamps) × rays shadow *slots* after a hit, each weighted by
+1 / rays, so one ray (Low, and everything outside Render View) traces exactly
+what it did before; the engine sets the uniform for every pass (`TraceRequest.shadowRays`).

@@ -2,7 +2,7 @@ import { Bus } from '../core/bus';
 import { Logger } from '../core/log';
 import { ViewKind } from '../model/scene.enums';
 import type { ObjectId } from '../model/scene.ids';
-import type { Scene } from '../model/scene.types';
+import type { Camera, Scene } from '../model/scene.types';
 import { type ViewBasis, cameraBasis, orthoBasis } from '../world/camera-math';
 import { type EditorState, type EditorStore, PaneMode, paneMode } from '../world/editor-store';
 import type { World } from '../world/world';
@@ -10,8 +10,11 @@ import { ChangeKind } from '../world/world.events';
 import type { RayEngine } from './gpu/engine';
 import { ProgressiveRenderer, type RenderProgress } from './gpu/progressive';
 import { QuadLive } from './gpu/quad-live';
-import { RealtimeRenderer, type RealtimeStatus } from './gpu/realtime';
-import { FINAL_BOUNCES, PREVIEW_BOUNCES, PREVIEW_SAMPLES } from './gpu/render.constants';
+import type { RealtimeRenderer, RealtimeStatus } from './gpu/realtime';
+import { PREVIEW_BOUNCES, PREVIEW_SAMPLES } from './gpu/render.constants';
+import { finalBounces } from '../world/render-setup';
+import { PictureMode } from '../world/world.enums';
+import { CONVERGE_FACTOR, ViewPictures, drawPictureTab } from './view-pictures';
 import { type Frame, type GizmoHandles, type SegmentIndex, WireProjector, drawWireframe } from './wire/wireframe';
 import { type KeyHandle, drawMotionPaths } from './wire/motion-paths';
 import { type RigHandles, type RigPart, drawFocusReticle, drawRig } from './wire/rig-glyphs';
@@ -19,6 +22,8 @@ import type { KeyRef } from '../world/animation/key-selection';
 import { rigFlags } from '../world/rig';
 import { Rig } from '../world/world.enums';
 import { type GizmoPart, samePart } from './wire/gizmo';
+import { Tone, tonedTable } from './tone';
+import type { LiveQuality } from '../world/world.enums';
 
 /** One drawable view inside the scene window (one in single view, four in quad view). */
 export interface ViewCell {
@@ -47,13 +52,17 @@ const CELL_MARGIN = 6;
 const MAX_DPR = 2;
 /** Four Views pictures get one pixel per CSS pixel: a quarter of the work on a retina screen. */
 const QUAD_PIXEL_RATIO = 1;
-/** In live mode the Render button converges to this many times the chosen rays per pixel. */
-const LIVE_FINAL_FACTOR = 4;
+/** The tab on the picture while Render View draws it. */
+const RENDER_VIEW_TAB = 'Render View';
 const LABEL_FONT = 'bold 10px Geneva, Verdana, sans-serif';
-const LABEL_COLOR = 'rgba(40,40,40,0.75)';
+/** The view names and the Four Views cell lines, and the tab under a name over a rendered pane. */
+const LABEL_INK = tonedTable({
+  [Tone.Light]: { text: 'rgba(40,40,40,0.75)', tab: 'rgba(236,235,231,0.85)' },
+  [Tone.Dark]: { text: 'rgba(222,220,212,0.8)', tab: 'rgba(22,22,24,0.8)' },
+});
 const LABEL_OFFSET = 14;
 /** Over a rendered pane the view name sits on a pale tab so it stays readable. */
-const LABEL_TAB = { color: 'rgba(236,235,231,0.85)', padX: 3, top: 3, height: 15 } as const;
+const LABEL_TAB = { padX: 3, top: 3, height: 15 } as const;
 const VIEW_LABELS: Readonly<Record<ViewKind, string>> = {
   [ViewKind.Camera]: 'Camera',
   [ViewKind.Director]: "Director's View",
@@ -79,11 +88,25 @@ const sameHover = (a: Hover, b: Hover): boolean =>
   && a.key?.track === b.key?.track && a.key?.id === b.key?.id && a.key?.time === b.key?.time;
 
 /**
+ * Play mode's hook (src/play, docs/play-mode.md): while a play source is set the
+ * scene window shows its frames — the simulated scene through the player's eyes —
+ * with no wires; the session calls `playFrame` every animation frame. A game
+ * renderer of its own can later take the picture over here.
+ */
+export interface PlaySource {
+  /** The scene and the camera to show now. */
+  frame(): { readonly scene: Scene; readonly camera: Camera };
+  /** What moving frames trace while playing. */
+  readonly quality: LiveQuality;
+}
+
+/**
  * READ ME — the scene window. Observes World and EditorStore; draws the
  * wireframe on a 2D canvas and shows the ray-traced picture on the GL canvas
  * under it. Classic Bryce: render on request, the picture stays under the
- * wires until cleared. Live mode re-renders after every change. In Four Views
- * each pane is Wire or Render; Render panes are always live (QuadLive).
+ * wires until cleared. Live mode re-renders after every change, and Render View
+ * shows the final render refining in place (ViewPictures). In Four Views each
+ * pane is Wire or Render; Render panes are always live (QuadLive).
  */
 export class SceneView {
   readonly events = new Bus<ViewportEvents>();
@@ -92,9 +115,10 @@ export class SceneView {
   private readonly wire: HTMLCanvasElement;
   private readonly g: CanvasRenderingContext2D;
   private readonly renderer: ProgressiveRenderer;
+  private readonly pictures: ViewPictures;
+  /** The live preview (also read by tools/perf-interact.mjs). */
   private readonly realtime: RealtimeRenderer;
   private readonly quadLive: QuadLive<ViewKind>;
-  private liveLoop = false;
   private quadLoop = false;
   private awaitingEngine = false;
   private cellsCache: ViewCell[] = [];
@@ -105,6 +129,8 @@ export class SceneView {
   private pendingRender: boolean | null = null;
   private width = 0;
   private height = 0;
+  /** Play mode's source of frames, while a session runs. */
+  private play: PlaySource | null = null;
 
   constructor(
     private readonly world: World,
@@ -121,16 +147,31 @@ export class SceneView {
     this.g = g;
     this.root.append(engine.canvas, this.wire);
     this.renderer = new ProgressiveRenderer(engine);
-    this.realtime = new RealtimeRenderer(engine);
-    this.realtime.target = editor.state.renderSamples;
-    this.realtime.quality = editor.state.settings.liveQuality;
+    this.pictures = new ViewPictures(engine, editor, (st) => this.events.emit('live', st));
+    this.realtime = this.pictures.realtime;
     this.quadLive = new QuadLive(engine);
     this.quadLive.target = editor.state.renderSamples;
     this.quadLive.quality = editor.state.settings.liveQuality;
+    this.quadLive.bounces = editor.state.settings.liveBounces;
     new ResizeObserver(() => this.resize()).observe(this.root);
     world.events.on('changed', ({ kind }) => this.onSceneChanged(kind));
     world.events.on('selection', () => this.requestDraw());
     editor.events.on('changed', ({ state, previous }) => this.onEditorChanged(state, previous));
+  }
+
+  /** Play mode: show `source`'s frames instead of the editor's scene, without wires; null goes back to the editor. */
+  setPlay(source: PlaySource | null): void {
+    this.play = source;
+    this.realtime.quality = source ? source.quality : this.editor.state.settings.liveQuality;
+    this.realtime.reset();
+    this.layout();
+    this.draw();
+    this.updateLive();
+  }
+
+  /** Play mode: the session calls this every animation frame to show its current frame. */
+  playFrame(): void {
+    if (this.play) this.updateLive();
   }
 
   get cells(): readonly ViewCell[] {
@@ -166,13 +207,12 @@ export class SceneView {
     return orthoBasis(kind, scene.views[kind], aspect);
   }
 
-  /** Bryce's Render button: progressive render of the current view (in live mode: converge further). */
+  /** Bryce's Render button: progressive render of the current view (in a view that draws itself: converge further). */
   render(final = true): void {
     const s = this.editor.state;
-    if (s.quad || s.liveRender) {
-      const target = s.renderSamples * LIVE_FINAL_FACTOR;
-      if (s.quad) this.quadLive.target = target;
-      else this.realtime.target = target;
+    if (s.quad || this.pictures.active()) {
+      if (s.quad) this.quadLive.target = s.renderSamples * CONVERGE_FACTOR;
+      else this.pictures.converge();
       this.updateLive();
       return;
     }
@@ -189,7 +229,7 @@ export class SceneView {
     this.placeGlCanvas(cell.frame);
     this.renderer.start(this.world.scene, this.basisFor(cell.kind, w / h), {
       samples: final ? s.renderSamples : PREVIEW_SAMPLES,
-      bounces: final ? FINAL_BOUNCES : PREVIEW_BOUNCES,
+      bounces: final ? finalBounces(this.world.scene) : PREVIEW_BOUNCES,
       blocks: true,
     });
     this.rendered = true;
@@ -205,9 +245,9 @@ export class SceneView {
   capture(): HTMLCanvasElement | null {
     const s = this.editor.state;
     if (!this.rendered || s.quad) return null;
-    const live = s.liveRender;
-    if (live ? !this.realtime.imageReady : !this.renderer.imageReady) return null;
-    if (live) this.realtime.present();
+    const live = this.pictures.active();
+    if (live ? !live.imageReady : !this.renderer.imageReady) return null;
+    if (live) live.present();
     else this.renderer.present();
     const src = this.engine.canvas;
     const out = document.createElement('canvas');
@@ -259,24 +299,22 @@ export class SceneView {
       // The panes drew on the shared canvas: the single view starts its picture over.
       this.quadLive.release();
       this.realtime.reset();
+      this.pictures.finalView.reset();
     }
-    if (s.liveRender !== prev.liveRender && !s.liveRender) this.clearRender();
+    this.pictures.sync(s, prev, this.world.scene);
+    // Live off, or Render View left with Live off: Bryce's empty scene window until the next render.
+    if (!s.quad && this.pictures.rendererFor(prev) && !this.pictures.active()) this.clearRender();
     if (s.showRender !== prev.showRender && !s.showRender) this.clearRender();
-    if (s.renderSamples !== prev.renderSamples) {
-      this.realtime.target = s.renderSamples;
-      this.quadLive.target = s.renderSamples;
-    }
-    if (s.settings.liveQuality !== prev.settings.liveQuality) {
-      this.realtime.quality = s.settings.liveQuality;
-      this.quadLive.quality = s.settings.liveQuality;
-    }
+    if (s.renderSamples !== prev.renderSamples) this.quadLive.target = s.renderSamples;
+    this.quadLive.quality = s.settings.liveQuality;
+    this.quadLive.bounces = s.settings.liveBounces;
     this.root.classList.toggle('quad', s.quad);
     this.root.classList.toggle('is-picking', s.pickingFocus);
     this.updateLive();
     this.requestDraw();
   }
 
-  /** Live mode: hand the current scene and camera to the real-time renderer and keep its loop alive. */
+  /** Live preview or Render View: hand the current scene and camera to the renderer that draws by itself and keep its loop alive. */
   private updateLive(): void {
     const s = this.editor.state;
     if (s.quad) {
@@ -284,25 +322,23 @@ export class SceneView {
       return;
     }
     const cell = this.mainCell();
-    if (!s.liveRender || !cell || cell.frame.w < 2) return;
+    const live = this.pictures.active();
+    if (!live || !cell || cell.frame.w < 2) return;
     this.renderer.stop();
     const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
     const w = Math.max(1, Math.round(cell.frame.w * dpr));
     const h = Math.max(1, Math.round(cell.frame.h * dpr));
-    this.realtime.resize(w, h);
+    // Play mode: the session's frame, through the player's eyes, at the play quality.
+    const play = this.play?.frame() ?? null;
+    const scene = play?.scene ?? this.world.scene;
+    if (this.play) this.realtime.quality = this.play.quality;
+    this.pictures.refresh(scene);
+    live.resize(w, h);
     this.placeGlCanvas(cell.frame);
-    this.realtime.update(this.world.scene, this.basisFor(cell.kind, w / h));
+    live.update(scene, play ? cameraBasis(play.camera, w / h) : this.basisFor(cell.kind, w / h));
     if (!this.engineReady()) return;
     this.showPicture();
-    if (this.liveLoop) return;
-    this.liveLoop = true;
-    const step = () => {
-      const more = this.editor.state.liveRender && !this.editor.state.quad && this.realtime.tick();
-      this.events.emit('live', this.realtime.status());
-      if (more) requestAnimationFrame(step);
-      else this.liveLoop = false;
-    };
-    requestAnimationFrame(step);
+    this.pictures.run();
   }
 
   /** Four Views: hand every Render pane's view to QuadLive and keep its loop alive. */
@@ -376,7 +412,7 @@ export class SceneView {
     this.wire.width = Math.round(r.width * dpr);
     this.wire.height = Math.round(r.height * dpr);
     this.layout();
-    if (this.rendered && !this.renderer.active && !this.editor.state.liveRender) this.clearRender();
+    if (this.rendered && !this.renderer.active && !this.editor.state.liveRender && !this.pictures.active()) this.clearRender();
     this.draw();
     this.updateLive();
   }
@@ -418,6 +454,8 @@ export class SceneView {
     const dpr = this.wire.width / Math.max(this.width, 1);
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.clearRect(0, 0, this.wire.width, this.wire.height);
+    // Play mode shows the picture alone.
+    if (this.play) return;
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const s = this.editor.state;
     const scene = this.world.scene;
@@ -455,9 +493,10 @@ export class SceneView {
       if (cell.kind === ViewKind.Camera) drawFocusReticle(g, cell.frame, basis, scene.camera);
       if (cell.kind === ViewKind.Director) drawFocusReticle(g, cell.frame, basis, s.director);
       if (s.quad) this.drawLabel(cell, overRender);
+      else if (s.picture === PictureMode.Final) drawPictureTab(g, cell.frame, RENDER_VIEW_TAB);
       g.restore();
       if (s.quad) {
-        g.strokeStyle = LABEL_COLOR;
+        g.strokeStyle = LABEL_INK.text;
         g.strokeRect(cell.rect.x + 0.5, cell.rect.y + 0.5, cell.rect.w - 1, cell.rect.h - 1);
       }
     }
@@ -469,10 +508,10 @@ export class SceneView {
     const x = cell.rect.x + CELL_MARGIN;
     g.font = LABEL_FONT;
     if (overRender) {
-      g.fillStyle = LABEL_TAB.color;
+      g.fillStyle = LABEL_INK.tab;
       g.fillRect(x - LABEL_TAB.padX, cell.rect.y + LABEL_TAB.top, g.measureText(text).width + LABEL_TAB.padX * 2, LABEL_TAB.height);
     }
-    g.fillStyle = LABEL_COLOR;
+    g.fillStyle = LABEL_INK.text;
     g.fillText(text, x, cell.rect.y + LABEL_OFFSET);
   }
 }

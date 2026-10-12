@@ -7,6 +7,7 @@
 export enum Feature {
   ObjectTree = 'tree',
   Portals = 'portals',
+  Play = 'play',
 }
 
 export interface FeatureInfo {
@@ -20,6 +21,7 @@ export interface FeatureInfo {
 export const PREVIEW_FEATURES: readonly FeatureInfo[] = [
   { id: Feature.ObjectTree, name: 'Object Tree', about: 'Groups nest and the scene list becomes a tree with folders' },
   { id: Feature.Portals, name: 'Portals', about: 'Linked pairs of ovals: look in one, see out of the other' },
+  { id: Feature.Play, name: 'Play', about: 'Walk the scene in first person, Half-Life style, and record takes' },
 ];
 
 /** Which preview features are on; a feature not listed is off. */

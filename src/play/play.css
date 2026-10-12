@@ -1,0 +1,62 @@
+/* Play mode (src/play): the HUD and the setup panel over the scene window's picture. Half-Life's amber for the
+   readouts; the panel wears the dark labs' chips. Nothing else of the editor shows in the scene window meanwhile. */
+.scene-window.is-playing > :not(canvas):not(.play-layer) { display: none !important; }
+.play-layer {
+  position: absolute; inset: 0; z-index: 30; outline: none; cursor: crosshair; overflow: hidden;
+  font: 12px var(--font-ui); color: #eceae2; user-select: none; -webkit-user-select: none;
+}
+.play-layer:not(.is-paused) { cursor: none; }
+
+/* A small gapped cross at the picture's centre. */
+.play-cross {
+  position: absolute; width: 18px; height: 18px; transform: translate(-50%, -50%); pointer-events: none;
+  background:
+    linear-gradient(#ffb020, #ffb020) 50% 0 / 2px 6px no-repeat,
+    linear-gradient(#ffb020, #ffb020) 50% 100% / 2px 6px no-repeat,
+    linear-gradient(#ffb020, #ffb020) 0 50% / 6px 2px no-repeat,
+    linear-gradient(#ffb020, #ffb020) 100% 50% / 6px 2px no-repeat;
+  filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));
+}
+.play-layer.is-paused .play-cross { opacity: 0.35; }
+
+.play-hint, .play-rec, .play-readout {
+  position: absolute; padding: 3px 9px; border-radius: 3px; white-space: nowrap; pointer-events: none;
+  background: rgba(14, 14, 16, 0.62);
+}
+.play-hint { left: 50%; bottom: 10px; transform: translateX(-50%); }
+.play-readout { right: 10px; bottom: 10px; color: #ffb020; font-weight: bold; font-variant-numeric: tabular-nums; }
+.play-readout:empty { display: none; }
+.play-rec { left: 10px; top: 10px; display: none; align-items: center; gap: 6px; font-weight: bold; color: #fff; font-variant-numeric: tabular-nums; }
+.play-rec.is-on { display: flex; }
+.play-rec-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #e0242a; box-shadow: 0 0 6px rgba(224, 36, 42, 0.8); }
+.play-rec.is-on .play-rec-dot { animation: play-blink 1s steps(2, jump-none) infinite; }
+@keyframes play-blink { 50% { opacity: 0.25; } }
+
+.play-title {
+  display: none; position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); pointer-events: none;
+  font: bold 18px var(--font-title); color: #fff; text-shadow: 0 1px 3px #000;
+}
+.play-panel-host { display: none; position: absolute; left: 10px; top: 40px; }
+.play-layer.is-paused .play-title, .play-layer.is-paused .play-panel-host { display: block; }
+.play-layer.is-loading .play-title, .play-layer.is-loading .play-panel-host { display: none; }
+
+.play-panel {
+  width: 214px; padding: 9px 10px 10px; border-radius: 4px; cursor: default;
+  background: rgba(24, 24, 27, 0.9); border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
+.play-panel-title { margin-bottom: 6px; font-weight: bold; color: #ffb020; }
+.play-panel .segmented { border-color: #111; }
+.play-panel .segmented .ui-toggle { color: var(--lab-ink); background: linear-gradient(#56565c, #333337); }
+.play-panel .segmented .ui-toggle + .ui-toggle { border-left-color: #111; }
+.play-panel .segmented .ui-toggle.is-on { color: #1c1306; background: linear-gradient(#e0a84a, #a8701e); }
+.play-fields { display: grid; grid-template-columns: auto 64px; gap: 4px 10px; align-items: center; justify-content: start; margin: 9px 0; }
+.play-field-name { white-space: nowrap; color: #b9b7af; }
+.play-panel .ui-number { background: #141416; color: #eceae2; border-color: #050506; box-shadow: none; }
+.play-actions { display: flex; gap: 6px; }
+.play-panel .ui-button { color: #eceae2; border-color: #111; background: linear-gradient(#56565c, #333337); box-shadow: none; white-space: nowrap; }
+.play-panel .ui-button:hover { background: linear-gradient(#636369, #3c3c41); }
+.play-panel .play-record { display: inline-flex; align-items: center; gap: 5px; }
+.play-panel .play-record.is-active { color: #fff; background: linear-gradient(#a3262a, #6e171a); }
+
+/* The display bar's Play chip follows the preview switch (feature-gate showWhile sets [hidden]). */
+.display-bar .ui-button.mark-chip[hidden] { display: none; }

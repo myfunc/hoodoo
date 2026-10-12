@@ -103,7 +103,10 @@ refraction update as you drag, and the picture refines when you stop. Pick
 **Fast** (quickest while moving), **Full** (the finished tracer) or
 **Detailed** (glass and mirrors traced twice as deep, frames averaged under a
 still camera) in the display bar. Render then paints the final picture block
-by block, as Bryce did, with depth of field (click to focus, Alt+F). Snapshots
+by block, as Bryce did, with depth of field (click to focus, Alt+F). Render
+View (Opt/Alt+P) shows that final render in the scene window instead, refining
+in place while you orbit, drag and play; Render Options trades it for speed and
+sets how many reflections mirrors and glass get, up to 16. Snapshots
 (B) keep a picture to compare with an A/B slider (Shift+B).
 
 ### The editor
@@ -132,6 +135,7 @@ gestures, and an installable offline app.
 | Previous / next key | Shift+`,` / Shift+`.` |
 | Render / stop | Ctrl/Cmd+R / Ctrl/Cmd+`.` |
 | Live preview on / off | P |
+| Render View on / off | Opt/Alt+P |
 | Materials Lab / Terrain Editor | M / E |
 | Object Library | Alt+O |
 | Undo / redo | Ctrl/Cmd+Z / Ctrl/Cmd+Shift+Z |

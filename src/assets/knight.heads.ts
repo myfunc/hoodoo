@@ -142,4 +142,4 @@ export const KNIGHT_HEADS: Readonly<Record<KnightStyle, CarvedHead>> = {
 };
 
 /** The set's knight: change this line to carve another head. */
-export const KNIGHT_STYLE: KnightStyle = KnightStyle.Tournament;
+export const KNIGHT_STYLE: KnightStyle = KnightStyle.Natural;

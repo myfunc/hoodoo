@@ -1,0 +1,24 @@
+/* Tool windows (ui/kit/tool-window.ts): the dialog dress without the veil. Colours come from the theme variables only. */
+.tool-window { min-width: 0; }
+.tool-window.is-floating { position: fixed; z-index: 450; max-height: calc(100vh - var(--menubar-h) - 12px); }
+.tool-window.is-floating.is-placing { visibility: hidden; }
+
+.tool-bar { display: flex; align-items: center; gap: 6px; padding: 8px 10px 4px 16px; flex: none; min-width: 0; }
+.tool-window.is-floating .tool-bar { cursor: move; }
+.tool-bar .ui-dialog-title.tool-name { padding: 0; white-space: nowrap; flex: none; }
+.tool-subject {
+  flex: 1; min-width: 0; padding-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font: bold 11px var(--font-ui); color: var(--ink-soft);
+}
+.ui-dialog-lab .tool-subject { color: var(--lab-soft); }
+.tool-bar .ui-button.tool-mark { width: 22px; height: 18px; flex: none; }
+.tool-bar .ui-button.tool-mark .glyph { width: 13px; height: 13px; }
+.tool-body { padding-bottom: 12px; }
+
+/* Docked in the left column: the column is the frame, the body scrolls. */
+.tool-window.is-docked {
+  flex: 1; min-height: 0; max-width: none; max-height: none; border: 0; box-shadow: inset -1px 0 0 var(--lo);
+}
+.tool-window.is-docked .tool-bar { padding: 6px 8px 2px 10px; }
+.tool-window.is-docked .tool-bar .ui-dialog-title.tool-name { font-size: 14px; }
+.tool-window.is-docked .tool-body { padding: 2px 10px 10px; overflow-y: auto; scrollbar-width: thin; }

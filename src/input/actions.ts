@@ -42,6 +42,7 @@ export enum Action {
   ViewSide = 'view-side',
   QuadView = 'quad-view',
   ToggleSidePanel = 'toggle-side-panel',
+  ToggleLeftPanel = 'toggle-left-panel',
   ToggleDepthCue = 'toggle-depth-cue',
   ToggleGrid = 'toggle-grid',
   ToggleGizmo = 'toggle-gizmo',
@@ -55,6 +56,8 @@ export enum Action {
   StopRender = 'stop-render',
   ClearRender = 'clear-render',
   ToggleLiveRender = 'toggle-live-render',
+  ToggleRenderView = 'toggle-render-view',
+  RenderOptions = 'render-options',
   TakeSnapshot = 'take-snapshot',
   CompareSnapshot = 'compare-snapshot',
   TabCreate = 'tab-create',
@@ -99,6 +102,7 @@ export enum Action {
   Settings = 'settings',
   CreatePortals = 'create-portals',
   LinkPortals = 'link-portals',
+  Play = 'play',
 }
 
 /** Actions that take a numeric argument (bookmark slots). */

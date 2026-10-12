@@ -30,17 +30,21 @@ const noLiteralsInFunctions = {
   },
 };
 
-/** Layers: App → Input/UI → Render/IO → World → Assets → Model → Core. Nothing reaches up. */
-const UPPER = ['./src/render', './src/ui', './src/input', './src/io', './src/app'];
+/**
+ * Layers: App → Play → Input/UI → Render/IO → World → Assets → Model → Core. Nothing reaches up.
+ * Play's simulation (src/play/sim) stands beside World: pure, no DOM, no editor.
+ */
+const UPPER = ['./src/render', './src/ui', './src/input', './src/io', './src/app', './src/play'];
 const LAYERS = [
   { target: './src/core', from: ['./src/model', './src/world', './src/assets', ...UPPER] },
   { target: './src/model', from: ['./src/world', './src/assets', ...UPPER] },
   { target: './src/assets', from: ['./src/world', ...UPPER] },
   { target: './src/world', from: UPPER },
-  { target: './src/io', from: ['./src/render', './src/ui', './src/input', './src/app'] },
-  { target: './src/render', from: ['./src/ui', './src/input', './src/io', './src/app'] },
-  { target: './src/input', from: ['./src/ui', './src/io', './src/app'] },
-  { target: './src/ui', from: ['./src/app'] },
+  { target: './src/io', from: ['./src/render', './src/ui', './src/input', './src/app', './src/play'] },
+  { target: './src/render', from: ['./src/ui', './src/input', './src/io', './src/app', './src/play'] },
+  { target: './src/input', from: ['./src/ui', './src/io', './src/app', './src/play'] },
+  { target: './src/ui', from: ['./src/app', './src/play'] },
+  { target: './src/play/sim', from: UPPER, except: ['./sim'] },
 ];
 
 export default tseslint.config(

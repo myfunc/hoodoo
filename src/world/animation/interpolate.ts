@@ -1,5 +1,6 @@
 import type { Rgb } from '../../core/color';
 import type { Vec3 } from '../../core/vec3';
+import { Ease } from '../../model/scene.enums';
 import type { Key } from '../../model/scene.types';
 
 /**
@@ -9,6 +10,8 @@ import type { Key } from '../../model/scene.types';
  * seam without stopping. Paths
  * (positions) may curve past a key; everything else is held between its two
  * neighbouring keys, so a dial or a colour never overshoots.
+ * A key's ease bends its two sides: Linear runs straight along the chords to its
+ * neighbours, In arrives flat (slows into the key), Out leaves flat.
  */
 
 const FULL_TURN = 360;
@@ -55,6 +58,18 @@ function tangent(times: readonly number[], values: readonly number[], i: number,
   return span > 0 ? (values[1] - values[last - 1]) / span : 0;
 }
 
+/** The slope at key i on its leaving side (or its arriving side), after the key's ease. */
+function easedTangent<T>(keys: readonly Key<T>[], times: readonly number[], values: readonly number[], i: number, closed: boolean, leaving: boolean): number {
+  const ease = keys[i].ease ?? Ease.Smooth;
+  if (ease === Ease.Linear) {
+    const [a, b] = leaving ? [i, i + 1] : [i - 1, i];
+    const span = times[b] - times[a];
+    return span > 0 ? (values[b] - values[a]) / span : 0;
+  }
+  if (ease === (leaving ? Ease.Out : Ease.In)) return 0;
+  return tangent(times, values, i, closed);
+}
+
 function hermite(p0: number, m0: number, p1: number, m1: number, s: number, dt: number): number {
   const s2 = s * s;
   const s3 = s2 * s;
@@ -92,7 +107,7 @@ export function channelAt<T>(keys: readonly Key<T>[], t: number, read: (v: T) =>
   const times = keys.map((k) => k.time);
   const { i, s, dt } = seg;
   const closed = !!opts.loop && values.length > 2 && Math.abs(values[0] - values[values.length - 1]) < CLOSED_EPS;
-  const v = hermite(values[i], tangent(times, values, i, closed), values[i + 1], tangent(times, values, i + 1, closed), s, dt);
+  const v = hermite(values[i], easedTangent(keys, times, values, i, closed, true), values[i + 1], easedTangent(keys, times, values, i + 1, closed, false), s, dt);
   if (!opts.bounded) return v;
   return Math.min(Math.max(values[i], values[i + 1]), Math.max(Math.min(values[i], values[i + 1]), v));
 }

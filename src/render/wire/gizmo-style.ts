@@ -47,7 +47,7 @@ export interface GizmoStyleSpec {
 }
 
 /** The app's look. */
-export const GIZMO_STYLE: GizmoStyle = GizmoStyle.Sculpted;
+export const GIZMO_STYLE: GizmoStyle = GizmoStyle.Outline;
 
 /** The looks by number, as `?gizmo=` counts them. */
 export const GIZMO_STYLES: readonly GizmoStyle[] = [GizmoStyle.Glossy, GizmoStyle.Box, GizmoStyle.Outline, GizmoStyle.Pebbles, GizmoStyle.Sculpted];

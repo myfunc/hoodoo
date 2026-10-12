@@ -11,7 +11,9 @@
 //
 // Path rays and shadow rays share one loop and one traceScene / evalMaterial call
 // site. A hit on the path queues its lights; the following iterations trace their
-// shadow rays (through transparent occluders) before the path continues. Nesting
+// shadow rays (through transparent occluders) before the path continues. With soft
+// shadows each light may take several shadow rays (uShadowRays), each aimed at
+// another point of it and worth its share of the light. Nesting
 // the shadow loop inside the light and bounce loops instead made FXC (Chrome and
 // Edge on Windows) spend 36 s compiling this shader.
 vec4 radiance(vec3 ro, vec3 rd) {
@@ -33,7 +35,15 @@ vec4 radiance(vec3 ro, vec3 rd) {
   vec3 sn = vec3(0, 1, 0);
   vec3 sv = vec3(0, 1, 0);
   vec3 sw = vec3(0);
-  int nextLight = uLightCount;
+  // Light slots: every light (the sun first) once per shadow ray; slot / rays - 1 is the light.
+#ifdef FAST_PREVIEW
+  const int rays = 1;
+#else
+  int rays = max(uShadowRays, 1);
+#endif
+  int slots = (uLightCount + 1) * rays;
+  float slotShare = 1.0 / float(rays);
+  int nextSlot = slots;
   // The shadow ray in flight.
   bool shadow = false;
   vec3 shOrigin = vec3(0);
@@ -43,21 +53,21 @@ vec4 radiance(vec3 ro, vec3 rd) {
   vec3 shC = vec3(0);
   int shDepth = 0;
 #ifdef FAST_PREVIEW
-  int steps = (maxBounces + 1) * (1 + (uLightCount + 1) * SHADOW_DEPTH) + 1;
+  int steps = (maxBounces + 1) * (1 + slots * SHADOW_DEPTH) + 1;
 #else
-  int steps = (uMaxBounces + 1) * (1 + (uLightCount + 1) * SHADOW_DEPTH) + 1;
+  int steps = (uMaxBounces + 1) * (1 + slots * SHADOW_DEPTH) + 1;
 #endif
   // Passes through portals (70-portals.glsl) are not bounces: they get steps of their own.
   int portals = 0;
   steps += PORTAL_DEPTH;
   for (int step = 0; step < steps + uLoopGuard; step++) {
     if (!shadow) {
-      for (; nextLight < uLightCount; nextLight++) {
+      for (; nextSlot < slots; nextSlot++) {
         vec3 l;
         float dist;
-        vec3 lc = lightAt(nextLight, sp, l, dist);
+        vec3 lc = lightAt(nextSlot / rays - 1, sp, l, dist);
         if (dot(sn, l) <= 0.0 || maxOf(lc) < 0.002) continue;
-        vec3 c = sw * lightTerm(sm, sn, sv, l, lc);
+        vec3 c = sw * lightTerm(sm, sn, sv, l, lc) * slotShare;
         if (maxOf(c) <= 0.0) continue;
 #ifdef LAB_NO_SHADOW
         col += c;
@@ -79,7 +89,7 @@ vec4 radiance(vec3 ro, vec3 rd) {
         shT = vec3(1);
         shC = c;
         shDepth = 0;
-        nextLight++;
+        nextSlot++;
         break;
       }
       if (!shadow && pathDone) break;
@@ -144,7 +154,7 @@ vec4 radiance(vec3 ro, vec3 rd) {
       sp = wp + n * 2e-3;
       sn = n;
       sv = -rd;
-      nextLight = -1;
+      nextSlot = 0;
     }
     thr *= 1.0 - atm.a;
     bounce++;

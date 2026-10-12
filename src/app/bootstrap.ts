@@ -13,7 +13,7 @@ import { Thumbnailer } from '../render/thumbs';
 import { SceneView } from '../render/viewport';
 import type { UiContext } from '../ui/context';
 import { isModalOpen } from '../ui/kit/dialog';
-import { installSurfaces } from '../ui/kit/texture';
+import { installTheme, onThemeChange } from '../ui/theme';
 import { SnapshotStore } from '../ui/snapshot-store';
 import { setMessageTime, showToast } from '../ui/panels/toast';
 import { Splash } from '../ui/chrome/splash';
@@ -68,7 +68,6 @@ function thumbnailOf(view: SceneView): string | null {
 
 /** Composition root: builds the domain, the renderers, the UI and wires input to commands. */
 export async function startApp(root: HTMLElement): Promise<void> {
-  installSurfaces(document.documentElement);
   const autosave = new Autosave();
   const recent = new RecentScenes();
   const prefs = loadPrefs();
@@ -85,6 +84,8 @@ export async function startApp(root: HTMLElement): Promise<void> {
   if (shared) history.replaceState(null, '', location.pathname);
   const editor = new EditorStore();
   editor.update({ ...rememberedOf(prefs), features: startFeatures(prefs), settings });
+  // Light or dark before anything is built, so no light frame flashes on a dark choice.
+  installTheme(editor, { root: document.documentElement, titleBar: document.querySelector<HTMLMetaElement>('meta[name="theme-color"]') });
   // The Settings window's choices and the remembered editor state (scene panel, live preview…) outlive the visit.
   editor.events.on('changed', ({ state, previous }) => {
     if (state.settings !== previous.settings) savePrefs(state.settings);
@@ -104,6 +105,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
   const thumbs = new Thumbnailer(engine.ready);
   const view = new SceneView(world, editor, engine);
   thumbs.busy = () => view.isRendering;
+  onThemeChange(() => view.requestDraw());
   const tracker = new RecentTracker(recent, world, () => thumbnailOf(view));
   if (shared) tracker.begin(SCENE_NAME.shared);
   else if (saved) tracker.resume(SCENE_NAME.lastScene, autosave.loadThumbnail());
@@ -151,6 +153,8 @@ export async function startApp(root: HTMLElement): Promise<void> {
       onForget: (e) => recent.remove(e.id),
       onContinue: () => undefined,
       onShowAtStartup: (v) => changeSetting(editor, 'showStart', v),
+      examples: editor.state.settings.examples,
+      onExamples: (list) => changeSetting(editor, 'examples', list),
     });
     start.open();
   };

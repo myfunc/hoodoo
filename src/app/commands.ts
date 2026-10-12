@@ -1,4 +1,3 @@
-import { MATERIAL_LIBRARY } from '../assets/materials.presets';
 import { Logger } from '../core/log';
 import { randomSeed } from '../core/rng';
 import { Action } from '../input/actions';
@@ -14,17 +13,16 @@ import { demoScene } from '../world/demo-scene';
 import { surpriseScene } from '../world/scene-generator';
 import { shortcutOf } from '../input/bindings';
 import { PaletteTab } from '../world/editor-store';
-import { TERRAIN_KINDS, LIGHT_KINDS } from '../world/objects.factory';
+import { TERRAIN_KINDS } from '../world/objects.factory';
 import { DEFAULT_CAMERA, emptyScene } from '../world/scene.defaults';
 import { landed, randomized, replicas } from '../world/transform-ops';
 import { SelectMode } from '../world/world';
 import { newObjectId } from '../model/scene.ids';
 import type { UiContext } from '../ui/context';
-import { openAttributes } from '../ui/labs/attributes-dialog';
+import { toolWindows } from '../ui/chrome/tool-windows';
+import { ToolId } from '../world/tool-places';
 import { openObjectLibrary, openSkyLibrary } from '../ui/labs/library-dialog';
-import { MaterialsLab } from '../ui/labs/materials-lab';
 import { openDocumentSetup, openExport, openReplicate } from '../ui/labs/setup-dialogs';
-import { TerrainEditor } from '../ui/labs/terrain-editor';
 import { openCommandPalette } from '../ui/panels/command-palette';
 import { StepDirection, openMaterialMenu, stepMaterial } from '../ui/panels/material-menu';
 import { openAbout, openShortcuts, openSource } from './info';
@@ -38,6 +36,8 @@ import { createFromLibrary, createGameItem, frame } from './scene-ops';
 import { canLinkPortals, createPortals, linkSelectedPortals } from './portal-ops';
 import { openAnimationSetup } from '../ui/labs/animation-setup';
 import { SettingsSection, openSettings } from '../ui/labs/settings-window';
+import { sceneDepth } from '../ui/labs/reflection-rows';
+import { PictureMode } from '../world/world.enums';
 import { actionShown } from '../ui/feature-gate';
 import { Feature, isFeatureOn } from '../world/preview-features';
 import { ScrollPreference } from '../input/scroll-device';
@@ -45,6 +45,7 @@ import { isAnimated } from '../world/animation/pose';
 import { Player, addKey, clearAnimation, isAnimationOn, jumpKey, keyCamera, removeKey, setTimeline, stepFrames, toggleAnimation } from './timeline-ops';
 import { deleteSelectedKeys, hasPickedKeys, keepKeySelection, selectAllKeys } from './timeline-ops';
 import { canLoopPath, setPathLoop } from './timeline-ops';
+import { isPlaying, togglePlay } from '../play/session';
 
 type Handler = (arg?: number) => void;
 
@@ -104,12 +105,13 @@ export class Commands {
     const w = ctx.world;
     const e = ctx.editor;
     const sel = () => w.selection;
-    const toggle = (key: 'quad' | 'sidePanel' | 'depthCue' | 'grid' | 'gizmo' | 'snap' | 'liveRender' | 'motionPaths') => () => e.update({ [key]: !e.state[key] });
+    const toggle = (key: 'quad' | 'sidePanel' | 'leftPanel' | 'depthCue' | 'grid' | 'gizmo' | 'snap' | 'liveRender' | 'motionPaths') => () => e.update({ [key]: !e.state[key] });
     this.handlers = {
       [Action.New]: () => { w.replaceScene(emptyScene(), 'New scene'); hooks.sceneOpened?.(SCENE_NAME.untitled, false); },
       [Action.StartWindow]: () => hooks.openStart(),
       [Action.ToggleAnimation]: () => toggleAnimation(ctx),
       [Action.PlayPause]: () => this.player.toggle(),
+      [Action.Play]: () => togglePlay(ctx),
       [Action.FirstFrame]: () => w.setTime(0),
       [Action.LastFrame]: () => w.setTime(w.scene.animation.duration),
       [Action.PrevFrame]: () => stepFrames(ctx, -1),
@@ -128,7 +130,7 @@ export class Commands {
       [Action.ClosePathLoop]: () => setPathLoop(ctx, true),
       [Action.OpenPath]: () => setPathLoop(ctx, false),
       [Action.PreviewFeatures]: () => openSettings(e, SettingsSection.PreviewFeatures),
-      [Action.Settings]: () => openSettings(e),
+      [Action.Settings]: () => openSettings(e, SettingsSection.General, sceneDepth(w)),
       [Action.Open]: () => void this.open(),
       [Action.Save]: () => { downloadScene(w.scene, DEFAULT_FILE_NAME); hooks.sceneSaved?.(); },
       [Action.LoadDemo]: () => { w.replaceScene(demoScene(), 'Open demo'); hooks.sceneOpened?.(SCENE_NAME.demo, false); },
@@ -178,13 +180,17 @@ export class Commands {
       [Action.ShowAll]: () => w.updateObjects(new Set(w.scene.objects.map((o) => o.id)), 'Show all', (o) => ({ ...o, hidden: false }), true),
       [Action.FrameSelected]: () => frame(w, e, ctx.view, true),
       [Action.FrameAll]: () => frame(w, e, ctx.view, false),
-      [Action.QuadView]: toggle('quad'),
+      // Four Views has its own live panes: Render View draws the single view only.
+      [Action.QuadView]: () => e.update({ quad: !e.state.quad, picture: PictureMode.Edit }),
       [Action.ToggleSidePanel]: toggle('sidePanel'),
+      [Action.ToggleLeftPanel]: toggle('leftPanel'),
       [Action.ToggleDepthCue]: toggle('depthCue'),
       [Action.ToggleGrid]: toggle('grid'),
       [Action.ToggleGizmo]: toggle('gizmo'),
       [Action.ToggleSnap]: toggle('snap'),
       [Action.ToggleLiveRender]: toggle('liveRender'),
+      [Action.ToggleRenderView]: () => this.toggleRenderView(),
+      [Action.RenderOptions]: () => toolWindows(ctx).open(ToolId.RenderOptions),
       [Action.ResetCamera]: () => w.setCamera(DEFAULT_CAMERA, 'Reset camera'),
       [Action.PickFocus]: () => startFocusPick(ctx),
       [Action.CameraFromView]: () => w.setCamera(e.state.director, 'Camera to director'),
@@ -255,17 +261,31 @@ export class Commands {
     const flags: Partial<Record<Action, boolean>> = {
       [Action.QuadView]: s.quad,
       [Action.ToggleSidePanel]: s.sidePanel,
+      [Action.ToggleLeftPanel]: s.leftPanel,
       [Action.ToggleDepthCue]: s.depthCue,
       [Action.ToggleGrid]: s.grid,
       [Action.ToggleGizmo]: s.gizmo,
       [Action.ToggleSnap]: s.snap,
       [Action.ToggleLiveRender]: s.liveRender,
+      [Action.ToggleRenderView]: s.picture === PictureMode.Final,
       [Action.ToggleAnimation]: this.ctx.world.scene.animation.enabled,
       [Action.PlayPause]: s.playing,
       [Action.ToggleLoop]: this.ctx.world.scene.animation.loop,
       [Action.ToggleMotionPaths]: s.motionPaths,
+      [Action.Play]: isPlaying(),
     };
     return flags[a] ?? false;
+  }
+
+  /** Render View on (the single view shows the final render refining in place) or off. */
+  private toggleRenderView(): void {
+    const e = this.ctx.editor;
+    if (e.state.picture === PictureMode.Final) {
+      e.update({ picture: PictureMode.Edit });
+      return;
+    }
+    e.update({ picture: PictureMode.Final, quad: false });
+    this.ctx.toast(`Render View: the final render, refining in place · ${shortcutOf(Action.ToggleRenderView)} leaves`);
   }
 
   /** The Object Tree preview: groups nest and have names. */
@@ -294,26 +314,18 @@ export class Commands {
     }
   }
 
+  /** Object Attributes, the Materials Lab and the Terrain Editor are tool windows that follow the selection (ui/chrome/tool-windows.ts). */
   private attributes(): void {
-    const o = this.ctx.world.selectedObjects()[0];
-    if (o) openAttributes(o, (next) => this.ctx.world.updateObjects(new Set([o.id]), 'Attributes', () => next, true));
+    toolWindows(this.ctx).open(ToolId.Attributes);
   }
 
   private materials(): void {
-    const w = this.ctx.world;
-    const targets = w.selectedObjects().filter((o) => !LIGHT_KINDS.has(o.kind));
-    const start = targets[0]?.material ?? MATERIAL_LIBRARY[0].materials[0];
-    new MaterialsLab(start, this.ctx.thumbs, (m) => {
-      if (targets.length) w.setMaterial(new Set(targets.map((o) => o.id)), m, 'Materials Lab');
-      else this.ctx.toast('Select objects first to apply a material');
-    }).open();
+    toolWindows(this.ctx).open(ToolId.Materials);
   }
 
   private editObject(): void {
     const o = this.ctx.world.selectedObjects()[0];
-    if (!o) return;
-    if (TERRAIN_KINDS.has(o.kind)) new TerrainEditor(o, this.ctx.thumbs, (t) => this.ctx.world.updateObjects(new Set([o.id]), 'Edit terrain', (x) => ({ ...x, terrain: t }))).open();
-    else this.attributes();
+    if (o) toolWindows(this.ctx).open(TERRAIN_KINDS.has(o.kind) ? ToolId.Terrain : ToolId.Attributes);
   }
 
   /** Esc closes the innermost mode first (compare, then Pick Focus); true when it did. */

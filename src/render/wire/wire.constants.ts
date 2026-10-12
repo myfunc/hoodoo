@@ -1,6 +1,8 @@
 import { Family } from '../../model/scene.enums';
+import { Tone, tonedTable } from '../tone';
 
-export const FAMILY_COLORS: Readonly<Record<Family, string>> = {
+/** Wire colours of the object families: deep inks on Bryce's stone, lighter ones that read on dark chrome. */
+const FAMILY_LIGHT: Readonly<Record<Family, string>> = {
   [Family.Gray]: '#2b2b2b',
   [Family.Blue]: '#2a4fa8',
   [Family.Green]: '#2f7a35',
@@ -9,15 +11,25 @@ export const FAMILY_COLORS: Readonly<Record<Family, string>> = {
   [Family.Teal]: '#1f7f7f',
   [Family.Brown]: '#7a4a22',
 };
+const FAMILY_DARK: Readonly<Record<Family, string>> = {
+  [Family.Gray]: '#c9c8c2',
+  [Family.Blue]: '#8fb0ff',
+  [Family.Green]: '#74c97a',
+  [Family.Orange]: '#f0a054',
+  [Family.Purple]: '#d2a4f6',
+  [Family.Teal]: '#52cfca',
+  [Family.Brown]: '#dcae80',
+};
+export const FAMILY_COLORS = tonedTable({ [Tone.Light]: FAMILY_LIGHT, [Tone.Dark]: FAMILY_DARK });
 
-export const WIRE = {
-  selected: '#d0202a',
-  hover: '#ff6a4a',
-  grid: 'rgba(200, 70, 130, 0.42)',
-  gridAxis: 'rgba(200, 40, 90, 0.7)',
-  horizon: '#5aa0e0',
-  frameShade: 'rgba(60, 60, 58, 0.28)',
-  frameLine: 'rgba(0, 0, 0, 0.55)',
+const WIRE_LIGHT = {
+  selected: '#d0202a' as string,
+  hover: '#ff6a4a' as string,
+  grid: 'rgba(200, 70, 130, 0.42)' as string,
+  gridAxis: 'rgba(200, 40, 90, 0.7)' as string,
+  horizon: '#5aa0e0' as string,
+  frameShade: 'rgba(60, 60, 58, 0.28)' as string,
+  frameLine: 'rgba(0, 0, 0, 0.55)' as string,
   lineWidth: 1,
   selectedWidth: 1.4,
   gridStep: 2,
@@ -31,6 +43,22 @@ export const WIRE = {
   orthoGridLines: 60,
   parallelEps: 1e-6,
 } as const;
+
+/** On dark chrome: a brighter red, Bryce's pink grid a little stronger, the picture frame drawn light. */
+const WIRE_DARK: typeof WIRE_LIGHT = {
+  ...WIRE_LIGHT,
+  selected: '#ff4f4a',
+  hover: '#ff9a70',
+  grid: 'rgba(226, 92, 156, 0.42)',
+  gridAxis: 'rgba(246, 84, 132, 0.8)',
+  horizon: '#6cb4f2',
+  frameShade: 'rgba(0, 0, 0, 0.3)',
+  frameLine: 'rgba(225, 222, 214, 0.5)',
+};
+/** Both sets, for tables that copy a wire colour (motion paths); painters read `WIRE`. */
+export const WIRE_TONES: Readonly<Record<Tone, typeof WIRE_LIGHT>> = { [Tone.Light]: WIRE_LIGHT, [Tone.Dark]: WIRE_DARK };
+/** The wireframe's look: colours follow the tone (render/tone.ts), sizes are the same in both. */
+export const WIRE = tonedTable(WIRE_TONES);
 
 /** The rotate rings' geometry; the handles' looks and sizes are in gizmo-style.ts. */
 export const GIZMO = {

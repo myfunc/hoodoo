@@ -4,6 +4,7 @@ import type { Camera, Scene } from '../../model/scene.types';
 import { type ViewBasis, cameraAxes, pivotOf, project } from '../../world/camera-math';
 import { rigFlags, sunDirection } from '../../world/rig';
 import { Rig } from '../../world/world.enums';
+import { Tone, tonedTable } from '../tone';
 import { WIRE } from './wire.constants';
 import type { Frame, WireProjector } from './wireframe';
 
@@ -56,23 +57,28 @@ export interface RigLook {
 
 export const NO_RIG: RigHandles = { camera: null, aim: null, edge: null, sun: null };
 
-const CAMERA = {
-  color: '#1f7a7a',
+const CAMERA_LIGHT = {
+  color: '#1f7a7a' as string,
   /** Pixels per glyph unit: the body is one unit long. */
   px: 26,
   width: 1.4,
   selectedWidth: 2,
-  cone: 'rgba(31, 122, 122, 0.55)',
-  coneSelected: 'rgba(208, 32, 42, 0.6)',
+  cone: 'rgba(31, 122, 122, 0.55)' as string,
+  coneSelected: 'rgba(208, 32, 42, 0.6)' as string,
   coneDash: [5, 4],
   aimHalf: 5,
   aimRing: 8,
   reelSteps: 12,
 } as const;
-const SUN = {
+/** On dark chrome the camera glyph is a lighter teal and the sun's rim and rays a warm gold. */
+const CAMERA = tonedTable({
+  [Tone.Light]: CAMERA_LIGHT,
+  [Tone.Dark]: { ...CAMERA_LIGHT, color: '#52cfca', cone: 'rgba(82, 207, 202, 0.55)', coneSelected: 'rgba(255, 79, 74, 0.6)' },
+});
+const SUN_LIGHT = {
   fill: '#ffd23a',
-  edge: '#8a5a00',
-  line: 'rgba(160, 110, 0, 0.75)',
+  edge: '#8a5a00' as string,
+  line: 'rgba(160, 110, 0, 0.75)' as string,
   dash: [4, 4],
   radius: 6,
   rayFrom: 9,
@@ -87,7 +93,9 @@ const SUN = {
   width: 1.3,
   selectedWidth: 2.2,
 } as const;
-const LABEL = { font: 'bold 10px Geneva, Verdana, sans-serif', dx: 10, dy: -10, back: 'rgba(255,255,255,0.78)', padX: 3, height: 13, baseline: 3.5 } as const;
+const SUN = tonedTable({ [Tone.Light]: SUN_LIGHT, [Tone.Dark]: { ...SUN_LIGHT, edge: '#c99a2e', line: 'rgba(240, 190, 70, 0.75)' } });
+const LABEL_LIGHT = { font: 'bold 10px Geneva, Verdana, sans-serif', dx: 10, dy: -10, back: 'rgba(255,255,255,0.78)' as string, padX: 3, height: 13, baseline: 3.5 } as const;
+const LABEL = tonedTable({ [Tone.Light]: LABEL_LIGHT, [Tone.Dark]: { ...LABEL_LIGHT, back: 'rgba(22, 22, 24, 0.8)' } });
 const FOCUS = { color: '#e08a1e', radius: 9, tick: 5, width: 1.5 } as const;
 /** The mark of a camera outside the picture: inset from the edge, arrow size, where its name goes. */
 const EDGE = { inset: 12, arrow: 7, labelBack: 80, labelUp: 4, pick: 10 } as const;

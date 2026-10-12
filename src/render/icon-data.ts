@@ -35,6 +35,8 @@ export const TRACKBALL = 'trackball';
 export const HUB_TEAL = 'hub-teal';
 /** Bryce's white render balls. */
 export const PEARL = 'pearl';
+/** The light icons' bulb: Bryce's gold, lit brighter on dark chrome. */
+export const LAMP = 'lamp';
 
 export const VIEW_FROM = {
   angled: [2.6, 2.1, 3.8] as Vec3,
@@ -285,5 +287,5 @@ export const CLOUD_ICON: readonly PieceData[] = [
 ];
 
 export const PLANE_ICON_SIZE: Vec3 = [0.95, 1, 0.95];
-export const LIGHT_ICON: readonly PieceData[] = [{ entry: 'sphere', size: [0.45, 0.45, 0.45], mat: 'Gold' }];
+export const LIGHT_ICON: readonly PieceData[] = [{ entry: 'sphere', size: [0.45, 0.45, 0.45], mat: LAMP }];
 export const SPOT_ICON: readonly PieceData[] = [...LIGHT_ICON, { entry: 'cone', position: [0, -0.35, 0], size: [0.6, 0.5, 0.6], mat: 'Glow White' }];

@@ -83,8 +83,22 @@ describe('lathe profiles', () => {
   it('read any number as a profile, kept in range', () => {
     expect(latheIndex(2.4)).toBe(LatheProfile.Knight);
     expect(latheIndex(-3)).toBe(LatheProfile.Pawn);
-    expect(latheIndex(99)).toBe(LatheProfile.King);
+    expect(latheIndex(99)).toBe(LatheProfile.Pedestal);
     expect(latheIndex(Number.NaN)).toBe(LatheProfile.Pawn);
     expect(latheProfile(LatheProfile.Queen).name).toBe('Queen');
+    expect(latheProfile(LatheProfile.Column).name).toBe('Column');
+  });
+
+  it('flutes a column with V grooves round its shaft, not its base or capital', () => {
+    const column = latheProfile(LatheProfile.Column);
+    const cut = column.cut!;
+    expect(cut.copies).toBe(20);
+    // On the surface of the shaft halfway up: inside a groove on its middle line, solid between two grooves.
+    const r = radiusAt(column.segments, 0) - 0.005;
+    const between = Math.PI / cut.copies;
+    expect(inCut(cut, [r, 0, 0])).toBe(true);
+    expect(inCut(cut, [r * Math.cos(between), 0, r * Math.sin(between)])).toBe(false);
+    expect(inCut(cut, [r, 0.97, 0])).toBe(false);
+    expect(inCut(cut, [r, -0.97, 0])).toBe(false);
   });
 });

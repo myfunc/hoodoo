@@ -3,7 +3,7 @@ import { isAnimated, poseAt } from '../animation/pose';
 import { EXAMPLES } from '../examples';
 import { SHOWCASE_SECONDS } from '../showcase/kit';
 
-const SHOWCASE = ['gambit', 'orrery', 'squash', 'hoodoo-run', 'carving'];
+const SHOWCASE = ['gambit', 'vapor-desk', 'pyramid-valley', 'marble-dream', 'orrery', 'squash', 'hoodoo-run', 'carving'];
 import { deserializeScene, serializeScene } from '../scene.serialize';
 
 describe('example projects', () => {

@@ -36,6 +36,8 @@ export const GLYPH = {
   depthCue: ['M3 6h18', 'M6 11h12', 'M9 16h6', 'M11 20h2'],
   handles: ['M6 18V5', 'M6 18h13', 'M6 18l-3.5 3.5', 'M3.5 7.5L6 5l2.5 2.5', 'M16.5 15.5L19 18l-2.5 2.5'],
   snap: ['M6 4v7a6 6 0 0 0 12 0V4', 'M6 4h3v7a3 3 0 0 0 6 0V4h3', 'M6 8h3M15 8h3'],
+  /** Render Options: two sliders. */
+  sliders: ['M4 7h16M4 17h16', 'M9 4v6M15 14v6'],
   frame: ['M4 9V4h5', 'M15 4h5v5', 'M20 15v5h-5', 'M9 20H4v-5', 'M9 9h6v6H9z'],
   panel: ['M3 4h18v16H3z', 'M15 4v16', 'M17 8h2M17 11h2M17 14h2'],
   move: ['M12 3v18M3 12h18', 'M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3'],
@@ -51,4 +53,6 @@ export const GLYPH = {
   positive: ['M12 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14z', 'M12 9v6M9 12h6'],
   negative: ['M12 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14z', 'M9 12h6'],
   intersect: ['M9 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12z', 'M15 6a6 6 0 1 0 0 12 6 6 0 0 0 0-12z'],
+  /** Play (preview): a figure striding. */
+  walk: ['M13.5 2.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z', 'M12.5 8l-2 6.5', 'M7.5 11.5l4.5-3.5 2.5 3.5 3 0.5', 'M10.5 14.5l3 3-0.5 4', 'M10.5 14.5l-2.5 3.5-3.5 1'],
 } as const;

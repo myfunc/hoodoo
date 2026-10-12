@@ -3,12 +3,13 @@ import { presetMaterial } from '../../assets/materials.presets';
 import { createEntry } from '../../assets/object.catalog';
 import { OBJECT_LIBRARY } from '../../assets/object.library';
 import { SKY_LIBRARY } from '../../assets/sky.presets';
-import type { Vec3 } from '../../core/vec3';
+import { cross, normalize, type Vec3 } from '../../core/vec3';
 import type { LatheProfile } from '../../model/scene.enums';
 import type { Animation, Camera, Key, Scene, SceneObject, Sky } from '../../model/scene.types';
 import { poseAt } from '../animation/pose';
 import { lookAt } from '../camera-math';
 import { buildGameItem } from '../game-sets';
+import { eulerOf } from '../group-transform';
 import { createObject } from '../objects.factory';
 import { EMPTY_ANIMATION, emptyScene } from '../scene.defaults';
 
@@ -116,6 +117,21 @@ export function showcase(parts: Pick<Scene, 'objects' | 'sky' | 'camera'> & Part
   const base = emptyScene();
   const a: Animation = { ...EMPTY_ANIMATION, enabled: true, duration: SHOWCASE_SECONDS, loop: true, ...animation };
   return poseAt({ ...base, ...parts, document: SHOWCASE_DOCUMENT, animation: a, camera: a.camera[0]?.value ?? parts.camera }, 0);
+}
+
+/** Euler degrees that turn an object's own Y axis onto `up` and its X axis as near `across` as `up` allows. */
+export function orient(up: Vec3, across: Vec3): Vec3 {
+  const y = normalize(up);
+  const z = normalize(cross(across, y));
+  const x = cross(y, z);
+  return eulerOf(new Float64Array([...x, 0, ...y, 0, ...z, 0, 0, 0, 0, 1]), [0, 0, 0]);
+}
+
+/** A Lathe entry stood with its foot at `foot`, scaled to `height` at its own proportions. */
+export function turned(entry: string, name: string, material: string, foot: Vec3, height: number): SceneObject {
+  const size = createEntry(entry).size;
+  const k = height / 2 / size[1];
+  return place({ entry, name, material, position: [foot[0], foot[1] + height / 2, foot[2]], size: [size[0] * k, size[1] * k, size[2] * k] });
 }
 
 export { Side };

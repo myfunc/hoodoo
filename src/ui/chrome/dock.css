@@ -1,0 +1,35 @@
+/* The side columns (app/shell.ts, ui/chrome/tool-windows.ts, edge-grip.ts): both hide, the left one docks tool windows.
+   Colours come from the theme variables only. */
+:root { --dock-w: 320px; }
+
+/* One grid for every state, so hiding or docking only changes a column width (outranks .workspace.no-side in styles.css). */
+.workspace { --left-col: var(--left-w); --side-col: var(--side-w); }
+.workspace.has-dock { --left-col: var(--dock-w); }
+.workspace.no-left { --left-col: 0px; }
+.workspace.no-side { --side-col: 0px; }
+body .app .workspace { grid-template-columns: var(--left-col) minmax(0, 1fr) var(--side-col); }
+
+.left-column, .right-column { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.right-column > .side-panel { flex: 1; }
+.workspace.no-left .left-column > :not(.edge-grip) { display: none; }
+
+/* Dock tabs: Controls and each docked window; one page shows at a time. */
+.dock-tabs { flex: none; padding: 6px 8px 5px; box-shadow: inset -1px 0 0 var(--lo), inset 0 -1px 0 var(--lo); }
+.dock-tabs .ui-choice.segmented { display: flex; }
+.dock-tabs .segmented .ui-toggle { flex: 1; justify-content: center; min-width: 0; }
+.dock-pages { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.dock-pages > .controls { flex: 1; }
+.dock-pages > [hidden], .dock-tabs[hidden] { display: none; }
+
+/* The grips: a tab on the scene's edge, beside the column it hides; it stays there to bring it back. */
+.edge-grip { position: absolute; top: 50%; z-index: 6; width: 0; height: 0; }
+.left-column > .edge-grip { left: 100%; }
+.right-column > .edge-grip { right: 100%; }
+.ui-button.edge-tab {
+  position: absolute; top: -24px; width: 11px; height: 48px; padding: 0;
+  display: flex; align-items: center; justify-content: center; color: var(--ink-soft); opacity: 0.8;
+}
+.ui-button.edge-tab:hover { opacity: 1; color: var(--teal); }
+.edge-grip-left .ui-button.edge-tab { left: 0; border-left: 0; border-radius: 0 4px 4px 0; }
+.edge-grip-right .ui-button.edge-tab { right: 0; border-right: 0; border-radius: 4px 0 0 4px; }
+.ui-button.edge-tab .glyph { width: 10px; height: 10px; fill: currentColor; stroke: none; vertical-align: 0; }

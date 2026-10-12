@@ -1,5 +1,8 @@
 import type { EditorStore } from './editor-store';
 import { LiveQuality } from './world.enums';
+import { DEFAULT_LIVE_BOUNCES, DEFAULT_VIEW_CUSTOM, DEFAULT_VIEW_PRESET, RenderPreset, type RenderViewOptions, isBounces, isRenderViewOptions } from './render-setup';
+import { DEFAULT_PLAYER, type PlayerSettings, isPlayerSettings } from './player-settings';
+import { DEFAULT_EXAMPLE_LIST, type ExampleList, isExampleList } from './example-list';
 
 /** How fast W/A/S/D walk the camera (the speed also follows the scene's size). */
 export enum WalkSpeed {
@@ -18,6 +21,13 @@ export enum OrbitSpeed {
 export const SNAP_GRID_STEPS = [0.25, 0.5, 1, 2, 5] as const;
 export type SnapGrid = (typeof SNAP_GRID_STEPS)[number];
 export const DEFAULT_SNAP_GRID: SnapGrid = 0.5;
+
+/** The interface's colours: Bryce's light stone, a dark one, or as the system asks. */
+export enum ThemeMode {
+  Light = 'light',
+  Dark = 'dark',
+  System = 'system',
+}
 
 /** How long a message (toast) stays on screen. */
 export enum MessageTime {
@@ -47,6 +57,16 @@ export interface Settings {
   readonly snapGrid: SnapGrid;
   /** How hard the live picture works while you edit. */
   readonly liveQuality: LiveQuality;
+  /** Mirror and glass bounces of the live picture (Detailed twice as many): world/render-setup.ts. */
+  readonly liveBounces: number;
+  /** Render View: the preset, and the user's own options for Custom. */
+  readonly renderViewPreset: RenderPreset;
+  readonly renderViewCustom: RenderViewOptions;
+  readonly theme: ThemeMode;
+  /** Play mode's player: size, speed, gravity, jump and mouse (world/player-settings.ts). */
+  readonly player: PlayerSettings;
+  /** The start window's examples: their order and the hidden ones (world/example-list.ts). */
+  readonly examples: ExampleList;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -59,6 +79,12 @@ export const DEFAULT_SETTINGS: Settings = {
   orbitSpeed: OrbitSpeed.Normal,
   snapGrid: DEFAULT_SNAP_GRID,
   liveQuality: LiveQuality.Fast,
+  liveBounces: DEFAULT_LIVE_BOUNCES,
+  renderViewPreset: DEFAULT_VIEW_PRESET,
+  renderViewCustom: DEFAULT_VIEW_CUSTOM,
+  theme: ThemeMode.Light,
+  player: DEFAULT_PLAYER,
+  examples: DEFAULT_EXAMPLE_LIST,
 };
 
 type Check = (value: unknown) => boolean;
@@ -76,6 +102,12 @@ const CHECKS: { readonly [K in keyof Settings]: Check } = {
   orbitSpeed: oneOf(Object.values(OrbitSpeed)),
   snapGrid: oneOf(SNAP_GRID_STEPS),
   liveQuality: oneOf(Object.values(LiveQuality)),
+  liveBounces: isBounces,
+  renderViewPreset: oneOf(Object.values(RenderPreset)),
+  renderViewCustom: isRenderViewOptions,
+  theme: oneOf(Object.values(ThemeMode)),
+  player: isPlayerSettings,
+  examples: isExampleList,
 };
 
 /** The settings stored in `stored`: each value checked, a missing or broken one is the default. */

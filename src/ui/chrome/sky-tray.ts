@@ -25,6 +25,8 @@ const SUN_DEG_PER_PX = 2;
 const ALT_LIMIT = 90;
 const ALT_MIN = -60;
 const REFRESH_MS = 120;
+/** The chosen sky mode's thumbnail is ringed in the selection colour (ui/theme.css). */
+const PICKED_OUTLINE = '2px solid var(--select)';
 const SUN_BALL = { lit: '#ffe9b0', mid: '#c98a3a', dark: '#3a2410', dot: '#fff6c0' } as const;
 const SUN_DOT_RADIUS = 4;
 const DEG = Math.PI / 180;
@@ -190,7 +192,7 @@ export class SkyTray {
   private syncControls(): void {
     const s = this.sky;
     for (const t of this.thumbCanvases) t.value.textContent = t.thumb.value(s);
-    for (const m of this.modeCanvases) m.node.style.outline = m.mode === s.mode ? '2px solid #c8282d' : 'none';
+    for (const m of this.modeCanvases) m.node.style.outline = m.mode === s.mode ? PICKED_OUTLINE : 'none';
     for (const sw of this.swatches) sw.swatch.set(sw.key === 'cloud' ? s.clouds.color : (s[sw.key as keyof Sky] as Rgb));
     for (const t of this.toggles) t.t.set(t.get(s));
     this.drawSun();

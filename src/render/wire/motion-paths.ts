@@ -6,7 +6,8 @@ import { type KeyRef, KeyTrack, isCyclic, isKeyPicked, sameKey } from '../../wor
 import { sceneFrames } from '../../world/group-pose';
 import { framePoint } from '../../world/group-transform';
 import { chain, coverItems, groupIndex } from '../../world/group-tree';
-import { WIRE } from './wire.constants';
+import { Tone, tonedTable } from '../tone';
+import { WIRE, WIRE_TONES } from './wire.constants';
 import type { WireProjector } from './wireframe';
 
 /**
@@ -35,28 +36,39 @@ export interface KeyHandle {
   readonly y: number;
 }
 
-const PATH = {
-  color: 'rgba(40, 40, 40, 0.55)',
-  selected: WIRE.selected,
-  camera: '#1f7a7a',
+const PATH_LIGHT = {
+  color: 'rgba(40, 40, 40, 0.55)' as string,
+  selected: WIRE_TONES[Tone.Light].selected,
+  camera: '#1f7a7a' as string,
   dash: [2, 3],
   cameraDash: [6, 3],
   width: 1.2,
   key: 3,
   keySelected: 4,
-  keyEdge: 'rgba(255,255,255,0.85)',
+  keyEdge: 'rgba(255,255,255,0.85)' as string,
   picked: '#ffd030',
   pickedEdge: '#2a2a2a',
   /** Paths inside a selected keyed group: there, but quiet. */
-  faint: 'rgba(208, 32, 42, 0.32)',
+  faint: 'rgba(208, 32, 42, 0.32)' as string,
   keyFaint: 2,
   /** Path samples per second of animation, at most `maxSamples` per path. */
   perSecond: 12,
   maxSamples: 240,
 } as const;
+/** On dark chrome the dotted routes and the camera's path are drawn light, the key squares rimmed dark. */
+const PATH_DARK: typeof PATH_LIGHT = {
+  ...PATH_LIGHT,
+  color: 'rgba(214, 212, 204, 0.62)',
+  selected: WIRE_TONES[Tone.Dark].selected,
+  camera: '#52cfca',
+  keyEdge: 'rgba(16, 16, 18, 0.85)',
+  faint: 'rgba(255, 79, 74, 0.36)',
+};
+const PATH = tonedTable({ [Tone.Light]: PATH_LIGHT, [Tone.Dark]: PATH_DARK });
 
 /** The owner's tag beside the first key; a key's own tag (number and time) sits below it. */
-const TAG = { font: 'bold 10px Geneva, Verdana, sans-serif', dx: 8, dy: -8, keyDy: 14, padX: 3, height: 13, back: 'rgba(255,255,255,0.78)', baseline: 3.5 } as const;
+const TAG_LIGHT = { font: 'bold 10px Geneva, Verdana, sans-serif', dx: 8, dy: -8, keyDy: 14, padX: 3, height: 13, back: 'rgba(255,255,255,0.78)' as string, baseline: 3.5 } as const;
+const TAG = tonedTable({ [Tone.Light]: TAG_LIGHT, [Tone.Dark]: { ...TAG_LIGHT, back: 'rgba(22, 22, 24, 0.8)' } });
 const CAMERA_NAME = 'Camera';
 /** The ring round the key under the pointer or held. */
 const RING = { color: '#ffb000', width: 2, gap: 4 } as const;

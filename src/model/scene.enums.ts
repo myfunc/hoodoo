@@ -31,6 +31,8 @@ export enum LatheProfile {
   Bishop = 3,
   Queen = 4,
   King = 5,
+  Column = 6,
+  Pedestal = 7,
 }
 
 /** Bryce 2 object attributes: neutral objects ignore booleans; the rest act inside a group. */
@@ -57,6 +59,12 @@ export enum TextureKind {
   Ridged = 13,
   /** A billiard ball: its colour, the white caps of a stripe and the number disc; the seed is the number. */
   PoolBall = 14,
+  /** A rainbow sheen that turns about Y and shifts with the viewing angle: compact discs, holograms. */
+  Iridescent = 15,
+  /** Bright where it faces the eye, fading to the silhouette and up Y: drive transparency for a light beam. */
+  Beam = 16,
+  /** Spectrum bands near the rim about Y, 1 / frequency of the radius wide (on a disc, a rainbow); its scalar is the band's opacity. */
+  Rainbow = 17,
 }
 
 export enum TextureMapping {
@@ -138,4 +146,16 @@ export enum TerrainOp {
   Flatten = 'flatten',
   Normalize = 'normalize',
   Island = 'island',
+}
+
+/** How the motion meets a key (world/animation/interpolate): absent on a key means Smooth. */
+export enum Ease {
+  /** Flows through the key (the spline of the keys around it). */
+  Smooth = 'smooth',
+  /** Straight at a steady speed into and out of the key. */
+  Linear = 'linear',
+  /** Slows down into the key. */
+  In = 'in',
+  /** Starts slowly out of the key. */
+  Out = 'out',
 }

@@ -4,6 +4,7 @@ import type {
   BooleanMode,
   ChannelSource,
   ColorChannel,
+  Ease,
   Family,
   ShapeKind,
   SkyMode,
@@ -89,6 +90,18 @@ export interface SceneObject {
    * Only a mutual link counts (world/portals.ts); absent on everything else.
    */
   readonly pair?: ObjectId;
+  /** Play mode's physics layer; absent: the defaults of its kind (world/body-flags.ts). */
+  readonly body?: BodyFlags;
+}
+
+/** How an object or a group takes part in Play mode's physics (docs/play-mode.md). */
+export interface BodyFlags {
+  /** The player and physical bodies collide with it. */
+  readonly solid: boolean;
+  /** A dynamic rigid body in Play: it falls, tumbles and is pushed (and is solid). A group: one body. */
+  readonly physical: boolean;
+  /** Kilograms; absent: from the size (world/body-flags.ts). */
+  readonly mass?: number;
 }
 
 /**
@@ -107,6 +120,8 @@ export interface GroupNode {
    * and `size` read as a scale factor (1 = as built). Absent: the identity.
    */
   readonly transform?: Transform;
+  /** Play mode: a physical group is one rigid body (its members' own flags then wait). */
+  readonly body?: BodyFlags;
 }
 
 export interface CloudSettings {
@@ -169,10 +184,18 @@ export interface DocumentSetup {
   readonly height: number;
 }
 
+/** How the scene's final picture is traced (Render, Render to Image, movies; Render Options). */
+export interface RenderSetup {
+  /** Mirror and glass bounces, 1..16 (world/render-setup.ts). */
+  readonly bounces: number;
+}
+
 /** One key of an animation track: the full value at a moment, in seconds. */
 export interface Key<T> {
   readonly time: number;
   readonly value: T;
+  /** How the motion meets this key; absent is Ease.Smooth. */
+  readonly ease?: Ease;
 }
 
 /**
@@ -217,4 +240,6 @@ export interface Scene {
   readonly bookmarks: readonly (Camera | null)[];
   /** The camera's and the sun's eye and lock; absent while both are shown and free. */
   readonly rig?: { readonly camera?: RigFlags; readonly sun?: RigFlags };
+  /** The final render's options; absent: the defaults (six bounces). */
+  readonly render?: RenderSetup;
 }

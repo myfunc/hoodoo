@@ -131,9 +131,9 @@ vec4 evalTexture(int mat, int slot, Surface s) {
   vec4 t2 = matTexel(mat, base + 2);
   vec4 t3 = matTexel(mat, base + 3);
   vec3 p = texturePoint(int(t0.w + 0.5), t0.y, t1.w, s);
-  float v = kind == T_POOLBALL ? poolBall(s.lp, t1.w) : textureScalar(kind, p, int(t0.z + 0.5), s);
+  float v = kind == T_POOLBALL ? poolBall(s.lp, t1.w) : (isSheen(kind) ? sheenScalar(kind, t0.y, s.wp, s.lp, s.n) : textureScalar(kind, p, int(t0.z + 0.5), s));
   v = clamp((v - 0.5) * (1.0 + t2.w * 0.04) + 0.5, 0.0, 1.0);
-  vec3 col = ramp(v, t1.rgb, t2.rgb, t3.rgb);
+  vec3 col = isSheen(kind) ? sheenColor(kind, v, t0.y, s.lp, t1.rgb, t2.rgb, t3.rgb) : ramp(v, t1.rgb, t2.rgb, t3.rgb);
   if (kind == T_PSYCHEDELIC) col = v < 0.333 ? mix(t1.rgb, t2.rgb, v * 3.0) : (v < 0.666 ? mix(t2.rgb, t3.rgb, v * 3.0 - 1.0) : mix(t3.rgb, t1.rgb, v * 3.0 - 2.0));
   return vec4(col, v);
 }

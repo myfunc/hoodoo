@@ -2,6 +2,7 @@
 // Every variant gets a nonce so no driver cache is reused. Results land in window.__lab.
 import header from '../src/render/gpu/glsl/00-header.glsl?raw';
 import noise from '../src/render/gpu/glsl/10-noise.glsl?raw';
+import sheen from '../src/render/gpu/glsl/15-sheen.glsl?raw';
 import textures from '../src/render/gpu/glsl/20-textures.glsl?raw';
 import shapes from '../src/render/gpu/glsl/30-shapes.glsl?raw';
 import terrain from '../src/render/gpu/glsl/35-terrain.glsl?raw';
@@ -14,7 +15,7 @@ import portals from '../src/render/gpu/glsl/70-portals.glsl?raw';
 import main from '../src/render/gpu/glsl/90-main.glsl?raw';
 import vert from '../src/render/gpu/glsl/fullscreen.vert.glsl?raw';
 
-const SOURCE = [header, noise, textures, shapes, terrain, lathe, portalShape, scene, sky, shade, portals, main].join('\n');
+const SOURCE = [header, noise, sheen, textures, shapes, terrain, lathe, portalShape, scene, sky, shade, portals, main].join('\n');
 /** The pre-2026-10-09 source sampled with implicit derivatives; FXC (Windows) chokes on those inside loops. */
 const GRADIENT_SOURCE = SOURCE.replace(/textureLod\(([^;]*), 0\.0\)/g, 'texture($1)');
 const VARIANTS: Record<string, string[]> = {

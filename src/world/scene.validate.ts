@@ -3,9 +3,12 @@ import { latheIndex } from '../assets/lathe.profiles';
 import type { Vec3 } from '../core/vec3';
 import { VALUE_LIMITS } from '../model/material.factory';
 import type { Rgb } from '../core/color';
-import { BooleanMode, ChannelSource, ColorChannel, Family, ShapeKind, SkyMode, TextureKind, TextureMapping, ValueChannel } from '../model/scene.enums';
+import { BooleanMode, ChannelSource, ColorChannel, Ease, Family, ShapeKind, SkyMode, TextureKind, TextureMapping, ValueChannel } from '../model/scene.enums';
 import { asGroupId } from '../model/scene.ids';
-import type { Animation, Camera, CloudSettings, DocumentSetup, GroupNode, Key, LightData, OrthoView, ProceduralTexture, RigFlags, Scene, Sky, Transform } from '../model/scene.types';
+import type { Animation, Camera, CloudSettings, DocumentSetup, GroupNode, Key, LightData, OrthoView, ProceduralTexture, RenderSetup, RigFlags, Scene, Sky, Transform } from '../model/scene.types';
+import { clampBounces } from './render-setup';
+import type { BodyFlags } from '../model/scene.types';
+import { MASS_RANGE } from './body-flags';
 
 /**
  * Guards for scene data that arrives from outside (files, share links, autosave):
@@ -109,6 +112,12 @@ export function documentSetup(doc: unknown, d: DocumentSetup): DocumentSetup {
   return { width: dim(r.width, d.width), height: dim(r.height, d.height) };
 }
 
+/** The final render's options; null when there are none (the defaults then apply). */
+export function renderSetup(r: unknown): RenderSetup | null {
+  const raw = (r ?? {}) as Partial<Record<keyof RenderSetup, unknown>>;
+  return isNum(raw.bounces) ? { bounces: clampBounces(raw.bounces) } : null;
+}
+
 const isRgb = (c: unknown): c is Rgb => Array.isArray(c) && c.length === 3 && c.every(isNum);
 const rgbOr = (c: unknown, d: Rgb): Rgb => (isRgb(c) ? [c[0], c[1], c[2]] : d);
 const TEXTURES = values(TextureKind);
@@ -202,6 +211,8 @@ export function materialParts(m: unknown): {
 
 export const ANIMATION_LIMITS = { duration: { min: 0.5, max: 600 }, fps: { min: 6, max: 60 } } as const;
 
+const EASES: ReadonlySet<unknown> = new Set(Object.values(Ease));
+
 /** Keys of one track: well-formed ones only, sorted, at most keysPerTrack. Keys past the end are kept (world/animation/duration). */
 function keys<T>(v: unknown, value: (raw: unknown) => T): Key<T>[] {
   if (!Array.isArray(v)) return [];
@@ -209,8 +220,10 @@ function keys<T>(v: unknown, value: (raw: unknown) => T): Key<T>[] {
   for (const k of v.slice(0, SCENE_LIMITS.keysPerTrack)) {
     const r = (k ?? {}) as Partial<Record<keyof Key<T>, unknown>>;
     if (!isNum(r.time)) continue;
+    // Smooth is the default: only the other eases are written down.
+    const ease = r.ease !== Ease.Smooth && EASES.has(r.ease) ? { ease: r.ease as Ease } : {};
     try {
-      out.push({ time: Math.min(ANIMATION_LIMITS.duration.max, Math.max(0, r.time)), value: value(r.value) });
+      out.push({ time: Math.min(ANIMATION_LIMITS.duration.max, Math.max(0, r.time)), value: value(r.value), ...ease });
     } catch {
       // A malformed key is dropped; the rest of the track still plays.
     }
@@ -291,7 +304,8 @@ export function groupTable(v: unknown): GroupNode[] {
     const id = asGroupId(r.id);
     const node: GroupNode = { id, name: label(r.name, GROUP_NAME) || GROUP_NAME, parentId: isId(r.parentId) ? asGroupId(r.parentId) : null, collapsed: r.collapsed === true };
     const pose = r.transform === undefined ? null : optionalGroupTransform(r.transform);
-    nodes.set(id, pose ? { ...node, transform: pose } : node);
+    const body = bodyFlags(r.body);
+    nodes.set(id, { ...node, ...(pose ? { transform: pose } : {}), ...(body ? { body } : {}) });
   }
   const parent = new Map([...nodes.values()].map((n) => [n.id as string, n.parentId && nodes.has(n.parentId) ? n.parentId : null]));
   for (const id of parent.keys()) {
@@ -321,4 +335,11 @@ export function rigTable(v: unknown): Scene['rig'] {
   const camera = flags(r.camera);
   const sun = flags(r.sun);
   return camera || sun ? { ...(camera ? { camera } : {}), ...(sun ? { sun } : {}) } : undefined;
+}
+
+/** Play mode's physics flags of an object or a group; null when absent or unreadable (the kind's defaults then apply). */
+export function bodyFlags(v: unknown): BodyFlags | null {
+  const r = (v && typeof v === 'object' ? v : {}) as Partial<Record<keyof BodyFlags, unknown>>;
+  if (typeof r.solid !== 'boolean' || typeof r.physical !== 'boolean') return null;
+  return { solid: r.solid, physical: r.physical, ...(isNum(r.mass) && r.mass > 0 ? { mass: clampNum(r.mass, MASS_RANGE.min, MASS_RANGE) } : {}) };
 }

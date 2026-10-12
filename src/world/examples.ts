@@ -13,7 +13,10 @@ import { sunsetGambit } from './showcase/gambit';
 import { squashAndStretch } from './showcase/bounce';
 import { booleanCarving } from './showcase/carve';
 import { hoodooRun } from './showcase/flight';
+import { marbleDream } from './showcase/marble';
 import { billiardOrrery } from './showcase/orrery';
+import { pyramidValley } from './showcase/valley';
+import { vaporDesk } from './showcase/vapor';
 import { SplashClip, SplashKind, splashBase, splashFrame, splashScene } from './splash-scene';
 
 /**
@@ -157,6 +160,9 @@ export const EXAMPLES: readonly Example[] = [
   { id: 'arch', animated: false, name: 'Ring Arch', blurb: 'A planet ring over a starry lake', build: () => withDocument(splashScene(SplashKind.Arch), EXAMPLE_DOCUMENT) },
   { id: 'surprise', animated: false, name: 'Checkerboard Desert', blurb: `Stones · Surprise Me #${SURPRISE_SEED}`, build: () => surpriseScene(SURPRISE_SEED) },
   { id: 'gambit', animated: true, featured: true, name: 'Sunset Gambit', blurb: 'Chess and billiards by the sea', build: sunsetGambit },
+  { id: 'vapor-desk', animated: true, name: 'Vapor Desk', blurb: 'A bell jar, a column and discs on checker decks', build: vaporDesk },
+  { id: 'pyramid-valley', animated: true, name: 'Pyramid Valley', blurb: 'Golden pyramids beam light over a green valley', build: pyramidValley },
+  { id: 'marble-dream', animated: true, name: 'Marble Dream', blurb: 'A marble head among glass arches', build: marbleDream },
   { id: 'flight', animated: true, name: 'Canyon Flight', blurb: 'The camera flies round the eggs', build: canyonFlight },
   { id: 'waltz', animated: true, name: 'Moon Waltz', blurb: 'Two moons orbit a ringed planet', build: moonWaltz },
   { id: 'dunes-morning', animated: true, name: 'Dunes Morning', blurb: 'Sun, fog and planets breathe', build: () => splashMotion(SplashKind.Dunes, true) },

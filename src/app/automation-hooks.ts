@@ -4,7 +4,11 @@ import { SKY_LIBRARY } from '../assets/sky.presets';
 import type { Vec3 } from '../core/vec3';
 import type { SceneView } from '../render/viewport';
 import { benchFrames } from '../render/bench';
+import { exportPrefs } from '../io/prefs';
+import { APP_VERSION } from '../ui/strings';
 import type { Thumbnailer } from '../render/thumbs';
+import { setDarkVariant } from '../ui/theme';
+import type { DarkVariant } from '../ui/theme-variants';
 import { ViewKind } from '../model/scene.enums';
 import { createObject } from '../world/objects.factory';
 import { emptyScene } from '../world/scene.defaults';
@@ -31,6 +35,10 @@ export function installAutomationHooks(world: World, view: SceneView, thumbs: Th
   w.__hoodoo = {
     world,
     view,
+    /** Every setting as the Settings window exports it (Export…), for reading from the browser. */
+    settings: () => exportPrefs(APP_VERSION),
+    /** Shows another dark look (ui/theme-variants.ts) while the theme is Dark, to compare them. */
+    darkVariant: (variant: DarkVariant) => setDarkVariant({ root: document.documentElement, titleBar: document.querySelector<HTMLMetaElement>('meta[name="theme-color"]') }, variant),
     summary: () => ({ objects: world.scene.objects.length, rendering: view.isRendering, picture: view.hasPicture }),
     /** GPU ms of full 1-sample frames of the current scene from the camera. */
     bench: async (width = BENCH_W, height = BENCH_H, frames = BENCH_FRAMES) => {

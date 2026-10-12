@@ -11,8 +11,9 @@ import { type ViewBasis, cameraBasis, lookAt } from '../world/camera-math';
 import { boxSphere, unionBox, worldBox } from '../world/bounds';
 import { createObject } from '../world/objects.factory';
 import { DEFAULT_CAMERA, emptyScene } from '../world/scene.defaults';
+import { Tone, currentTone } from './tone';
 import {
-  CLOUD_ICON, CONTROL_ICON_DATA, HUB_TEAL, ICON_FIT, type IconData, ICON_FOV, ICON_SEED, ICON_TERRAIN_SIZE, IconLight, LATTICE_ICON_SIZE,
+  CLOUD_ICON, CONTROL_ICON_DATA, HUB_TEAL, ICON_FIT, type IconData, ICON_FOV, ICON_SEED, ICON_TERRAIN_SIZE, IconLight, LAMP, LATTICE_ICON_SIZE,
   LIBRARY_FIT, LIGHT_ICON, PEARL, PLANE_ICON_SIZE, PREVIEW_FLOOR_Y, PREVIEW_FOV, type PieceData, SKY_ASPECT, SKY_FOV, SKY_LOOK_AT,
   SPOT_ICON, TEAL, TERRAIN_SEED, TRACKBALL, VIEW_FROM,
 } from './icon-data';
@@ -21,6 +22,8 @@ import {
 export interface IconSpec {
   readonly scene: Scene;
   readonly basis: ViewBasis;
+  /** The studio an interface icon is lit in, which follows the tone (`toned`); material and sky pictures have none. */
+  readonly light?: IconLight;
 }
 
 export enum ControlIcon {
@@ -62,7 +65,18 @@ const COLUMN_SKY: Sky = { ...ICON_SKY, skyColor: h('#d8dbe0'), sunAzimuth: -35, 
 const PREVIEW_SKY: Sky = { ...DEFAULT_SKY, sunAzimuth: -35, sunAltitude: 40, hazeAmount: 10 };
 /** The render balls: the preview sky without haze, for a clean horizon in the pearl. */
 const PEARL_SKY: Sky = { ...DEFAULT_SKY, sunAzimuth: -35, sunAltitude: 45, hazeAmount: 0 };
-const LIGHT_SKIES: Record<IconLight, Sky> = { [IconLight.Plain]: ICON_SKY, [IconLight.Column]: COLUMN_SKY, [IconLight.Studio]: PEARL_SKY };
+/**
+ * On dark chrome an icon has to be lighter than its panel instead of darker: the fill comes up
+ * so no side sinks into the panel, the room the chrome reflects goes a little greyer so the
+ * highlights do not glare, and the pearls reflect a dusk sky instead of noon.
+ */
+const DARK_ICON_SKY: Sky = { ...ICON_SKY, skyColor: h('#b0b6be'), ambientColor: h('#d2dae4') };
+const DARK_COLUMN_SKY: Sky = { ...COLUMN_SKY, skyColor: h('#b6bcc4'), ambientColor: h('#d6dee8') };
+const DARK_PEARL_SKY: Sky = { ...PEARL_SKY, skyColor: h('#3e5c8c'), horizonColor: h('#b2bccb'), ambientColor: h('#909cae') };
+const STUDIOS: Readonly<Record<Tone, Record<IconLight, Sky>>> = {
+  [Tone.Light]: { [IconLight.Plain]: ICON_SKY, [IconLight.Column]: COLUMN_SKY, [IconLight.Studio]: PEARL_SKY },
+  [Tone.Dark]: { [IconLight.Plain]: DARK_ICON_SKY, [IconLight.Column]: DARK_COLUMN_SKY, [IconLight.Studio]: DARK_PEARL_SKY },
+};
 const LIBRARY_SKY: Sky = { ...DEFAULT_SKY, sunAzimuth: -40, sunAltitude: 40, hazeAmount: 0 };
 
 const OWN_MATERIALS: Readonly<Record<string, Material>> = {
@@ -86,12 +100,42 @@ const OWN_MATERIALS: Readonly<Record<string, Material>> = {
     colors: { diffuse: h('#f2f2f2'), ambient: h('#9a9a9a'), specular: h('#ffffff') },
     values: { diffusion: 80, ambience: 35, specularity: 100, reflection: 18 },
   }),
+  [LAMP]: presetMaterial('Gold'),
 };
 
 /** The Portal Pair icon: the oval turned toward VIEW_FROM.angled. */
 const PORTAL_ICON_TURN: Vec3 = [0, 26, 0];
 
-const materialOf = (key: string): Material => OWN_MATERIALS[key] ?? presetMaterial(key);
+/** On dark chrome the icons' teal and salmon are a step lighter, so the shapes stand off the panel. */
+const DARK_MATERIALS: Readonly<Record<string, Material>> = {
+  ...OWN_MATERIALS,
+  [TEAL]: material({
+    name: 'Icon Teal',
+    colors: { diffuse: h('#44c0bb'), ambient: h('#349c98'), specular: h('#ffffff') },
+    values: { diffusion: 85, ambience: 44, specularity: 70 },
+  }),
+  [TRACKBALL]: material({
+    name: 'Trackball',
+    colors: { diffuse: h('#f69e70'), ambient: h('#a84c26'), specular: h('#ffffff') },
+    values: { diffusion: 85, ambience: 46, specularity: 70 },
+  }),
+  [HUB_TEAL]: material({
+    name: 'Hub Teal',
+    colors: { diffuse: h('#34b8b6'), ambient: h('#1f8282'), specular: h('#ffffff') },
+    values: { diffusion: 80, ambience: 38, specularity: 90, reflection: 12 },
+  }),
+  /** A lit bulb rather than a gold ball: less mirror, more glow, so it does not sink into the panel. */
+  [LAMP]: material({
+    name: 'Gold',
+    colors: { diffuse: h('#f4c552'), ambient: h('#c08a24'), specular: h('#ffffff') },
+    values: { diffusion: 80, ambience: 45, specularity: 90, metallicity: 40, reflection: 20 },
+  }),
+};
+const MATERIALS: Readonly<Record<Tone, Readonly<Record<string, Material>>>> = { [Tone.Light]: OWN_MATERIALS, [Tone.Dark]: DARK_MATERIALS };
+/** Icon material keys by material name, to relight an icon made under the other tone. */
+const OWN_KEYS = new Map(Object.entries(OWN_MATERIALS).map(([key, m]) => [m.name, key]));
+
+const materialOf = (key: string): Material => MATERIALS[currentTone()][key] ?? presetMaterial(key);
 
 function camera(from: Vec3, fov: number) {
   return lookAt({ ...DEFAULT_CAMERA, position: from, fov, focus: Math.hypot(from[0], from[1], from[2]) }, [0, 0, 0]);
@@ -99,6 +143,24 @@ function camera(from: Vec3, fov: number) {
 
 function spec(objects: SceneObject[], from: Vec3, sky: Sky = ICON_SKY, fov = ICON_FOV): IconSpec {
   return { scene: { ...emptyScene(), objects, sky }, basis: cameraBasis(camera(from, fov), 1) };
+}
+
+/** An interface icon in its studio, lit for the current tone. */
+function studioSpec(objects: SceneObject[], from: Vec3, light = IconLight.Plain, fov = ICON_FOV): IconSpec {
+  return { ...spec(objects, from, STUDIOS[currentTone()][light], fov), light };
+}
+
+/** The icon relit for the current tone (the theme changed since it was made): its studio and its own materials; other pictures stay as they are. */
+export function toned(icon: IconSpec): IconSpec {
+  if (!icon.light) return icon;
+  const tone = currentTone();
+  const sky = STUDIOS[tone][icon.light];
+  if (sky === icon.scene.sky) return icon;
+  const objects = icon.scene.objects.map((o) => {
+    const key = OWN_KEYS.get(o.material.name);
+    return key ? { ...o, material: MATERIALS[tone][key] } : o;
+  });
+  return { ...icon, scene: { ...icon.scene, sky, objects } };
 }
 
 function build(p: PieceData): SceneObject {
@@ -109,7 +171,7 @@ function build(p: PieceData): SceneObject {
 
 export function controlIcon(kind: ControlIcon): IconSpec {
   const data: IconData = CONTROL_ICON_DATA[kind];
-  return spec(data.pieces.map(build), data.from, LIGHT_SKIES[data.light ?? IconLight.Plain], data.fov ?? ICON_FOV);
+  return studioSpec(data.pieces.map(build), data.from, data.light, data.fov);
 }
 
 const PLANE_ICON_MATERIAL: Partial<Record<ShapeKind, string>> = {
@@ -121,17 +183,17 @@ const PLANE_ICON_MATERIAL: Partial<Record<ShapeKind, string>> = {
 export function createIcon(e: CreateEntry): IconSpec {
   const from = VIEW_FROM.angled;
   const planeMat = PLANE_ICON_MATERIAL[e.kind];
-  if (planeMat) return spec([build({ entry: 'square', size: PLANE_ICON_SIZE, mat: planeMat })], from);
-  if (e.kind === ShapeKind.CloudPlane) return spec(CLOUD_ICON.map(build), from);
-  if (e.kind === ShapeKind.Terrain) return spec([build({ entry: 'terrain', size: ICON_TERRAIN_SIZE, mat: 'Default' })], from);
-  if (e.kind === ShapeKind.Lattice) return spec([build({ entry: 'lattice', size: LATTICE_ICON_SIZE, mat: TEAL })], from);
-  if (e.kind === ShapeKind.RadialLight) return spec(LIGHT_ICON.map(build), from);
-  if (e.kind === ShapeKind.SpotLight) return spec(SPOT_ICON.map(build), from);
+  if (planeMat) return studioSpec([build({ entry: 'square', size: PLANE_ICON_SIZE, mat: planeMat })], from);
+  if (e.kind === ShapeKind.CloudPlane) return studioSpec(CLOUD_ICON.map(build), from);
+  if (e.kind === ShapeKind.Terrain) return studioSpec([build({ entry: 'terrain', size: ICON_TERRAIN_SIZE, mat: 'Default' })], from);
+  if (e.kind === ShapeKind.Lattice) return studioSpec([build({ entry: 'lattice', size: LATTICE_ICON_SIZE, mat: TEAL })], from);
+  if (e.kind === ShapeKind.RadialLight) return studioSpec(LIGHT_ICON.map(build), from);
+  if (e.kind === ShapeKind.SpotLight) return studioSpec(SPOT_ICON.map(build), from);
   const s = e.size;
   const k = ICON_FIT / Math.max(s[0], s[1], s[2]);
   // A portal stands up facing +Z: turned most of the way to the camera so its window shows.
   const rotation = e.kind === ShapeKind.Portal ? PORTAL_ICON_TURN : undefined;
-  return spec([build({ entry: e.id, size: [s[0] * k, s[1] * k, s[2] * k], mat: e.kind === ShapeKind.Stone ? 'Granite' : TEAL, rotation })], from);
+  return studioSpec([build({ entry: e.id, size: [s[0] * k, s[1] * k, s[2] * k], mat: e.kind === ShapeKind.Stone ? 'Granite' : TEAL, rotation })], from);
 }
 
 /** Materials Lab preview: the material on a sphere over a checker floor under a soft sky. */

@@ -5,12 +5,14 @@ import { CompareOverlay } from '../ui/chrome/compare-overlay';
 import { SceneMenu } from '../ui/chrome/context-menu';
 import { ControlPanel } from '../ui/chrome/control-panel';
 import { DisplayBar } from '../ui/chrome/display-bar';
+import { EdgeGrip, GripSide } from '../ui/chrome/edge-grip';
 import { MenuBar } from '../ui/chrome/menubar';
 import { PaneModes } from '../ui/chrome/pane-modes';
 import { Palette } from '../ui/chrome/palette';
 import { SelectionTag } from '../ui/chrome/selection-tag';
 import { ShaderLoader } from '../ui/chrome/shader-loader';
 import { Timeline } from '../ui/chrome/timeline';
+import { toolWindows } from '../ui/chrome/tool-windows';
 import { el } from '../ui/kit/dom';
 import { HistoryPanel } from '../ui/panels/history-panel';
 import { Outliner } from '../ui/panels/outliner';
@@ -53,10 +55,21 @@ export class Shell {
     const timeline = new Timeline(ctx);
     const center = el('main', { cls: 'center' }, [palette.titles, palette.trayHost, ctx.view.root, timeline.el, display.el]);
     const side = el('aside', { cls: 'side-panel' }, [new Properties(ctx).el, new Outliner(ctx, this.menu).el, new SnapshotsPanel(ctx).el, new HistoryPanel(ctx).el]);
-    this.workspace = el('div', { cls: 'workspace' }, [controls.el, center, side]);
+    // Both side columns hide (View menu, Shift+Tab / Tab, the grips on the scene's edge); the left one
+    // also hosts docked tool windows and widens for them (ui/chrome/tool-windows.ts).
+    const windows = toolWindows(ctx);
+    windows.column.append(new EdgeGrip(ctx, GripSide.Left).el);
+    const right = el('div', { cls: 'right-column' }, [side, new EdgeGrip(ctx, GripSide.Right).el]);
+    this.workspace = el('div', { cls: 'workspace' }, [windows.column, center, right]);
     this.root = el('div', { cls: 'app' }, [this.menubar.el, this.workspace]);
-    ctx.editor.events.on('changed', ({ state }) => this.workspace.classList.toggle('no-side', !state.sidePanel));
-    this.workspace.classList.toggle('no-side', !ctx.editor.state.sidePanel);
+    windows.onDock = (docked) => this.workspace.classList.toggle('has-dock', docked);
+    windows.mountControls(controls.el);
+    const syncPanels = () => {
+      this.workspace.classList.toggle('no-side', !ctx.editor.state.sidePanel);
+      this.workspace.classList.toggle('no-left', !ctx.editor.state.leftPanel);
+    };
+    ctx.editor.events.on('changed', syncPanels);
+    syncPanels();
     // Settings › Interface › Hint line.
     const syncHintLine = () => this.root.classList.toggle('no-hint-line', !ctx.editor.state.settings.hintLine);
     onSetting(ctx.editor, 'hintLine', syncHintLine);

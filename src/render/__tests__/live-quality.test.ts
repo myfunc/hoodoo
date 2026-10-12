@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { LiveQuality } from '../../world/world.enums';
-import { LIVE_MODES, raysWorth } from '../gpu/live-quality';
+import { DEFAULT_LIVE_BOUNCES } from '../../world/render-setup';
+import { LIVE_MODES, liveBounces, raysWorth } from '../gpu/live-quality';
 
 describe('Live quality', () => {
   it('Fast is the 0.6.3 preview: the interaction tracer, nothing reused or refined', () => {
@@ -14,11 +15,22 @@ describe('Live quality', () => {
     const full = LIVE_MODES[LiveQuality.Full];
     const detailed = LIVE_MODES[LiveQuality.Detailed];
     expect(full.fast).toBe(false);
-    expect(full.bounces).toBe(LIVE_MODES[LiveQuality.Fast].bounces);
+    expect(full.depth).toBe(LIVE_MODES[LiveQuality.Fast].depth);
     expect(detailed.fast).toBe(false);
-    expect(detailed.bounces).toBeGreaterThan(full.bounces);
+    expect(detailed.depth).toBeGreaterThan(full.depth);
     expect(detailed.keep).toBeGreaterThan(0);
     expect(detailed.keep).toBeLessThan(1);
+  });
+
+  it('trace the depth of Settings › Live reflections: 4 by default, 8 in Detailed, never past 16', () => {
+    expect(liveBounces(LiveQuality.Fast, DEFAULT_LIVE_BOUNCES)).toBe(4);
+    expect(liveBounces(LiveQuality.Full, DEFAULT_LIVE_BOUNCES)).toBe(4);
+    expect(liveBounces(LiveQuality.Detailed, DEFAULT_LIVE_BOUNCES)).toBe(8);
+    expect(liveBounces(LiveQuality.Full, 12)).toBe(12);
+    expect(liveBounces(LiveQuality.Detailed, 12)).toBe(16);
+    expect(liveBounces(LiveQuality.Detailed, 1)).toBe(2);
+    expect(liveBounces(LiveQuality.Fast, 0)).toBe(1);
+    expect(liveBounces(LiveQuality.Full, 40)).toBe(16);
   });
 
   it('a fresh frame is worth one ray', () => {

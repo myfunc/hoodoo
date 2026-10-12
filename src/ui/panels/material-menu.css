@@ -1,31 +1,31 @@
 /* The material menu: a stone-paper pop-up of rendered preset balls, one row per family. */
 .mm {
   position: fixed; z-index: 1000; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px 6px;
-  max-height: calc(100vh - 12px); background: #d6d5d0 var(--tex-stone); color: var(--ink);
-  border: 1px solid #555; box-shadow: 4px 4px 0 rgba(0,0,0,0.28), inset 0 1px 0 var(--hi); font: 11px var(--font-ui);
+  max-height: calc(100vh - 12px); background: var(--stone-bg) var(--tex-stone); color: var(--ink);
+  border: 1px solid var(--edge-dark); box-shadow: 4px 4px 0 var(--cast-28), inset 0 1px 0 var(--hi); font: 11px var(--font-ui);
 }
 .mm-head { display: flex; align-items: baseline; gap: 10px; padding: 0 2px 2px; }
-.mm-title { font: 800 16px/1 var(--font-title); color: #555; text-shadow: 0 1px 0 var(--hi), 0 -1px 0 rgba(0,0,0,0.08); letter-spacing: -0.01em; }
+.mm-title { font: 800 16px/1 var(--font-title); color: var(--title-ink); text-shadow: var(--emboss-deep); letter-spacing: -0.01em; }
 .mm-current { flex: 1; text-align: right; color: var(--ink-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mm-grid { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; overflow-y: auto; min-height: 0; padding-right: 2px; }
 .mm-family {
-  align-self: center; padding: 0 2px; white-space: nowrap; font: 800 12px/1 var(--font-title); color: #8a8985;
-  text-shadow: 0 1px 0 var(--hi), 0 -1px 0 rgba(0,0,0,0.12);
+  align-self: center; padding: 0 2px; white-space: nowrap; font: 800 12px/1 var(--font-title); color: var(--family-label);
+  text-shadow: var(--emboss-strong);
 }
-.mm-row { display: flex; gap: 2px; padding: 2px 0; border-top: 1px solid rgba(0,0,0,0.08); box-shadow: inset 0 1px 0 rgba(255,255,255,0.5); }
+.mm-row { display: flex; gap: 2px; padding: 2px 0; border-top: 1px solid var(--shade-08); box-shadow: inset 0 1px 0 var(--light-50); }
 .mm-grid > .mm-family:first-child + .mm-row { border-top: 0; box-shadow: none; }
 .mm-cell {
   display: flex; flex-direction: column; align-items: center; gap: 1px; width: 86px; padding: 3px 1px 2px;
   border: 1px solid transparent; border-radius: 3px; cursor: pointer;
 }
-.mm-ball { width: 40px; height: 40px; filter: drop-shadow(2px 3px 1.5px rgba(0,0,0,0.35)); transition: transform 80ms; }
+.mm-ball { width: 40px; height: 40px; filter: drop-shadow(2px 3px 1.5px var(--cast-35)); transition: transform 80ms; }
 .mm-name { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 9.5px; letter-spacing: -0.01em; color: var(--ink-soft); }
-.mm-cell:hover, .mm-cell.is-active { background: rgba(255,255,255,0.45); border-color: rgba(0,0,0,0.18); }
+.mm-cell:hover, .mm-cell.is-active { background: var(--light-45); border-color: var(--shade-18); }
 .mm-cell:hover .mm-ball, .mm-cell.is-active .mm-ball { transform: translateY(-1px) scale(1.06); }
 .mm-cell:hover .mm-name, .mm-cell.is-active .mm-name { color: var(--ink); }
-.mm-cell.is-current { border-color: var(--select); box-shadow: inset 0 0 0 1px rgba(200,40,45,0.35); }
+.mm-cell.is-current { border-color: var(--select); box-shadow: inset 0 0 0 1px var(--select-ring); }
 .mm-cell.is-current .mm-name { color: var(--select); font-weight: bold; }
-.mm-foot { display: flex; align-items: center; gap: 10px; padding: 3px 2px 0; border-top: 1px solid rgba(0,0,0,0.1); }
+.mm-foot { display: flex; align-items: center; gap: 10px; padding: 3px 2px 0; border-top: 1px solid var(--shade-10); }
 .mm-hint { flex: 1; white-space: nowrap; color: var(--ink-faint); font-size: 10px; }
-.mm-lab { border: 0; padding: 0; background: none; font: bold 10px var(--font-ui); color: var(--teal-dark); cursor: pointer; white-space: nowrap; }
+.mm-lab { border: 0; padding: 0; background: none; font: bold 10px var(--font-ui); color: var(--teal-ink); cursor: pointer; white-space: nowrap; }
 .mm-lab:hover { text-decoration: underline; }

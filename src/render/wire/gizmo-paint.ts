@@ -52,9 +52,11 @@ export function outlined(g: CanvasRenderingContext2D, path: () => void, width: n
   g.lineJoin = 'round';
   g.beginPath();
   path();
-  g.strokeStyle = INK;
-  g.lineWidth = width + rim * 2;
-  g.stroke();
+  if (rim > 0) {
+    g.strokeStyle = INK;
+    g.lineWidth = width + rim * 2;
+    g.stroke();
+  }
   g.strokeStyle = color;
   g.lineWidth = width;
   g.stroke();

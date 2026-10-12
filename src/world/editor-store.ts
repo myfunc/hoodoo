@@ -1,10 +1,11 @@
 import { Bus } from '../core/bus';
 import { ViewKind } from '../model/scene.enums';
 import type { Camera } from '../model/scene.types';
-import { ScrollPreference } from './world.enums';
+import { PictureMode, ScrollPreference } from './world.enums';
 import type { KeyRef } from './animation/key-selection';
 import type { FeatureFlags } from './preview-features';
 import { DEFAULT_SETTINGS, type Settings } from './settings';
+import type { ToolPlaces } from './tool-places';
 import { DEFAULT_CAMERA } from './scene.defaults';
 
 export enum PaletteTab {
@@ -34,11 +35,17 @@ export interface EditorState {
   readonly liveRender: boolean;
   /** Whether the last render stays visible under the wireframe. */
   readonly showRender: boolean;
+  /** What draws the picture: the editing preview or Render View (world.enums PictureMode). */
+  readonly picture: PictureMode;
   readonly depthCue: boolean;
   readonly grid: boolean;
   readonly gizmo: boolean;
   readonly snap: boolean;
   readonly sidePanel: boolean;
+  /** The left column: camera controls, render balls and docked tool windows. */
+  readonly leftPanel: boolean;
+  /** Where Object Attributes, the Materials Lab and the Terrain Editor live, docked or floating (world/tool-places.ts). */
+  readonly toolPlaces: ToolPlaces;
   readonly renderSamples: number;
   readonly hint: Hint;
   /** What a drag in the scene window moves now (an object, a key, the camera, the sun): the tag beside the pointer names it. */
@@ -78,11 +85,14 @@ export const INITIAL_EDITOR: EditorState = {
   quad: false,
   liveRender: true,
   showRender: true,
+  picture: PictureMode.Edit,
   depthCue: true,
   grid: true,
   gizmo: true,
   snap: false,
   sidePanel: true,
+  leftPanel: true,
+  toolPlaces: {},
   renderSamples: DEFAULT_SAMPLES,
   hint: IDLE_HINT,
   doing: null,

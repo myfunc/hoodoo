@@ -27,7 +27,6 @@ export const BLOCK_PASSES = [16, 8, 4, 2] as const;
 export const PREVIEW_SAMPLES = 6;
 export const FINAL_SAMPLES = 24;
 export const PREVIEW_BOUNCES = 3;
-export const FINAL_BOUNCES = 6;
 export const FRAME_BUDGET_MS = 24;
 export const FRAME_FAST_MS = 18;
 /** GPU time a frame may spend tracing when timer queries are available. */

@@ -60,6 +60,20 @@ const rocks: Material[] = [
     values: { diffusion: 75, ambience: 30, specularity: 20, bump: 40 },
     valueSources: { bump: A },
   }),
+  material({
+    name: 'White Marble',
+    textures: [texture(TextureKind.Marble, 1.6, [h('#f7f6f3'), h('#eeedf1'), h('#a6a6b6')], { detail: 6, mapping: OBJ })],
+    colorSources: TEXTURED_COLOR,
+    values: { diffusion: 90, ambience: 28, specularity: 70, reflection: 6, bump: 5 },
+    valueSources: { bump: A },
+  }),
+  material({
+    name: 'Grey Marble',
+    textures: [texture(TextureKind.Marble, 1.4, [h('#a8a29c'), h('#7e7a7e'), h('#3e3b44')], { detail: 7, mapping: OBJ })],
+    colorSources: TEXTURED_COLOR,
+    values: { diffusion: 80, ambience: 20, specularity: 75, reflection: 8, bump: 6 },
+    valueSources: { bump: A },
+  }),
 ];
 
 const terrains: Material[] = [
@@ -105,6 +119,12 @@ const terrains: Material[] = [
     colorSources: TEXTURED_COLOR,
     values: { diffusion: 88, ambience: 22, specularity: 4, bump: 22 },
     valueSources: { bump: A },
+  }),
+  material({
+    name: 'Flower Meadow',
+    textures: [texture(TextureKind.Spots, 9, [h('#2f7a16'), h('#86c22c'), h('#a35ad8')], { detail: 2, contrast: 30 })],
+    colorSources: TEXTURED_COLOR,
+    values: { diffusion: 88, ambience: 22, specularity: 6 },
   }),
 ];
 
@@ -168,6 +188,20 @@ const clouds: Material[] = [
     values: { diffusion: 70, ambience: 60, specularity: 0, transparency: 100 },
     valueSources: { transparency: A },
   }),
+  material({
+    name: 'Light Beam',
+    textures: [texture(TextureKind.Beam, 1, [h('#8fb8ff'), h('#dcecff'), h('#ffffff')], { detail: 1, mapping: OBJ })],
+    colorSources: TEXTURED_COLOR,
+    values: { diffusion: 0, ambience: 100, specularity: 0, transparency: 100 },
+    valueSources: { transparency: A },
+  }),
+  material({
+    name: 'Rainbow',
+    textures: [texture(TextureKind.Rainbow, 5, [h('#ffffff'), h('#ffffff'), h('#ffffff')], { detail: 1, mapping: OBJ })],
+    colorSources: TEXTURED_COLOR,
+    values: { diffusion: 0, ambience: 100, specularity: 0, transparency: 100 },
+    valueSources: { transparency: A },
+  }),
 ];
 
 const wild: Material[] = [
@@ -211,6 +245,19 @@ const wild: Material[] = [
     colorSources: TEXTURED_COLOR,
     values: { diffusion: 85, ambience: 15, specularity: 15 },
   }),
+  material({
+    name: 'Compact Disc',
+    textures: [texture(TextureKind.Iridescent, 1.2, [h('#ffffff'), h('#ffffff'), h('#ffffff')], { detail: 1, mapping: OBJ })],
+    colorSources: TEXTURED_COLOR,
+    colors: { specular: h('#ffffff') },
+    values: { diffusion: 70, ambience: 45, specularity: 100, reflection: 35 },
+  }),
+  material({
+    name: 'Hologram',
+    textures: [texture(TextureKind.Iridescent, 3, [h('#ffd0f0'), h('#d0fff4'), h('#d8d0ff')], { detail: 1, mapping: OBJ })],
+    colorSources: { ...TEXTURED_COLOR, specular: A },
+    values: { diffusion: 60, ambience: 35, specularity: 100, metallicity: 60, reflection: 55 },
+  }),
 ];
 
 const glass: Material[] = [
@@ -240,6 +287,21 @@ const glass: Material[] = [
     textures: [texture(TextureKind.Psychedelic, 0.8, [h('#ff8ad8'), h('#8affff'), h('#ffff8a')], { detail: 3, mapping: OBJ })],
     colorSources: { specular: A },
     values: { diffusion: 0, ambience: 0, specularity: 100, transparency: 92, reflection: 30, refraction: 101 },
+  }),
+  material({
+    name: 'Tinted Glass',
+    colors: { diffuse: h('#dfe4ff'), transparent: h('#e2e8ff') },
+    values: { diffusion: 8, ambience: 0, specularity: 100, transparency: 90, reflection: 14, refraction: 140 },
+  }),
+  material({
+    name: 'Emerald Glass',
+    colors: { diffuse: h('#0c7a3e'), transparent: h('#2fd27a') },
+    values: { diffusion: 30, ambience: 8, specularity: 100, transparency: 62, reflection: 18, refraction: 157 },
+  }),
+  material({
+    name: 'Ruby Glass',
+    colors: { diffuse: h('#a50c22'), transparent: h('#ff3048') },
+    values: { diffusion: 30, ambience: 8, specularity: 100, transparency: 62, reflection: 18, refraction: 157 },
   }),
 ];
 

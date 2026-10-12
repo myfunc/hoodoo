@@ -1,0 +1,7 @@
+/* Attributes › Physics (ui/panels/body-row.ts): only while the Play preview is on, only for things with a body. */
+.props-line.props-physics { gap: 4px; }
+.props-physics[hidden], .props-physics.is-empty, .props-physics > [hidden] { display: none; }
+.props-physics .props-label { flex: none; }
+.props-physics .ui-button.props-chip { height: 20px; padding: 0 5px; white-space: nowrap; flex: none; }
+.props-physics .props-mass { width: 44px; flex: none; }
+.props-unit { flex: none; margin-left: -1px; color: var(--ink-faint); }

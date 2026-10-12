@@ -29,6 +29,15 @@ export const START = {
   current: 'Open now',
   forget: 'Remove from the list',
   unreadable: 'This scene no longer opens and was removed from the list',
+  edit: 'Edit',
+  editTitle: 'Hide examples with × and drag them into your order',
+  hidden: (n: number) => `Hidden (${n})`,
+  hiddenTitle: 'Examples you hid: click one to show it again',
+  reset: 'Reset',
+  resetTitle: 'Every example back, in the original order',
+  hide: 'Hide this example',
+  restore: 'Show again',
+  allHidden: 'Every example is hidden: open Hidden to bring some back',
 } as const;
 
 /** Names of scenes that do not come from a file, for the start window's list. */

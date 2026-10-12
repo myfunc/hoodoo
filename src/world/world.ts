@@ -3,13 +3,14 @@ import { Logger } from '../core/log';
 import { add } from '../core/vec3';
 import type { ViewKind } from '../model/scene.enums';
 import { type GroupId, type ObjectId, newGroupId, newObjectId } from '../model/scene.ids';
-import type { Animation, Camera, DocumentSetup, GroupNode, Material, OrthoView, Scene, SceneObject, Sky } from '../model/scene.types';
+import type { Animation, BodyFlags, Camera, DocumentSetup, GroupNode, Material, OrthoView, RenderSetup, Scene, SceneObject, Sky } from '../model/scene.types';
 import { frameTime, recordKeys, withKey } from './animation/keying';
 import { poseAt } from './animation/pose';
 import { repivoted, settled } from './group-edits';
 import { localOf } from './group-pose';
 import { IDENTITY } from './group-transform';
 import { type TreeItems, cloneGroups, coverItems, dissolved, familyOf, freshGroupName, groupIndex, grouped, reparented, ungrouped, withEmptyGroup, withGroup, withGroups, withoutObjects } from './group-tree';
+import { withGroupBody } from './body-flags';
 import { History } from './history';
 import { limitBreach } from './scene-limits';
 import { relinkCopies } from './portals';
@@ -233,6 +234,13 @@ export class World {
     this.commit('Document setup', { ...this.scene, document }, ChangeKind.Document);
   }
 
+  /** The final render's options (Render Options): one undo step, never keyed. */
+  setRenderSetup(render: RenderSetup | undefined, label = 'Render options'): void {
+    if (sameJson(render, this.scene.render)) return;
+    const { render: _previous, ...rest } = this.scene;
+    this.commit(label, render ? { ...rest, render } : rest, ChangeKind.Document, false);
+  }
+
   /** Orthographic pan and zoom are navigation, not edits: they amend the current entry. */
   setView(kind: ViewKind, view: OrthoView): void {
     const scene = { ...this.scene, views: { ...this.scene.views, [kind]: view } };
@@ -304,6 +312,15 @@ export class World {
 
   renameGroup(id: GroupId, name: string): void {
     this.commit('Rename group', withGroup(this.scene, id, { name }), ChangeKind.Objects);
+  }
+
+  /** Play: a physical group is one rigid body (solid always); one undo step. */
+  setGroupBody(id: GroupId, patch: Partial<BodyFlags>): void {
+    const index = groupIndex(this.scene);
+    const node = index.get(id);
+    if (!node) return;
+    index.set(id, withGroupBody(node, patch));
+    this.commit('Physics', withGroups(this.scene, this.scene.objects, index.values()), ChangeKind.Objects);
   }
 
   /** Folding a group in the scene list is navigation: it amends the current entry quietly, so the render keeps refining. */

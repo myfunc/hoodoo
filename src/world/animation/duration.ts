@@ -41,7 +41,7 @@ function scaled<T>(keys: readonly Key<T>[], factor: number, end: number, fps: nu
   for (const k of keys) {
     const time = Math.min(end, frameTime(k.time * factor, fps));
     if (out.length && sameTime(out[out.length - 1].time, time, fps)) out.pop();
-    out.push({ time, value: k.value });
+    out.push({ ...k, time });
   }
   return out;
 }

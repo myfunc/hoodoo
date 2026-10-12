@@ -1,0 +1,58 @@
+/* What fills the tool windows (attributes-dialog.ts, materials-lab.ts, terrain-editor.ts, light-fields.ts),
+   floating and docked. Colours come from the theme variables only. */
+.tool-empty { color: var(--ink-soft); padding: 10px 0; white-space: nowrap; }
+.ui-dialog-lab .tool-empty { color: var(--lab-soft); }
+.tool-window.is-docked .lab-columns, .tool-window.is-docked .terrain-columns { flex-direction: column; gap: 10px; }
+
+/* Object Attributes */
+.tool-attributes { width: 400px; display: flex; flex-direction: column; gap: 6px; }
+.tool-window.is-docked .tool-attributes { width: auto; }
+.tool-attributes .stone-section-title { margin: 4px 0 0; }
+.attr-name { width: 100%; height: 20px; font-size: 12px; }
+.attr-line { display: flex; align-items: center; gap: 8px; }
+.attr-options { display: flex; align-items: center; justify-content: space-between; gap: 6px 10px; flex-wrap: wrap; }
+.attr-flags { gap: 2px 10px; }
+.attr-families { display: flex; gap: 4px; }
+.attr-family { width: 14px; height: 14px; border-radius: 50%; cursor: pointer; box-shadow: inset 0 0 0 1px var(--lo); }
+.attr-family.is-on { outline: 2px solid var(--select); outline-offset: 1px; }
+.props-grid.attr-grid { grid-template-columns: 48px repeat(3, minmax(0, 1fr)); }
+
+/* A light's settings: full in Object Attributes, compact in the Attributes panel */
+.light-fields { display: flex; flex-direction: column; gap: 4px; }
+.light-preview { display: block; width: 100%; aspect-ratio: 280 / 120; border: 1px solid var(--lo); background: var(--lo); }
+.light-grid, .light-fields.is-compact { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 4px 8px; align-items: center; }
+.light-fields.is-compact { grid-template-columns: max-content minmax(0, 1fr); gap: 3px 6px; }
+.light-label { color: var(--ink-soft); white-space: nowrap; }
+.light-control { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.light-control .ui-dial { flex: 1; }
+.light-control .ui-swatch-chip { width: 26px; height: 16px; }
+.light-reach { color: var(--ink-soft); font-size: 10px; white-space: nowrap; margin-top: -3px; }
+.props-light { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+.props-light .ui-button.props-light-more { align-self: flex-start; white-space: nowrap; }
+
+/* Materials Lab */
+.lab-columns { display: flex; gap: 18px; }
+.lab-side { display: flex; flex-direction: column; gap: 8px; width: 240px; flex: none; }
+.lab-main { display: flex; flex-direction: column; min-width: 520px; }
+.tool-window.is-docked .lab-side { width: auto; }
+.tool-window.is-docked .lab-main { min-width: 0; }
+.lab-preview { display: block; border: 1px solid var(--lo); }
+.lab-name { font-size: 12px; color: var(--lab-hot); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lab-target:empty { display: none; }
+.lab-buttons { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.lab-presets { display: grid; gap: 4px; max-height: 196px; overflow-y: auto; }
+.lab-preset { cursor: pointer; border-radius: 2px; }
+.lab-channels { display: grid; grid-template-columns: 120px minmax(0, 1fr) 64px; gap: 4px 10px; align-items: center; }
+.lab-channels > span { white-space: nowrap; }
+.lab-channels.lab-dots-head { gap: 0 10px; }
+.tool-window.is-docked .lab-channels { grid-template-columns: 100px minmax(0, 1fr) 58px; gap: 4px 6px; }
+.lab-dots { display: flex; gap: 6px; }
+
+/* Terrain Editor */
+.terrain-columns { display: flex; gap: 16px; }
+.terrain-columns[hidden] { display: none; }
+.terrain-tools { display: flex; flex-direction: column; gap: 6px; width: 210px; }
+.tool-window.is-docked .terrain-tools { width: auto; }
+.terrain-ops { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; }
+.terrain-center, .terrain-stage { display: flex; flex-direction: column; gap: 6px; }
+.terrain-map { display: block; border: 1px solid var(--lo); cursor: crosshair; image-rendering: pixelated; }

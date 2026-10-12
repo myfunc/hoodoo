@@ -1,7 +1,6 @@
 import { KEY } from '../../core/keys';
 import type { GroupId, ObjectId } from '../../model/scene.ids';
 import type { GroupNode, SceneObject } from '../../model/scene.types';
-import { FAMILY_COLORS } from '../../render/wire/wire.constants';
 import { SelectMode } from '../../world/world';
 import type { UiContext } from '../context';
 import { clearChildren, el, glyph } from '../kit/dom';
@@ -21,6 +20,7 @@ import { iconCanvas } from '../chrome/icon-canvas';
 import { OutlinerDrag } from './outliner-drag';
 import { rigRows } from './outliner-rig';
 import { panelTitle } from './panel-title';
+import { familyInk } from '../theme';
 
 const ICON_PX = 18;
 /** Object Tree: indentation per level of nesting. */
@@ -105,7 +105,7 @@ export class Outliner {
   }
 
   private row(o: SceneObject, selected: boolean, group: GroupPlace): HTMLElement {
-    const name = el('span', { cls: 'outliner-name', text: o.name, style: { color: selected ? undefined : FAMILY_COLORS[o.family] } });
+    const name = el('span', { cls: 'outliner-name', text: o.name, style: { color: selected ? undefined : familyInk(o.family) } });
     const row = el('div', { cls: `outliner-row${selected ? ' is-selected' : ''}${o.hidden ? ' is-hidden' : ''} group-${group}`, title: o.groupId ? `${o.name} (grouped)` : o.name }, [
       el('span', { cls: 'outliner-bracket' }),
       this.icon(o),
@@ -150,7 +150,7 @@ export class Outliner {
   private treeObjectRow(r: TreeRow): HTMLElement {
     const o = r.members[0];
     const selected = this.ctx.world.selection.has(o.id);
-    const name = el('span', { cls: 'outliner-name', text: o.name, style: { color: selected ? undefined : FAMILY_COLORS[o.family] } });
+    const name = el('span', { cls: 'outliner-name', text: o.name, style: { color: selected ? undefined : familyInk(o.family) } });
     const row = el('div', { cls: `outliner-row tree${selected ? ' is-selected' : ''}${o.hidden ? ' is-hidden' : ''}`, title: o.name }, [
       el('span', { cls: 'outliner-twisty' }),
       this.icon(o),

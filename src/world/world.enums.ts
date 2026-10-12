@@ -18,6 +18,16 @@ export enum LiveQuality {
   Detailed = 'detailed',
 }
 
+/**
+ * What draws the scene window's picture. Edit: the live preview while you edit
+ * (Settings › Live quality), or Bryce's render on request with Live off. Final:
+ * Render View, the final render refining in place (Render Options).
+ */
+export enum PictureMode {
+  Edit = 'edit',
+  Final = 'final',
+}
+
 /** The scene members that are not objects: listed above the objects, selected, keyed, hidden and locked like them. */
 export enum Rig {
   Camera = 'camera',

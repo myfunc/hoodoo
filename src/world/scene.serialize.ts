@@ -8,6 +8,7 @@ import { tidyGroups } from './group-tree';
 import { localOf, placed } from './group-pose';
 import { LIGHT_KINDS, TERRAIN_KINDS } from './objects.factory';
 import { tidyPairs } from './portals';
+import { withBody } from './body-flags';
 import { BOOKMARK_SLOTS, DEFAULT_CAMERA, DEFAULT_DOCUMENT, DEFAULT_VIEWS, EMPTY_ANIMATION } from './scene.defaults';
 import * as check from './scene.validate';
 import { SceneFileError } from './scene.validate';
@@ -135,7 +136,7 @@ function reviveObject(o: SerializedObject, seen: Set<string>): SceneObject {
   const kind = check.shapeKind(o.kind);
   const terrain = o.terrain ? decodeHeights(o.terrain) : null;
   if (TERRAIN_KINDS.has(kind) && !terrain) throw new SceneFileError('A terrain has no height data');
-  return {
+  const out: SceneObject = {
     id: asObjectId(uniqueId(o.id, seen)),
     name: check.label(o.name, 'Object'),
     kind,
@@ -152,6 +153,9 @@ function reviveObject(o: SerializedObject, seen: Set<string>): SceneObject {
     shapeParam: check.shapeParam(kind, o.shapeParam, CREATE_PALETTE.find((e) => e.kind === kind)?.shapeParam ?? 0),
     ...(kind === ShapeKind.Portal && check.isId(o.pair) ? { pair: asObjectId(o.pair) } : {}),
   };
+  // Play mode's physics flags: kept only where they differ from the kind's defaults.
+  const body = check.bodyFlags(o.body);
+  return body ? withBody(out, body) : out;
 }
 
 export function deserializeScene(raw: unknown): Scene {
@@ -174,6 +178,7 @@ export function deserializeScene(raw: unknown): Scene {
   const motion = v1 && (s as { readonly studio?: unknown }).studio === V1_MOTION_STUDIO;
   const sky = check.sky(s.sky, motion ? V1_MOTION_SKY : DEFAULT_SKY);
   const rig = check.rigTable(s.rig);
+  const render = check.renderSetup(s.render);
   const ids = new Set(objects.map((o) => o.id));
   const groupIds = new Set([...groups.map((g) => g.id as string), ...objects.flatMap((o) => (o.groupId ? [o.groupId as string] : []))]);
   return placed({
@@ -186,5 +191,6 @@ export function deserializeScene(raw: unknown): Scene {
     views: Object.fromEntries((Object.keys(DEFAULT_VIEWS) as unknown as ViewKind[]).map((k) => [k, check.orthoView((s.views as Record<string, unknown> | undefined)?.[k], DEFAULT_VIEWS[k])])) as Scene['views'],
     bookmarks: bookmarks.map((b) => (b ? check.camera(b, DEFAULT_CAMERA) : null)),
     ...(rig ? { rig } : {}),
+    ...(render ? { render } : {}),
   });
 }

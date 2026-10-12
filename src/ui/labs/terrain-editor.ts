@@ -1,16 +1,21 @@
 import { randomSeed } from '../../core/rng';
+import { Action } from '../../input/actions';
 import { TerrainOp } from '../../model/scene.enums';
 import type { SceneObject, TerrainData } from '../../model/scene.types';
 import { type IconSpec, libraryPreview } from '../../render/icons';
-import type { Thumbnailer } from '../../render/thumbs';
 import { type Field, field, resample } from '../../world/terrain/heightfield';
 import { BrushMode, brushDab } from '../../world/terrain/terrain-brush';
 import { applyTerrainOp } from '../../world/terrain/terrain-ops';
 import { fromField, toField } from '../../world/terrain/terrain-recipe';
+import { terrainTarget } from '../../world/tool-places';
+import type { UiContext } from '../context';
 import { Button, Choice, Dial, Select } from '../kit/controls';
 import { el, onDrag } from '../kit/dom';
-import { Dialog, DialogStyle } from '../kit/dialog';
+import { DialogStyle } from '../kit/dialog';
+import type { ToolContent } from '../kit/tool-window';
+import { LiveEdit } from './live-edit';
 import { Logger } from '../../core/log';
+import './tool-content.css';
 
 const logger = Logger.create('TerrainEditor');
 
@@ -20,7 +25,8 @@ const PREVIEW_H = 200;
 const PREVIEW_SAMPLES = 3;
 const PREVIEW_DEBOUNCE_MS = 150;
 const RESOLUTIONS = [32, 64, 128, 256, 512] as const;
-const UNDO_LIMIT = 40;
+const LABEL = 'Edit terrain';
+const NO_TARGET = 'Select a terrain or a lattice.';
 const CHANNEL = 255;
 const DEFAULT_AMOUNT = 50;
 const BRUSH = { size: 12, strength: 25, sizeMax: 50, strengthMax: 100 } as const;
@@ -52,47 +58,60 @@ const TOOLS: readonly { group: string; ops: readonly { op: TerrainOp; label: str
 ];
 
 /**
- * READ ME — the Terrain Editor. Works on a local copy of the heightfield with its
- * own undo; the grey map is paintable; the stage below shows a live render.
+ * READ ME — the Terrain Editor as a tool window (Edit Object on a terrain). It
+ * shapes the selected terrain or lattice and follows the selection. Each tool
+ * press and each brush stroke goes into the scene as one undo step (Undo here
+ * is the scene's); the grey map is paintable and the stage shows a live render.
  */
-export class TerrainEditor {
-  private f: Field;
-  private readonly undo: Field[] = [];
+export class TerrainEditor implements ToolContent {
+  readonly title = 'Terrain Editor';
+  readonly tab = 'Terrain';
+  readonly style = DialogStyle.Lab;
+  readonly cls = 'terrain-tool';
+  readonly body: HTMLElement;
+  private f: Field = field(RESOLUTIONS[2]);
+  private obj: SceneObject | null = null;
+  /** The heightfield last read from or written to the scene: anything else there is an undo or another edit. */
+  private shownTerrain: TerrainData | null = null;
   private amount = DEFAULT_AMOUNT;
   private brush: { mode: BrushMode; size: number; strength: number } = { mode: BrushMode.Raise, size: BRUSH.size, strength: BRUSH.strength };
   private readonly map: HTMLCanvasElement;
   private readonly preview: HTMLCanvasElement;
+  private readonly res: Select<number>;
+  private readonly columns: HTMLElement;
+  private readonly empty: HTMLElement;
+  private readonly live: LiveEdit;
+  private stops: (() => void)[] = [];
+  private subject: (text: string) => void = () => undefined;
   private timer = 0;
 
-  constructor(private readonly obj: SceneObject, private readonly thumbs: Thumbnailer, private readonly onApply: (t: TerrainData) => void) {
-    this.f = obj.terrain ? toField(obj.terrain) : field(RESOLUTIONS[2]);
-    this.map = el('canvas', { attrs: { width: String(MAP_PX), height: String(MAP_PX) }, style: { width: `${MAP_PX}px`, height: `${MAP_PX}px`, border: '1px solid #000', cursor: 'crosshair', imageRendering: 'pixelated' } });
+  constructor(private readonly ctx: UiContext) {
+    this.live = new LiveEdit(ctx.world);
+    this.map = el('canvas', { cls: 'terrain-map', attrs: { width: String(MAP_PX), height: String(MAP_PX) }, style: { width: `${MAP_PX}px`, height: `${MAP_PX}px` } });
     this.preview = el('canvas', { style: { width: `${PREVIEW_W}px`, height: `${PREVIEW_H}px`, borderRadius: '50% / 30%', background: STAGE } });
-  }
-
-  open(): void {
-    const tools = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px', width: '210px' } });
+    const tools = el('div', { cls: 'terrain-tools' });
     for (const g of TOOLS) {
       tools.append(el('div', { cls: 'lab-section-title', text: g.group }));
-      const grid = el('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3px' } });
+      const grid = el('div', { cls: 'terrain-ops' });
       for (const t of g.ops) grid.append(new Button({ label: t.label, onClick: () => this.apply(t.op) }).el);
       tools.append(grid);
     }
     tools.append(
       new Dial({ label: 'Amount', min: 0, max: PERCENT, value: this.amount, onInput: (v) => { this.amount = v; } }).el,
       el('div', { cls: 'lab-section-title', text: 'Pictures' }),
-      el('div', { style: { display: 'flex', gap: '4px', flexWrap: 'wrap' } }, [
+      el('div', { cls: 'lab-buttons' }, [
         new Button({ label: 'Import image…', title: 'Load any picture as a height map (bright = high)', onClick: () => this.importImage() }).el,
         new Button({ label: 'Export PNG', onClick: () => this.exportPng() }).el,
         new Button({ label: 'New', title: 'Flat terrain', onClick: () => this.commit(field(this.f.res)) }).el,
       ]),
     );
-    const res = new Select<number>({
+    this.res = new Select<number>({
       items: RESOLUTIONS.map((r) => ({ value: r, label: `Grid ${r} × ${r}` })),
       value: this.f.res,
       onChange: (r) => this.commit(resample(this.f, r)),
     });
     const brushMode = new Choice<BrushMode>({
+      cls: 'segmented',
       items: [
         { value: BrushMode.Raise, label: 'Raise' }, { value: BrushMode.Lower, label: 'Lower' },
         { value: BrushMode.Smooth, label: 'Smooth' }, { value: BrushMode.Flatten, label: 'Flatten' },
@@ -100,58 +119,83 @@ export class TerrainEditor {
       value: this.brush.mode,
       onChange: (m) => { this.brush.mode = m; },
     });
-    const center = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, [
-      el('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } }, [res.el, new Button({ label: 'Undo', onClick: () => this.stepBack() }).el]),
+    const center = el('div', { cls: 'terrain-center' }, [
+      el('div', { cls: 'lab-buttons' }, [this.res.el, new Button({ label: 'Undo', title: 'Undo the last change to the scene', onClick: () => ctx.dispatch(Action.Undo) }).el]),
       this.map,
       el('div', { cls: 'lab-section-title', text: 'Paint brush (drag on the map)' }),
       brushMode.el,
       new Dial({ label: 'Size', min: 1, max: BRUSH.sizeMax, value: this.brush.size, onInput: (v) => { this.brush.size = v; } }).el,
       new Dial({ label: 'Strength', min: 1, max: BRUSH.strengthMax, value: this.brush.strength, onInput: (v) => { this.brush.strength = v; } }).el,
     ]);
-    const right = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '6px' } }, [
+    const right = el('div', { cls: 'terrain-stage' }, [
       this.preview,
-      el('div', { cls: 'lab-note', text: 'Black is clipped away; white is the summit. Drag on the map to paint.' }),
+      el('div', { cls: 'lab-note', text: 'Black is clipped away; white is the summit.' }),
     ]);
+    this.columns = el('div', { cls: 'terrain-columns' }, [tools, center, right]);
+    this.empty = el('div', { cls: 'tool-empty', text: NO_TARGET });
+    this.body = el('div', {}, [this.empty, this.columns]);
     this.installBrush();
-    new Dialog({
-      title: 'Terrain Editor',
-      style: DialogStyle.Lab,
-      body: el('div', { style: { display: 'flex', gap: '16px' } }, [tools, center, right]),
-      onOk: () => this.onApply(fromField(this.f)),
-      onCancel: () => undefined,
-    }).open();
-    this.draw();
   }
 
-  private commit(next: Field): void {
-    this.undo.push(this.f);
-    if (this.undo.length > UNDO_LIMIT) this.undo.shift();
-    this.f = next;
-    this.draw();
+  start(subject: (text: string) => void): void {
+    this.subject = subject;
+    const follow = () => this.follow();
+    this.stops = [this.ctx.world.events.on('selection', follow), this.ctx.world.events.on('changed', follow)];
+    this.obj = null;
+    this.follow();
   }
 
-  private stepBack(): void {
-    const prev = this.undo.pop();
-    if (prev) {
-      this.f = prev;
+  stop(): void {
+    for (const s of this.stops) s();
+    this.stops = [];
+  }
+
+  /** Another terrain picked: its heightfield comes up; the same one changed in the scene (undo): reread it. */
+  private follow(): void {
+    const target = terrainTarget(this.ctx.world.selectedObjects());
+    const moved = (target?.id ?? null) !== (this.obj?.id ?? null);
+    this.obj = target;
+    this.subject(target?.name ?? '');
+    this.empty.hidden = !!target;
+    this.columns.hidden = !target;
+    if (!target) return;
+    if (moved || target.terrain !== this.shownTerrain) {
+      this.shownTerrain = target.terrain;
+      this.f = target.terrain ? toField(target.terrain) : field(RESOLUTIONS[2]);
+      this.res.set(this.f.res);
       this.draw();
     }
+  }
+
+  /** A finished change goes into the scene as one undo step. */
+  private commit(next: Field): void {
+    this.f = next;
+    this.res.set(next.res);
+    this.draw();
+    const id = this.obj?.id;
+    if (!id) return;
+    const terrain = fromField(next);
+    this.shownTerrain = terrain;
+    this.live.apply(LABEL, () => this.ctx.world.updateObjects(new Set([id]), LABEL, (x) => ({ ...x, terrain })));
   }
 
   private apply(op: TerrainOp): void {
     this.commit(applyTerrainOp(this.f, op, this.amount, randomSeed()));
   }
 
+  /** A stroke paints the map as you drag and lands in the scene when you let go. */
   private installBrush(): void {
     let started = false;
     onDrag(this.map, {
       start: (e) => {
-        started = true;
-        this.undo.push(this.f);
-        this.dab(e);
+        started = !!this.obj;
+        if (started) this.dab(e);
       },
       move: (_dx, _dy, e) => { if (started) this.dab(e); },
-      end: () => { started = false; },
+      end: () => {
+        if (started) this.commit(this.f);
+        started = false;
+      },
     });
   }
 
@@ -184,11 +228,13 @@ export class TerrainEditor {
   private schedulePreview(): void {
     window.clearTimeout(this.timer);
     this.timer = window.setTimeout(() => {
-      const terrain = { ...this.obj, terrain: fromField(this.f) };
-      const spec: IconSpec = libraryPreview({ name: '', description: '', kind: this.obj.kind, size: this.obj.transform.size, material: '', recipe: { steps: [] } }, terrain);
+      const obj = this.obj;
+      if (!obj) return;
+      const terrain = { ...obj, terrain: fromField(this.f) };
+      const spec: IconSpec = libraryPreview({ name: '', description: '', kind: obj.kind, size: obj.transform.size, material: '', recipe: { steps: [] } }, terrain);
       const w = PREVIEW_W * 2;
       const h = PREVIEW_H * 2;
-      this.thumbs.enqueue({ ...spec, basis: { ...spec.basis, aspect: w / h }, width: w, height: h, samples: PREVIEW_SAMPLES, bounces: 2, transparent: true, into: this.preview });
+      this.ctx.thumbs.enqueue({ ...spec, basis: { ...spec.basis, aspect: w / h }, width: w, height: h, samples: PREVIEW_SAMPLES, bounces: 2, transparent: true, into: this.preview });
     }, PREVIEW_DEBOUNCE_MS);
   }
 
@@ -226,7 +272,7 @@ export class TerrainEditor {
       img.data[i * 4 + 3] = CHANNEL;
     }
     g.putImageData(img, 0, 0);
-    const a = el('a', { attrs: { href: c.toDataURL('image/png'), download: `${this.obj.name.replace(/\W+/g, '-')}-heightmap.png` } });
+    const a = el('a', { attrs: { href: c.toDataURL('image/png'), download: `${(this.obj?.name ?? 'terrain').replace(/\W+/g, '-')}-heightmap.png` } });
     a.click();
   }
 }

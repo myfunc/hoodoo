@@ -1,5 +1,5 @@
 import { Logger } from '../../core/log';
-import { renderStyle } from './render-style';
+import { type RenderStyle, renderStyle } from './render-style';
 import type { Scene } from '../../model/scene.types';
 import type { ViewBasis } from '../../world/camera-math';
 import { EngineStage } from './engine.enums';
@@ -7,6 +7,7 @@ import { type Target, GlError, Uniforms, createTarget, dataTexture, deleteTarget
 import { GpuFence } from './gpu-fence';
 import header from './glsl/00-header.glsl?raw';
 import noise from './glsl/10-noise.glsl?raw';
+import sheen from './glsl/15-sheen.glsl?raw';
 import textures from './glsl/20-textures.glsl?raw';
 import shapes from './glsl/30-shapes.glsl?raw';
 import terrain from './glsl/35-terrain.glsl?raw';
@@ -25,7 +26,7 @@ import { NOISE_SIZE, bakeNoise } from './noise-texture';
 import { type PackedScene, packScene, skyUniforms } from './scene-packer';
 import { packLathe } from './lathe-pack';
 
-const TRACE_SOURCE = [header, noise, textures, shapes, terrain, lathe, portalShape, sceneGlsl, sky, shade, portals, main].join('\n');
+const TRACE_SOURCE = [header, noise, sheen, textures, shapes, terrain, lathe, portalShape, sceneGlsl, sky, shade, portals, main].join('\n');
 const COLD_FLAG = 'cold';
 const HEADER_END = 'out vec4 fragColor;';
 
@@ -69,6 +70,11 @@ export interface TraceRequest {
   readonly blend: number;
   /** Draw with the interaction preview once it is compiled (`prepareFast`). */
   readonly fast?: boolean;
+  /**
+   * Shadow rays per light and ray when shadows are soft (Render View's Soft shadows): 1 by
+   * default, as Render traces; more smooth the penumbra sooner; 0 draws soft shadows hard.
+   */
+  readonly shadowRays?: number;
 }
 
 export interface BlitRequest {
@@ -141,6 +147,8 @@ export class RayEngine {
   private readonly vao: WebGLVertexArrayObject;
   private terrainKey = '';
   private packed: PackedScene | null = null;
+  /** The scene's soft-shadow style (render-style.ts), applied per draw: Render View may draw it hard. */
+  private style: RenderStyle = [0, 0, 0, 0];
 
   /** `after`: start compiling once that settles, so a second engine reuses the browser's compiled copy. */
   constructor(readonly canvas: HTMLCanvasElement, preserve: boolean, after: Promise<unknown> = Promise.resolve()) {
@@ -300,6 +308,7 @@ export class RayEngine {
     uploadFloatRows(gl, this.materialsTex, MAT_TEXELS, p.count, p.materials);
     if (p.terrains.key !== this.terrainKey) this.uploadTerrains(p);
     this.scene = scene;
+    this.style = renderStyle(scene.sky);
     this.sceneVersion++;
   }
 
@@ -332,7 +341,6 @@ export class RayEngine {
       u.f('uFogParams', ...k.fogParams);
       u.f('uCloudParams', ...k.cloudParams);
       u.f('uCloudKinds', ...k.cloudKinds);
-      u.f('uStyle', ...renderStyle(s));
       t.sceneVersion = this.sceneVersion;
     }
     if (t.viewVersion !== this.viewVersion && this.view) {
@@ -375,11 +383,21 @@ export class RayEngine {
     u.i('uSample', r.sample);
     u.i('uMaxBounces', r.bounces);
     u.i('uTransparentBg', r.transparentBg ? 1 : 0);
+    this.applyShadows(u, r.shadowRays ?? 1);
     this.bindData(u);
     gl.bindVertexArray(this.vao);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.disable(gl.SCISSOR_TEST);
     gl.disable(gl.BLEND);
+  }
+
+  /** The soft-shadow style of the scene's sky, drawn hard (0 rays) or with that many shadow rays per light. */
+  private applyShadows(u: Uniforms, rays: number): void {
+    const [sun, lamp, rolloff, unused] = this.style;
+    const hard = rays <= 0;
+    u.f('uStyle', hard ? 0 : sun, hard ? 0 : lamp, rolloff, unused);
+    // Hard lights cast the same shadow every time: one ray says it all.
+    u.i('uShadowRays', hard || (sun <= 0 && lamp <= 0) ? 1 : Math.round(rays));
   }
 
   present(b: BlitRequest): void {

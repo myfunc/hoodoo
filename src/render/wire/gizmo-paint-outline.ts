@@ -1,11 +1,12 @@
-import { AXIS_TONES, CHROME_TONE, EVEN_TONE, HOVER_TONE, INK } from './gizmo-style';
+import { AXIS_TONES, CHROME_TONE, EVEN_TONE, HOVER_TONE } from './gizmo-style';
 import { type GizmoHandles, GizmoKind, type GizmoLook } from './gizmo.types';
 import { eachRingHalf, isHot, outlined, ringHot, toneOf, unit } from './gizmo-paint';
 
 /** Outline look sizes (CSS pixels). */
 const OUTLINE = {
   shaft: 5,
-  rim: 2,
+  /** No dark rim (the owner: no black outline); the light band and the shine carry the edge. */
+  rim: 0,
   /** A thin light line down each shaft and ring: the second tone. */
   shine: 1.4,
   clear: 8,
@@ -23,7 +24,7 @@ const OUTLINE = {
 const TURN = Math.PI * 2;
 
 function disc(g: CanvasRenderingContext2D, at: readonly [number, number], r: number, fill: string): void {
-  for (const [radius, color] of [[r + OUTLINE.rim, INK], [r, CHROME_TONE.light], [r - OUTLINE.band, fill]] as const) {
+  for (const [radius, color] of [[r, CHROME_TONE.light], [r - OUTLINE.band, fill]] as const) {
     g.beginPath();
     g.arc(at[0], at[1], radius, 0, TURN);
     g.fillStyle = color;
@@ -32,16 +33,16 @@ function disc(g: CanvasRenderingContext2D, at: readonly [number, number], r: num
 }
 
 function block(g: CanvasRenderingContext2D, at: readonly [number, number], half: number, fill: string): void {
-  for (const [size, color] of [[half + OUTLINE.rim, INK], [half, CHROME_TONE.light], [half - OUTLINE.band, fill]] as const) {
+  for (const [size, color] of [[half, CHROME_TONE.light], [half - OUTLINE.band, fill]] as const) {
     g.fillStyle = color;
     g.fillRect(at[0] - size, at[1] - size, size * 2, size * 2);
   }
 }
 
 /**
- * Outline: thick lines in the axis colour inside a dark rim, with a light
- * shine down the middle, and big round tips; nothing thin enough to vanish
- * on sky, water or the red wires.
+ * Outline: thick lines in the axis colour with a light shine down the middle,
+ * and big round tips in a white band; nothing thin enough to vanish on sky,
+ * water or the red wires.
  */
 export function paintOutline(g: CanvasRenderingContext2D, h: GizmoHandles, look: GizmoLook): void {
   const alpha = look.near || look.hover?.kind === GizmoKind.Rotate ? 1 : OUTLINE.ringIdle;

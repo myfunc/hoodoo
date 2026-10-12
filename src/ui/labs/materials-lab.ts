@@ -3,15 +3,20 @@ import { randomSeed } from '../../core/rng';
 import { MATERIAL_LIBRARY } from '../../assets/materials.presets';
 import { COLOR_CHANNELS, VALUE_CHANNELS, VALUE_LIMITS } from '../../model/material.factory';
 import { ChannelSource, ColorChannel, ValueChannel } from '../../model/scene.enums';
+import type { ObjectId } from '../../model/scene.ids';
 import type { Material, ProceduralTexture } from '../../model/scene.types';
 import { materialPreview } from '../../render/icons';
-import type { Thumbnailer } from '../../render/thumbs';
+import { materialTargets } from '../../world/tool-places';
+import type { UiContext } from '../context';
 import { ColorSwatch } from '../kit/color-picker';
 import { Button, Dial, Select } from '../kit/controls';
+import { DialogStyle } from '../kit/dialog';
 import { clearChildren, el } from '../kit/dom';
-import { Dialog, DialogStyle } from '../kit/dialog';
+import type { ToolContent } from '../kit/tool-window';
+import { LiveEdit } from './live-edit';
 import { randomMaterial } from './material-randomizer';
 import { TexturePanel } from './texture-panel';
+import './tool-content.css';
 
 const PREVIEW_W = 240;
 const PREVIEW_H = 180;
@@ -23,7 +28,8 @@ const PREVIEW_DEBOUNCE_MS = 90;
 const MAX_DPR = 2;
 const SOURCES = [ChannelSource.TexA, ChannelSource.TexB, ChannelSource.TexC] as const;
 const SOURCE_NAMES = ['A', 'B', 'C'] as const;
-const TITLE_COLOR = '#e0c890';
+const LABEL = 'Materials Lab';
+const NO_TARGET = 'Select an object to dress it';
 
 const COLOR_LABELS: Readonly<Record<ColorChannel, string>> = {
   [ColorChannel.Diffuse]: 'Diffuse Color',
@@ -44,7 +50,7 @@ const VALUE_LABELS: Readonly<Record<ValueChannel, string>> = {
 
 /** A, B, C option dots of one channel row; clicking the lit dot returns the channel to its flat value. */
 function sourceDots(current: ChannelSource, onPick: (s: ChannelSource) => void): HTMLElement {
-  const row = el('div', { style: { display: 'flex', gap: '6px' } });
+  const row = el('div', { cls: 'lab-dots' });
   const dots = SOURCES.map((src, i) => {
     const d = el('div', { cls: `ui-toggle${current === src ? ' is-on' : ''}`, title: `Drive from texture ${SOURCE_NAMES[i]}` }, [el('span', { cls: 'ui-dot' })]);
     d.addEventListener('click', () => {
@@ -60,79 +66,121 @@ function sourceDots(current: ChannelSource, onPick: (s: ChannelSource) => void):
 }
 
 /**
- * READ ME — the Materials Lab. Edits a draft copy of the material; the preview
- * sphere re-renders as you go; OK applies the draft to the selection.
+ * READ ME — the Materials Lab as a tool window. It dresses the selected objects
+ * (lights have no material) and follows the selection: picking another object
+ * shows its material. Every change applies at once, one undo step each (a dial
+ * drag is one); Reset goes back to the material the object had when you picked it.
  */
-export class MaterialsLab {
-  private draft: Material;
-  private readonly initial: Material;
+export class MaterialsLab implements ToolContent {
+  readonly title = LABEL;
+  readonly tab = 'Materials';
+  readonly style = DialogStyle.Lab;
+  readonly cls = 'materials-tool';
+  readonly body: HTMLElement;
+  private draft: Material = MATERIAL_LIBRARY[0].materials[0];
+  /** The material of the object when it was picked, for Reset. */
+  private initial: Material = this.draft;
+  private targets: ObjectId[] = [];
+  private readonly live: LiveEdit;
   private readonly preview: HTMLCanvasElement;
   private readonly grid: HTMLElement;
   private readonly textures: HTMLElement;
   private readonly presetGrid: HTMLElement;
-  private readonly title: HTMLElement;
+  private readonly name: HTMLElement;
+  private readonly note: HTMLElement;
+  private stops: (() => void)[] = [];
+  private subject: (text: string) => void = () => undefined;
   private timer = 0;
 
-  constructor(initial: Material, private readonly thumbs: Thumbnailer, private readonly onApply: (m: Material) => void) {
-    this.draft = initial;
-    this.initial = initial;
-    this.preview = el('canvas', { style: { width: `${PREVIEW_W}px`, height: `${PREVIEW_H}px`, border: '1px solid #000', display: 'block' } });
-    this.grid = el('div', { style: { display: 'grid', gridTemplateColumns: '120px 1fr 64px', gap: '4px 10px', alignItems: 'center' } });
+  constructor(private readonly ctx: UiContext) {
+    this.live = new LiveEdit(ctx.world);
+    this.preview = el('canvas', { cls: 'lab-preview', style: { width: `${PREVIEW_W}px`, height: `${PREVIEW_H}px` } });
+    this.grid = el('div', { cls: 'lab-channels' });
     this.textures = el('div');
-    this.presetGrid = el('div', { style: { display: 'grid', gridTemplateColumns: `repeat(5, ${PRESET_PX}px)`, gap: '4px', maxHeight: '196px', overflowY: 'auto' } });
-    this.title = el('div', { cls: 'lab-note', style: { fontSize: '12px', color: TITLE_COLOR } });
-  }
-
-  open(): void {
+    this.presetGrid = el('div', { cls: 'lab-presets', style: { gridTemplateColumns: `repeat(auto-fill, ${PRESET_PX}px)` } });
+    this.name = el('div', { cls: 'lab-name' });
+    this.note = el('div', { cls: 'lab-note lab-target' });
     const category = new Select<number>({
       items: MATERIAL_LIBRARY.map((c, i) => ({ value: i, label: c.name })),
       value: 0,
       onChange: (i) => this.showPresets(i),
     });
-    const left = el('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px', width: `${PREVIEW_W}px` } }, [
+    const left = el('div', { cls: 'lab-side' }, [
       this.preview,
-      this.title,
-      el('div', { style: { display: 'flex', gap: '6px' } }, [
+      this.name,
+      this.note,
+      el('div', { cls: 'lab-buttons' }, [
         new Button({ label: 'Randomize', title: 'Roll a random material', onClick: () => this.replace(randomMaterial(randomSeed())) }).el,
-        new Button({ label: 'Reset', title: 'Back to the material you opened', onClick: () => this.replace(this.initial) }).el,
+        new Button({ label: 'Reset', title: 'Back to the material the object had when you picked it', onClick: () => this.replace(this.initial) }).el,
       ]),
       el('div', { cls: 'lab-section-title', text: 'Presets' }),
       category.el,
       this.presetGrid,
     ]);
-    const right = el('div', { style: { display: 'flex', flexDirection: 'column', minWidth: '520px' } }, [
-      el('div', { style: { display: 'grid', gridTemplateColumns: '120px 1fr 64px', gap: '0 10px' } }, [
-        el('span'), el('span'), el('span', { cls: 'lab-note', text: '  A    B    C' }),
-      ]),
+    const right = el('div', { cls: 'lab-main' }, [
+      el('div', { cls: 'lab-channels lab-dots-head' }, [el('span'), el('span'), el('span', { cls: 'lab-note', text: '  A    B    C' })]),
       this.grid,
       this.textures,
     ]);
-    const body = el('div', { style: { display: 'flex', gap: '18px' } }, [left, right]);
-    new Dialog({
-      title: 'Materials Lab',
-      style: DialogStyle.Lab,
-      body,
-      onOk: () => this.onApply(this.draft),
-      onCancel: () => undefined,
-    }).open();
+    this.body = el('div', { cls: 'lab-columns' }, [left, right]);
     this.showPresets(0);
-    this.build();
   }
 
+  start(subject: (text: string) => void): void {
+    this.subject = subject;
+    const follow = () => this.follow();
+    this.stops = [this.ctx.world.events.on('selection', follow), this.ctx.world.events.on('changed', follow)];
+    this.follow(true);
+  }
+
+  stop(): void {
+    for (const s of this.stops) s();
+    this.stops = [];
+  }
+
+  /** Another object picked: its material comes up; the same one changed by undo: the lab shows what it wears now. */
+  private follow(force = false): void {
+    const targets = materialTargets(this.ctx.world.selectedObjects());
+    const first = targets[0];
+    const moved = (first?.id ?? null) !== (this.targets[0] ?? null);
+    this.targets = targets.map((o) => o.id);
+    this.subject(first ? (targets.length > 1 ? `${targets.length} objects` : first.name) : '');
+    this.note.textContent = first ? '' : NO_TARGET;
+    if (!first) {
+      if (force) this.build();
+      return;
+    }
+    if (moved || force) this.initial = first.material;
+    if (moved || force || first.material !== this.draft) {
+      this.draft = first.material;
+      this.build();
+    }
+  }
+
+  /** A whole new material (preset, Randomize, Reset): the controls are rebuilt. */
   private replace(m: Material): void {
     this.draft = m;
     this.build();
+    this.apply();
   }
 
+  /** One channel changed. */
   private update(m: Material): void {
     this.draft = m;
-    this.title.textContent = m.name;
+    this.name.textContent = m.name;
     this.schedulePreview();
+    this.apply();
+  }
+
+  private apply(): void {
+    const ids = new Set(this.targets);
+    const m = this.draft;
+    if (ids.size) this.live.apply(LABEL, () => this.ctx.world.setMaterial(ids, m, LABEL));
   }
 
   private build(): void {
     const m = this.draft;
-    this.title.textContent = m.name;
+    this.name.textContent = m.name;
     clearChildren(this.grid);
     for (const ch of COLOR_CHANNELS) {
       const sw = new ColorSwatch({
@@ -149,17 +197,18 @@ export class MaterialsLab {
         max: VALUE_LIMITS[ch],
         value: m.values[ch],
         title: ch === ValueChannel.Refraction ? '100 = no bending, 133 water, 152 glass, 240 diamond' : VALUE_LABELS[ch],
-        onInput: (v) => this.update({ ...this.draft, name: this.draft.name, values: { ...this.draft.values, [ch]: v } }),
+        onInput: (v) => { if (v !== this.draft.values[ch]) this.update({ ...this.draft, values: { ...this.draft.values, [ch]: v } }); },
       });
       this.grid.append(el('span', { text: VALUE_LABELS[ch] }), dial.el, sourceDots(m.valueSources[ch], (s) => this.update({ ...this.draft, valueSources: { ...this.draft.valueSources, [ch]: s } })));
     }
     clearChildren(this.textures);
-    m.textures.forEach((t, slot) => this.textures.append(new TexturePanel(slot, t, this.thumbs, (next) => this.setTexture(slot, next)).el));
+    m.textures.forEach((t, slot) => this.textures.append(new TexturePanel(slot, t, this.ctx.thumbs, (next) => this.setTexture(slot, next)).el));
     this.schedulePreview();
   }
 
   private setColor(ch: ColorChannel, v: Rgb): void {
-    this.update({ ...this.draft, colors: { ...this.draft.colors, [ch]: v } });
+    const was = this.draft.colors[ch];
+    if (v[0] !== was[0] || v[1] !== was[1] || v[2] !== was[2]) this.update({ ...this.draft, colors: { ...this.draft.colors, [ch]: v } });
   }
 
   private setTexture(slot: number, t: ProceduralTexture | null): void {
@@ -175,7 +224,7 @@ export class MaterialsLab {
       const w = Math.round(PREVIEW_W * dpr);
       const h = Math.round(PREVIEW_H * dpr);
       const spec = materialPreview(this.draft);
-      this.thumbs.enqueue({ ...spec, basis: { ...spec.basis, aspect: w / h }, width: w, height: h, samples: PREVIEW_SAMPLES, bounces: PREVIEW_BOUNCES, transparent: false, into: this.preview });
+      this.ctx.thumbs.enqueue({ ...spec, basis: { ...spec.basis, aspect: w / h }, width: w, height: h, samples: PREVIEW_SAMPLES, bounces: PREVIEW_BOUNCES, transparent: false, into: this.preview });
     }, PREVIEW_DEBOUNCE_MS);
   }
 
@@ -183,9 +232,9 @@ export class MaterialsLab {
     clearChildren(this.presetGrid);
     const px = PRESET_PX * 2;
     for (const m of MATERIAL_LIBRARY[category].materials) {
-      const c = el('canvas', { title: m.name, style: { width: `${PRESET_PX}px`, height: `${PRESET_PX}px`, cursor: 'pointer', borderRadius: '2px' } });
+      const c = el('canvas', { cls: 'lab-preset', title: m.name, style: { width: `${PRESET_PX}px`, height: `${PRESET_PX}px` } });
       c.addEventListener('click', () => this.replace(m));
-      this.thumbs.enqueue({ ...materialPreview(m, false), width: px, height: px, samples: PRESET_SAMPLES, bounces: 3, transparent: true, into: c });
+      this.ctx.thumbs.enqueue({ ...materialPreview(m, false), width: px, height: px, samples: PRESET_SAMPLES, bounces: 3, transparent: true, into: c });
       this.presetGrid.append(c);
     }
   }

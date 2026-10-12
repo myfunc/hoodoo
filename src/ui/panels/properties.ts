@@ -9,7 +9,7 @@ import { ChangeKind } from '../../world/world.events';
 import { LIGHT_KINDS } from '../../world/objects.factory';
 import { type UiContext, hintOn } from '../context';
 import { iconCanvas } from '../chrome/icon-canvas';
-import { NumberField } from '../kit/controls';
+import { Button, NumberField } from '../kit/controls';
 import { clearChildren, el, glyph } from '../kit/dom';
 import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
 import { CameraLens } from './camera-lens';
@@ -17,6 +17,9 @@ import { CameraAttributes, SunAttributes } from './rig-attributes';
 import { Rig } from '../../world/world';
 import { PRESET_ORDER, openMaterialMenu } from './material-menu';
 import { panelTitle } from './panel-title';
+import { bodyRow, groupBodyRow } from './body-row';
+import { LightFields } from '../labs/light-fields';
+import { LiveEdit } from '../labs/live-edit';
 
 const MIN_SIZE = 0.01;
 const ROW_ICON_PX = 22;
@@ -49,6 +52,9 @@ export class Properties {
   private fields: { key: keyof Transform; axis: number; field: NumberField }[] = [];
   private booleans: { value: BooleanMode; node: HTMLElement }[] = [];
   private ball: { canvas: HTMLCanvasElement; material: Material } | null = null;
+  /** A light's colour and intensity (and a spot's cone), edited in place. */
+  private light: LightFields | null = null;
+  private readonly live: LiveEdit;
   private shownId: string | null = null;
   private readonly camera: CameraAttributes;
   private readonly sun: SunAttributes;
@@ -58,6 +64,7 @@ export class Properties {
   constructor(private readonly ctx: UiContext) {
     this.camera = new CameraAttributes(ctx, new CameraLens(ctx));
     this.sun = new SunAttributes(ctx);
+    this.live = new LiveEdit(ctx.world);
     this.body = el('div', { cls: 'panel-body' });
     this.el = el('div', { cls: 'panel attributes-panel' }, [panelTitle('Attributes', GLYPH.move), this.body]);
     ctx.world.events.on('selection', () => this.rebuild());
@@ -84,6 +91,7 @@ export class Properties {
     this.fields = [];
     this.booleans = [];
     this.ball = null;
+    this.light = null;
     const rig = this.ctx.world.rig;
     if (rig) {
       this.shownId = rig;
@@ -96,6 +104,8 @@ export class Properties {
     if (!o) {
       this.body.append(el('div', { cls: 'props-empty', text: n > 1 ? `${n} objects selected` : 'Nothing selected. Click a wireframe.' }));
       if (n === 0) this.body.append(el('div', { cls: 'props-empty', text: 'Camera and Sun: top of the scene list.' }));
+      const items = this.ctx.world.selectedItems();
+      if (items.groups.length === 1 && !items.objects.length) this.body.append(groupBodyRow(this.ctx, items.groups[0]));
       return;
     }
     const grid = el('div', { cls: 'props-grid' }, [el('span'), ...AXIS_NAMES.map((a) => el('span', { cls: 'axis-head', text: a }))]);
@@ -118,8 +128,8 @@ export class Properties {
         grid.append(field.el);
       });
     }
-    this.body.append(grid, this.booleanRow(o));
-    if (!LIGHT_KINDS.has(o.kind)) this.body.append(this.materialRow(o));
+    if (o.light && LIGHT_KINDS.has(o.kind)) this.body.append(grid, this.lightRows(o));
+    else this.body.append(grid, this.booleanRow(o), this.materialRow(o), bodyRow(this.ctx, o.id));
   }
 
   private booleanRow(o: SceneObject): HTMLElement {
@@ -140,6 +150,13 @@ export class Properties {
       b.node.classList.toggle('is-on', b.value === mode);
       b.node.setAttribute('aria-checked', String(b.value === mode));
     }
+  }
+
+  /** A light shows what is tweaked most, in place; the rest is one click away in Object Attributes. */
+  private lightRows(o: SceneObject): HTMLElement {
+    this.light = new LightFields(this.ctx, this.live, o, false);
+    const more = new Button({ label: 'Light Settings…', cls: 'props-light-more', title: 'Falloff, preview and the rest in Object Attributes', onClick: () => this.ctx.dispatch(Action.Attributes) });
+    return el('div', { cls: 'props-light' }, [this.light.el, more.el]);
   }
 
   private materialRow(o: SceneObject): HTMLElement {
@@ -172,6 +189,7 @@ export class Properties {
     }
     for (const f of this.fields) f.field.set(o.transform[f.key][f.axis]);
     this.markBoolean(o.boolean);
+    this.light?.refresh(o);
     if (this.ball && this.ball.material !== o.material) this.rebuild();
   }
 }

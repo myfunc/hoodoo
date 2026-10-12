@@ -2,6 +2,9 @@
 // Usage: node tools/perf-interact.mjs <url> [demo|waltz] [drag|orbit|play] [ms]
 //   play runs the scene's animation (waltz) instead of a mouse gesture;
 //   QUALITY=fast|full|detailed sets the live quality (Settings › Live quality);
+//   LIVE_BOUNCES=1..16 sets Settings › Live reflections (4 by default);
+//   VIEW=final draws in Render View instead, PRESET=draft|balanced|final picks its preset
+//   (it then also prints the time a pass takes and the time to the preset's rays per pixel);
 //   DPR=2 for a retina screen; W=2560 H=1440 for a bigger window (a stand-in for a slower GPU);
 //   SHOTS=<prefix> saves <prefix>-moving.png and <prefix>-settled.png of the picture.
 // Prints median / p95 / p99 / max of the requestAnimationFrame deltas while the gesture runs, the
@@ -25,9 +28,11 @@ const page = await browser.newPage();
 await page.setViewport({ width: W, height: H, deviceScaleFactor: DPR });
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
-await page.evaluateOnNewDocument((quality) => {
+const FINAL = process.env.VIEW === 'final';
+await page.evaluateOnNewDocument((quality, preset, bounces) => {
   localStorage.clear();
-  if (quality) localStorage.setItem('hoodoo.prefs.v1', JSON.stringify({ liveQuality: quality }));
+  const prefs = { ...(quality ? { liveQuality: quality } : {}), ...(preset ? { renderViewPreset: preset } : {}), ...(bounces ? { liveBounces: bounces } : {}) };
+  localStorage.setItem('hoodoo.prefs.v1', JSON.stringify(prefs));
   const w = window;
   w.__rec = null;
   let last = 0;
@@ -40,7 +45,7 @@ await page.evaluateOnNewDocument((quality) => {
   new PerformanceObserver((l) => {
     for (const e of l.getEntries()) if (w.__rec) w.__rec.long.push(Math.round(e.duration));
   }).observe({ type: 'longtask', buffered: false });
-}, process.env.QUALITY ?? '');
+}, process.env.QUALITY ?? '', process.env.PRESET ?? '', Number(process.env.LIVE_BOUNCES ?? 0));
 const url = new URL(base);
 url.searchParams.set('start', scene === 'demo' ? '0' : '1');
 await page.goto(url.href, { waitUntil: 'load' });
@@ -52,6 +57,8 @@ if (scene !== 'demo') {
   }, scene === 'waltz' ? 'Moon Waltz' : scene);
 }
 await page.waitForFunction('window.__hoodooReady === true', { timeout: 60000 });
+// Render View: the single view shows the final render (Render › Render View).
+if (FINAL) await page.evaluate(() => window.__hoodoo.view.editor.update({ picture: 'final', quad: false }));
 // Let the picture converge and the thumbnails settle before measuring.
 await page.evaluate(() => new Promise((resolve) => {
   const view = window.__hoodoo.view;
@@ -141,6 +148,19 @@ if (play) await playPause();
 else await page.mouse.up({ button });
 await new Promise((r) => setTimeout(r, SETTLE_MS));
 const settle = await page.evaluate(() => { const r = { ...window.__rec, live: window.__live }; window.__rec = null; return r; });
+// Render View, camera still: one picture from its first pass to the preset's rays per pixel.
+const still = FINAL ? await page.evaluate(() => new Promise((resolve) => {
+  const { view } = window.__hoodoo;
+  const timer = setTimeout(() => resolve(null), 120000);
+  const off = view.events.on('live', (s) => {
+    if (!s.final || s.moving || s.samples < s.target) return;
+    off();
+    clearTimeout(timer);
+    resolve({ rays: s.target, passMs: Math.round(s.final.passMs * 10) / 10, toTargetMs: Math.round(s.final.elapsedMs) });
+  });
+  view.pictures.finalView.reset();
+  view.updateLive();
+})) : null;
 if (process.env.SHOT) await page.screenshot({ path: process.env.SHOT });
 // SHOTS=<prefix>: the picture as it looks while moving (held in that state), then settled.
 if (process.env.SHOTS) {
@@ -191,11 +211,12 @@ function scales(live) {
   const used = [...new Set(live.map((l) => l[0].toFixed(2)))];
   return { changes, used: used.slice(0, 12), readoutFps: live.at(-1)?.[1] ?? 0 };
 }
-const label = `${scene} ${gesture} ${W}×${H} DPR ${DPR}${process.env.QUALITY ? ` ${process.env.QUALITY}` : ''}`;
+const label = `${scene} ${gesture} ${W}×${H} DPR ${DPR}${process.env.QUALITY ? ` ${process.env.QUALITY}` : ''}${process.env.LIVE_BOUNCES ? ` ${process.env.LIVE_BOUNCES} bounces` : ''}${FINAL ? ` Render View ${process.env.PRESET || 'final'}` : ''}`;
 console.log(JSON.stringify({
   label, target: at.name, changesPerS: Math.round(moving.changes / (Number(ms) / 1000)),
   picture: stats(gaps(moving.pictures)),
   moving: { ...stats(moving.frames), long: moving.long.length, longMax: Math.max(0, ...moving.long), ...scales(moving.live) },
   settle: { ...stats(settle.frames), long: settle.long.length, longMax: Math.max(0, ...settle.long) },
+  ...(still ? { still } : {}),
   errors,
 }));

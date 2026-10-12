@@ -15,6 +15,9 @@ export const TEXTURE_KIND_LABELS: Readonly<Record<TextureKind, string>> = {
   [TextureKind.Slope]: 'Slope Bands',
   [TextureKind.Ridged]: 'Ridged Noise',
   [TextureKind.PoolBall]: 'Pool Ball',
+  [TextureKind.Iridescent]: 'Iridescent',
+  [TextureKind.Beam]: 'Light Beam',
+  [TextureKind.Rainbow]: 'Rainbow',
 };
 
 export const MAPPING_LABELS: Readonly<Record<TextureMapping, string>> = {
