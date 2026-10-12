@@ -22,7 +22,7 @@ export function requireHuman(env: Env, session: Session, now: number): void {
 }
 
 /** Asks Turnstile about a widget token; on success the session counts as human for a while. */
-export async function passHuman(env: Env, session: Session, token: unknown, ip: string | null, now: number, fetcher: Fetcher): Promise<number> {
+export async function passHuman(env: Env, session: Session, token: unknown, ip: string | null, now: number, fetcher: Fetcher, hostname: string): Promise<number> {
   if (!turnstileOn(env)) return now + HUMAN_PASS_MS;
   if (!env.TURNSTILE_SECRET) throw fail.notConfigured('The human check is not configured on this server');
   if (typeof token !== 'string' || !token || token.length > MAX_TOKEN_CHARS) throw fail.invalid('Missing check token');
@@ -31,8 +31,8 @@ export async function passHuman(env: Env, session: Session, token: unknown, ip: 
   form.append('response', token);
   if (ip) form.append('remoteip', ip);
   const res = await fetcher(SITEVERIFY_URL, { method: 'POST', body: form });
-  const outcome = (await res.json().catch(() => ({}))) as { success?: boolean };
-  if (!outcome.success) throw fail.forbidden('The human check did not pass, try again');
+  const outcome = (await res.json().catch(() => ({}))) as { success?: boolean; hostname?: string };
+  if (!res.ok || !outcome.success || outcome.hostname !== hostname) throw fail.forbidden('The human check did not pass, try again');
   const until = now + HUMAN_PASS_MS;
   await env.DB.prepare('UPDATE sessions SET human_until = ? WHERE token_hash = ?').bind(until, session.tokenHash).run();
   return until;

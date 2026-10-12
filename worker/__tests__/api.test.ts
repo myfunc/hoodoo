@@ -138,7 +138,7 @@ describe('cloud API: gallery, votes, reports, moderation', () => {
     c.fetcher = async (url, init) => {
       asked.push(url);
       const form = init?.body as FormData;
-      return Response.json({ success: form.get('response') === 'good-token' && form.get('secret') === 'secret' });
+      return Response.json({ hostname: 'localhost', success: form.get('response') === 'good-token' && form.get('secret') === 'secret' });
     };
     expect((await c.call('POST', '/api/human', { cookie: alice, json: { token: 'bad-token' } })).status).toBe(403);
     expect((await c.call('POST', '/api/human', { cookie: alice, json: { token: 'good-token' } })).status).toBe(200);

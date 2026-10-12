@@ -4,7 +4,7 @@ import { SCENE_MIME } from './cloud-contract';
 
 /**
  * A scene as it travels to the cloud: the .hoodoo file (animation and all, world/scene.serialize.ts)
- * gzipped in the browser. The Worker stores the bytes as they are and never parses them.
+ * gzipped in the browser. The Worker checks the unpacked JSON before storing it.
  */
 
 const FORMAT = 'gzip';

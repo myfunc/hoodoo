@@ -85,6 +85,15 @@ export function openReportDialog(title: string, onOk: (reason: ReportReason, not
   open(dialog);
 }
 
+/** Deleting the whole account: who, and what goes with it. */
+export function confirmDeleteAccount(email: string, onOk: () => void): void {
+  open(new Dialog({
+    title: CLOUD.deleteAccountTitle, style: DialogStyle.Stone, cls: 'cloud-dialog',
+    body: el('div', { cls: 'cloud-form' }, [el('div', { cls: 'cloud-form-note', text: CLOUD.deleteAccountAsk(email) }), el('div', { cls: 'cloud-form-note', text: CLOUD.deleteAccountWhat })]),
+    onOk, onCancel: () => undefined,
+  }));
+}
+
 export function confirmDelete(question: string, onOk: () => void): void {
   open(new Dialog({
     title: CLOUD.delete.replace('…', ''), style: DialogStyle.Stone, cls: 'cloud-dialog',

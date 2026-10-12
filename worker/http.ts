@@ -31,6 +31,8 @@ export const fail = {
   invalid: (why: string) => new ApiError(STATUS.badRequest, CloudErrorCode.Invalid, why),
   tooLarge: (why: string) => new ApiError(STATUS.tooLarge, CloudErrorCode.TooLarge, why),
   tooMany: (why: string) => new ApiError(STATUS.tooMany, CloudErrorCode.TooMany, why),
+  storageFull: () => new ApiError(STATUS.tooLarge, CloudErrorCode.StorageFull, 'Your cloud is full (50 MB): delete old projects'),
+  busy: () => new ApiError(STATUS.unavailable, CloudErrorCode.Busy, 'Hoodoo Cloud is busy today, try again tomorrow'),
   human: () => new ApiError(STATUS.human, CloudErrorCode.Human, 'Confirm you are human'),
   notConfigured: (what: string) => new ApiError(STATUS.unavailable, CloudErrorCode.NotConfigured, what),
 };

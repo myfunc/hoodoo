@@ -78,6 +78,6 @@ export function humanWindow(c: Ctx): Response {
 export async function humanCheck(c: Ctx): Promise<Response> {
   const session = await c.signedIn();
   const { token } = await readJson(c.request);
-  const until = await passHuman(c.env, session, token, c.ip, c.now, c.fetcher);
+  const until = await passHuman(c.env, session, token, c.ip, c.now, c.fetcher, c.url.hostname);
   return json({ humanUntil: until });
 }

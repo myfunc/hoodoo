@@ -6,7 +6,7 @@ import type { Scene } from '../../model/scene.types';
 import type { UiContext } from '../context';
 import { showToast } from '../panels/toast';
 import { SCENE_NAME } from '../strings';
-import { type LinkedProject, openPublishDialog, openSaveDialog } from './cloud-dialogs';
+import { type LinkedProject, confirmDeleteAccount, openPublishDialog, openSaveDialog } from './cloud-dialogs';
 import { CLOUD } from './cloud-strings';
 import { CloudPage, CloudWindow } from './cloud-window';
 import { humanCheck } from './human-check';
@@ -117,6 +117,19 @@ export class CloudUi {
     this.link = null;
     this.notify();
     showToast(CLOUD.signedOut);
+  }
+
+  /** Deletes the account and everything in it, then shows the signed-out cloud. */
+  async deleteAccount(): Promise<void> {
+    const user = this.signedIn;
+    if (!user) return;
+    confirmDeleteAccount(user.email, () => void this.guard(async () => {
+      await this.api.deleteAccount();
+      this.signedIn = null;
+      this.link = null;
+      this.notify();
+      showToast(CLOUD.accountDeleted);
+    }));
   }
 
   /**

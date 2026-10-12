@@ -47,6 +47,12 @@ export class CloudApi {
     await this.call('POST', '/auth/signout');
   }
 
+  async deleteAccount(): Promise<void> {
+    while ((await this.call<{ deleting: boolean } | undefined>('DELETE', '/me'))?.deleting) {
+      // Large accounts are removed in bounded batches; a failed request can be retried.
+    }
+  }
+
   async projects(): Promise<readonly CloudProject[]> {
     return (await this.call<{ projects: CloudProject[] }>('GET', '/projects')).projects;
   }
@@ -89,8 +95,8 @@ export class CloudApi {
     await this.call('POST', `/posts/${id}/report`, { reason, note });
   }
 
-  async hide(id: string, hidden: boolean): Promise<GalleryPost> {
-    return (await this.call<{ post: GalleryPost }>('POST', `/posts/${id}/hide`, { hidden })).post;
+  async hide(id: string, hidden: boolean, reason?: string): Promise<GalleryPost> {
+    return (await this.call<{ post: GalleryPost }>('POST', `/posts/${id}/hide`, { hidden, reason })).post;
   }
 
   async clearReports(id: string): Promise<GalleryPost> {

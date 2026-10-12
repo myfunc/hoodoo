@@ -47,7 +47,53 @@ The public instance uses Google Cloud project `hoodoo-511421`.
   the two Worker pages, each with its own policy. The editor's policy adds
   `frame-src 'self'` for the check, and its service worker never touches `/api/`.
 
-Limits: scene 5 MB packed, picture 500 KB, names 80 characters, 200 projects per user.
+Limits: scene 2 MB packed and 20 MB unpacked, JPEG picture exactly 480×300 and at
+most 500 KB, names 80 characters, 200 projects per user. Each user has 50 MB total
+for projects and posts, counting packed scenes and pictures. Replacing a project
+releases its old size; deletion releases space. `storage-full` says "Your cloud is
+full (50 MB): delete old projects". Migration `0002_cloud_safety.sql` adds picture
+sizes and a transactional account counter with quota guards; existing pictures
+count as 500 KB until replaced because their size was not recorded previously.
+
+Uploads need a valid Content-Length and a bounded multipart body. The Worker
+streams gzip decompression with an unpacked cap, parses JSON and checks the
+`hoodoo-scene` envelope, supported version and `scene.objects` array. The editor
+still performs full scene validation on opening. Pictures need a JPEG frame of
+the expected dimensions and a complete scan. Turnstile success must name the
+request hostname.
+
+The Gallery queries public posts through `posts_new` or `posts_top`. A signed-in
+author's hidden posts are fetched separately through `posts_owner_hidden` and
+merged into the same page, so the author still sees the hidden badge. Each list
+has independent pagination; a signed-in page can include up to 24 public and 24
+own hidden posts.
+
+A moderator can set a hide reason of at most 200 characters. `hiddenReason` is
+returned only to the author and moderators; moderation rows also include
+`authorId`. Authors cannot delete hidden posts while awaiting review. Three
+distinct reporters of any reason, or two distinct `illegal` reporters, hide a
+post automatically with "Hidden after reports, waiting for a moderator". Repeat
+reports update the same reporter's row. Clearing reports does not unhide a post;
+unhiding clears its hide reason.
+
+Account deletion removes every owned project's and post's file prefix from both
+R2 and KV, including obsolete versions, then cascades the account's projects,
+posts, votes, reports and sessions, removes its rate rows and recounts affected
+posts from other authors. The session cookie is cleared. Once deletion starts,
+new mutations are refused; a file-store failure leaves the account available for
+retrying DELETE /api/me. Large accounts use batches of three owned entries per
+request to fit the Free Worker's subrequest budget: 202 `{ deleting: true }`
+means repeat the same DELETE; the browser's `deleteAccount()` does so until the
+final 204 clears the cookie. Account deletion also removes hidden posts.
+
+A daily Cron Trigger (03:17 UTC) purges expired sessions and rate rows after one
+full day, keeping IP-address rate rows for at most two days between daily runs.
+Sessions expire after 30 days. IP-only rate rows are not linked to an account.
+Failed uploads clean up new files immediately; account deletion sweeps its file
+prefixes. There is no global orphan sweep: legacy KV keys have no creation time,
+so a scan cannot safely distinguish a new in-flight upload from an orphan at a
+bounded cost. Daily D1/KV quota failures return `busy` (503): "Hoodoo Cloud is busy
+today, try again tomorrow".
 
 ## API
 
@@ -58,6 +104,7 @@ All JSON unless noted; errors are `{ "error": code, "message": text }` with the 
 | --- | --- | --- |
 | `GET /api/config` | anyone | `{ googleClientId, turnstileSiteKey, devLogin }` |
 | `GET /api/me` | anyone | `{ user }` or `{ user: null }` |
+| `DELETE /api/me` | user | deletes the account, owned files and all linked data, clears cookie |
 | `GET /api/auth/signin` | anyone | the sign-in pop-up (HTML) |
 | `POST /api/auth/google` | anyone | `{ credential }` → session cookie, `{ user }` |
 | `POST /api/auth/dev` | localhost with `DEV_LOGIN=1` | `{ email, name }` → session cookie |
@@ -71,11 +118,11 @@ All JSON unless noted; errors are `{ "error": code, "message": text }` with the 
 | `POST /api/posts` | user, human | publish |
 | `GET /api/posts/:id/scene`, `/thumb` | anyone (hidden: author, moderators) | open a copy, the picture |
 | `POST /api/posts/:id/vote` | user, human | `{ value: 1 \| -1 \| 0 }`, not on one's own post |
-| `POST /api/posts/:id/report` | user, human | `{ reason: spam \| offensive \| broken \| other, note }` |
-| `DELETE /api/posts/:id` | author, moderator | delete with votes, reports, files |
-| `POST /api/posts/:id/hide` | moderator | `{ hidden: true \| false }` |
+| `POST /api/posts/:id/report` | user, human | `{ reason: spam \| offensive \| broken \| other \| illegal, note }` |
+| `DELETE /api/posts/:id` | author (visible posts), moderator | delete with votes, reports, files |
+| `POST /api/posts/:id/hide` | moderator | `{ hidden: true \| false, reason?: string }` |
 | `POST /api/posts/:id/clear-reports` | moderator | clears the reports |
-| `GET /api/mod/posts?filter=reported\|hidden` | moderator | the queue, with report notes |
+| `GET /api/mod/posts?filter=reported\|hidden` | moderator | the queue, with report notes, authorId and hiddenReason |
 
 ## Local testing without Google
 

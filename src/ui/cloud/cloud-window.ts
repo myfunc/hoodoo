@@ -116,7 +116,8 @@ export class CloudWindow {
     if (this.cloud.isUnavailable) this.account.replaceChildren();
     else if (user) {
       const out = new Button({ cls: 'start-chip', label: CLOUD.signOut, onClick: () => void this.cloud.signOut() });
-      this.account.replaceChildren(el('span', { cls: 'cloud-user', text: user.name, title: user.email }), out.el);
+      const remove = new Button({ cls: 'start-chip', label: CLOUD.deleteAccount, onClick: () => void this.cloud.deleteAccount() });
+      this.account.replaceChildren(el('span', { cls: 'cloud-user', text: user.name, title: user.email }), out.el, remove.el);
     } else if (this.cloud.canSignIn) {
       this.account.replaceChildren(new Button({ cls: 'start-chip cloud-signin', label: CLOUD.signIn, title: CLOUD.signInTitle, onClick: () => this.cloud.signIn() }).el);
     } else this.account.replaceChildren(el('span', { cls: 'cloud-user is-soft', text: CLOUD.notConfigured }));
@@ -244,7 +245,8 @@ export class CloudWindow {
       tools.push(chip(post.hidden ? CLOUD.unhide : CLOUD.hide, () => void this.cloud.run(async () => replace(await this.cloud.api.hide(post.id, !post.hidden)))));
       if (post.reports) tools.push(chip(CLOUD.clearReports, () => void this.cloud.run(async () => replace(await this.cloud.api.clearReports(post.id)))));
     }
-    if (post.mine || user?.moderator) {
+    // A post a moderator hid stays until a moderator decides: the server keeps it.
+    if ((post.mine && !post.hidden) || user?.moderator) {
       tools.push(chip(CLOUD.delete, () => confirmDelete(CLOUD.deletePost(post.title), () => void this.cloud.run(async () => {
         await this.cloud.api.deletePost(post.id);
         this.say(CLOUD.deleted(post.title));
@@ -254,6 +256,7 @@ export class CloudWindow {
     const reasons = [...new Set((post.reportNotes ?? []).map((n) => REASON_LABELS[n.reason]))].join(', ');
     const notes = (post.reportNotes ?? []).map((n) => n.note).filter(Boolean).join(' · ');
     node.append(this.face(post.title, CLOUD.by(post.author), post.thumb, post.hidden ? CLOUD.hiddenBadge : null, open));
+    if (post.hidden && post.hiddenReason) node.append(el('div', { cls: 'cloud-card-reports', text: CLOUD.hiddenWhy(post.hiddenReason), title: post.hiddenReason }));
     if (moderating && post.reports) node.append(el('div', { cls: 'cloud-card-reports', text: CLOUD.reports(post.reports, reasons), title: notes }));
     node.append(
       el('div', { cls: 'cloud-card-bar' }, [

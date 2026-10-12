@@ -1,13 +1,14 @@
 import {
-  CLOUD_LIMITS, type GalleryPost, GallerySort, ModFilter, type ReportNote, SCENE_MIME, THUMB_MIME,
+  CLOUD_LIMITS, type GalleryPost, GallerySort, ModFilter, type ReportNote, ReportReason, SCENE_MIME, THUMB_MIME,
   isGallerySort, isModFilter, isReportReason, isVote,
 } from '../src/io/cloud/cloud-contract';
 import { type Ctx, readUpload } from './context';
-import { FOLDER, fileKeys, filesOf } from './files';
+import { deleteFolder, FOLDER, fileKeys, filesOf } from './files';
 import { bytes, fail, json, newId, noContent, readJson, STATUS } from './http';
 import { requireHuman } from './human';
 import { Limited, spend } from './rate';
 import type { Session } from './session';
+import { checkStorage, storeUpload } from './storage';
 
 /**
  * The public gallery. A post goes live at once; a moderator may hide it (then only
@@ -28,6 +29,7 @@ interface PostRow {
   dislikes: number;
   reports: number;
   hidden: number;
+  hidden_reason: string | null;
   author: string;
   my_vote: number | null;
 }
@@ -36,6 +38,9 @@ interface PostRow {
 const THUMB_CACHE = { shown: 'public, max-age=3600', hidden: 'no-store' } as const;
 
 const SELECT_POSTS = 'SELECT p.*, u.name AS author, v.value AS my_vote FROM posts p JOIN users u ON u.id = p.user_id LEFT JOIN votes v ON v.post_id = p.id AND v.user_id = ?';
+const AUTO_HIDE_REPORTS = 3;
+const AUTO_HIDE_ILLEGAL = 2;
+const AUTO_HIDE_REASON = 'Hidden after reports, waiting for a moderator';
 
 const ORDER: Readonly<Record<GallerySort, string>> = {
   [GallerySort.New]: 'p.created_at DESC',
@@ -53,7 +58,8 @@ function postOf(r: PostRow, s: Session | null, notes?: readonly ReportNote[]): G
     id: r.id, title: r.title, author: r.author, createdAt: r.created_at, likes: r.likes, dislikes: r.dislikes,
     myVote: isVote(r.my_vote) ? r.my_vote : 0, mine: r.user_id === s?.user.id, hidden: r.hidden === 1,
     thumb: r.thumb_key ? `/api/posts/${r.id}/thumb?v=${r.hidden}` : null,
-    ...(mod ? { reports: r.reports, reportNotes: notes ?? [] } : {}),
+    ...(mod || r.user_id === s?.user.id ? { hiddenReason: r.hidden_reason } : {}),
+    ...(mod ? { authorId: r.user_id, reports: r.reports, reportNotes: notes ?? [] } : {}),
   };
 }
 
@@ -74,8 +80,14 @@ export async function listPosts(c: Ctx): Promise<Response> {
   const s = await c.session();
   const sortParam = c.url.searchParams.get('sort');
   const sort = isGallerySort(sortParam) ? sortParam : GallerySort.New;
-  // The author still sees a hidden post of theirs, marked; nobody else does.
-  const { rows, more } = await page(c, s, `WHERE (p.hidden = 0 OR p.user_id = ?) ORDER BY ${ORDER[sort]}`, [s?.user.id ?? '']);
+  const { rows, more } = await page(c, s, `WHERE p.hidden = 0 ORDER BY ${ORDER[sort]}`, []);
+  // Own hidden posts have their own indexed page; public pagination never scans them.
+  if (s) {
+    const own = await page(c, s, `WHERE p.user_id = ? AND p.hidden = 1 ORDER BY ${ORDER[sort]}`, [s.user.id]);
+    rows.push(...own.rows);
+    rows.sort((a, b) => (sort === GallerySort.Top ? (b.likes - b.dislikes) - (a.likes - a.dislikes) : 0) || b.created_at - a.created_at);
+    return json({ posts: rows.map((r) => postOf(r, s)), more: more || own.more });
+  }
   return json({ posts: rows.map((r) => postOf(r, s)), more });
 }
 
@@ -117,16 +129,15 @@ async function postRow(c: Ctx, s: Session | null): Promise<PostRow> {
 
 export async function publish(c: Ctx): Promise<Response> {
   const s = await c.signedIn();
-  const files = filesOf(c.env);
+  filesOf(c.env);
   requireHuman(c.env, s, c.now);
   await spend(c.env.DB, s.user.id, Limited.Publish, c.now);
   const up = await readUpload(c.request);
+  await checkStorage(c.env, s.user.id, up);
   const id = newId();
   const keys = fileKeys(FOLDER.post, id, newId());
-  await files.put(keys.scene, up.scene);
-  if (up.thumb) await files.put(keys.thumb, up.thumb);
-  await c.env.DB.prepare('INSERT INTO posts (id, user_id, title, size, scene_key, thumb_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
-    .bind(id, s.user.id, up.name, up.scene.length, keys.scene, up.thumb ? keys.thumb : null, c.now).run();
+  await storeUpload(c.env, keys, up, () => c.env.DB.prepare('INSERT INTO posts (id, user_id, title, size, thumb_size, scene_key, thumb_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(id, s.user.id, up.name, up.scene.length, up.thumb?.length ?? 0, keys.scene, up.thumb ? keys.thumb : null, c.now).run());
   return json({ post: postOf(await postRow(c.withId(id), s), s) }, STATUS.created);
 }
 
@@ -179,16 +190,20 @@ export async function report(c: Ctx): Promise<Response> {
     db.prepare('INSERT INTO reports (post_id, user_id, reason, note, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (post_id, user_id) DO UPDATE SET reason = excluded.reason, note = excluded.note')
       .bind(row.id, s.user.id, body.reason, note, c.now),
     db.prepare('UPDATE posts SET reports = (SELECT COUNT(*) FROM reports WHERE post_id = ?1) WHERE id = ?1').bind(row.id),
+    db.prepare('UPDATE posts SET hidden = 1, hidden_reason = ? WHERE id = ? AND hidden = 0 AND (reports >= ? OR (SELECT COUNT(*) FROM reports WHERE post_id = posts.id AND reason = ?) >= ?)')
+      .bind(AUTO_HIDE_REASON, row.id, AUTO_HIDE_REPORTS, ReportReason.Illegal, AUTO_HIDE_ILLEGAL),
   ]);
   return noContent();
 }
 
 export async function hide(c: Ctx): Promise<Response> {
   const s = await c.moderator();
-  const { hidden } = await readJson(c.request);
+  const { hidden, reason } = await readJson(c.request);
   if (typeof hidden !== 'boolean') throw fail.invalid('hidden is true or false');
+  if (reason !== undefined && (typeof reason !== 'string' || reason.length > CLOUD_LIMITS.hideReasonChars)) throw fail.invalid('The hide reason must be at most 200 characters');
   const row = await postRow(c, s);
-  await c.env.DB.prepare('UPDATE posts SET hidden = ? WHERE id = ?').bind(hidden ? 1 : 0, row.id).run();
+  const changed = await c.env.DB.prepare('UPDATE posts SET hidden = ?, hidden_reason = ? WHERE id = ? AND deleting = 0').bind(hidden ? 1 : 0, hidden ? (typeof reason === 'string' ? reason.trim() : null) : null, row.id).run();
+  if (!changed.meta.changes) throw fail.invalid('Post deletion is in progress: try again');
   return moderated(c, s);
 }
 
@@ -208,12 +223,20 @@ export async function deletePost(c: Ctx): Promise<Response> {
   const s = await c.signedIn();
   const row = await postRow(c, s);
   if (row.user_id !== s.user.id && !s.user.moderator) throw fail.forbidden('Only its author or a moderator can delete a post');
+  if (row.hidden && !s.user.moderator) throw fail.forbidden('A hidden post is kept for moderator review');
   const db = c.env.DB;
-  await db.batch([
-    db.prepare('DELETE FROM votes WHERE post_id = ?').bind(row.id),
-    db.prepare('DELETE FROM reports WHERE post_id = ?').bind(row.id),
-    db.prepare('DELETE FROM posts WHERE id = ?').bind(row.id),
-  ]);
-  await filesOf(c.env).delete([row.scene_key, row.thumb_key].filter((k): k is string => !!k));
+  const reserved = await db.prepare('UPDATE posts SET deleting = 1 WHERE id = ? AND deleting = 0 AND (hidden = 0 OR ? = 1)').bind(row.id, s.user.moderator ? 1 : 0).run();
+  if (!reserved.meta.changes) throw fail.forbidden('A hidden post is kept for moderator review');
+  try {
+    await deleteFolder(c.env, FOLDER.post, row.id, [row.scene_key, row.thumb_key].filter((k): k is string => !!k));
+    await db.batch([
+      db.prepare('DELETE FROM votes WHERE post_id = ?').bind(row.id),
+      db.prepare('DELETE FROM reports WHERE post_id = ?').bind(row.id),
+      db.prepare('DELETE FROM posts WHERE id = ?').bind(row.id),
+    ]);
+  } catch (error) {
+    await db.prepare('UPDATE posts SET deleting = 0 WHERE id = ?').bind(row.id).run();
+    throw error;
+  }
   return noContent();
 }

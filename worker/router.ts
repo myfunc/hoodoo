@@ -1,5 +1,6 @@
 import { API_ROOT } from '../src/io/cloud/cloud-contract';
 import * as auth from './auth';
+import { deleteAccount } from './account';
 import { Ctx } from './context';
 import type { Env, Fetcher } from './env';
 import { ApiError, errorResponse, fail, json, STATUS } from './http';
@@ -27,6 +28,7 @@ const route = (method: string, path: string, run: Handler): Route => ({ method, 
 const ROUTES: readonly Route[] = [
   route('GET', '/config', auth.config),
   route('GET', '/me', auth.me),
+  route('DELETE', '/me', deleteAccount),
   route('GET', '/auth/signin', auth.signInWindow),
   route('POST', '/auth/google', auth.googleSignIn),
   route('POST', '/auth/dev', auth.devSignIn),
@@ -52,6 +54,14 @@ const ROUTES: readonly Route[] = [
 ];
 
 const READS: ReadonlySet<string> = new Set(['GET', 'HEAD']);
+const STORAGE_FULL = /HOODOO_STORAGE_FULL/;
+const ACCOUNT_DELETING = /HOODOO_ACCOUNT_DELETING/;
+const DAILY_QUOTA = /(?:daily|per.day).*(?:limit|quota)|(?:limit|quota).*(?:daily|per.day)|(?:D1|KV).*(?:quota|limit exceeded)|(?:KV|D1).*(?:too many|rate limit)/i;
+
+function errorText(error: unknown): string {
+  if (!(error instanceof Error)) return String(error);
+  return `${error.message} ${error.cause ? errorText(error.cause) : ''}`;
+}
 
 export const isApi = (url: URL): boolean => url.pathname === API_ROOT || url.pathname.startsWith(`${API_ROOT}/`);
 
@@ -71,6 +81,10 @@ export async function handleApi(request: Request, env: Env, fetcher: Fetcher, no
     } catch (error) {
       if (error instanceof ApiError) return errorResponse(error);
       console.error('[cloud] request failed', { method, path: url.pathname }, error);
+      const message = errorText(error);
+      if (STORAGE_FULL.test(message)) return errorResponse(fail.storageFull());
+      if (ACCOUNT_DELETING.test(message)) return errorResponse(fail.forbidden('Account deletion is in progress'));
+      if (DAILY_QUOTA.test(message)) return errorResponse(fail.busy());
       return json({ error: 'server', message: 'The server failed, try again' }, STATUS.server);
     }
   }

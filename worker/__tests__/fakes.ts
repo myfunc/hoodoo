@@ -1,4 +1,5 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { createRequire } from 'node:module';
 import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import type { Database, Env, Fetcher, KeyValue, Statement } from '../env';
@@ -31,7 +32,10 @@ class SqliteStatement implements Statement {
 export function memoryDatabase(): Database & { sql: DatabaseSync } {
   const sql = new sqlite.DatabaseSync(':memory:');
   sql.exec('PRAGMA foreign_keys = ON');
-  sql.exec(readFileSync(new URL('../../migrations/0001_cloud.sql', import.meta.url), 'utf8'));
+  const migrations = new URL('../../migrations/', import.meta.url);
+  for (const name of readdirSync(migrations).filter((name) => name.endsWith('.sql')).sort()) {
+    sql.exec(readFileSync(new URL(name, migrations), 'utf8'));
+  }
   return {
     sql,
     prepare: (text) => new SqliteStatement(sql, text),
@@ -54,6 +58,10 @@ export function memoryFiles(): KeyValue & { keys: () => string[] } {
   const map = new Map<string, Uint8Array>();
   return {
     keys: () => [...map.keys()],
+    async list({ prefix, limit }) {
+      const keys = [...map.keys()].filter((key) => key.startsWith(prefix));
+      return { keys: keys.slice(0, limit).map((name) => ({ name })), list_complete: limit === undefined || keys.length <= limit };
+    },
     async get(key) {
       const data = map.get(key);
       return data ? new Blob([new Uint8Array(data)]).stream() : null;
@@ -94,7 +102,13 @@ export class TestClient {
       headers.set('Content-Type', 'application/json');
       body = JSON.stringify(o.json);
     } else if (o.form) body = o.form;
-    return handleApi(new Request(`${o.base ?? ORIGIN}${path}`, { method, headers, body }), this.env, this.fetcher, this.now);
+    let request = new Request(`${o.base ?? ORIGIN}${path}`, { method, headers, body });
+    if (o.form) {
+      const packed = await request.arrayBuffer();
+      request.headers.set('Content-Length', String(packed.byteLength));
+      request = new Request(request.url, { method, headers: request.headers, body: packed });
+    }
+    return handleApi(request, this.env, this.fetcher, this.now);
   }
 
   /** Dev sign-in; returns the cookie header to send back. */
@@ -112,11 +126,15 @@ export function cookieFrom(res: Response): string {
   return set.split(';')[0];
 }
 
-const GZIP_HEAD = [0x1f, 0x8b, 8, 0];
-const JPEG_HEAD = [0xff, 0xd8, 0xff, 0xe0];
-
-export const fakeScene = (n = 64): Uint8Array => new Uint8Array([...GZIP_HEAD, ...new Array(n).fill(7)]);
-export const fakeThumb = (n = 64): Uint8Array => new Uint8Array([...JPEG_HEAD, ...new Array(n).fill(9)]);
+export const fakeScene = (n = 64): Uint8Array => new Uint8Array(gzipSync(JSON.stringify({
+  format: 'hoodoo-scene', version: 3, scene: { objects: [] }, padding: 'x'.repeat(n),
+})));
+const JPEG = readFileSync(new URL('./thumb.jpg', import.meta.url));
+export const fakeThumb = (n = 64): Uint8Array => {
+  const bytes = new Uint8Array(Math.max(n, JPEG.length));
+  bytes.set(JPEG);
+  return bytes;
+};
 
 export function upload(name: string, scene: Uint8Array = fakeScene(), thumb: Uint8Array | null = fakeThumb()): FormData {
   const form = new FormData();

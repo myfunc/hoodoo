@@ -41,3 +41,29 @@ export const fileKeys = (folder: string, id: string, version: string) => ({
 });
 
 export const FOLDER = { project: 'projects', post: 'posts' } as const;
+const DELETE_PAGE_SIZE = 4;
+
+/** Include obsolete versions left by an interrupted save, in both stores. */
+export async function deleteFolderPage(env: Env, folder: string, id: string, currentKeys: readonly string[]): Promise<boolean> {
+  const prefix = `${folder}/${id}/`;
+  const keys = new Set(currentKeys);
+  let complete = true;
+  if (env.FILES) {
+    const page = await env.FILES.list({ prefix, limit: DELETE_PAGE_SIZE });
+    page.objects.forEach((object) => keys.add(object.key));
+    complete = !page.truncated;
+  }
+  if (env.FILES_KV) {
+    const page = await env.FILES_KV.list({ prefix, limit: DELETE_PAGE_SIZE });
+    page.keys.forEach((key) => keys.add(key.name));
+    complete = complete && page.list_complete;
+  }
+  await filesOf(env).delete([...keys]);
+  return complete;
+}
+
+export async function deleteFolder(env: Env, folder: string, id: string, currentKeys: readonly string[]): Promise<void> {
+  while (!await deleteFolderPage(env, folder, id, currentKeys)) {
+    // Delete before listing the next page, so an interrupted request can resume.
+  }
+}

@@ -43,6 +43,12 @@ export const CLOUD = {
   unhide: 'Unhide',
   clearReports: 'Clear reports',
   hiddenBadge: 'Hidden by a moderator',
+  hiddenWhy: (reason: string) => `Hidden: ${reason}`,
+  deleteAccount: 'Delete account…',
+  deleteAccountTitle: 'Delete account',
+  deleteAccountAsk: (email: string) => `Delete the Hoodoo Cloud account ${email}?`,
+  deleteAccountWhat: 'Projects, posts, likes and reports go at once; no undo',
+  accountDeleted: 'Account deleted: nothing of it stays in the cloud',
   reports: (n: number, reasons: string) => `${n} report${n === 1 ? '' : 's'}: ${reasons}`,
   openTitle: 'Open a copy in the editor (Undo goes back)',
   opened: (name: string) => `Opened ${name} · Undo goes back`,
@@ -71,6 +77,7 @@ export const CLOUD = {
 } as const;
 
 export const REASON_LABELS: Readonly<Record<ReportReason, string>> = {
+  [ReportReason.Illegal]: 'Illegal or sexual content, child safety',
   [ReportReason.Spam]: 'Spam',
   [ReportReason.Offensive]: 'Offensive',
   [ReportReason.Broken]: 'Broken',

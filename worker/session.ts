@@ -18,6 +18,7 @@ export interface Session {
   readonly user: CloudUser;
   readonly tokenHash: string;
   readonly humanUntil: number;
+  readonly deleting: boolean;
 }
 
 interface SessionRow {
@@ -26,6 +27,7 @@ interface SessionRow {
   id: string;
   name: string;
   email: string;
+  deleting: number;
 }
 
 const userOf = (env: Env, row: { id: string; name: string; email: string }): CloudUser => ({
@@ -36,9 +38,9 @@ export async function currentSession(env: Env, request: Request, now: number): P
   const token = cookieOf(request, SESSION_COOKIE);
   if (!token) return null;
   const row = await env.DB.prepare(
-    'SELECT s.token_hash, s.human_until, u.id, u.name, u.email FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ?',
+    'SELECT s.token_hash, s.human_until, u.id, u.name, u.email, u.deleting FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ? AND s.expires_at > ?',
   ).bind(await sha256Hex(token), now).first<SessionRow>();
-  return row ? { user: userOf(env, row), tokenHash: row.token_hash, humanUntil: row.human_until } : null;
+  return row ? { user: userOf(env, row), tokenHash: row.token_hash, humanUntil: row.human_until, deleting: row.deleting === 1 } : null;
 }
 
 /** The account of this Google (or dev) identity, made on first sign-in, and a new session for it. */

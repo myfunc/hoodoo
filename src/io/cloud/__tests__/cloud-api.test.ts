@@ -25,6 +25,15 @@ describe('cloud scene packing', () => {
 });
 
 describe('cloud API client', () => {
+  it('continues account deletion batches until the cookie-clearing response', async () => {
+    const requests: string[] = [];
+    const api = new CloudApi('/api', async (url, init) => {
+      requests.push(`${init?.method} ${String(url)}`);
+      return requests.length < 3 ? Response.json({ deleting: true }, { status: 202 }) : new Response(null, { status: 204 });
+    });
+    await api.deleteAccount();
+    expect(requests).toEqual(['DELETE /api/me', 'DELETE /api/me', 'DELETE /api/me']);
+  });
   it('reads answers and turns refusals into CloudErrors with the server message', async () => {
     expect(await new CloudApi('/api', reply({ user: null })).me()).toBeNull();
     const refused = new CloudApi('/api', reply({ error: CloudErrorCode.Human, message: 'Confirm you are human' }, 428));

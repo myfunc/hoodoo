@@ -1,8 +1,9 @@
 import { CLOUD_LIMITS, type CloudProject, SCENE_MIME, THUMB_MIME } from '../src/io/cloud/cloud-contract';
 import { type Ctx, readUpload } from './context';
-import { FOLDER, fileKeys, filesOf } from './files';
+import { deleteFolder, FOLDER, fileKeys, filesOf } from './files';
 import { bytes, fail, json, newId, noContent, STATUS } from './http';
 import { Limited, spend } from './rate';
+import { checkStorage, storeUpload } from './storage';
 
 /** Private cloud saves: each user sees, opens, replaces and deletes only their own. */
 
@@ -11,6 +12,7 @@ interface ProjectRow {
   user_id: string;
   name: string;
   size: number;
+  thumb_size: number;
   scene_key: string;
   thumb_key: string | null;
   updated_at: number;
@@ -41,18 +43,17 @@ export async function listProjects(c: Ctx): Promise<Response> {
 
 export async function createProject(c: Ctx): Promise<Response> {
   const s = await c.signedIn();
-  const files = filesOf(c.env);
+  filesOf(c.env);
   await spend(c.env.DB, s.user.id, Limited.Save, c.now);
   const count = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM projects WHERE user_id = ?').bind(s.user.id).first<{ n: number }>();
   if ((count?.n ?? 0) >= CLOUD_LIMITS.projectsPerUser) throw fail.tooMany(`At most ${CLOUD_LIMITS.projectsPerUser} cloud projects: delete some first`);
   const up = await readUpload(c.request);
+  await checkStorage(c.env, s.user.id, up);
   const id = newId();
   const keys = fileKeys(FOLDER.project, id, newId());
-  await files.put(keys.scene, up.scene);
-  if (up.thumb) await files.put(keys.thumb, up.thumb);
-  const row: ProjectRow = { id, user_id: s.user.id, name: up.name, size: up.scene.length, scene_key: keys.scene, thumb_key: up.thumb ? keys.thumb : null, updated_at: c.now };
-  await c.env.DB.prepare('INSERT INTO projects (id, user_id, name, size, scene_key, thumb_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-    .bind(row.id, row.user_id, row.name, row.size, row.scene_key, row.thumb_key, c.now, c.now).run();
+  const row: ProjectRow = { id, user_id: s.user.id, name: up.name, size: up.scene.length, thumb_size: up.thumb?.length ?? 0, scene_key: keys.scene, thumb_key: up.thumb ? keys.thumb : null, updated_at: c.now };
+  await storeUpload(c.env, keys, up, () => c.env.DB.prepare('INSERT INTO projects (id, user_id, name, size, thumb_size, scene_key, thumb_key, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .bind(row.id, row.user_id, row.name, row.size, row.thumb_size, row.scene_key, row.thumb_key, c.now, c.now).run());
   return json({ project: projectOf(row) }, STATUS.created);
 }
 
@@ -62,20 +63,30 @@ export async function replaceProject(c: Ctx): Promise<Response> {
   const files = filesOf(c.env);
   await spend(c.env.DB, old.user_id, Limited.Save, c.now);
   const up = await readUpload(c.request);
+  await checkStorage(c.env, old.user_id, up, old.size + old.thumb_size);
   const keys = fileKeys(FOLDER.project, old.id, newId());
-  await files.put(keys.scene, up.scene);
-  if (up.thumb) await files.put(keys.thumb, up.thumb);
-  const row: ProjectRow = { ...old, name: up.name, size: up.scene.length, scene_key: keys.scene, thumb_key: up.thumb ? keys.thumb : null, updated_at: c.now };
-  await c.env.DB.prepare('UPDATE projects SET name = ?, size = ?, scene_key = ?, thumb_key = ?, updated_at = ? WHERE id = ?')
-    .bind(row.name, row.size, row.scene_key, row.thumb_key, c.now, row.id).run();
+  const row: ProjectRow = { ...old, name: up.name, size: up.scene.length, thumb_size: up.thumb?.length ?? 0, scene_key: keys.scene, thumb_key: up.thumb ? keys.thumb : null, updated_at: c.now };
+  await storeUpload(c.env, keys, up, async () => {
+    const saved = await c.env.DB.prepare('UPDATE projects SET name = ?, size = ?, thumb_size = ?, scene_key = ?, thumb_key = ?, updated_at = ? WHERE id = ? AND scene_key = ? AND deleting = 0')
+      .bind(row.name, row.size, row.thumb_size, row.scene_key, row.thumb_key, c.now, row.id, old.scene_key).run();
+    if (!saved.meta.changes) throw fail.invalid('The project changed during this save: try again');
+  });
   await files.delete([old.scene_key, old.thumb_key].filter((k): k is string => !!k));
   return json({ project: projectOf(row) });
 }
 
 export async function deleteProject(c: Ctx): Promise<Response> {
   const row = await ownProject(c);
-  await c.env.DB.prepare('DELETE FROM projects WHERE id = ?').bind(row.id).run();
-  await filesOf(c.env).delete([row.scene_key, row.thumb_key].filter((k): k is string => !!k));
+  const db = c.env.DB;
+  const reserved = await db.prepare('UPDATE projects SET deleting = 1 WHERE id = ? AND scene_key = ? AND deleting = 0').bind(row.id, row.scene_key).run();
+  if (!reserved.meta.changes) throw fail.invalid('The project changed during deletion: try again');
+  try {
+    await deleteFolder(c.env, FOLDER.project, row.id, [row.scene_key, row.thumb_key].filter((k): k is string => !!k));
+    await db.prepare('DELETE FROM projects WHERE id = ?').bind(row.id).run();
+  } catch (error) {
+    await db.prepare('UPDATE projects SET deleting = 0 WHERE id = ?').bind(row.id).run();
+    throw error;
+  }
   return noContent();
 }
 

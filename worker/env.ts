@@ -23,6 +23,7 @@ export interface Bucket {
   get(key: string): Promise<{ body: ReadableStream } | null>;
   put(key: string, value: ArrayBuffer | Uint8Array, options?: { httpMetadata?: { contentType?: string } }): Promise<unknown>;
   delete(keys: string | string[]): Promise<void>;
+  list(options: { prefix: string; cursor?: string; limit?: number }): Promise<{ objects: { key: string }[]; truncated: boolean; cursor?: string }>;
 }
 
 /** KV (the file store while R2 is not enabled on the account). */
@@ -30,6 +31,7 @@ export interface KeyValue {
   get(key: string, type: 'stream'): Promise<ReadableStream | null>;
   put(key: string, value: ArrayBuffer | Uint8Array): Promise<void>;
   delete(key: string): Promise<void>;
+  list(options: { prefix: string; cursor?: string; limit?: number }): Promise<{ keys: { name: string }[]; list_complete: boolean; cursor?: string }>;
 }
 
 /** The static site (dist/) the Worker sits in front of. */

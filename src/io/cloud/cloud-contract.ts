@@ -11,11 +11,16 @@ const MB = KB * KB;
 
 export const CLOUD_LIMITS = {
   /** A scene travels gzipped; real scenes with terrains pack to a few hundred KB. */
-  sceneBytes: 5 * MB,
+  sceneBytes: 2 * MB,
+  unpackedSceneBytes: 20 * MB,
+  storageBytes: 50 * MB,
+  thumbWidth: 480,
+  thumbHeight: 300,
   thumbBytes: 500 * KB,
   /** Project names and gallery titles. */
   nameChars: 80,
   reportChars: 200,
+  hideReasonChars: 200,
   projectsPerUser: 200,
   pageSize: 24,
   /** The deepest page a gallery list serves. */
@@ -44,6 +49,7 @@ export enum ModFilter {
 }
 
 export enum ReportReason {
+  Illegal = 'illegal',
   Spam = 'spam',
   Offensive = 'offensive',
   Broken = 'broken',
@@ -57,6 +63,8 @@ export enum CloudErrorCode {
   Human = 'human',
   TooMany = 'too-many',
   TooLarge = 'too-large',
+  StorageFull = 'storage-full',
+  Busy = 'busy',
   NotFound = 'not-found',
   Forbidden = 'forbidden',
   Invalid = 'invalid',
@@ -115,9 +123,12 @@ export interface GalleryPost {
   readonly mine: boolean;
   /** Hidden by a moderator: seen only by its author and moderators. */
   readonly hidden: boolean;
+  /** The author and moderators only. */
+  readonly hiddenReason?: string | null;
   readonly thumb: string | null;
   /** Moderators only. */
   readonly reports?: number;
+  readonly authorId?: string;
   readonly reportNotes?: readonly ReportNote[];
 }
 
