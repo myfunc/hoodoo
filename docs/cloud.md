@@ -13,6 +13,9 @@ public site works as before.
 3. Authorised JavaScript origins: `https://hoodoo.myfunc.io` and `http://localhost:5754`. No redirect URIs.
 4. Copy the Client ID into `wrangler.jsonc` › `vars.GOOGLE_CLIENT_ID` (it is public) and release with `npm run deploy`.
 5. Until then the app shows "Cloud sign-in is not configured"; the Gallery still lists.
+6. The consent screen needs a home page, `privacy.html` and `terms.html` (in `public/`) before it can leave Testing; only the basic `openid email profile` scopes are used, so no verification is needed.
+
+The public instance uses Google Cloud project `hoodoo-511421`.
 
 ## How it is built
 

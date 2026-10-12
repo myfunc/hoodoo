@@ -23,7 +23,7 @@
   // local values live in .dev.vars (see .dev.vars.example).
   "vars": {
     // OAuth client ID from Google Cloud (docs/cloud.md); empty: Google sign-in is off.
-    "GOOGLE_CLIENT_ID": "",
+    "GOOGLE_CLIENT_ID": "931000727741-cts1q32nmgag7ds5jgdpnlm24m5v5qmu.apps.googleusercontent.com",
     "TURNSTILE_SITE_KEY": "0x4AAAAAAFU1-iXb5Qrf47xd"
   }
 }
