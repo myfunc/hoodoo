@@ -19,7 +19,7 @@ export enum CloudPage {
 /** Like and dislike marks: a triangle up and one down. */
 const VOTE_GLYPH = { up: ['M6 15h12l-6-7z'], down: GLYPH.triangleDown } as const;
 
-const DIALOGS_OVER = '.ui-overlay:has(> .cloud-dialog), .cloud-human';
+const DIALOGS_OVER = '.ui-overlay:has(> .cloud-dialog), .cloud-human, .signin-window';
 
 /** Whatever a page lists: gallery posts or the user's projects. */
 type Item = { kind: 'post'; post: GalleryPost } | { kind: 'project'; project: CloudProject };

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.3 — 2026-10-12
+
+### Changed
+- Cloud sign-in opens in the editor, not in a pop-up: the start window's stone
+  with your scene's picture, what the cloud gives, Google's button and links to
+  the terms and privacy page. The pop-up stays one click away for a browser
+  that will not sign in inside a frame.
+
 ## 0.12.2 — 2026-10-12
 
 ### Added

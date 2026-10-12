@@ -5,8 +5,10 @@ import { base64Url, escapeHtml } from './http';
  * Two small pages the Worker serves itself, so the editor's own strict policy
  * (public/_headers: no outside scripts, Trusted Types) never has to admit Google's
  * or Cloudflare's scripts:
- * - the sign-in window (/api/auth/signin), opened as a pop-up: Sign in with Google,
- *   or the dev form on localhost; it tells the editor over a BroadcastChannel and closes;
+ * - the sign-in page (/api/auth/signin): Sign in with Google, or the dev form on
+ *   localhost. With ?frame=1 it is only the button, framed in the editor's own sign-in
+ *   window on its stone, and tells the editor with postMessage; on its own (the
+ *   fallback pop-up) it tells it over a BroadcastChannel and closes;
  * - the human check (/api/human), framed inside the editor: a Turnstile widget that
  *   posts its token here and tells the editor with postMessage.
  */
@@ -34,6 +36,22 @@ button:hover { background: #2f8f8a; }
 #status { min-height: 18px; color: #7fd6cf; }
 #status.is-bad { color: #ff9a8a; }
 body.is-frame main { padding: 8px; }
+/* Framed by the editor's sign-in window: see-through onto its stone. The scheme stays light in both
+   themes, as on the frame element, or the browser paints the frame opaque. */
+body.is-signin-frame { background: transparent; color: #2b2b2b; }
+:root:has(body.is-signin-frame) { color-scheme: light; }
+body.is-signin-frame main { padding: 2px; }
+body.is-signin-frame #google { min-height: 40px; margin: 0 0 6px; }
+body.is-signin-frame form { border-top-color: #9a9a94; }
+body.is-signin-frame input { background: #f4f4f0; color: #222; border-color: #6a6a66; }
+body.is-signin-frame .soft { color: #5a5a56; }
+body.is-signin-frame #status { color: #1f6f6a; margin: 0; }
+body.is-signin-frame #status.is-bad { color: #a8302a; }
+body.is-signin-frame.is-dark { color: #d8d8d2; }
+body.is-signin-frame.is-dark input { background: #1b1b1e; color: #eee; border-color: #111; }
+body.is-signin-frame.is-dark .soft { color: #9a9a94; }
+body.is-signin-frame.is-dark #status { color: #7fd6cf; }
+body.is-signin-frame.is-dark #status.is-bad { color: #ff9a8a; }
 `;
 
 const json = (value: unknown): string => JSON.stringify(value).replace(/</g, '\\u003c');
@@ -63,23 +81,33 @@ export interface SignInPage {
   readonly clientId: string | null;
   readonly nonce: string;
   readonly devLogin: boolean;
+  /** Framed in the editor's sign-in window: the button alone, light, reports with postMessage. */
+  readonly framed: boolean;
+  /** The editor's theme, for the frame's few words and Google's button. */
+  readonly dark: boolean;
 }
 
+/** The frame's button: as wide as the window's frame (ui/cloud/sign-in-window.ts). */
+const FRAME_BUTTON_W = 300;
+
 export function signInPage(p: SignInPage): string {
-  const body = `<h1>Hoodoo Cloud</h1>
-<p class="soft">Save your scenes to the cloud and post them to the Gallery.</p>
+  const head = p.framed ? '' : `<h1>Hoodoo Cloud</h1>
+<p class="soft">Save your scenes to the cloud and post them to the Gallery.</p>`;
+  const body = `${head}
 ${p.clientId ? '<div id="google"></div>' : p.devLogin ? '' : '<p>Cloud sign-in is not configured on this server.</p>'}
 ${p.devLogin ? `<form id="dev" autocomplete="off"><label for="dev-email">Email</label><input id="dev-email" type="email" required value="tester@example.com">
 <label for="dev-name">Name</label><input id="dev-name" required value="Tester"><button type="submit">Dev sign-in</button></form>
 <p class="soft">Dev sign-in: localhost only, never on the public site.</p>` : ''}
 <p id="status" role="status"></p>`;
   const script = `${SCRIPT_BASE}
-const CONFIG = ${json({ clientId: p.clientId, nonce: p.nonce, channel: SIGNIN_CHANNEL, signedIn: SIGNED_IN })};
+const CONFIG = ${json({ clientId: p.clientId, nonce: p.nonce, channel: SIGNIN_CHANNEL, signedIn: SIGNED_IN, framed: p.framed, theme: p.dark ? 'filled_black' : 'outline' })};
 const CLOSE_MS = 700;
 function done(out) {
   new BroadcastChannel(CONFIG.channel).postMessage({ type: CONFIG.signedIn });
-  say('Signed in as ' + out.user.name + '. You can go back to Hoodoo.');
-  setTimeout(() => window.close(), CLOSE_MS);
+  say('Signed in as ' + out.user.name + (CONFIG.framed ? '' : '. You can go back to Hoodoo.'));
+  // The frame and the editor share the origin: the message goes to that origin only.
+  if (CONFIG.framed) parent.postMessage({ type: CONFIG.signedIn }, location.origin);
+  else setTimeout(() => window.close(), CLOSE_MS);
 }
 const failed = (error) => say(error.message, true);
 const dev = document.getElementById('dev');
@@ -94,12 +122,14 @@ window.onGoogleLibraryLoad = () => {
     client_id: CONFIG.clientId, nonce: CONFIG.nonce, ux_mode: 'popup', use_fedcm_for_button: true, itp_support: true,
     callback: (r) => { say('Signing in…'); post('/api/auth/google', { credential: r.credential }).then(done, failed); },
   });
-  google.accounts.id.renderButton(document.getElementById('google'), { theme: 'filled_black', size: 'large', shape: 'rectangular', text: 'signin_with', width: 280 });
+  google.accounts.id.renderButton(document.getElementById('google'), CONFIG.framed
+    ? { theme: CONFIG.theme, size: 'large', shape: 'rectangular', text: 'continue_with', width: ${FRAME_BUTTON_W} }
+    : { theme: 'filled_black', size: 'large', shape: 'rectangular', text: 'signin_with', width: 280 });
 };`;
-  return page('Sign in · Hoodoo', p.nonce, body, script, p.clientId ? GSI_SCRIPT : null);
+  return page('Sign in · Hoodoo', p.nonce, body, script, p.clientId ? GSI_SCRIPT : null, p.framed ? `is-signin-frame${p.dark ? ' is-dark' : ''}` : '');
 }
 
-export function signInPolicy(nonce: string): string {
+export function signInPolicy(nonce: string, framed: boolean): string {
   return [
     "default-src 'none'",
     `script-src 'nonce-${nonce}' ${GSI_SCRIPT}`,
@@ -109,7 +139,7 @@ export function signInPolicy(nonce: string): string {
     'frame-src https://accounts.google.com/gsi/',
     "connect-src 'self' https://accounts.google.com/gsi/",
     "img-src 'self' data: https://*.googleusercontent.com",
-    "base-uri 'none'", "form-action 'none'", "frame-ancestors 'none'",
+    "base-uri 'none'", "form-action 'none'", `frame-ancestors ${framed ? "'self'" : "'none'"}`,
   ].join('; ');
 }
 
@@ -139,7 +169,7 @@ export function humanPolicy(nonce: string): string {
   ].join('; ');
 }
 
-/** Headers of an HTML page: its policy, the right to open Google's pop-up (sign-in) or to be framed by the editor (human). */
+/** Headers of an HTML page: its policy, the right to open Google's pop-up (sign-in) or to be framed by the editor (human, framed sign-in). */
 export function pageHeaders(policy: string, framed: boolean): Record<string, string> {
   return {
     'Content-Type': 'text/html; charset=utf-8',

@@ -29,9 +29,10 @@ export async function me(c: Ctx): Promise<Response> {
 
 export function signInWindow(c: Ctx): Response {
   const nonce = newNonce();
-  const html = signInPage({ clientId: clientIdOf(c.env), nonce, devLogin: devLoginOn(c.env, c.url) });
+  const framed = c.url.searchParams.get('frame') === '1';
+  const html = signInPage({ clientId: clientIdOf(c.env), nonce, devLogin: devLoginOn(c.env, c.url), framed, dark: c.url.searchParams.get('theme') === 'dark' });
   return new Response(html, {
-    headers: { ...pageHeaders(signInPolicy(nonce), false), 'Set-Cookie': setCookie({ name: NONCE_COOKIE, value: nonce, maxAgeS: NONCE_S }) },
+    headers: { ...pageHeaders(signInPolicy(nonce, framed), framed), 'Set-Cookie': setCookie({ name: NONCE_COOKIE, value: nonce, maxAgeS: NONCE_S }) },
   });
 }
 

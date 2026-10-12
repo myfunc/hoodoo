@@ -10,6 +10,7 @@ import { type LinkedProject, openPublishDialog, openSaveDialog } from './cloud-d
 import { CLOUD } from './cloud-strings';
 import { CloudPage, CloudWindow } from './cloud-window';
 import { humanCheck } from './human-check';
+import { openSignInWindow } from './sign-in-window';
 import './cloud.css';
 
 /** The picture sent with a save or a post: a 16:10 JPEG cut from the scene window's render. */
@@ -100,6 +101,12 @@ export class CloudUi {
       return;
     }
     this.pending = then ?? null;
+    // The window closes itself once signed in; the BroadcastChannel above carries on from there.
+    void openSignInWindow({ picture: this.ctx.view.capture(), popUp: () => this.signInPopUp() });
+  }
+
+  /** The old pop-up, for a browser that will not sign in inside the window's frame. */
+  private signInPopUp(): void {
     const popup = window.open(CLOUD_PAGES.signIn, SIGNIN_NAME, SIGNIN_WINDOW);
     if (!popup) showToast(CLOUD.popupBlocked);
   }
