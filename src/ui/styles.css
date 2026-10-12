@@ -308,6 +308,9 @@ input { font: inherit; }
 }
 .panel { display: flex; flex-direction: column; min-height: 0; border-bottom: 1px solid rgba(0,0,0,0.12); box-shadow: 0 1px 0 var(--hi); }
 .panel.grow { flex: 1; }
+/* Attributes keeps the height of one selected object (its tallest view) from the start, so a change
+   of selection never shifts the scene list under the pointer; panels/properties.ts grows it further. */
+.attributes-panel .panel-body { min-height: 173px; flex: none; }
 .panel-title { display: flex; align-items: center; gap: 6px; padding: 7px 8px 4px; }
 .panel-name { font: 800 15px/1 var(--font-title); color: #555; text-shadow: 0 1px 0 var(--hi), 0 -1px 0 rgba(0,0,0,0.08); letter-spacing: -0.01em; flex: 1; }
 /* The mark sits in an embossed teal pebble, like the rendered icons of the palettes. */

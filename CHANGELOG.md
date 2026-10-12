@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.2 — 2026-10-11
+
+### Fixed
+- The Attributes panel keeps one height whatever is selected (one object,
+  several, nothing), so the scene list below it no longer jumps between
+  clicks.
+
 ## 0.8.1 — 2026-10-11
 
 ### Changed

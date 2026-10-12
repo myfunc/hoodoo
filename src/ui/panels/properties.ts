@@ -48,11 +48,13 @@ export class Properties {
   private ball: { canvas: HTMLCanvasElement; material: Material } | null = null;
   private shownId: string | null = null;
   private readonly lens: CameraLens;
+  /** Tallest body shown so far: the panel never shrinks, so the scene list below stays put. */
+  private tallest = 0;
 
   constructor(private readonly ctx: UiContext) {
     this.lens = new CameraLens(ctx);
     this.body = el('div', { cls: 'panel-body' });
-    this.el = el('div', { cls: 'panel' }, [panelTitle('Attributes', GLYPH.move), this.body]);
+    this.el = el('div', { cls: 'panel attributes-panel' }, [panelTitle('Attributes', GLYPH.move), this.body]);
     ctx.world.events.on('selection', () => this.rebuild());
     ctx.world.events.on('changed', ({ kind }) => {
       if (kind === ChangeKind.Objects || kind === ChangeKind.Time || kind === ChangeKind.All) this.sync();
@@ -66,6 +68,13 @@ export class Properties {
   }
 
   private rebuild(): void {
+    this.fill();
+    // Measured once the panel is on the page; before that the stylesheet's floor holds.
+    this.tallest = Math.max(this.tallest, this.body.scrollHeight);
+    if (this.tallest > 0) this.body.style.minHeight = `${this.tallest}px`;
+  }
+
+  private fill(): void {
     clearChildren(this.body);
     this.fields = [];
     this.booleans = [];
