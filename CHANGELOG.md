@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.2 - 2026-10-13
+
+### Fixed
+- When the live picture runs a few frames behind (a slow graphics card, a heavy
+  scene), the wireframe now waits for it: wires and picture move together instead
+  of the wires sliding ahead.
+
 ## 0.13.1 - 2026-10-13
 
 ### Changed

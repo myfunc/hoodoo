@@ -8,7 +8,7 @@ import { GpuTimer } from './gpu-timer';
 import { CENTER_JITTER, jitter } from './halton';
 import { REALTIME } from './realtime';
 import { STRIP_PACE, StripPacer } from './strip-pacer';
-import type { RealtimeStatus, ViewRenderer } from './view-renderer';
+import type { RealtimeStatus, ShownFrame, ViewRenderer } from './view-renderer';
 
 /** Shadow rays per light and ray for each Soft shadows choice; 0 draws soft shadows hard. */
 export const SHADOW_RAYS: Readonly<Record<ShadowQuality, number>> = {
@@ -71,6 +71,7 @@ export class FinalView implements ViewRenderer {
   private nextBasis: ViewBasis | null = null;
   private scene: Scene | null = null;
   private basis: ViewBasis | null = null;
+  private shownFrame: ShownFrame | null = null;
   private changed = false;
   private samples = 0;
   private rowsDone = 0;
@@ -139,6 +140,7 @@ export class FinalView implements ViewRenderer {
   reset(): void {
     this.scene = null;
     this.basis = null;
+    this.shownFrame = null;
     this.nextScene = null;
     this.nextBasis = null;
     this.hasImage = false;
@@ -154,6 +156,11 @@ export class FinalView implements ViewRenderer {
     this.lastChange = performance.now();
     // A pass that only refines the old picture is not worth finishing; a first pass is.
     if (this.samples > 0) this.rowsDone = 0;
+  }
+
+  /** The scene and view of the last whole pass on screen. */
+  get shown(): ShownFrame | null {
+    return this.hasImage ? this.shownFrame : null;
   }
 
   get imageReady(): boolean {
@@ -188,7 +195,7 @@ export class FinalView implements ViewRenderer {
         this.trace(0, this.height);
         this.samples++;
       }
-      this.shown();
+      this.showPass();
     } else {
       const rowEnd = this.height - this.rowsDone;
       this.trace(rowEnd - work.rows, rowEnd);
@@ -196,7 +203,7 @@ export class FinalView implements ViewRenderer {
       if (this.rowsDone >= this.height) {
         this.rowsDone = 0;
         this.samples++;
-        this.shown();
+        this.showPass();
       }
     }
     this.pacer.queued(work.passes > 0 ? work.passes * this.width * this.height : work.rows * this.width);
@@ -264,8 +271,9 @@ export class FinalView implements ViewRenderer {
   }
 
   /** Passes were added to the average: show it. */
-  private shown(): void {
+  private showPass(): void {
     this.hasImage = true;
+    if (this.shownFrame?.scene !== this.scene || this.shownFrame?.basis !== this.basis) this.shownFrame = { scene: this.scene!, basis: this.basis! };
     const now = performance.now();
     if (this.lastShown) this.fps += (MS_PER_S / Math.max(1, now - this.lastShown) - this.fps) * SMOOTHING;
     this.lastShown = now;

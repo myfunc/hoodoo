@@ -10,7 +10,7 @@ import { DEFAULT_LIVE_BOUNCES } from '../../world/render-setup';
 import { LIVE_MODES, type LiveMode, liveBounces, raysWorth } from './live-quality';
 import { MOTION_SCALE, MotionScale } from './motion-scale';
 import { STRIP_PACE, StripPacer } from './strip-pacer';
-import type { RealtimeStatus, ViewRenderer } from './view-renderer';
+import type { RealtimeStatus, ShownFrame, ViewRenderer } from './view-renderer';
 
 /** Real-time viewport tuning. */
 export const REALTIME = {
@@ -99,6 +99,8 @@ export class RealtimeRenderer implements ViewRenderer {
   private fps = 0;
   private lastFrameEnd = 0;
   private hasImage = false;
+  /** The scene and view of the frame on screen: a slow GPU shows a change a few frames late. */
+  private shownFrame: ShownFrame | null = null;
   private readonly timer: GpuTimer;
   private readonly previewTimer: GpuTimer;
   private readonly fence: GpuFence;
@@ -145,6 +147,7 @@ export class RealtimeRenderer implements ViewRenderer {
     this.scene = null;
     this.basis = null;
     this.hasImage = false;
+    this.shownFrame = null;
     this.previewScale = 0;
     this.previewBasis = null;
     this.restart();
@@ -216,6 +219,10 @@ export class RealtimeRenderer implements ViewRenderer {
     return this.hasImage;
   }
 
+  get shown(): ShownFrame | null {
+    return this.shownFrame;
+  }
+
   get converged(): boolean {
     return this.samples >= this.target && !this.moving;
   }
@@ -269,6 +276,7 @@ export class RealtimeRenderer implements ViewRenderer {
       this.rowsDone = 0;
       this.samples++;
       this.hasImage = true;
+      this.showing();
       this.countFrame();
       this.present();
     }
@@ -340,8 +348,16 @@ export class RealtimeRenderer implements ViewRenderer {
     this.samples = 0;
     this.rowsDone = 0;
     this.hasImage = true;
+    this.showing();
     this.countFrame();
     this.present();
+  }
+
+  /** A whole frame of the current scene and view goes on screen. */
+  private showing(): void {
+    const scene = this.scene!;
+    const basis = this.basis!;
+    if (this.shownFrame?.scene !== scene || this.shownFrame.basis !== basis) this.shownFrame = { scene, basis };
   }
 
   /** The targets a still-camera frame needs: the new rays, and the one the result goes to. */

@@ -21,6 +21,12 @@ export interface FinalProgress {
   readonly elapsedMs: number;
 }
 
+/** The scene and view a picture on screen was traced with: the wires draw these, so they lag with the picture. */
+export interface ShownFrame {
+  readonly scene: Scene;
+  readonly basis: ViewBasis;
+}
+
 /**
  * A renderer that redraws the single view by itself while its picture mode is on
  * (SceneView picks one per world.enums PictureMode): the live preview (realtime.ts)
@@ -42,4 +48,6 @@ export interface ViewRenderer {
   /** Forgets the picture: the next update starts afresh. */
   reset(): void;
   status(): RealtimeStatus;
+  /** What the picture on screen shows; null or missing: the wires follow the editor at once. */
+  readonly shown?: ShownFrame | null;
 }

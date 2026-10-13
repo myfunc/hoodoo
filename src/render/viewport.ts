@@ -13,6 +13,7 @@ import { QuadLive } from './gpu/quad-live';
 import type { RealtimeRenderer, RealtimeStatus } from './gpu/realtime';
 import { PREVIEW_BOUNCES, PREVIEW_SAMPLES } from './gpu/render.constants';
 import { finalBounces } from '../world/render-setup';
+import type { ShownFrame } from './gpu/view-renderer';
 import { CONVERGE_FACTOR, ViewPictures } from './view-pictures';
 import { drawCellLabel, drawCellLine, fitFrame } from './view-cells';
 import { type Frame, type GizmoHandles, type SegmentIndex, WireProjector, drawWireframe } from './wire/wireframe';
@@ -111,6 +112,8 @@ export class SceneView {
   private height = 0;
   /** Play mode's source of frames, while a session runs. */
   private play: PlaySource | null = null;
+  /** The picture each cell's wires were last drawn for (`shownFor`). */
+  private wiresFor = new Map<ViewKind, ShownFrame | null>();
   /** The locked axes of a keyboard Move, Rotate or Size while it runs (input/key-transform.ts). */
   private guideState: AxisGuide | null = null;
 
@@ -129,7 +132,10 @@ export class SceneView {
     this.g = g;
     this.root.append(engine.canvas, this.wire);
     this.renderer = new ProgressiveRenderer(engine);
-    this.pictures = new ViewPictures(engine, editor, (st) => this.events.emit('live', st));
+    this.pictures = new ViewPictures(engine, editor, (st) => {
+      this.events.emit('live', st);
+      this.syncWires();
+    });
     this.realtime = this.pictures.realtime;
     this.quadLive = new QuadLive(engine);
     this.quadLive.target = editor.state.renderSamples;
@@ -349,6 +355,7 @@ export class SceneView {
     const step = () => {
       const more = this.editor.state.quad && this.quadLive.tick();
       this.events.emit('live', this.quadLive.status());
+      this.syncWires();
       if (more) requestAnimationFrame(step);
       else this.quadLoop = false;
     };
@@ -435,20 +442,43 @@ export class SceneView {
     st.height = `${f.h}px`;
   }
 
+  /**
+   * The scene and view of the live picture under a cell's wires, or null when the wires follow the
+   * editor at once. A slow GPU shows a change a few frames late; wires drawn from the same frame lag
+   * with it instead of sliding over the picture.
+   */
+  private shownFor(kind: ViewKind): ShownFrame | null {
+    if (!this.rendered || this.play) return null;
+    if (this.editor.state.quad) return this.quadLive.shown(kind);
+    return kind === this.mainCell()?.kind ? this.pictures.active()?.shown ?? null : null;
+  }
+
+  /** A new live frame went on screen: its wires go with it, in the same animation frame. */
+  private syncWires(): void {
+    if (this.cellsCache.some((c) => this.shownFor(c.kind) !== (this.wiresFor.get(c.kind) ?? null))) this.draw();
+  }
+
   private draw(): void {
     const g = this.g;
     const dpr = this.wire.width / Math.max(this.width, 1);
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.clearRect(0, 0, this.wire.width, this.wire.height);
     // Play mode shows the picture alone.
-    if (this.play) return;
+    if (this.play) {
+      this.wiresFor.clear();
+      return;
+    }
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const s = this.editor.state;
-    const scene = this.world.scene;
-    const aspect = scene.document.width / scene.document.height;
+    const editing = this.world.scene;
+    const aspect = editing.document.width / editing.document.height;
     for (const cell of this.cellsCache) {
-      const basis = this.basisFor(cell.kind, aspect);
-      Object.assign(cell, { basis });
+      // Input works on the editor's view; the wires show the picture's.
+      Object.assign(cell, { basis: this.basisFor(cell.kind, aspect) });
+      const shown = this.shownFor(cell.kind);
+      this.wiresFor.set(cell.kind, shown);
+      const scene = shown?.scene ?? editing;
+      const basis = shown?.basis ?? cell.basis;
       g.save();
       g.beginPath();
       g.rect(cell.rect.x, cell.rect.y, cell.rect.w, cell.rect.h);

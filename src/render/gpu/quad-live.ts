@@ -5,6 +5,7 @@ import { LiveQuality } from '../../world/world.enums';
 import type { RayEngine } from './engine';
 import { type Target, createTarget, deleteTarget } from './gl';
 import { RealtimeRenderer, type RealtimeStatus } from './realtime';
+import type { ShownFrame } from './view-renderer';
 
 /** A pane's picture area in canvas CSS pixels, top-left origin. */
 export interface PaneRect {
@@ -86,6 +87,11 @@ export class QuadLive<K> {
 
   has(key: K): boolean {
     return this.panes.has(key);
+  }
+
+  /** The scene and view of a pane's picture on screen (RealtimeRenderer.shown). */
+  shown(key: K): ShownFrame | null {
+    return this.panes.get(key)?.renderer.shown ?? null;
   }
 
   set target(samples: number) {
