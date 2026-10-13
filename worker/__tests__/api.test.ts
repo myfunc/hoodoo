@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CloudErrorCode, type GalleryPost, ModFilter, ReportReason } from '../../src/io/cloud/cloud-contract';
-import { RATE_LIMITS, Limited } from '../rate';
+import { CLOUD_POSTS_PER_DAY, RATE_LIMITS, Limited } from '../rate';
 import { SITEVERIFY_URL } from '../human';
 import { TestClient, testEnv, upload } from './fakes';
 
@@ -189,6 +189,17 @@ describe('cloud API: gallery, votes, reports, moderation', () => {
     const page0 = await body<{ posts: GalleryPost[]; more: boolean }>(await c.call('GET', '/api/posts?page=0'));
     expect(page0.posts.length).toBe(limit + 1);
     expect(page0.more).toBe(false);
+  });
+
+  it('stops all publishing for the day past the cloud budget', async () => {
+    const { env, c, alice } = await setup();
+    expect((await c.call('POST', '/api/posts', { cookie: alice, form: upload('First') })).status).toBe(201);
+    env.DB.sql.prepare("UPDATE rate SET count = ? WHERE user_id = '*'").run(CLOUD_POSTS_PER_DAY);
+    const over = await c.call('POST', '/api/posts', { cookie: alice, form: upload('Flood') });
+    expect(over.status).toBe(503);
+    expect((await body<{ error: string }>(over)).error).toBe(CloudErrorCode.Busy);
+    c.now += RATE_LIMITS[Limited.Publish].windowMs;
+    expect((await c.call('POST', '/api/posts', { cookie: alice, form: upload('Tomorrow') })).status).toBe(201);
   });
 
   it('answers unknown routes and methods as JSON', async () => {

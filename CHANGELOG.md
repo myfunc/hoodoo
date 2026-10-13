@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.13.1 - 2026-10-13
+
+### Changed
+- Gallery files are stored in Cloudflare R2; older files stay readable.
+- The whole cloud takes at most 1000 posts a day, so it stays inside the free
+  allowance of its storage; past that, publishing waits until tomorrow.
+
 ## 0.13.0 — 2026-10-13
 
 ### Changed

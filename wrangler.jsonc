@@ -2,7 +2,7 @@
 // dist/ is served as is with the headers from public/_headers; only /api/* runs
 // the Worker in worker/ (the cloud: sign-in and the public Gallery; docs/cloud.md).
 // To host your own copy, change the route (or drop it and set "workers_dev": true
-// for a free *.workers.dev address) and make your own D1 database and KV namespace.
+// for a free *.workers.dev address) and make your own D1 database, R2 bucket and KV namespace.
 {
   "name": "hoodoo",
   "main": "worker/index.ts",
@@ -17,8 +17,8 @@
   "dev": { "port": 8787, "host": "localhost:8787", "upstream_protocol": "http" },
   // Accounts, posts, votes, reports, rate limits and Gallery metadata. Schema: migrations/.
   "d1_databases": [{ "binding": "DB", "database_name": "hoodoo-cloud", "database_id": "0c854441-3679-4e2a-ba31-137368e3e1dc", "migrations_dir": "migrations" }],
-  // Scene files and pictures. R2 is preferred once it is enabled on the account: add
-  // "r2_buckets": [{ "binding": "FILES", "bucket_name": "hoodoo-cloud-files" }]; files already in KV stay readable.
+  // Scene files and pictures go to R2; files saved before R2 stay readable from KV.
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "hoodoo-cloud-files" }],
   "kv_namespaces": [{ "binding": "FILES_KV", "id": "408fe519a0e04ff7b31965ebe4248846" }],
   // Public settings. Secrets (TURNSTILE_SECRET, MODERATORS) are set with `wrangler secret put`;
   // local values live in .dev.vars (see .dev.vars.example).

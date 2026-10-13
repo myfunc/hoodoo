@@ -7,7 +7,7 @@ import { CACHE_CONTROL, edgeCache, evictPostFiles, fileCacheKey } from './cache'
 import { deleteFolder, FOLDER, fileKeys, filesOf } from './files';
 import { bytes, fail, json, newId, noContent, readJson, STATUS } from './http';
 import { requireHuman } from './human';
-import { Limited, spend } from './rate';
+import { Limited, spend, spendShared } from './rate';
 import type { Session } from './session';
 import { checkStorage, storeUpload } from './storage';
 
@@ -165,6 +165,7 @@ export async function publish(c: Ctx): Promise<Response> {
   filesOf(c.env);
   requireHuman(c.env, s, c.now);
   await spend(c.env.DB, s.user.id, Limited.Publish, c.now);
+  await spendShared(c.env.DB, c.now);
   const up = await readUpload(c.request);
   await checkStorage(c.env, s.user.id, up);
   const id = newId();

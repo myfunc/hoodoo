@@ -51,11 +51,10 @@ Google sign-in 30/hour per IP. A daily 03:17 UTC Cron purges expired sessions an
 rate rows older than one day: IP rows survive at most two days between runs.
 IP-only rows are not linked to an account.
 
-Scene files are gzipped `.hoodoo` JSON; pictures are JPEG. R2 binding `FILES` is
-preferred for new files when present, with read fallback to `FILES_KV`. Without
-R2, writes use KV. Immutable random file keys are never reused. This code does
-not enable R2 or change Cloudflare settings; the 10 GB logical cap does not
-increase the underlying provider's KV allowance.
+Scene files are gzipped `.hoodoo` JSON; pictures are JPEG. New files go to the R2
+bucket `hoodoo-cloud-files` (binding `FILES`); reads fall back to `FILES_KV`, where
+files saved before R2 stay. Without an R2 binding, writes use KV. Immutable random
+file keys are never reused.
 
 Limits (`CLOUD_LIMITS`): 2 MB packed / 20 MB unpacked scene, picture exactly
 480×300 and at most 500 KB, title 80 characters. Each user has 50 MB for posts
@@ -72,6 +71,25 @@ envelope, supported version and `scene.objects`. The editor performs full scene
 validation on opening. JPEG validation checks dimensions and a complete scan.
 Failed row writes clean the new files immediately. There is no global orphan
 sweep: legacy KV keys have no creation time to safely distinguish in-flight files.
+
+## Costs
+
+Cloudflare has no hard spending cap, so the Worker keeps every paid service inside
+its free allowance by design (prices of 2026-10):
+
+| Service | Free a month | Bound in the code | Worst case |
+|---|---|---|---|
+| R2 storage | 10 GB | `meta.stored_bytes` ≤ 10 GB (triggers) | $0 |
+| R2 writes (Class A) | 1M | 1000 posts a day on the whole cloud (`CLOUD_POSTS_PER_DAY`), 2 writes each | ~62k, $0 |
+| R2 reads (Class B) | 10M | one read per Worker request; Workers Free stops at 100k requests a day | ~3.1M, $0 |
+| R2 egress | free | | $0 |
+| Workers, D1, KV on Free | daily limits | requests past them fail, nothing is billed | $0 |
+
+Past the daily post budget, publishing answers `busy` (503) "Hoodoo Cloud is busy
+today, try again tomorrow" until 00:00 UTC. The bound on reads holds only on
+Workers Free: on Workers Paid requests are billed past 10M a month, and the R2
+reads would need their own counter. Spending alerts are set by hand in the
+dashboard: Notifications › Add › Usage Based Billing.
 
 ## Gallery caching and moderation
 
