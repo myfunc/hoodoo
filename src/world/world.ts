@@ -3,7 +3,7 @@ import { Logger } from '../core/log';
 import { add } from '../core/vec3';
 import { SmartRuleKind, type ViewKind } from '../model/scene.enums';
 import { type GroupId, type ObjectId, type SmartGroupId, newGroupId, newObjectId } from '../model/scene.ids';
-import type { Animation, BodyFlags, Camera, DocumentSetup, GroupNode, Material, OrthoView, RenderSetup, Scene, SceneObject, Sky, SmartGroup, SmartRule } from '../model/scene.types';
+import type { Animation, BodyFlags, Camera, DocumentSetup, GroupNode, Material, OrthoView, RenderSetup, Scene, SceneObject, Sky, SmartGroup, SmartRule, Transform } from '../model/scene.types';
 import { frameTime, recordKeys, withKey, withPose } from './animation/keying';
 import { poseAt } from './animation/pose';
 import { repivoted, settled } from './group-edits';
@@ -202,6 +202,16 @@ export class World {
       return fn(o);
     });
     if (touched) this.commit(label, { ...this.scene, objects }, ChangeKind.Objects);
+  }
+
+  /** Play's Sandbox: objects left where physics put them, one undo step, never keyed (the playhead may be anywhere). */
+  placeObjects(transforms: ReadonlyMap<ObjectId, Transform>, label: string): void {
+    if (!transforms.size) return;
+    const objects = this.scene.objects.map((o) => {
+      const t = transforms.get(o.id);
+      return t && !o.local ? { ...o, transform: t } : o;
+    });
+    this.commit(label, { ...this.scene, objects }, ChangeKind.Objects, false);
   }
 
   setMaterial(ids: ReadonlySet<ObjectId>, material: Material, label = 'Material'): void {

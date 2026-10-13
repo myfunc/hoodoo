@@ -86,21 +86,62 @@ export class SceneBodies {
   private readonly blinking = new Map<BodyId, boolean>();
 
   /** `skip`: objects that are not bodies at all (the plane a take recorded: it is the player's own). */
-  constructor(private readonly physics: Physics, scene: Scene, playerHeight: number, skip?: ReadonlySet<ObjectId>) {
+  constructor(private readonly physics: Physics, scene: Scene, playerHeight: number, private readonly skip?: ReadonlySet<ObjectId>) {
+    for (const o of scene.objects) if (o.kind === ShapeKind.WaterPlane && !o.hidden && !bodyOf(o).solid) this.waterFloor(o, playerHeight);
+    this.build(scene, scene.objects);
+  }
+
+  /**
+   * The scene changed under play: the bodies of these objects, and of every object
+   * that shared a body with one of them or is in its physical group now, are built
+   * again from `scene`, at the objects' transforms there. The bodies taken away.
+   */
+  resync(scene: Scene, ids: ReadonlySet<ObjectId>): BodyId[] {
+    const objects = new Map(scene.objects.map((o) => [o.id, o]));
+    const index = groupIndex(scene);
+    const affected = new Set<ObjectId>();
+    for (const id of ids) {
+      affected.add(id);
+      for (const m of this.byObject.get(id)?.members ?? []) affected.add(m.id);
+      const o = objects.get(id);
+      const g = o ? physicalGroup(scene, o) : null;
+      if (g) for (const m of scene.objects) if (chain(index, m.groupId).includes(g)) affected.add(m.id);
+    }
+    const dropped = new Set<BodyId>();
+    for (const id of affected) {
+      const item = this.byObject.get(id);
+      if (!item) continue;
+      dropped.add(item.body);
+      for (const m of item.members) {
+        this.byObject.delete(m.id);
+        affected.add(m.id);
+      }
+    }
+    for (const body of dropped) {
+      this.physics.removeBody(body);
+      this.items.delete(body);
+      this.blinking.delete(body);
+    }
+    this.build(scene, [...affected].flatMap((id) => objects.get(id) ?? []));
+    return [...dropped];
+  }
+
+  /** Bodies for these objects of `scene`: one each, or one per physical group, keyed ones kinematic. */
+  private build(scene: Scene, objects: readonly SceneObject[]): void {
     const keyed = keyedOf(scene);
     const visibility = keyedVisibility(scene);
     const shown = new Set([...shownByRules(scene), ...visibility.shown]);
     const groups = new Map<GroupId, SceneObject[]>();
-    for (const o of scene.objects) {
-      if (o.kind === ShapeKind.WaterPlane && !o.hidden && !bodyOf(o).solid) this.waterFloor(o, playerHeight);
-      if (!collides(o, shown) || skip?.has(o.id)) continue;
+    const made: BodyId[] = [];
+    for (const o of objects) {
+      if (!collides(o, shown) || this.skip?.has(o.id)) continue;
       const g = keyed(o) ? null : physicalGroup(scene, o);
       if (g) groups.set(g, [...(groups.get(g) ?? []), o]);
-      else this.addObject(o, keyed(o) ? Motion.Kinematic : bodyOf(o).physical ? Motion.Dynamic : Motion.Fixed);
+      else made.push(...this.addObject(o, keyed(o) ? Motion.Kinematic : bodyOf(o).physical ? Motion.Dynamic : Motion.Fixed));
     }
     const index = groupIndex(scene);
-    for (const [g, members] of groups) this.addGroup(g, members, index.get(g)?.body?.mass);
-    for (const item of this.items.values()) if (item.members.some((m) => visibility.keyed.has(m.id))) this.blinking.set(item.body, true);
+    for (const [g, members] of groups) made.push(...this.addGroup(g, members, index.get(g)?.body?.mass));
+    for (const body of made) if (this.items.get(body)?.members.some((m) => visibility.keyed.has(m.id))) this.blinking.set(body, true);
     this.blink(scene);
   }
 
@@ -172,9 +213,9 @@ export class SceneBodies {
     return out;
   }
 
-  private addObject(o: SceneObject, motion: Motion): void {
+  private addObject(o: SceneObject, motion: Motion): BodyId[] {
     const shapes = shapesOf(o);
-    if (!shapes.length) return;
+    if (!shapes.length) return [];
     const dynamic = motion === Motion.Dynamic;
     const body = this.physics.addBody({
       motion, ...poseOf(o.transform), shapes, tag: o.id,
@@ -182,19 +223,21 @@ export class SceneBodies {
       friction: FRICTION,
     });
     this.remember({ body, motion, tag: o.id, group: null, start: poseOf(o.transform), members: [{ id: o.id, offset: ZERO3, turn: [0, 0, 0, 1], rotation: o.transform.rotation, size: o.transform.size }] });
+    return [body];
   }
 
   /** One body for a physical group: its frame starts at the members' centre, unturned. */
-  private addGroup(g: GroupId, members: readonly SceneObject[], mass: number | undefined): void {
+  private addGroup(g: GroupId, members: readonly SceneObject[], mass: number | undefined): BodyId[] {
     const centre = scale(members.reduce((s, o) => add(s, o.transform.position), ZERO3), 1 / members.length);
     const parts = members.map((o) => ({ o, offset: sub(o.transform.position, centre), turn: quatOfEuler(o.transform.rotation) }));
     const shapes = parts.flatMap((p) => placedShapes(shapesOf(p.o), p.offset, p.turn));
-    if (!shapes.length) return;
+    if (!shapes.length) return [];
     const body = this.physics.addBody({
       motion: Motion.Dynamic, position: centre, shapes, tag: g, ccd: CCD, friction: FRICTION, restitution: RESTITUTION.other,
       mass: mass ?? members.reduce((s, o) => s + massOf(o), 0),
     });
     this.remember({ body, motion: Motion.Dynamic, tag: g, group: g, start: { position: centre, rotation: [0, 0, 0, 1] }, members: parts.map((p) => ({ id: p.o.id, offset: p.offset, turn: p.turn, rotation: p.o.transform.rotation, size: p.o.transform.size })) });
+    return [body];
   }
 
   private waterFloor(o: SceneObject, playerHeight: number): void {

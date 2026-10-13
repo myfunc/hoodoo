@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.15.0 - 2026-10-13
+
+### Added
+- Sandbox's spawn menu: hold Q in Garry's Mod mode for the shapes, the chess and the
+  billiards as ray-traced icons; the mouse moves the menu's own cursor and a click
+  drops the prop where you aim, turned to you and resting on what it lands on, so it
+  falls and settles. A board comes as one body, a chess set with its pieces loose.
+  The menu counts the objects the picture holds, and a spawn past 160 is refused.
+- Palettes from other tools, such as Atmosphere Palette: open a palette link, drop a
+  .hoodoo-palette.json file on the scene window or paste one under Import palette. The
+  Apply palette dialog shows its sky and colours first; Apply is one History step
+  (docs/palette-transfer.md).
+
+### Changed
+- What you build in Garry's Mod mode stays in the scene: each spawn is a History step,
+  Z takes back this session's steps, and when Play ends what you spawned or picked up
+  stays where it came to rest (one step, Props at rest). Play builds the bodies of
+  what changes in the scene as it changes, Undo included.
+
 ## 0.14.3 - 2026-10-13
 
 ### Changed

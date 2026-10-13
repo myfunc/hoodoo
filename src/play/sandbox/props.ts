@@ -14,12 +14,18 @@ import type { PlaySim } from '../sim/play-sim';
  * props are remembered so a double R lets them all go.
  */
 export class Props {
-  private readonly objects: ReadonlyMap<ObjectId, SceneObject>;
+  private objects: ReadonlyMap<ObjectId, SceneObject>;
   /** Bodies the player froze. */
   private readonly frozen = new Set<BodyId>();
 
   constructor(private readonly sim: PlaySim, scene: Scene) {
     this.objects = new Map(scene.objects.map((o) => [o.id, o]));
+  }
+
+  /** The scene changed under play: its objects from now on; frozen bodies that were built again are forgotten. */
+  sync(scene: Scene): void {
+    this.objects = new Map(scene.objects.map((o) => [o.id, o]));
+    for (const b of [...this.frozen]) if (!this.sim.bodies.items.has(b)) this.frozen.delete(b);
   }
 
   /** Whether the Physics Gun may take this body. */

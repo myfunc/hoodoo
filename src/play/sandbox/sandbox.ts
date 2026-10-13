@@ -1,8 +1,11 @@
 import type { Scene } from '../../model/scene.types';
 import { ScrollClassifier, ScrollDevice } from '../../input/scroll-device';
+import type { Thumbnailer } from '../../render/thumbs';
 import type { Frame } from '../../render/wire/wireframe';
 import type { Hl2HudState, Hl2Weapon } from '../../ui/sandbox/hl2/hl2-hud';
 import { SandboxHud } from '../../ui/sandbox/hud';
+import { SpawnMenu } from '../../ui/sandbox/spawn-menu';
+import type { World } from '../../world/world';
 import { type ActorInput, Button } from '../sim/actor';
 import { SIM_DT } from '../sim/clock';
 import type { PlayFrame, PlaySim } from '../sim/play-sim';
@@ -14,7 +17,9 @@ import { Overlay } from './overlay';
 import { Props } from './props';
 import { SANDBOX_SOUNDS } from './sandbox-sounds';
 import { NoticeKind, WeaponId } from './sandbox.enums';
-import { UndoStack } from './undo';
+import { SceneEdits } from './scene-edits';
+import { SPAWN_LIMIT, tracedCount } from './spawn';
+import { SPAWN_ITEMS, spawnLists } from './spawn-lists';
 import { aimOf } from './weapons/grip';
 import { PhysicsGun } from './weapons/physgun';
 import type { Weapon, WeaponContext } from './weapons/weapon';
@@ -26,6 +31,10 @@ export interface SandboxHost {
   readonly sim: PlaySim;
   /** The scene play started from. */
   readonly scene: Scene;
+  /** The editor's scene: Sandbox's spawns and edits go into it (scene-edits.ts). */
+  readonly world: World;
+  /** The app's ray-traced icon maker (the spawn menu's icons). */
+  readonly thumbs: Thumbnailer;
   /** Where the picture is in the layer. */
   picture(): Frame | null;
   /** Play runs (not paused). */
@@ -61,6 +70,8 @@ export interface SandboxAutomation {
   readonly wheel: (steps: number) => void;
   /** Turns the player to look this way (degrees). */
   readonly aim: (yaw: number, pitch: number) => void;
+  /** Spawns a menu item where the player aims, as a click on its icon does; false when refused. */
+  readonly spawn: (key: string) => boolean;
   /** Mouse motion as E-turning or looking. */
   readonly look: (dx: number, dy: number) => void;
   readonly hold: (code: string, down: boolean) => void;
@@ -75,7 +86,8 @@ export interface SandboxAutomation {
  */
 export class Sandbox {
   private readonly props: Props;
-  private readonly undo = new UndoStack();
+  private readonly edits: SceneEdits;
+  private readonly menu: SpawnMenu;
   private readonly notices = new Notices();
   private readonly loadout = new Loadout();
   private readonly weapons: ReadonlyMap<WeaponId, Weapon> = new Map([[WeaponId.PhysicsGun, new PhysicsGun()]]);
@@ -83,7 +95,7 @@ export class Sandbox {
   private readonly overlay = new Overlay();
   private readonly classifier = new ScrollClassifier();
   /** Keys Sandbox answers to (the rest move the player as in Play). */
-  private readonly taken: ReadonlySet<string> = new Set([SANDBOX_KEYS.undo, ...SANDBOX_KEYS.slots]);
+  private readonly taken: ReadonlySet<string> = new Set([SANDBOX_KEYS.undo, SANDBOX_KEYS.spawnMenu, ...SANDBOX_KEYS.slots]);
   private wheelPx = 0;
   private reach = 0;
   private use = false;
@@ -98,8 +110,10 @@ export class Sandbox {
 
   constructor(private readonly host: SandboxHost) {
     this.props = new Props(host.sim, host.scene);
+    this.edits = new SceneEdits(host.world, host.sim);
+    this.menu = new SpawnMenu(host.thumbs, spawnLists(), (key) => void this.spawn(key));
     host.layer.classList.add('is-sandbox');
-    host.layer.append(this.overlay.canvas, this.hud.el);
+    host.layer.append(this.overlay.canvas, this.hud.el, this.menu.el, this.menu.cursor);
     this.game = new GameFiles({ mount: (cs) => this.overlay.canvas.after(...cs), notify: (text) => this.notify(text, NoticeKind.Hint) });
     host.addPanelSection(this.game.section.el);
     this.automate();
@@ -115,6 +129,10 @@ export class Sandbox {
     if (code === SANDBOX_KEYS.use) this.use = down;
     if (isSnapKey(code)) this.snap = down;
     if (!this.taken.has(code)) return false;
+    if (code === SANDBOX_KEYS.spawnMenu) {
+      this.spawnMenu(down && this.host.active());
+      return true;
+    }
     if (!down || !this.host.active()) return true;
     if (code === SANDBOX_KEYS.undo) this.undoLast();
     const slot = slotOfKey(code);
@@ -126,6 +144,10 @@ export class Sandbox {
   wheel(e: WheelEvent): boolean {
     if (!this.host.active()) return true;
     const px = e.deltaMode === WHEEL.lineMode ? e.deltaY * WHEEL.linePx : e.deltaY;
+    if (this.menu.open) {
+      this.menu.scroll(px);
+      return true;
+    }
     const notched = this.classifier.classify(e) === ScrollDevice.Wheel;
     if (this.weapon.wantsWheel?.()) {
       this.reach += notched ? Math.sign(px) : px / WHEEL.pxPerStep;
@@ -142,7 +164,12 @@ export class Sandbox {
 
   /** Mouse motion; true when the weapon took it (E turns what the Physics Gun holds). */
   look(dx: number, dy: number): boolean {
-    return this.host.active() && (this.weapon.look?.(dx, dy, this.context()) ?? false);
+    if (!this.host.active()) return false;
+    if (this.menu.open) {
+      this.menu.moveCursor(dx, dy);
+      return true;
+    }
+    return this.weapon.look?.(dx, dy, this.context()) ?? false;
   }
 
   /** One fixed step's input: the weapon acts on it, the player gets it without the wheel. */
@@ -150,10 +177,23 @@ export class Sandbox {
     const held = new Set([...raw.buttons, ...this.forced]);
     const pressed = new Set([...held].filter((b) => !this.prev.has(b)));
     this.prev = held;
+    // The spawn menu has the mouse: its button clicks there, the gun rests.
+    if (this.menu.open) {
+      if (pressed.has(Button.Attack)) this.menu.clickAtCursor();
+      this.weapon.step({ held: new Set(), pressed: new Set(), reach: 0 }, this.context());
+      return { ...raw, buttons: new Set([...raw.buttons].filter((b) => b !== Button.Attack && b !== Button.Attack2)), wheel: 0 };
+    }
     const reach = this.reach;
     this.reach = 0;
     this.weapon.step({ held, pressed, reach }, this.context());
+    const body = this.weapon.view().held?.body;
+    if (body !== undefined) this.edits.touch(this.host.sim.bodies.items.get(body)?.members.map((m) => m.id) ?? []);
     return { ...raw, wheel: 0 };
+  }
+
+  /** The editor's scene changed during play: the props follow it (PlaySim.sync has the bodies). */
+  sync(scene: Scene): void {
+    this.props.sync(scene);
   }
 
   /** Every display frame: the HUD's text and the gun's sound (the canvases draw in `paint`). */
@@ -195,10 +235,17 @@ export class Sandbox {
     };
   }
 
+  /** Play ends: what was spawned or picked up stays where it came to rest (one History step). */
+  keep(): void {
+    this.edits.keep();
+  }
+
   dispose(): void {
     this.game.dispose();
     this.weapon.holster(this.context());
     this.hud.el.remove();
+    this.menu.el.remove();
+    this.menu.cursor.remove();
     this.overlay.canvas.remove();
     this.host.layer.classList.remove('is-sandbox', 'is-hl2');
     delete (window as unknown as Record<string, unknown>).__hoodooSandbox;
@@ -210,8 +257,26 @@ export class Sandbox {
   }
 
   private undoLast(): void {
-    const label = this.undo.undo();
+    const label = this.edits.undo();
     this.notify(label ? `Undone ${label}` : 'Nothing to undo', NoticeKind.Undo, label ? SANDBOX_SOUNDS.undo : undefined);
+    this.menu.setCount(tracedCount(this.host.world.scene), SPAWN_LIMIT);
+  }
+
+  /** Q held opens the spawn menu (the mouse moves its cursor); let go, the mouse aims again. */
+  private spawnMenu(open: boolean): void {
+    if (open === this.menu.open) return;
+    this.menu.setOpen(open);
+    if (open) this.menu.setCount(tracedCount(this.host.world.scene), SPAWN_LIMIT);
+  }
+
+  /** A spawn list's item where the player aims; past the tracer's limit, Garry's Mod's notice instead. */
+  private spawn(key: string): boolean {
+    const item = SPAWN_ITEMS.find((i) => i.key === key);
+    if (!item) return false;
+    const done = this.edits.spawn(item);
+    if (!done) this.notify(`Props limit reached (${SPAWN_LIMIT})`, NoticeKind.Limit, SANDBOX_SOUNDS.limit);
+    this.menu.setCount(tracedCount(this.host.world.scene), SPAWN_LIMIT);
+    return done;
   }
 
   /** Changes the weapon (the old one lets go) and shows the slot strip. */
@@ -239,7 +304,7 @@ export class Sandbox {
         return {
           weapon: this.loadout.current.name,
           holding: held ? this.host.sim.physics.tag(held.body) : null,
-          undo: this.undo.labels,
+          undo: this.edits.labels,
           notices: this.notices.visible(performance.now()).map((n) => n.notice.text),
         };
       },
@@ -248,6 +313,7 @@ export class Sandbox {
       key: (code) => { this.key(code, true); this.key(code, false); },
       wheel: (steps) => { this.reach += this.weapon.wantsWheel?.() ? steps : 0; },
       aim: (yaw, pitch) => { this.host.sim.player.yaw = yaw; this.host.sim.player.pitch = pitch; },
+      spawn: (key) => this.spawn(key),
       look: (dx, dy) => { if (!this.look(dx, dy)) this.host.sim.driver.look(dx, dy); },
       hold: (code, down) => { this.key(code, down); },
     };

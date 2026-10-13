@@ -23,6 +23,7 @@ import { planeStart } from './plane-spawn';
 import { type BodyId, Motion, Physics, type Pose, loadRapier } from './physics';
 import { conjQ, eulerOfQuat, mulQ, quatOfEuler, rotateQ, slerpQ } from './quat';
 import { SceneBodies } from './scene-bodies';
+import { changedForPhysics } from './scene-sync';
 import { type Take, TakeRecorder, takeLimit } from './take';
 
 /** What the scene window shows for one display frame of play. */
@@ -94,6 +95,8 @@ export class PlaySim {
   private readonly recorded: PlaneInScene | null;
   private playerNow: PlayerSettings;
   private planeNow: PlaneSettings;
+  /** The scene as the editor has it now: the one play started from, then what `sync` brings. */
+  private base: Scene;
 
   static async create(start: PlayStart): Promise<PlaySim> {
     return new PlaySim(await loadRapier().then((R) => new Physics(R, tuningOf(start.player).gravity, SIM_DT)), start);
@@ -102,6 +105,7 @@ export class PlaySim {
   private constructor(physics: Physics, private readonly start: PlayStart) {
     this.physics = physics;
     const scene = start.scene;
+    this.base = scene;
     this.time = start.time;
     this.prevTime = start.time;
     this.animated = isAnimated(scene.animation);
@@ -124,6 +128,24 @@ export class PlaySim {
     this.snapshot();
     this.prev = this.curr;
     this.prevEye = this.currEye = this.driver.eye().position;
+  }
+
+  /**
+   * The editor's scene changed during play (Sandbox's spawns and edits, or their undo):
+   * the picture shows it from now on, and the bodies of what changed are built again
+   * where the objects stand in it (scene-sync.ts). Clips and behaviours keep the scene
+   * they started with.
+   */
+  sync(scene: Scene): void {
+    if (scene === this.base) return;
+    const changed = changedForPhysics(this.base, scene);
+    this.base = scene;
+    if (changed.size) {
+      for (const body of this.bodies.resync(scene, changed)) this.prev.delete(body);
+      this.physics.refresh();
+      this.snapshot();
+    }
+    this.version++;
   }
 
   get context(): ActorContext {
@@ -160,7 +182,7 @@ export class PlaySim {
     const eye = old.eye();
     const from = { ...eye, position: [eye.position[0], feet + settings.eyeHeight + t.skin, eye.position[2]] as Vec3 };
     old.dispose();
-    this.player = new FpsActor(this.physics, this.start.scene.camera, settings, floorOf(this.start.scene) - FALL_LIMIT * settings.height, from);
+    this.player = new FpsActor(this.physics, this.base.camera, settings, floorOf(this.base) - FALL_LIMIT * settings.height, from);
     if (this.actors[0] === old) this.actors[0] = this.player;
     this.physics.setGravity(tuningOf(settings).gravity);
     this.prevEye = this.currEye = this.player.eye().position;
@@ -179,7 +201,7 @@ export class PlaySim {
     const eye = { position: at, yaw: plane.eye().yaw, pitch: 0, bank: 0 };
     plane.dispose();
     this.plane = null;
-    this.player = new FpsActor(this.physics, this.start.scene.camera, this.playerNow, floorOf(this.start.scene) - FALL_LIMIT * this.playerNow.height, eye);
+    this.player = new FpsActor(this.physics, this.base.camera, this.playerNow, floorOf(this.base) - FALL_LIMIT * this.playerNow.height, eye);
     this.actors[0] = this.player;
     this.moved();
   }
@@ -195,10 +217,10 @@ export class PlaySim {
    * of the camera; later, ahead of the walker; `from`, a plane of another size in the same place.
    */
   private fly(first: boolean, from?: PlaneActor): void {
-    const killY = floorOf(this.start.scene) - FALL_LIMIT * this.playerNow.height;
+    const killY = floorOf(this.base) - FALL_LIMIT * this.playerNow.height;
     const eye = this.driver.eye();
     const tuning = flightTuning(this.playerNow.height, this.planeNow);
-    const start = from?.spawn ?? planeStart(this.physics, this.start.scene, this.time, eye, tuning, first ? this.recorded : null);
+    const start = from?.spawn ?? planeStart(this.physics, this.base, this.time, eye, tuning, first ? this.recorded : null);
     const old = this.driver;
     old.dispose(this.context);
     this.plane = new PlaneActor(this.physics, this.planeNow, this.playerNow, start, killY, from?.state());
@@ -224,7 +246,7 @@ export class PlaySim {
     this.scripts?.step(ctx);
     this.actors.forEach((a, i) => a.step(i === 0 ? input : IDLE, ctx));
     if (this.scripts) this.bodies.drive(this.scripts.posed);
-    else if (this.animated) this.bodies.drive(poseAt(this.start.scene, this.time + SIM_DT));
+    else if (this.animated) this.bodies.drive(poseAt(this.base, this.time + SIM_DT));
     const { contacts, broken } = this.physics.step();
     for (const c of contacts) this.events.emit('contact', { ...c, tagA: this.physics.tag(c.a), tagB: this.physics.tag(c.b) });
     for (const joint of broken) this.events.emit('jointBroken', { joint });
@@ -242,7 +264,7 @@ export class PlaySim {
 
   /** The picture `alpha` of the way from the last step to the next: bodies and eye interpolated, keys posed. */
   frame(alpha: number): PlayFrame {
-    const camera: Camera = { ...this.cameraAt(alpha, this.start.scene.camera), aperture: 0 };
+    const camera: Camera = { ...this.cameraAt(alpha, this.base.camera), aperture: 0 };
     const scene = this.sceneAt(alpha);
     // What the driver shows of itself (the plane) joins the picture every frame.
     const figure = this.driver.figure?.(alpha);
@@ -253,7 +275,7 @@ export class PlaySim {
   private sceneAt(alpha: number): Scene {
     if (!this.animated && !this.scripts && this.cached?.version === this.version) return this.cached.scene;
     const time = this.prevTime + (this.time - this.prevTime) * alpha;
-    const keyed = this.animated ? poseAt(this.start.scene, time) : this.start.scene;
+    const keyed = this.animated ? poseAt(this.base, time) : this.base;
     const posed = this.scripts ? this.scripts.dress(keyed, alpha) : keyed;
     const moved = this.bodies.transforms(this.posesAt(alpha, Motion.Dynamic));
     const hidden = this.plane ? this.recorded?.members : undefined;
@@ -288,7 +310,7 @@ export class PlaySim {
    */
   record(on: boolean): void {
     if (on === this.recording) return;
-    const a = this.start.scene.animation;
+    const a = this.base.animation;
     if (on) {
       const begin = frameTime(this.start.time, a.fps);
       this.rewind(begin);
@@ -313,7 +335,7 @@ export class PlaySim {
     this.time = t;
     this.prevTime = t;
     if (this.scripts) this.bodies.place(this.scripts.rewind(t));
-    else if (this.animated) this.bodies.place(poseAt(this.start.scene, t));
+    else if (this.animated) this.bodies.place(poseAt(this.base, t));
     this.snapshot();
     this.prev = this.curr;
     this.prevEye = this.currEye;
@@ -347,7 +369,7 @@ export class PlaySim {
   private sample(): void {
     const r = this.recorder;
     if (!r) return;
-    const base = this.start.scene.camera;
+    const base = this.base.camera;
     for (const time of r.due(this.time)) {
       const alpha = Math.min(1, Math.max(0, (time - this.prevTime) / SIM_DT));
       const camera = this.cameraAt(alpha, base);

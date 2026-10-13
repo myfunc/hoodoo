@@ -139,6 +139,11 @@ class PlaySession {
       }),
       onSetting(editor, 'plane', (p: PlaneSettings) => this.sim?.setPlane(p)),
       onSetting(editor, 'playResolution', () => this.panel.sync()),
+      // Sandbox edits the editor's scene; play shows and simulates each change, and its undo.
+      ctx.world.events.on('changed', ({ scene }) => {
+        this.sim?.sync(scene);
+        this.sandbox?.sync(scene);
+      }),
     );
     this.hud.place(view.pictureFrame());
     this.automate();
@@ -153,10 +158,12 @@ class PlaySession {
     const { editor, view } = this.ctx;
     const sim = this.sim;
     if (sim?.recording) sim.record(false);
-    this.sandbox?.dispose();
+    const sandbox = this.sandbox;
+    sandbox?.dispose();
     this.sandbox = null;
     this.input.dispose();
     for (const f of this.off) f();
+    sandbox?.keep();
     this.hud.el.remove();
     view.root.classList.remove('is-playing');
     view.setPlay(null);
@@ -203,7 +210,7 @@ class PlaySession {
     if (this.ended) return;
     const { world, view } = this.ctx;
     this.sandbox = new Sandbox({
-      layer: this.hud.el, sim, scene: world.scene, picture: () => view.pictureFrame(),
+      layer: this.hud.el, sim, scene: world.scene, world, thumbs: this.ctx.thumbs, picture: () => view.pictureFrame(),
       active: () => !this.paused, freePointer: (on) => this.freePointer(on), toast: (m) => this.ctx.toast(m),
       addPanelSection: (section) => this.panel.addSection(section),
     });

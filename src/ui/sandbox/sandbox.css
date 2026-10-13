@@ -35,3 +35,37 @@
 .sandbox-hl2hud { position: absolute; pointer-events: none; }
 .sbx-hud.is-hl2 .sbx-slots, .sbx-hud.is-hl2 .sbx-notices, .sbx-hud.is-hl2 .sbx-weapon { display: none; }
 .play-layer.is-hl2 .play-cross { display: none; }
+
+/* The spawn menu (Q held, spawn-menu.ts): the Play panel's dark glass over the left of the picture, categories as a
+   list with an amber rule, the icons in a grid that scrolls. Hover outlines a tile without moving anything. */
+.sbx-spawn {
+  position: absolute; left: 3%; top: 7%; width: min(760px, 66%); height: min(540px, 80%);
+  display: flex; flex-direction: column; padding: 14px 16px 12px; border-radius: 0; cursor: default; pointer-events: auto;
+  font: 12px var(--font-ui); color: #eceae2;
+  background: rgba(24, 24, 27, 0.9); border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+}
+.sbx-spawn[hidden] { display: none; }
+.sbx-spawn-head { display: flex; align-items: baseline; gap: 14px; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
+.sbx-spawn-title { font-size: 14px; font-weight: bold; color: #ffb020; }
+.sbx-spawn-hint { color: #8f8d86; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sbx-spawn-body { flex: 1 1 auto; min-height: 0; display: flex; gap: 16px; padding-top: 12px; }
+.sbx-spawn-cats { flex: 0 0 132px; display: flex; flex-direction: column; gap: 2px; padding-right: 14px; border-right: 1px solid rgba(255, 255, 255, 0.1); }
+.sbx-spawn-cat { padding: 7px 10px; border-left: 2px solid transparent; color: #b9b7af; cursor: pointer; white-space: nowrap; }
+.sbx-spawn-cat:hover, .sbx-spawn-cat.is-hover { color: #eceae2; }
+.sbx-spawn-cat.is-current { color: #ffb020; border-left-color: #ffb020; background: rgba(255, 176, 32, 0.08); }
+.sbx-spawn-grid { flex: 1 1 auto; min-width: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #56565c transparent; }
+.sbx-spawn-page { display: grid; grid-template-columns: repeat(auto-fill, 88px); gap: 10px; align-content: start; }
+.sbx-spawn-tile { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 4px; cursor: pointer; outline: 1px solid transparent; outline-offset: -1px; }
+.sbx-spawn-tile:hover, .sbx-spawn-tile.is-hover { outline-color: #ffb020; background: rgba(255, 176, 32, 0.06); }
+.sbx-spawn-tile:active { background: rgba(255, 176, 32, 0.16); }
+.scene-window .sbx-spawn-tile canvas { position: static; width: 72px; height: 72px; display: block; }
+.sbx-spawn-name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #b9b7af; }
+.sbx-spawn-count { padding-top: 8px; margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1); color: #8f8d86; text-align: right; }
+.sbx-spawn-count.is-full { color: #ff8a7a; }
+/* The menu's own cursor while the pointer stays locked: a plain arrow, white with a dark edge. */
+.sbx-cursor {
+  position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none;
+  border-style: solid; border-width: 0 0 15px 10px; border-color: transparent transparent transparent #f4f2ea;
+  filter: drop-shadow(0 0 1px #000) drop-shadow(1px 1px 1px rgba(0, 0, 0, 0.6));
+}
+.sbx-cursor[hidden] { display: none; }

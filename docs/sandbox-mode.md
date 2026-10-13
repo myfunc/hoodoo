@@ -185,29 +185,37 @@ interface ToolResult {
 
 ## Undo
 
-Spawns, joints, devices, pastes, removals and colour or material changes each
-push one entry; Z undoes the newest and a notice says *Undone Weld*. GMod
-undoes only spawns and joints; here removing and painting can be taken back
-too. The list shows in the context menu. It is the session's own stack: the
-editor's history is not touched until the build is kept.
+Every Sandbox edit is a step of the editor's History (see *Building scenes*):
+Z takes back the newest step made since Play began, and a notice says *Undone
+Spawn Cube*; steps from before Play stay. GMod undoes only spawns and joints;
+here every edit can be taken back, and after Play the editor's History has
+them all.
 
 ## Spawn menu
 
-Hold Q: the cursor appears and the menu opens over the view; let go and the
-mouse aims again. Left, the spawn lists: a category column (Primitives, Chess,
-Billiards, Lights) and a grid of ray-traced icons drawn by the app's own
-thumbnailer, the same as the Object Library's. A click spawns the prop where
-you aim, resting on the surface along the hit normal, unfrozen, so it settles.
-Right, the tools: categories, the tool list and the active tool's settings,
-built from the UI kit (dials, toggles, segmented choices, the colour picker,
-a key picker for thruster and wheel keys).
+Hold Q: the menu opens over the view with a cursor where the crosshair was;
+let go and the mouse aims again. The pointer stays locked all along and the
+mouse moves the menu's own cursor (`src/ui/sandbox/spawn-menu.ts`): a lock
+asked back on letting go of Q would be refused once the key press is a few
+seconds old, and play would stop at *Click to play*. The gun's button clicks
+under that cursor, the wheel scrolls the icons; the keys still walk.
+
+Left, the spawn lists (`src/play/sandbox/spawn-lists.ts`): Primitives (the
+Create palette's shapes), Chess and Billiards (the Object Library's items).
+Right, their ray-traced icons, drawn the first time a list shows, as the
+Create palette and the Object Library draw theirs. A click spawns the item
+where you aim (`spawn.ts`): turned to face you and resting on the surface
+along its normal, as a Physical prop, so it settles. A board is one physical
+group; a chess set keeps its board as one body and its pieces loose. The
+tools column comes with the Tool Gun.
 
 Props come at their library size: a pool ball is one unit in radius and the
 chess pieces are at board scale. To play at chess scale, use Play's Tiny
 character.
 
-The ray tracer draws at most 160 objects. A spawn past that shows *Props limit
-reached (160)*, GMod's way.
+The ray tracer draws at most 160 objects, the scene's own included; the menu's
+foot counts them. A spawn past that shows *Props limit reached (160)*, GMod's
+way.
 
 ## Context menu
 
@@ -313,12 +321,17 @@ a paste turns it to your heading and lands it at the aim.
 - adding, removing and changing objects in the play scene for the picture, and
   a 2D overlay to draw on.
 
-### Saving builds
+### Building scenes
 
-Later. *Keep the build* on leaving Play writes the spawned objects, the final
-poses and the joints and devices into the scene as optional fields (through
-`scene.validate.ts` and `scene.serialize.ts`), one editor undo step; entering
-Play again rebuilds them. Without it, the scene is put back.
+The owner, 2026-10-13: any scene can be made without leaving Garry's Mod mode.
+So Sandbox edits the editor's scene (`src/play/sandbox/scene-edits.ts`): each
+spawn (and, as they come, each resize, material, group, physics flag and sky)
+is one History step, with the objects where play has them. The session hands
+every change of the scene, and its undo, to `PlaySim.sync`, which builds the
+bodies of what changed again where the scene puts them (`src/play/sim/scene-sync.ts`).
+When Play ends, what was spawned or picked up stays where physics left it:
+one step, *Props at rest*, never keyed (`World.placeObjects`). Everything else
+goes back as it was, as in any Play.
 
 ## Browser differences
 
