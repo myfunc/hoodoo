@@ -3,6 +3,10 @@ import { el, onDrag } from '../kit/dom';
 const MIN_THUMB_PX = 24;
 /** Firefox reports wheel steps in lines; about one text line each. */
 const LINE_PX = 16;
+/** A fitting tray's icons shrink to this share of their size before the shelf scrolls. */
+const MIN_FIT = 0.72;
+/** Gaps and padding do not shrink, so the first guess falls a little short: a second pass closes it. */
+const FIT_PASSES = 2;
 
 export interface SliderGeometry {
   readonly overflows: boolean;
@@ -35,7 +39,7 @@ export class Shelf {
   private readonly lip: HTMLElement;
   private readonly thumb: HTMLElement;
   private tray: HTMLElement | null = null;
-  private readonly resize = new ResizeObserver(() => this.sync());
+  private readonly resize = new ResizeObserver(() => this.sync(true));
   private readonly onScroll = () => this.sync();
 
   constructor() {
@@ -76,14 +80,27 @@ export class Shelf {
     this.el.replaceChildren(tray, this.lip);
     tray.addEventListener('scroll', this.onScroll, { passive: true });
     this.resize.observe(tray);
-    this.sync();
+    this.sync(true);
   }
 
   private geometry(t: HTMLElement): SliderGeometry {
     return sliderGeometry(this.lip.clientWidth, t.clientWidth, t.scrollWidth, t.scrollLeft);
   }
 
-  private sync(): void {
+  /** A tray marked is-fitting scales its icons (--fit) to the shelf's width, down to MIN_FIT. */
+  private fit(t: HTMLElement): void {
+    if (!t.classList.contains('is-fitting') || !t.clientWidth) return;
+    let k = 1;
+    t.style.setProperty('--fit', '1');
+    for (let pass = 0; pass < FIT_PASSES && t.scrollWidth > t.clientWidth; pass++) {
+      k = Math.max(MIN_FIT, k * (t.clientWidth / t.scrollWidth));
+      t.style.setProperty('--fit', String(k));
+    }
+  }
+
+  /** The thumb follows the tray; on a new tray or a new width the icons fit again first. */
+  private sync(refit = false): void {
+    if (this.tray && refit) this.fit(this.tray);
     const g = this.tray ? this.geometry(this.tray) : null;
     this.el.classList.toggle('is-overflowing', !!g?.overflows);
     if (!g?.overflows) return;

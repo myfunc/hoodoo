@@ -19,8 +19,8 @@
   --side-w: 236px;
   --menubar-h: 22px;
   --titles-h: 26px;
-  --tray-h: 70px;
-  --lip-h: 9px;
+  --tray-h: 74px;
+  --lip-h: 5px;
   --displaybar-h: 28px;
   /* Replaced by generated tiles (kit/texture.ts); until then surfaces are flat colour. */
   --tex-stone: none;
@@ -131,19 +131,27 @@ input { font: inherit; }
 .shelf.is-overflowing .shelf-lip { cursor: pointer; }
 .shelf.is-overflowing .shelf-thumb { display: block; }
 .tray {
-  display: flex; align-items: center; gap: 1px; padding: 0 10px; overflow-x: auto; overflow-y: hidden;
+  --fit: 1;
+  display: flex; align-items: flex-end; gap: 1px; padding: 0 10px 4px; overflow-x: auto; overflow-y: hidden;
   min-height: 0; scrollbar-width: none;
 }
 .tray::-webkit-scrollbar { display: none; }
 .tray-icon {
-  flex: none; width: 46px; height: 50px; display: flex; align-items: center; justify-content: center;
+  flex: none; width: calc(46px * var(--fit)); height: 50px; display: flex; align-items: center; justify-content: center;
   cursor: pointer; border-radius: 0; position: relative;
 }
-.tray-icon canvas { width: 44px; height: 44px; filter: drop-shadow(2px 3px 1.5px var(--cast-32)); transition: transform 80ms; }
+.tray-icon canvas { width: calc(44px * var(--fit)); height: calc(44px * var(--fit)); filter: drop-shadow(2px 3px 1.5px var(--cast-32)); transition: transform 80ms; }
+.tray-icon:focus-visible { outline: 1px dotted var(--ink); outline-offset: -2px; }
 .tray-icon:hover canvas { transform: translateY(-2px) scale(1.06); }
 .tray-icon:active canvas { transform: translateY(1px); }
-.tray-gap { flex: none; width: 10px; }
-.tray-icon[hidden], .tray-gap[hidden] { display: none; }
+/* Between groups of a tray: an engraved line down the shelf, as Bryce parted its icon rows. */
+.tray-gap { flex: none; align-self: stretch; width: 0; margin: 8px 7px 2px; border-left: 1px solid var(--shade-12); box-shadow: 1px 0 0 var(--hi); }
+.tray-icon[hidden], .tray-gap[hidden], .tray-set[hidden] { display: none; }
+/* Create: each group of icons named under them; the groups parted by the same engraved line. */
+.tray-set { flex: none; display: flex; flex-direction: column; align-items: center; padding: 0 5px; }
+.tray-set + .tray-set { border-left: 1px solid var(--shade-12); box-shadow: inset 1px 0 0 var(--hi); padding-left: 6px; }
+.tray-set-icons { display: flex; align-items: center; gap: 1px; }
+.tray-set-label { font: 9px/11px var(--font-ui); color: var(--ink-soft); white-space: nowrap; letter-spacing: 0.02em; }
 .tray-group { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 0 6px; }
 .tray-group-label { font-size: 9px; color: var(--ink-soft); white-space: nowrap; }
 .tray .ui-dial { width: 132px; }
@@ -155,10 +163,12 @@ input { font: inherit; }
 .tray-thumb canvas { width: 100%; height: 100%; display: block; }
 .tray-thumb-label { position: absolute; left: -6px; right: -6px; bottom: -12px; text-align: center; font-size: 9px; color: var(--ink-soft); white-space: nowrap; }
 .tray-thumb-value { position: absolute; right: 2px; top: 1px; font-size: 9px; color: #fff; text-shadow: 0 0 2px #000; }
-.tray-tool { display: flex; flex-direction: column; align-items: center; width: 56px; cursor: ew-resize; }
-.tray-tool canvas { width: 40px; height: 40px; filter: drop-shadow(2px 3px 1.5px var(--cast-30)); }
-.tray-tool-label { font-size: 9px; color: var(--ink-soft); white-space: nowrap; }
-.tray-tool .axes { display: flex; gap: 2px; margin-top: 1px; }
+.tray-tool { display: grid; grid-template-rows: 42px 11px 12px; justify-items: center; align-items: center; width: 60px; cursor: ew-resize; }
+.tray-tool canvas { width: 40px; height: 40px; filter: drop-shadow(2px 3px 1.5px var(--cast-30)); transition: transform 80ms; }
+.tray-tool:hover canvas { transform: translateY(-2px); }
+.tray-tool-label { font: 9px/11px var(--font-ui); color: var(--ink-soft); white-space: nowrap; }
+.tray-tool:hover .tray-tool-label { color: var(--title-ink); }
+.tray-tool .axes { display: flex; gap: 2px; }
 .tray-tool .axis { width: 14px; height: 12px; border-radius: 0; font: bold 8px/12px var(--font-ui); text-align: center; background: var(--shade-08); cursor: ew-resize; }
 .tray-tool .axis:hover { background: var(--teal); color: var(--accent-ink); }
 

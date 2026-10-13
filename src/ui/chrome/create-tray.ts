@@ -10,11 +10,17 @@ import { showWhile } from '../feature-gate';
 import { iconCanvas } from './icon-canvas';
 
 const ICON_PX = 44;
-/** Small gaps in the tray after these entries, like Bryce's grouped icon rows. */
-const GAP_AFTER: ReadonlySet<ShapeKind> = new Set([ShapeKind.CloudPlane, ShapeKind.GroundPlane, ShapeKind.Stone, ShapeKind.Square]);
+
+/** Bryce's grouped icon rows, each named under its icons; a group ends at the first entry of the next. */
+const GROUPS: readonly { readonly label: string; readonly from: ShapeKind }[] = [
+  { label: 'Planes', from: ShapeKind.WaterPlane },
+  { label: 'Terrain', from: ShapeKind.Terrain },
+  { label: 'Shapes', from: ShapeKind.Sphere },
+  { label: 'Lights', from: ShapeKind.RadialLight },
+];
 
 function trayIcon(ctx: UiContext, entry: CreateEntry, run: () => void): HTMLElement {
-  const icon = el('div', { cls: 'tray-icon', attrs: { role: 'button', tabindex: '0', 'aria-label': entry.label } }, [iconCanvas(ctx.thumbs, createIcon(entry), ICON_PX)]);
+  const icon = el('div', { cls: 'tray-icon', title: entry.label, attrs: { role: 'button', tabindex: '0', 'aria-label': entry.label } }, [iconCanvas(ctx.thumbs, createIcon(entry), ICON_PX)]);
   icon.addEventListener('click', run);
   // Keyboard focus scrolls an overflowed icon into view on the shelf.
   icon.addEventListener('keydown', (e) => {
@@ -26,17 +32,21 @@ function trayIcon(ctx: UiContext, entry: CreateEntry, run: () => void): HTMLElem
   return icon;
 }
 
+const group = (label: string, icons: HTMLElement[]): HTMLElement =>
+  el('div', { cls: 'tray-set' }, [el('div', { cls: 'tray-set-icons' }, icons), el('span', { cls: 'tray-set-label', text: label })]);
+
+/** The Create tray: planes, terrain, shapes and lights in named groups; the icons shrink a little before the shelf scrolls (shelf.ts). */
 export function createTray(ctx: UiContext, onCreate: (e: CreateEntry) => void): HTMLElement {
-  const tray = el('div', { cls: 'tray' });
-  CREATE_PALETTE.forEach((entry, i) => {
-    tray.append(trayIcon(ctx, entry, () => onCreate(entry)));
-    const next = CREATE_PALETTE[i + 1];
-    if (next && GAP_AFTER.has(entry.kind) && next.kind !== entry.kind) tray.append(el('div', { cls: 'tray-gap' }));
+  const tray = el('div', { cls: 'tray is-fitting' });
+  GROUPS.forEach((g, i) => {
+    const start = CREATE_PALETTE.findIndex((e) => e.kind === g.from);
+    const next = GROUPS[i + 1];
+    const end = next ? CREATE_PALETTE.findIndex((e) => e.kind === next.from) : CREATE_PALETTE.length;
+    tray.append(group(g.label, CREATE_PALETTE.slice(start, end).map((entry) => trayIcon(ctx, entry, () => onCreate(entry)))));
   });
   // Preview feature Portals: the pair's icon at the end of the tray, there only while the feature is on.
-  const gap = el('div', { cls: 'tray-gap' });
-  const portal = trayIcon(ctx, PORTAL_ENTRY, () => ctx.dispatch(Action.CreatePortals));
-  for (const node of [gap, portal]) showWhile(ctx.editor, Feature.Portals, node);
-  tray.append(gap, portal);
+  const portal = group('Portals', [trayIcon(ctx, PORTAL_ENTRY, () => ctx.dispatch(Action.CreatePortals))]);
+  showWhile(ctx.editor, Feature.Portals, portal);
+  tray.append(portal);
   return tray;
 }

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.14.2 - 2026-10-13
+
+### Added
+- A rail on the right edge, the left rail's twin: Attributes, Scene, Snapshots and
+  History each show or hide on their own, and the right column keeps what you left
+  on. With the column hidden (Tab) a click brings it back with that panel.
+
+### Changed
+- The palette: the Create icons stand in named groups (Planes, Terrain, Shapes,
+  Lights) and shrink a little to fit before the shelf scrolls; the groups of every
+  tray are parted by engraved lines; Edit labels sit on one line; Sky & Fog labels no
+  longer run into the pictures; the shelf's lip is thinner.
+
 ## 0.14.1 - 2026-10-13
 
 ### Added

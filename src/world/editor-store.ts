@@ -5,6 +5,7 @@ import { PictureMode, ScrollPreference } from './world.enums';
 import type { KeyRef } from './animation/key-selection';
 import type { FeatureFlags } from './preview-features';
 import { DEFAULT_SETTINGS, type Settings } from './settings';
+import { ALL_PANES, type SidePanes } from './side-panes';
 import { DEFAULT_TOOL_PLACES, type ToolPlaces } from './tool-places';
 import { DEFAULT_CAMERA } from './scene.defaults';
 
@@ -42,6 +43,8 @@ export interface EditorState {
   readonly gizmo: boolean;
   readonly snap: boolean;
   readonly sidePanel: boolean;
+  /** Which panels of the right column are on (world/side-panes.ts). */
+  readonly sidePanes: SidePanes;
   /** The scene window takes the whole workspace: the side columns, the palette and the timeline hide (not remembered). */
   readonly maximized: boolean;
   /** The left column: camera controls, render balls and docked tool windows. */
@@ -95,6 +98,7 @@ export const INITIAL_EDITOR: EditorState = {
   gizmo: true,
   snap: false,
   sidePanel: true,
+  sidePanes: ALL_PANES,
   maximized: false,
   leftPanel: true,
   controlsOpen: true,

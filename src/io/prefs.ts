@@ -3,12 +3,13 @@ import { type EditorState, INITIAL_EDITOR, RENDER_SAMPLE_CHOICES } from '../worl
 import { type FeatureNotes, notesFrom } from '../world/feature-notes';
 import { Feature, type FeatureFlags, PREVIEW_FEATURES } from '../world/preview-features';
 import { DEFAULT_SETTINGS, type Settings, settingsFrom } from '../world/settings';
+import { sidePanesFrom } from '../world/side-panes';
 import { toolPlacesFrom } from '../world/tool-places';
 import { ScrollPreference } from '../world/world.enums';
 import { SITE_DEFAULTS } from './site-defaults';
 
 /** Editor state kept as you left it between visits; the Settings window shows it too. */
-export const REMEMBERED = ['scroll', 'renderSamples', 'sidePanel', 'liveRender', 'leftPanel', 'controlsOpen', 'toolPlaces'] as const;
+export const REMEMBERED = ['scroll', 'renderSamples', 'sidePanel', 'sidePanes', 'liveRender', 'leftPanel', 'controlsOpen', 'toolPlaces'] as const;
 export type Remembered = Pick<EditorState, (typeof REMEMBERED)[number]>;
 
 /** Settings that outlive a session: the Settings window's (world/settings.ts), the remembered editor state, preview features. */
@@ -34,7 +35,7 @@ const logger = Logger.create('Prefs');
 
 /** The part of the editor state that is remembered. */
 export function rememberedOf(s: Remembered): Remembered {
-  return { scroll: s.scroll, renderSamples: s.renderSamples, sidePanel: s.sidePanel, liveRender: s.liveRender, leftPanel: s.leftPanel, controlsOpen: s.controlsOpen, toolPlaces: s.toolPlaces };
+  return { scroll: s.scroll, renderSamples: s.renderSamples, sidePanel: s.sidePanel, sidePanes: s.sidePanes, liveRender: s.liveRender, leftPanel: s.leftPanel, controlsOpen: s.controlsOpen, toolPlaces: s.toolPlaces };
 }
 
 const flag = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback);
@@ -51,6 +52,7 @@ export function prefsFrom(raw: Record<string, unknown>): Prefs {
     scroll: SCROLLS.has(raw.scroll) ? (raw.scroll as ScrollPreference) : DEFAULTS.scroll,
     renderSamples: SAMPLES.has(raw.renderSamples) ? (raw.renderSamples as number) : DEFAULTS.renderSamples,
     sidePanel: flag(raw.sidePanel, DEFAULTS.sidePanel),
+    sidePanes: sidePanesFrom(raw.sidePanes),
     leftPanel: flag(raw.leftPanel, DEFAULTS.leftPanel),
     controlsOpen: flag(raw.controlsOpen, DEFAULTS.controlsOpen),
     // A window never moved keeps its default place (the Render page docked).

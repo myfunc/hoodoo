@@ -14,6 +14,7 @@ import { ScopeBar } from '../ui/chrome/scope-bar';
 import { ControlsCard } from '../ui/chrome/controls-card';
 import { Palette } from '../ui/chrome/palette';
 import { SelectionTag } from '../ui/chrome/selection-tag';
+import { SideRail } from '../ui/chrome/side-rail';
 import { ShaderLoader } from '../ui/chrome/shader-loader';
 import { Timeline } from '../ui/chrome/timeline';
 import { ToolRail } from '../ui/chrome/tool-rail';
@@ -25,6 +26,7 @@ import { Outliner } from '../ui/panels/outliner';
 import { Properties } from '../ui/panels/properties';
 import { SnapshotsPanel } from '../ui/panels/snapshots-panel';
 import { onSetting } from '../world/settings';
+import { SIDE_PANES, SidePane, anyPane, growingPane } from '../world/side-panes';
 
 const PERCENT = 100;
 
@@ -66,13 +68,20 @@ export class Shell {
     });
     const timeline = new Timeline(ctx);
     const center = el('main', { cls: 'center' }, [palette.titles, palette.trayHost, ctx.view.root, timeline.el, display.el]);
-    const side = el('aside', { cls: 'side-panel' }, [new Properties(ctx).el, new Outliner(ctx, this.menu).el, new SnapshotsPanel(ctx).el, new HistoryPanel(ctx).el]);
+    const panes: Readonly<Record<SidePane, HTMLElement>> = {
+      [SidePane.Attributes]: new Properties(ctx).el,
+      [SidePane.Scene]: new Outliner(ctx, this.menu).el,
+      [SidePane.Snapshots]: new SnapshotsPanel(ctx).el,
+      [SidePane.History]: new HistoryPanel(ctx).el,
+    };
+    const side = el('aside', { cls: 'side-panel' }, SIDE_PANES.map((p) => panes[p]));
     // Both side columns hide (View menu, Shift+Tab / Tab, the grips on the scene's edge); the left one
     // also hosts docked tool windows and widens for them (ui/chrome/tool-windows.ts).
     const windows = toolWindows(ctx);
     windows.column.prepend(new ToolRail(ctx, windows).el);
     windows.column.append(new EdgeGrip(ctx, GripSide.Left).el);
-    const right = el('div', { cls: 'right-column' }, [side, new EdgeGrip(ctx, GripSide.Right).el]);
+    // The right column's panels show and hide on its own rail (side-rail.ts); they live on the right only.
+    const right = el('div', { cls: 'right-column' }, [side, new SideRail(ctx).el, new EdgeGrip(ctx, GripSide.Right).el]);
     this.workspace = el('div', { cls: 'workspace' }, [windows.column, center, right]);
     this.root = el('div', { cls: 'app' }, [this.menubar.el, this.workspace]);
     windows.onDock = (docked) => {
@@ -82,7 +91,13 @@ export class Shell {
     windows.onDockWidth = (width) => this.workspace.style.setProperty('--dock-w', `${width}px`);
     windows.mountControls(controls.el, controls.foot);
     const syncPanels = () => {
-      this.workspace.classList.toggle('no-side', !ctx.editor.state.sidePanel);
+      const shown = ctx.editor.state.sidePanes;
+      this.workspace.classList.toggle('no-side', !ctx.editor.state.sidePanel || !anyPane(shown));
+      const grow = growingPane(shown);
+      for (const p of SIDE_PANES) {
+        panes[p].hidden = !shown[p];
+        panes[p].classList.toggle('grow', p === grow);
+      }
       this.workspace.classList.toggle('no-left', !ctx.editor.state.leftPanel);
       this.workspace.classList.toggle('is-maximized', ctx.editor.state.maximized);
       this.workspace.classList.toggle('left-bare', !ctx.editor.state.controlsOpen && !this.workspace.classList.contains('has-dock'));

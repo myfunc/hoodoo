@@ -190,7 +190,7 @@ export class SkyTray {
   }
 
   private modeGroup(): HTMLElement {
-    const row = el('div', { cls: 'ctrl-row', style: { gap: '4px' } });
+    const row = el('div', { cls: 'ctrl-row', style: { gap: '4px', paddingBottom: '10px' } });
     for (const m of MODES) {
       const canvas = el('canvas');
       const node = el('div', { cls: 'tray-thumb', style: { cursor: 'pointer', width: '40px' } }, [canvas, el('span', { cls: 'tray-thumb-label', text: m.label })]);
