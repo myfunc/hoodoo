@@ -55,7 +55,8 @@ export const GIZMO_STYLES: readonly GizmoStyle[] = [GizmoStyle.Glossy, GizmoStyl
 export const GIZMO_SPECS: Readonly<Record<GizmoStyle, GizmoStyleSpec>> = {
   [GizmoStyle.Glossy]: { layout: GizmoLayout.Axes, axisPx: 78, cubeAt: 0.55, ringScale: 1.32, tipReach: 15, cubeReach: 13, evenReach: 15, ringReach: 8, nearBand: 0 },
   [GizmoStyle.Box]: { layout: GizmoLayout.Box, axisPx: 78, cubeAt: 0.55, ringScale: 20, tipReach: 15, cubeReach: 11, evenReach: 11, ringReach: 9, nearBand: 30 },
-  [GizmoStyle.Outline]: { layout: GizmoLayout.Axes, axisPx: 80, cubeAt: 0.56, ringScale: 1.3, tipReach: 15, cubeReach: 13, evenReach: 14, ringReach: 8, nearBand: 0 },
+  // Small to look at, wide to take: each reach is about twice the drawn handle (2026-10-13: the bigger one was hard to hit).
+  [GizmoStyle.Outline]: { layout: GizmoLayout.Axes, axisPx: 62, cubeAt: 0.56, ringScale: 1.22, tipReach: 14, cubeReach: 11, evenReach: 12, ringReach: 9, nearBand: 0 },
   [GizmoStyle.Pebbles]: { layout: GizmoLayout.Pebbles, axisPx: 78, cubeAt: 0.55, ringScale: 1.3, tipReach: 12, cubeReach: 12, evenReach: 12, ringReach: 0, nearBand: 0 },
   [GizmoStyle.Sculpted]: { layout: GizmoLayout.Axes, axisPx: 80, cubeAt: 0.56, ringScale: 1.32, tipReach: 16, cubeReach: 13, evenReach: 14, ringReach: 9, nearBand: 0 },
 };

@@ -21,6 +21,7 @@ import { installFileDrop } from './file-drop';
 import { type KeyDrag, PathKeys } from './path-keys';
 import { GizmoDrag, gizmoCursor } from './gizmo-drag';
 import { gizmoPartAt, nearGizmo, pickObject, surfacePoint } from './pick';
+import { innerGroupOf } from '../world/edit-scope';
 import { QuickResize } from './quick-resize';
 import { SceneKeys } from './scene-keys';
 import { type DragLock, KeyTransform } from './key-transform';
@@ -180,7 +181,7 @@ export class ViewportInput {
   }
 
   private pickAt(cell: ViewCell, x: number, y: number): ObjectId | null {
-    return pickObject(this.world.scene, cell, x, y, PICK_RADIUS_PX);
+    return pickObject(this.world.viewScene, cell, x, y, PICK_RADIUS_PX);
   }
 
   private down(e: PointerEvent): void {
@@ -348,7 +349,11 @@ export class ViewportInput {
     const { x, y } = this.local(e);
     const cell = this.view.cellAt(x, y);
     const id = cell ? this.pickAt(cell, x, y) : null;
-    if (id) this.hooks.onOpenObject(id);
+    if (!id) return;
+    // A member of a group steps into the group (Edit Group); an object on its own opens its editor.
+    const inner = innerGroupOf(this.world.scene, this.world.scope, id);
+    if (inner) this.world.setScope({ group: inner });
+    else this.hooks.onOpenObject(id);
   }
 
   private updateHover(x: number, y: number): void {

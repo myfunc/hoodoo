@@ -1,6 +1,6 @@
 import { KEY } from '../../core/keys';
 import type { GroupId, ObjectId } from '../../model/scene.ids';
-import type { GroupNode, SceneObject } from '../../model/scene.types';
+import type { GroupNode, SceneObject, SmartGroup } from '../../model/scene.types';
 import { SelectMode } from '../../world/world';
 import type { UiContext } from '../context';
 import { clearChildren, el, glyph } from '../kit/dom';
@@ -19,12 +19,15 @@ import { OutlinerDrag } from './outliner-drag';
 import { rigRows } from './outliner-rig';
 import { panelTitle } from './panel-title';
 import { familyInk } from '../theme';
+import { smartMembers } from '../../world/smart-groups';
+import { openSmartGroupDialog } from './smart-group-dialog';
 
 const ICON_PX = 18;
 /** Indentation per level of nesting. */
 const INDENT_PX = 12;
 const ROOT_DROP_TEXT = 'Top level';
 const NEW_GROUP_TITLE = 'New group: around the selection, or an empty one to drag rows into';
+const NEW_SMART_TITLE = 'New smart group: every object of a kind, a material or a name, found by itself';
 
 /**
  * Scene list (modern addition): the Camera and the Sun on top (outliner-rig.ts),
@@ -45,7 +48,8 @@ export class Outliner {
   constructor(private readonly ctx: UiContext, private readonly menu: SceneMenu) {
     this.body = el('div', { cls: 'panel-body outliner' });
     const add = new Button({ label: '+ Group', cls: 'panel-add', title: NEW_GROUP_TITLE, onClick: () => this.newGroup(() => ctx.dispatch(Action.NewGroup)) });
-    this.el = el('div', { cls: 'panel grow' }, [panelTitle('Scene', GLYPH.cube, add.el), this.body]);
+    const smart = new Button({ label: '+ Smart', cls: 'panel-add', title: NEW_SMART_TITLE, onClick: () => ctx.dispatch(Action.NewSmartGroup) });
+    this.el = el('div', { cls: 'panel grow' }, [panelTitle('Scene', GLYPH.cube, el('span', { cls: 'panel-adds' }, [add.el, smart.el])), this.body]);
     this.body.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       if (!(e.target as Element).closest('.outliner-row')) menu.openEmpty(e.clientX, e.clientY);
@@ -54,6 +58,7 @@ export class Outliner {
     // Names, eyes and locks do not move with the playhead.
     ctx.world.events.on('changed', ({ kind }) => { if (kind !== ChangeKind.Time) this.schedule(); });
     ctx.world.events.on('selection', () => this.schedule());
+    ctx.world.events.on('scope', () => this.schedule());
     this.render();
   }
 
@@ -83,8 +88,16 @@ export class Outliner {
     const objects = this.ctx.world.scene.objects;
     for (const id of this.icons.keys()) if (!objects.some((o) => o.id === id)) this.icons.delete(id);
     this.body.append(...rigRows(this.ctx));
-    for (const row of treeRows(this.ctx.world.scene)) this.body.append(row.group ? this.groupRow(row.group, row) : this.treeObjectRow(row));
+    // Edit Group: rows outside the group fade; a click on one steps out to the whole scene.
+    const members = this.ctx.world.scopeMembers();
+    for (const row of treeRows(this.ctx.world.scene)) {
+      const r = row.group ? this.groupRow(row.group, row) : this.treeObjectRow(row);
+      if (members && !row.members.some((o) => members.has(o.id))) r.classList.add('is-outside');
+      this.body.append(r);
+    }
     this.body.append(el('div', { cls: 'outliner-root-drop', text: ROOT_DROP_TEXT }));
+    const smart = this.ctx.world.scene.smartGroups ?? [];
+    if (smart.length) this.body.append(el('div', { cls: 'outliner-rig-end' }), ...smart.map((g) => this.smartRow(g)));
   }
 
   /** Right click on an object row: the object menu of the scene window; the row is selected first unless it is. */
@@ -126,6 +139,7 @@ export class Outliner {
     row.style.paddingLeft = `${r.depth * INDENT_PX}px`;
     row.addEventListener('click', (e) => {
       if (this.drag.consumeClick()) return;
+      this.leaveScopeFor([o.id]);
       this.ctx.world.select([o.id], e.shiftKey || e.metaKey || e.ctrlKey ? SelectMode.Toggle : SelectMode.Replace);
     });
     row.addEventListener('dblclick', () => this.renameObject(o.id, name));
@@ -142,7 +156,9 @@ export class Outliner {
     const hidden = r.members.length > 0 && r.members.every((o) => o.hidden);
     const twisty = el('span', { cls: 'outliner-twisty' }, [glyph(g.collapsed ? GLYPH.triangleRight : GLYPH.triangleDown, GLYPH_BOX, 'twisty')]);
     const name = el('span', { cls: 'outliner-name', text: g.name });
-    const row = el('div', { cls: `outliner-row tree is-group${selected ? ' is-selected' : ''}${hidden ? ' is-hidden' : ''}`, title: `${g.name} · ${ids.length} objects` }, [
+    const scope = this.ctx.world.scope;
+    const editing = !!scope && 'group' in scope && scope.group === g.id;
+    const row = el('div', { cls: `outliner-row tree is-group${selected ? ' is-selected' : ''}${hidden ? ' is-hidden' : ''}${editing ? ' is-editing' : ''}`, title: `${g.name} · ${ids.length} objects` }, [
       twisty,
       el('span', { cls: 'outliner-group-icon' }, [glyph(GLYPH.group, GLYPH_BOX, 'group-mark')]),
       name,
@@ -157,6 +173,7 @@ export class Outliner {
     twisty.addEventListener('dblclick', (e) => e.stopPropagation());
     row.addEventListener('click', (e) => {
       if (this.drag.consumeClick()) return;
+      this.leaveScopeFor(ids);
       if (!(e.shiftKey || e.metaKey || e.ctrlKey)) this.ctx.world.select(ids, SelectMode.Replace);
       else if (selected) this.ctx.world.select([...sel].filter((id) => !ids.includes(id)), SelectMode.Replace);
       else this.ctx.world.select(ids, SelectMode.Add);
@@ -179,12 +196,54 @@ export class Outliner {
       { label: 'Rename', run: () => this.rename(label, g.name, (value) => w.renameGroup(g.id, value)) },
       { label: ACTIONS[Action.Ungroup].label, run: () => w.ungroupGroups(new Set([g.id])) },
       { label: 'Select Group', disabled: !ids.length, run: () => w.select(ids, SelectMode.Replace) },
+      { label: ACTIONS[Action.EditGroup].label, run: () => w.setScope({ group: g.id }) },
       { label: g.collapsed ? 'Unfold' : 'Fold', run: () => { w.setGroupCollapsed(g.id, !g.collapsed); this.render(); } },
       SEPARATOR,
       { label: 'New Group Inside', run: () => this.newGroup(() => { if (g.collapsed) w.setGroupCollapsed(g.id, false); w.newGroup(new Set(), g.id); }) },
       SEPARATOR,
       actionItem(this.ctx, Action.PreviewFeatures),
     ]);
+  }
+
+  /** A click on a row outside the group being edited goes back to the whole scene first. */
+  private leaveScopeFor(ids: readonly ObjectId[]): void {
+    const members = this.ctx.world.scopeMembers();
+    if (members && ids.length && !ids.some((id) => members.has(id))) this.ctx.world.setScope(null);
+  }
+
+  /**
+   * A smart group's row: a click selects what it gathers now, the eye and the lock act
+   * on all of it, a double click changes its rule, the menu edits it on its own.
+   */
+  private smartRow(g: SmartGroup): HTMLElement {
+    const w = this.ctx.world;
+    const members = smartMembers(w.scene, g);
+    const ids = members.map((o) => o.id);
+    const selected = ids.length > 0 && ids.every((id) => w.selection.has(id));
+    const hidden = members.length > 0 && members.every((o) => o.hidden);
+    const editing = w.scope && 'smart' in w.scope && w.scope.smart === g.id;
+    const row = el('div', { cls: `outliner-row tree is-group is-smart${selected ? ' is-selected' : ''}${hidden ? ' is-hidden' : ''}${editing ? ' is-editing' : ''}`, title: `${g.name} · ${ids.length} objects now` }, [
+      el('span', { cls: 'outliner-twisty' }),
+      el('span', { cls: 'outliner-group-icon' }, [glyph(GLYPH.group, GLYPH_BOX, 'group-mark smart-mark')]),
+      el('span', { cls: 'outliner-name', text: `${g.name} (${ids.length})` }),
+      ...this.switches(members),
+    ]);
+    row.addEventListener('click', (e) => {
+      if (e.shiftKey || e.metaKey || e.ctrlKey) w.select(ids, SelectMode.Add);
+      else w.select(ids, SelectMode.Replace);
+    });
+    row.addEventListener('dblclick', () => openSmartGroupDialog(this.ctx, g));
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      openContextMenu(e.clientX, e.clientY, [
+        { label: 'Select', disabled: !ids.length, run: () => w.select(ids, SelectMode.Replace) },
+        { label: ACTIONS[Action.EditGroup].label, disabled: !ids.length, run: () => w.setScope({ smart: g.id }) },
+        { label: 'Change Rule…', run: () => openSmartGroupDialog(this.ctx, g) },
+        SEPARATOR,
+        { label: 'Delete Smart Group', run: () => w.removeSmartGroup(g.id) },
+      ]);
+    });
+    return row;
   }
 
   /** Makes a group, then starts typing its name on its row. */

@@ -182,4 +182,13 @@ describe('which handle a press takes', () => {
     expect(nearGizmo(g, on[0], on[1])).toBe(true);
     expect(nearGizmo(g, g.origin[0] + W, g.origin[1])).toBe(false);
   });
+  it('the line out to a tip takes the press too, but the middle stays free', () => {
+    const g = handles([box([0, 0, 0], [1, 1, 1])], TOP);
+    const tip = g.tips[0]!;
+    const o = g.origin;
+    const between = (k: number) => [o[0] + (tip[0] - o[0]) * k, o[1] + (tip[1] - o[1]) * k + 4] as const;
+    const mid = between(0.8);
+    expect(gizmoPartAt(g, mid[0], mid[1], RADIUS, RING, false)).toMatchObject({ kind: GizmoKind.Move, axis: 0 });
+    expect(gizmoPartAt(g, o[0] + 3, o[1] + 3, RADIUS, RING, false)).toBeNull();
+  });
 });

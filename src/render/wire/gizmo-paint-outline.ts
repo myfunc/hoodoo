@@ -4,19 +4,19 @@ import { eachRingHalf, isHot, outlined, ringHot, toneOf, unit } from './gizmo-pa
 
 /** Outline look sizes (CSS pixels). */
 const OUTLINE = {
-  shaft: 5,
+  shaft: 3,
   /** No dark rim (the owner: no black outline); the light band and the shine carry the edge. */
   rim: 0,
   /** A thin light line down each shaft and ring: the second tone. */
-  shine: 1.4,
-  clear: 8,
-  tip: 10,
+  shine: 1,
+  clear: 6,
+  tip: 7,
   /** The white band round a tip or square, inside its dark rim. */
-  band: 2.2,
-  cube: 7,
-  even: 8,
-  ring: 4,
-  ringHot: 6,
+  band: 1.6,
+  cube: 5,
+  even: 6,
+  ring: 2.5,
+  ringHot: 4,
   ringIdle: 0.75,
   ringBack: 0.42,
   grow: 1.2,

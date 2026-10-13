@@ -88,6 +88,20 @@ export function gizmoPartAt(g: GizmoHandles | null, x: number, y: number, radius
       foundD = d;
     }
   }
+  if (found) return found;
+  // The line out to a handle takes it too: a press a little short of the tip still moves.
+  for (const grip of g.grips) {
+    if (grip.reach <= 0 || grip.detached || grip.part.axis < 0) continue;
+    const len = Math.hypot(grip.at[0] - g.origin[0], grip.at[1] - g.origin[1]);
+    if (len <= GIZMO.shaftStartPx) continue;
+    const k = GIZMO.shaftStartPx / len;
+    const from: [number, number] = [g.origin[0] + (grip.at[0] - g.origin[0]) * k, g.origin[1] + (grip.at[1] - g.origin[1]) * k];
+    const d = segmentDistance(from, grip.at, x, y);
+    if (d <= GIZMO.shaftReachPx && d < foundD) {
+      found = grip.part;
+      foundD = d;
+    }
+  }
   if (found || !near || g.ringReach <= 0) return found;
   let best: GizmoPart | null = null;
   let bestD = Math.max(g.ringReach, ringRadius);
@@ -99,6 +113,15 @@ export function gizmoPartAt(g: GizmoHandles | null, x: number, y: number, radius
     }
   });
   return best;
+}
+
+/** Distance from a point to the segment a-b, pixels. */
+function segmentDistance(a: readonly [number, number], b: readonly [number, number], x: number, y: number): number {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  const t = len2 > 0 ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / len2)) : 0;
+  return Math.hypot(x - a[0] - dx * t, y - a[1] - dy * t);
 }
 
 /** The pointer is close enough to the handles (or, in a look with a band, to a ring) for the rotate rings to show. */

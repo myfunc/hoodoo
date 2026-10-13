@@ -159,3 +159,10 @@ export enum Ease {
   /** Starts slowly out of the key. */
   Out = 'out',
 }
+
+/** Saved membership rules for smart groups. */
+export enum SmartRuleKind {
+  Kind = 'kind',
+  Material = 'material',
+  Name = 'name',
+}

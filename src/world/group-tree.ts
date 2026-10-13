@@ -11,7 +11,7 @@ import { GROUP_NAME, SCENE_LIMITS } from './scene.validate';
  * whole group moves the group, and its objects keep their poses inside it.
  */
 
-type GroupedScene = Pick<Scene, 'objects' | 'groups'>;
+export type GroupedScene = Pick<Scene, 'objects' | 'groups'>;
 
 /** What a selection is made of: whole groups where every object inside is picked, single objects elsewhere. */
 export interface TreeItems {

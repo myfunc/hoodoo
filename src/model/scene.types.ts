@@ -7,13 +7,14 @@ import type {
   Ease,
   Family,
   ShapeKind,
+  SmartRuleKind,
   SkyMode,
   TextureKind,
   TextureMapping,
   ValueChannel,
   ViewKind,
 } from './scene.enums';
-import type { GroupId, ObjectId } from './scene.ids';
+import type { GroupId, ObjectId, SmartGroupId } from './scene.ids';
 import type { PlayScript, TriggerZone } from './play.types';
 
 export interface Transform {
@@ -129,6 +130,19 @@ export interface GroupNode {
   readonly body?: BodyFlags;
   /** Play mode: the group's own clip and behaviours; absent: none. */
   readonly script?: PlayScript;
+}
+
+/** What makes an object a member of a smart group (world/smart-groups.ts). */
+export type SmartRule =
+  | { readonly by: SmartRuleKind.Kind; readonly kinds: readonly ShapeKind[] }
+  | { readonly by: SmartRuleKind.Material; readonly material: string }
+  | { readonly by: SmartRuleKind.Name; readonly text: string };
+
+/** A saved rule in the Object Tree: members are found live, objects stay in their groups. */
+export interface SmartGroup {
+  readonly id: SmartGroupId;
+  readonly name: string;
+  readonly rule: SmartRule;
 }
 
 export interface CloudSettings {
@@ -262,6 +276,7 @@ export interface Scene {
   readonly objects: readonly SceneObject[];
   /** Named and nested groups (world/group-tree); absent when every group is plain. */
   readonly groups?: readonly GroupNode[];
+  readonly smartGroups?: readonly SmartGroup[];
   readonly camera: Camera;
   readonly sky: Sky;
   readonly document: DocumentSetup;

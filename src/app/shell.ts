@@ -10,6 +10,7 @@ import { DisplayBar } from '../ui/chrome/display-bar';
 import { EdgeGrip, GripSide } from '../ui/chrome/edge-grip';
 import { MenuBar } from '../ui/chrome/menubar';
 import { PaneModes } from '../ui/chrome/pane-modes';
+import { ScopeBar } from '../ui/chrome/scope-bar';
 import { Palette } from '../ui/chrome/palette';
 import { SelectionTag } from '../ui/chrome/selection-tag';
 import { ShaderLoader } from '../ui/chrome/shader-loader';
@@ -45,7 +46,7 @@ export class Shell {
     const display = new DisplayBar(ctx);
     const tag = new SelectionTag(ctx, ctx.view);
     const progress = el('div', { cls: 'scene-progress', style: { width: '0' } });
-    ctx.view.root.append(tag.el, new CompareOverlay(ctx).el, progress, el('div', { cls: 'drop-hint', text: 'Drop a .hoodoo scene or a height-map image' }));
+    ctx.view.root.append(tag.el, new CompareOverlay(ctx).el, new ScopeBar(ctx).el, progress, el('div', { cls: 'drop-hint', text: 'Drop a .hoodoo scene or a height-map image' }));
     if (!ctx.view.engine.isReady) ctx.view.root.append(new ShaderLoader(ctx.view.engine).el);
     // Chrome falls back to the CPU after its GPU process crashes a few times; a restart brings the card back.
     const engine = ctx.view.engine;

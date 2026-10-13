@@ -42,7 +42,10 @@ export class TutorialBookTool implements ToolContent {
   constructor(private readonly ctx: UiContext) {
     const nav = el('div', { cls: 'tb-nav', attrs: { role: 'listbox', 'aria-label': 'Recipes' } });
     TUTORIAL_RECIPES.forEach((r, i) => {
+      // Each recipe shows what it ends with: the list reads as pictures to make, not chores.
+      const thumb = el('img', { cls: 'tb-nav-thumb', attrs: { src: resultPicture(r.id), alt: '', loading: 'lazy', decoding: 'async', draggable: 'false' } });
       const row = el('button', { cls: 'tb-nav-row', attrs: { type: 'button', role: 'option' } }, [
+        thumb,
         el('span', { cls: 'tb-num', text: String(i + 1) }),
         el('span', { cls: 'tb-nav-name', text: r.title }),
       ]);
@@ -88,8 +91,10 @@ export class TutorialBookTool implements ToolContent {
     this.page.append(
       el('div', { cls: 'tb-head' }, [el('span', { cls: 'tb-title', text: recipe.title }), tryIt.el]),
       el('div', { cls: 'tb-goal', text: recipe.goal }),
+      // The picture it ends with comes first: what you will make, then how.
+      el('div', { cls: 'tb-hero' }, [this.figure(resultPicture(recipe.id), TUTORIAL_RESULT, `${recipe.title}: the result`, [], 0)]),
       ...recipe.steps.map((s, i) => this.section(String(i + 1), s.text, this.figure(stepPicture(recipe.id, i + 1), TUTORIAL_SHOT, `Step ${i + 1}: ${s.text}`, s.marks, i + 1))),
-      this.section(RESULT_LABEL, recipe.result, this.figure(resultPicture(recipe.id), TUTORIAL_RESULT, `${recipe.title}: the result`, [], 0), 'tb-result'),
+      el('section', { cls: 'tb-step tb-result' }, [el('div', { cls: 'tb-line' }, [el('span', { cls: 'tb-num', text: RESULT_LABEL }), el('span', { cls: 'tb-text', text: recipe.result, title: recipe.result })])]),
     );
     this.page.scrollTop = 0;
   }

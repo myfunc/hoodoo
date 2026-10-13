@@ -36,6 +36,9 @@ const WIRE_LIGHT = {
   gridExtent: 40,
   nearPlane: 0.05,
   depthCueFloor: 0.25,
+  /** Edit Group: the rest of the scene. */
+  ghostColor: '#6b6b66' as string,
+  ghostAlpha: 0.35,
   negativeDash: [4, 3] as const,
   intersectDash: [1, 3] as const,
   /** Play's trigger zones: long dashes, never rendered. */
@@ -69,4 +72,8 @@ export const GIZMO = {
   ringMinFacing: 0.3,
   /** Rings come up while the pointer is this many pixels outside them or closer. */
   ringNearPx: 28,
+  /** A press this close to a handle's line takes the handle, not only one on its end. */
+  shaftReachPx: 7,
+  /** The lines take a press only from this far out: the middle stays a free move of the selection. */
+  shaftStartPx: 14,
 } as const;

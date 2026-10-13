@@ -35,6 +35,8 @@ import { compareLatest, takeSnapshot } from './snapshot-ops';
 import { createFromLibrary, createGameItem, frame } from './scene-ops';
 import { canLinkPortals, createPortals, linkSelectedPortals } from './portal-ops';
 import { createZone } from './zone-ops';
+import { innerGroupOf } from '../world/edit-scope';
+import { openSmartGroupDialog } from '../ui/panels/smart-group-dialog';
 import { openAnimationSetup } from '../ui/labs/animation-setup';
 import { SettingsSection, openSettings } from '../ui/labs/settings-window';
 import { sceneDepth } from '../ui/labs/reflection-rows';
@@ -167,12 +169,19 @@ export class Commands {
       // Picked keys go first: objects are cleared only when no key is picked.
       [Action.Delete]: () => (hasPickedKeys(ctx) ? deleteSelectedKeys(ctx) : w.removeObjects(sel(), 'Clear')),
       [Action.SelectAll]: () => w.selectAll(),
-      [Action.SelectNone]: () => { w.select([], SelectMode.Replace); e.update({ selectedKeys: [] }); },
+      // Esc: nothing left to drop steps out of Edit Group.
+      [Action.SelectNone]: () => {
+        if (!w.selection.size && !e.state.selectedKeys.length && w.scope) w.scopeUp();
+        w.select([], SelectMode.Replace);
+        e.update({ selectedKeys: [] });
+      },
       [Action.CopyMaterial]: () => { const id = [...sel()][0]; if (id) { w.copyMaterial(id); ctx.toast('Material copied'); } },
       [Action.PasteMaterial]: () => w.pasteMaterial(sel()),
       [Action.Group]: () => { if (!w.group(sel())) ctx.toast('Select two or more objects to group'); },
       [Action.Ungroup]: () => w.ungroup(sel()),
       [Action.NewGroup]: () => w.newGroup(sel()),
+      [Action.EditGroup]: () => this.editGroup(),
+      [Action.NewSmartGroup]: () => this.newSmartGroup(),
       [Action.MoveSelection]: () => hooks.transform?.(GizmoKind.Move),
       [Action.RotateSelection]: () => hooks.transform?.(GizmoKind.Rotate),
       [Action.SizeSelection]: () => hooks.transform?.(GizmoKind.Resize),
@@ -312,6 +321,19 @@ export class Commands {
     }
     e.update({ picture: PictureMode.Final, quad: false });
     this.ctx.toast(`Render View: the final render, refining in place · ${shortcutOf(Action.ToggleRenderView)} leaves`);
+  }
+
+  /** Edit Group: steps into the group of the first selected object, one level down from where the editing is. */
+  private editGroup(): void {
+    const w = this.ctx.world;
+    const id = [...w.selection][0];
+    const inner = id ? innerGroupOf(w.scene, w.scope, id) : null;
+    if (inner) w.setScope({ group: inner });
+    else this.ctx.toast('Select an object in a group to edit the group on its own');
+  }
+
+  private newSmartGroup(): void {
+    openSmartGroupDialog(this.ctx, null);
   }
 
   openObject(id: ObjectId): void {

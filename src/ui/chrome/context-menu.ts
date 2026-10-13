@@ -27,7 +27,7 @@ export interface MenuFacts {
 /** Right-click on an object, in the scene window or the scene list. */
 export function objectEntries(f: MenuFacts): ContextEntry[] {
   return [
-    Action.Group, Action.Ungroup, Action.NewGroup, SEP,
+    Action.Group, Action.Ungroup, Action.NewGroup, Action.EditGroup, Action.NewSmartGroup, SEP,
     Action.Duplicate, Action.Delete, Action.HideSelected, Action.Land, SEP,
     Action.ChooseMaterial, Action.EditMaterial, Action.Attributes,
     ...(f.animation ? [SEP, Action.AddKey, Action.SelectAllKeys] : []),

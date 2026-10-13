@@ -14,6 +14,7 @@ import type { RealtimeRenderer, RealtimeStatus } from './gpu/realtime';
 import { PREVIEW_BOUNCES, PREVIEW_SAMPLES } from './gpu/render.constants';
 import { finalBounces } from '../world/render-setup';
 import type { ShownFrame } from './gpu/view-renderer';
+import { outsideScope } from '../world/edit-scope';
 import { CONVERGE_FACTOR, ViewPictures } from './view-pictures';
 import { drawCellLabel, drawCellLine, fitFrame } from './view-cells';
 import { type Frame, type GizmoHandles, type SegmentIndex, WireProjector, drawWireframe } from './wire/wireframe';
@@ -144,6 +145,11 @@ export class SceneView {
     new ResizeObserver(() => this.resize()).observe(this.root);
     world.events.on('changed', ({ kind }) => this.onSceneChanged(kind));
     world.events.on('selection', () => this.requestDraw());
+    // Edit Group: the picture shows the group alone.
+    world.events.on('scope', () => {
+      this.requestDraw();
+      this.updateLive();
+    });
     editor.events.on('changed', ({ state, previous }) => this.onEditorChanged(state, previous));
   }
 
@@ -220,7 +226,7 @@ export class SceneView {
     const h = Math.max(1, Math.round(cell.frame.h * scale));
     this.renderer.resize(w, h);
     this.placeGlCanvas(cell.frame);
-    this.renderer.start(this.world.scene, this.basisFor(cell.kind, w / h), {
+    this.renderer.start(this.world.viewScene, this.basisFor(cell.kind, w / h), {
       samples: final ? s.renderSamples : PREVIEW_SAMPLES,
       bounces: final ? finalBounces(this.world.scene) : PREVIEW_BOUNCES,
       blocks: true,
@@ -323,7 +329,7 @@ export class SceneView {
     const h = Math.max(1, Math.round(cell.frame.h * dpr));
     // Play mode: the session's frame, through the player's eyes, at the play quality.
     const play = this.play?.frame() ?? null;
-    const scene = play?.scene ?? this.world.scene;
+    const scene = play?.scene ?? this.world.viewScene;
     this.pictures.refresh(scene);
     live.resize(w, h);
     this.placeGlCanvas(cell.frame);
@@ -345,7 +351,7 @@ export class SceneView {
     this.renderer.stop();
     this.quadLive.resize(this.width, this.height, QUAD_PIXEL_RATIO);
     this.placeGlCanvas({ x: 0, y: 0, w: this.width, h: this.height });
-    const scene = this.world.scene;
+    const scene = this.world.viewScene;
     const aspect = scene.document.width / scene.document.height;
     this.quadLive.update(scene, panes.map((c) => ({ key: c.kind, rect: c.frame, basis: this.basisFor(c.kind, aspect, scene) })));
     if (!this.engineReady()) return;
@@ -470,8 +476,10 @@ export class SceneView {
     }
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     const s = this.editor.state;
-    const editing = this.world.scene;
+    const editing = this.world.viewScene;
     const aspect = editing.document.width / editing.document.height;
+    const members = this.world.scopeMembers();
+    const ghosts = members ? outsideScope(this.world.scene, members) : undefined;
     for (const cell of this.cellsCache) {
       // Input works on the editor's view; the wires show the picture's.
       Object.assign(cell, { basis: this.basisFor(cell.kind, aspect) });
@@ -495,6 +503,7 @@ export class SceneView {
         gizmoNear: this.hoverState.near,
         shadeOutside: true,
         overRender,
+        ghosts,
       });
       cell.segments = out.segments;
       cell.gizmo = out.gizmo;

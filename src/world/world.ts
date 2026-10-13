@@ -1,9 +1,9 @@
 import { Bus } from '../core/bus';
 import { Logger } from '../core/log';
 import { add } from '../core/vec3';
-import type { ViewKind } from '../model/scene.enums';
-import { type GroupId, type ObjectId, newGroupId, newObjectId } from '../model/scene.ids';
-import type { Animation, BodyFlags, Camera, DocumentSetup, GroupNode, Material, OrthoView, RenderSetup, Scene, SceneObject, Sky } from '../model/scene.types';
+import { SmartRuleKind, type ViewKind } from '../model/scene.enums';
+import { type GroupId, type ObjectId, type SmartGroupId, newGroupId, newObjectId } from '../model/scene.ids';
+import type { Animation, BodyFlags, Camera, DocumentSetup, GroupNode, Material, OrthoView, RenderSetup, Scene, SceneObject, Sky, SmartGroup, SmartRule } from '../model/scene.types';
 import { frameTime, recordKeys, withKey, withPose } from './animation/keying';
 import { poseAt } from './animation/pose';
 import { repivoted, settled } from './group-edits';
@@ -15,11 +15,14 @@ import type { PlayScript } from '../model/play.types';
 import { withScript } from './play/scripts';
 import { History } from './history';
 import { limitBreach } from './scene-limits';
+import { SCENE_LIMITS } from './scene.constants';
+import { smartGroupOf } from './smart-groups';
 import { relinkCopies } from './portals';
 import { COPY_SUFFIX, DUPLICATE_OFFSET, HISTORY_LIMIT } from './world.constants';
 import { ChangeKind, type WorldEvents } from './world.events';
 import { Rig, SelectMode } from './world.enums';
 import { lockedCamera, lockedSun, rigFlags, withRigFlags } from './rig';
+import { type EditScope, parentScope, sameScope, scopeAlive, scopeFamily, scopeMembers, scopedScene } from './edit-scope';
 
 export { Rig, SelectMode } from './world.enums';
 
@@ -48,11 +51,17 @@ export class World {
   private clipboardGroups: ReadonlyMap<GroupId, GroupNode> = new Map();
   private materialClipboard: Material | null = null;
   private playhead = 0;
+  /** Edit Group: the group (or smart group) worked on apart from the rest; null: the whole scene. */
+  private scopeNow: EditScope | null = null;
+  /** The scope's members and the scene with only them, for the scene they were found in. */
+  private scopeCache: { readonly scene: Scene; readonly members: Set<ObjectId>; readonly view: Scene } | null = null;
   /** The recorded scene while a preview is shown in its place (previewMaterial). */
   private previewBase: Scene | null = null;
 
   constructor(initial: Scene) {
     this.history = new History(initial, 'Open scene', HISTORY_LIMIT);
+    // Undo, a delete or another scene can take the edited group away: the editing ends with it.
+    this.events.on('changed', ({ scene }) => { if (this.scopeNow && !scopeAlive(scene, this.scopeNow)) this.setScope(null); });
   }
 
   get scene(): Scene {
@@ -168,7 +177,10 @@ export class World {
   /** `groups` are new groups the objects point at (copies of nested groups). */
   addObjects(objects: readonly SceneObject[], label: string, groups: readonly GroupNode[] = []): void {
     const all = [...this.scene.objects, ...objects];
-    const next = groups.length ? withGroups(this.scene, all, [...(this.scene.groups ?? []), ...groups]) : { ...this.scene, objects: all };
+    const added = groups.length ? withGroups(this.scene, all, [...(this.scene.groups ?? []), ...groups]) : { ...this.scene, objects: all };
+    // Edit Group: what is made inside a group joins it, posed inside it like a dragged-in row.
+    const into = this.scopeNow && 'group' in this.scopeNow ? this.scopeNow.group : null;
+    const next = into ? (reparented(added, coverItems(added, new Set(objects.map((o) => o.id))), into) ?? added) : added;
     if (!this.commit(label, next, ChangeKind.Objects)) return;
     this.select(objects.map((o) => o.id), SelectMode.Replace);
   }
@@ -311,15 +323,89 @@ export class World {
     return coverItems(this.scene, this.selected);
   }
 
-  /** Selecting one member of a group selects the whole family, like Bryce: the outermost group with all inside. */
+  /**
+   * Selecting one member of a group selects the whole family, like Bryce: the outermost group with all inside.
+   * In Edit Group the family is counted from the edited group, and objects outside it give nothing.
+   */
   groupMembers(id: ObjectId): ObjectId[] {
-    return familyOf(this.scene, id);
+    const members = this.scopeMembers();
+    return this.scopeNow && members ? scopeFamily(this.scene, this.scopeNow, members, id) : familyOf(this.scene, id);
+  }
+
+  /** Edit Group (edit-scope.ts): null while the whole scene is edited. */
+  get scope(): EditScope | null {
+    return this.scopeNow;
+  }
+
+  /** Starts or ends Edit Group; the selection keeps only what is inside. Not an undo step. */
+  setScope(scope: EditScope | null): void {
+    const next = scope && scopeAlive(this.scene, scope) ? scope : null;
+    if (sameScope(next, this.scopeNow)) return;
+    this.scopeNow = next;
+    this.scopeCache = null;
+    this.events.emit('scope', { scope: next });
+    const members = this.scopeMembers();
+    if (members) this.select([...this.selected].filter((id) => members.has(id)), SelectMode.Replace);
+  }
+
+  /** Done in Edit Group: out to the group around, or to the whole scene. */
+  scopeUp(): void {
+    if (this.scopeNow) this.setScope(parentScope(this.scene, this.scopeNow));
+  }
+
+  /** The objects Edit Group works on now, or null outside it. */
+  scopeMembers(): ReadonlySet<ObjectId> | null {
+    return this.scopeNow ? this.scopeEntry(this.scopeNow).members : null;
+  }
+
+  /** What the picture shows and clicks pick: the scene, or in Edit Group only the group. */
+  get viewScene(): Scene {
+    return this.scopeNow ? this.scopeEntry(this.scopeNow).view : this.scene;
+  }
+
+  private scopeEntry(scope: EditScope): { readonly members: Set<ObjectId>; readonly view: Scene } {
+    const scene = this.scene;
+    if (this.scopeCache?.scene !== scene) {
+      const members = scopeMembers(scene, scope);
+      this.scopeCache = { scene, members, view: scopedScene(scene, members) };
+    }
+    return this.scopeCache;
   }
 
   /** Moves objects and groups into a group, or to the top level with null; false when refused (a loop, too deep). */
   reparent(items: TreeItems, target: GroupId | null): boolean {
     const next = reparented(this.scene, items, target);
     return next !== null && this.commit(target ? 'Move into group' : 'Move out of groups', next, ChangeKind.Objects);
+  }
+
+  /** Saves a live membership rule as one history step. */
+  addSmartGroup(group: SmartGroup): void {
+    const groups = this.scene.smartGroups ?? [];
+    if (groups.length >= SCENE_LIMITS.smartGroups || smartGroupOf(this.scene, group.id)) return;
+    this.commit('New smart group', { ...this.scene, smartGroups: [...groups, group] }, ChangeKind.Objects);
+  }
+
+  updateSmartGroup(id: SmartGroupId, patch: { readonly name?: string; readonly rule?: SmartRule }, label: string): void {
+    const group = smartGroupOf(this.scene, id);
+    if (!group) return;
+    const name = patch.name ?? group.name;
+    const rule = patch.rule ?? group.rule;
+    const old = group.rule;
+    const sameRule = rule.by === SmartRuleKind.Kind && old.by === SmartRuleKind.Kind
+      ? rule.kinds.every((k) => old.kinds.includes(k)) && old.kinds.every((k) => rule.kinds.includes(k))
+      : rule.by === SmartRuleKind.Material && old.by === SmartRuleKind.Material
+        ? rule.material === old.material
+        : rule.by === SmartRuleKind.Name && old.by === SmartRuleKind.Name && rule.text === old.text;
+    if (name === group.name && sameRule) return;
+    const smartGroups = this.scene.smartGroups!.map((g) => g.id === id ? { ...g, name, rule } : g);
+    this.commit(label, { ...this.scene, smartGroups }, ChangeKind.Objects);
+  }
+
+  removeSmartGroup(id: SmartGroupId): void {
+    if (!smartGroupOf(this.scene, id)) return;
+    const { smartGroups: previous, ...rest } = this.scene;
+    const smartGroups = previous!.filter((g) => g.id !== id);
+    this.commit('Delete smart group', smartGroups.length ? { ...rest, smartGroups } : rest, ChangeKind.Objects);
   }
 
   renameGroup(id: GroupId, name: string): void {
@@ -388,7 +474,7 @@ export class World {
   }
 
   selectAll(): void {
-    this.select(this.scene.objects.filter((o) => !o.hidden).map((o) => o.id), SelectMode.Replace);
+    this.select(this.viewScene.objects.filter((o) => !o.hidden).map((o) => o.id), SelectMode.Replace);
   }
 
   /** History moves are refused while a drag is open: the drag would keep writing into the past. */

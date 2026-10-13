@@ -61,6 +61,9 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.Group]: { label: 'Group', menu: MenuName.Objects, chords: [c('KeyG', M)] },
   [Action.Ungroup]: { label: 'Ungroup', menu: MenuName.Objects, chords: [c('KeyG', MS)] },
   [Action.NewGroup]: { label: 'New Group', menu: MenuName.Objects, chords: [] },
+  // Also a double click on a grouped object; Esc with nothing selected steps out.
+  [Action.EditGroup]: { label: 'Edit Group', menu: MenuName.Objects, chords: [] },
+  [Action.NewSmartGroup]: { label: 'New Smart Group…', menu: MenuName.Objects, chords: [] },
   [Action.Land]: { label: 'Land Object', menu: MenuName.Objects, chords: [c('KeyL')] },
   [Action.Attributes]: { label: 'Object Attributes…', menu: MenuName.Objects, chords: [c('KeyA', { alt: true })] },
   [Action.EditMaterial]: { label: 'Materials Lab…', menu: MenuName.Objects, chords: [c('KeyM')] },

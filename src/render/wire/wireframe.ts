@@ -28,6 +28,8 @@ export interface WireOptions {
   readonly gizmoNear: boolean;
   readonly shadeOutside: boolean;
   readonly overRender: boolean;
+  /** Edit Group: the rest of the scene, drawn as faint wires that cannot be picked. */
+  readonly ghosts?: readonly SceneObject[];
 }
 
 export type { GizmoHandles } from './gizmo';
@@ -97,6 +99,7 @@ export function drawWireframe(g: CanvasRenderingContext2D, scene: Scene, proj: W
   const segments: SegmentIndex = new Map();
   if (opts.grid) drawGrid(g, proj);
   if (!proj.basis.ortho && !opts.overRender) drawHorizon(g, proj);
+  if (opts.ghosts?.length && !opts.overRender) drawGhosts(g, opts.ghosts, proj);
   // Over a rendered picture Bryce shows only what you are working on.
   const visible = scene.objects.filter((o) => !o.hidden && (!opts.overRender || opts.selection.has(o.id) || o.id === opts.hover));
   const depths = visible.map((o) => proj.view(o.transform.position)[2]);
@@ -132,6 +135,28 @@ export function drawWireframe(g: CanvasRenderingContext2D, scene: Scene, proj: W
   const gizmo = opts.gizmo ? drawGizmo(g, scene.objects.filter((o) => opts.selection.has(o.id) && !o.hidden), proj, { hover: opts.gizmoHover, near: opts.gizmoNear }) : null;
   if (opts.shadeOutside) shadeOutside(g, proj.frame);
   return { segments, gizmo };
+}
+
+/** The objects outside the group being edited: thin and faint, for where things are. */
+function drawGhosts(g: CanvasRenderingContext2D, objects: readonly SceneObject[], proj: WireProjector): void {
+  g.globalAlpha = WIRE.ghostAlpha;
+  g.strokeStyle = WIRE.ghostColor;
+  g.lineWidth = 1;
+  g.setLineDash([]);
+  g.beginPath();
+  for (const o of objects) {
+    if (o.hidden) continue;
+    const m = drawsInWorldUnits(o) ? compose(o.transform.position, o.transform.rotation, [1, 1, 1]) : objectMatrix(o);
+    const lines = wireLines(o);
+    for (let i = 0; i < lines.length; i += 2) {
+      const s = proj.segment(proj.view(transformPoint(m, lines[i])), proj.view(transformPoint(m, lines[i + 1])));
+      if (!s) continue;
+      g.moveTo(s[0], s[1]);
+      g.lineTo(s[2], s[3]);
+    }
+  }
+  g.stroke();
+  g.globalAlpha = 1;
 }
 
 function drawGrid(g: CanvasRenderingContext2D, proj: WireProjector): void {

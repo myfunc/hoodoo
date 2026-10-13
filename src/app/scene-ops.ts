@@ -44,7 +44,8 @@ export function createGameItem(world: World, item: GameItem): void {
 
 /** Frames the selection (or everything) in the active view. */
 export function frame(world: World, editor: EditorStore, view: SceneView, selectionOnly: boolean): void {
-  const scene: Scene = world.scene;
+  // Edit Group: Frame Scene frames the group.
+  const scene: Scene = world.viewScene;
   const objs = scene.objects.filter((o) => !o.hidden && !INFINITE_KINDS.has(o.kind) && (!selectionOnly || world.selection.has(o.id)));
   const box = unionBox(objs.map(worldBox));
   if (!box) return;

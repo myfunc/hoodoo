@@ -25,6 +25,8 @@ export enum Action {
   Group = 'group',
   Ungroup = 'ungroup',
   NewGroup = 'new-group',
+  EditGroup = 'edit-group',
+  NewSmartGroup = 'new-smart-group',
   Land = 'land',
   Attributes = 'attributes',
   EditMaterial = 'edit-material',

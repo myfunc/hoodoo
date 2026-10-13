@@ -5,7 +5,7 @@
   --tb-veil: rgba(10, 10, 12, 0.78);
 }
 .tutorial-book.is-floating .tb-body { width: min(900px, calc(100vw - 56px)); height: min(680px, calc(100vh - var(--menubar-h) - 64px)); }
-.tb-body { display: grid; grid-template-columns: 176px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 14px; min-height: 0; }
+.tb-body { display: grid; grid-template-columns: 216px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 14px; min-height: 0; }
 
 /* The recipes: a list on the left. */
 .tb-nav {
@@ -20,6 +20,8 @@
 .tb-nav-row:focus-visible { outline: 1px dotted var(--ink); outline-offset: -2px; }
 .tb-nav-row.is-picked { background: var(--accent-face); color: var(--accent-ink); box-shadow: var(--pressed); }
 .tb-nav-name { overflow: hidden; text-overflow: ellipsis; }
+.tb-nav-thumb { flex: none; width: 48px; height: 36px; object-fit: cover; background: var(--shade-15); box-shadow: 1px 1px 0 var(--hi), inset 0 0 0 1px var(--edge); }
+.tb-nav-row.is-picked .tb-nav-thumb { box-shadow: 0 0 0 2px var(--accent-ink); }
 .tb-num {
   flex: none; min-width: 18px; padding: 0 4px; box-sizing: border-box; text-align: center;
   font: bold 10px/17px var(--font-ui); color: var(--accent-ink); background: var(--teal);
@@ -40,6 +42,7 @@
 .tb-step { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .tb-line { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .tb-text { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: bold 12px var(--font-ui); }
+.tb-hero { margin-top: -6px; }
 .tb-result .tb-num { background: var(--ink); color: var(--field); }
 .tb-result .tb-text { font-weight: normal; }
 

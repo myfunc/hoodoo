@@ -3,13 +3,15 @@ import { latheIndex } from '../assets/lathe.profiles';
 import type { Vec3 } from '../core/vec3';
 import { VALUE_LIMITS, material } from '../model/material.factory';
 import type { Rgb } from '../core/color';
-import { BooleanMode, ChannelSource, ColorChannel, Ease, Family, ShapeKind, SkyMode, TextureKind, TextureMapping, ValueChannel } from '../model/scene.enums';
-import { asGroupId } from '../model/scene.ids';
-import type { Animation, Camera, CloudSettings, DocumentSetup, GroupNode, Key, LightData, MaterialKey, ObjectKey, OrthoView, ProceduralTexture, RenderSetup, RigFlags, Scene, Sky, Transform } from '../model/scene.types';
+import { BooleanMode, ChannelSource, ColorChannel, Ease, Family, ShapeKind, SmartRuleKind, SkyMode, TextureKind, TextureMapping, ValueChannel } from '../model/scene.enums';
+import { asGroupId, asSmartGroupId, newSmartGroupId } from '../model/scene.ids';
+import type { Animation, Camera, CloudSettings, DocumentSetup, GroupNode, Key, LightData, MaterialKey, ObjectKey, OrthoView, ProceduralTexture, RenderSetup, RigFlags, Scene, Sky, SmartGroup, SmartRule, Transform } from '../model/scene.types';
 import { clampBounces } from './render-setup';
 import type { BodyFlags } from '../model/scene.types';
 import { MASS_RANGE } from './body-flags';
 import { playScript } from './play/script-validate';
+import { SCENE_LIMITS } from './scene.constants';
+import { smartName } from './smart-groups';
 
 /**
  * Guards for scene data that arrives from outside (files, share links, autosave):
@@ -18,8 +20,7 @@ import { playScript } from './play/script-validate';
 export class SceneFileError extends Error {}
 
 export const TERRAIN_RES = { min: 2, max: 512 } as const;
-/** Limits for files and links from elsewhere: enough for any real scene, too little to hang a browser. */
-export const SCENE_LIMITS = { objects: 400, terrainSamples: 4194304, booleanMembers: 24, name: 80, id: 64, keysPerTrack: 600, groups: 400, groupDepth: 16 } as const;
+export { SCENE_LIMITS } from './scene.constants';
 /** What a group is called until it is renamed. */
 export const GROUP_NAME = 'Group';
 const MAX_COORD = 1e6;
@@ -378,4 +379,39 @@ export function bodyFlags(v: unknown): BodyFlags | null {
   const r = (v && typeof v === 'object' ? v : {}) as Partial<Record<keyof BodyFlags, unknown>>;
   if (typeof r.solid !== 'boolean' || typeof r.physical !== 'boolean') return null;
   return { solid: r.solid, physical: r.physical, ...(isNum(r.mass) && r.mass > 0 ? { mass: clampNum(r.mass, MASS_RANGE.min, MASS_RANGE) } : {}) };
+}
+
+/** A saved membership rule, or null when its inputs are not usable. */
+export function smartRule(v: unknown): SmartRule | null {
+  const r = (v ?? {}) as { readonly by?: unknown; readonly kinds?: unknown; readonly material?: unknown; readonly text?: unknown };
+  switch (r.by) {
+    case SmartRuleKind.Kind:
+      if (!Array.isArray(r.kinds) || !r.kinds.length || !r.kinds.every((k) => SHAPES.has(k))) return null;
+      return { by: r.by, kinds: [...new Set(r.kinds as ShapeKind[])] };
+    case SmartRuleKind.Material:
+      return typeof r.material === 'string' && r.material.trim() ? { by: r.by, material: r.material.trim().slice(0, SCENE_LIMITS.name) } : null;
+    case SmartRuleKind.Name:
+      return typeof r.text === 'string' && r.text.trim() ? { by: r.by, text: r.text.trim().slice(0, SCENE_LIMITS.name) } : null;
+    default: return null;
+  }
+}
+
+/** Saved smart groups have valid rules and short, unique ids and names. */
+export function smartGroupTable(v: unknown): SmartGroup[] {
+  if (!Array.isArray(v)) return [];
+  const groups: SmartGroup[] = [];
+  const seen = new Set<string>();
+  const entries = v.slice(0, SCENE_LIMITS.smartGroups);
+  const reserved = new Set(entries.flatMap((raw) => isId(raw?.id) ? [raw.id as string] : []));
+  for (const raw of entries) {
+    const r = (raw ?? {}) as Partial<Record<keyof SmartGroup, unknown>>;
+    const rule = smartRule(r.rule);
+    if (!rule) continue;
+    let id = isId(r.id) && !seen.has(r.id) ? asSmartGroupId(r.id) : newSmartGroupId();
+    if (id !== r.id) while (seen.has(id) || reserved.has(id)) id = newSmartGroupId();
+    seen.add(id);
+    const name = typeof r.name === 'string' ? r.name.trim().slice(0, SCENE_LIMITS.name) : '';
+    groups.push({ id, name: name || smartName(rule), rule });
+  }
+  return groups;
 }

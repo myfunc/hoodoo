@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.14.0 - 2026-10-13
+
+### Added
+- Edit Group: double-click an object in a group (or Objects › Edit Group) to work
+  on that group alone. The picture shows only the group, the rest of the scene stays
+  as faint wires, a click picks one member, and new objects join the group. Done or
+  Esc with nothing selected steps out, one level at a time.
+- Smart groups (+ Smart in the Scene list, or Objects › New Smart Group…): every
+  object of a kind, of a material or with a name, found by itself as the scene
+  changes. A click selects them all, the eye and the lock act on all of them, and
+  Edit Group works on a smart group too. Objects stay in their own groups.
+
+### Changed
+- The handles of the selection are smaller and lighter, and easier to take: a press
+  anywhere on an axis line takes it, not only on its end.
+- The Tutorial Book shows what each recipe ends with first: a picture in the list
+  and at the top of the page.
+
 ## 0.13.2 - 2026-10-13
 
 ### Fixed

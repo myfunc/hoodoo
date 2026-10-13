@@ -223,6 +223,23 @@ input { font: inherit; }
 .compare-tag.right { left: auto; right: 8px; }
 .compare-bar { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; pointer-events: auto; }
 
+/* Edit Group's line over the scene window (ui/chrome/scope-bar.ts) */
+.scope-bar { position: absolute; z-index: 3; top: 8px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 3px 4px 3px 10px; white-space: nowrap; font: 11px var(--font-ui); color: #fff; background: rgba(20,20,20,0.72); border-radius: 0; }
+.scope-bar[hidden] { display: none; }
+.scope-bar .ui-button { height: 18px; padding: 0 10px; color: var(--ink); font-weight: bold; }
+.scope-kind { opacity: 0.7; }
+.scope-name { font-weight: bold; }
+.scope-count { opacity: 0.7; font-variant-numeric: tabular-nums; }
+
+/* New Smart Group (ui/panels/smart-group-dialog.ts) */
+.smart-form { display: flex; flex-direction: column; gap: 8px; width: 320px; }
+.smart-form-row { display: grid; grid-template-columns: 56px 1fr; align-items: center; gap: 8px; }
+.smart-form-label { white-space: nowrap; }
+.smart-form-value { display: flex; }
+.smart-form-value > * { flex: 1; }
+.smart-form-field { width: 100%; }
+.smart-form-note { font-size: 11px; opacity: 0.75; white-space: nowrap; }
+
 /* plain dialog layouts */
 .form-grid { display: grid; gap: 6px 10px; align-items: center; }
 .movie-form { grid-template-columns: 90px 240px; }
@@ -373,6 +390,12 @@ input { font: inherit; }
 .rig-row:not(.is-selected) .outliner-name { color: var(--ink); }
 .outliner-rig-end { height: 1px; margin: 3px 2px; background: var(--shade-15); box-shadow: 0 1px 0 var(--hi); }
 .outliner-row.is-group.is-selected .outliner-name { color: var(--select); }
+/* Smart groups: a dashed mark; Edit Group fades the rows outside the group. */
+.outliner-group-icon .smart-mark { fill: none; stroke-dasharray: 3 2; }
+.outliner-row.is-smart .outliner-name { font-weight: normal; font-style: italic; }
+.outliner-row.is-editing { box-shadow: inset 2px 0 0 var(--teal-ink); }
+.outliner-row.is-outside { opacity: 0.4; }
+.panel-adds { display: flex; gap: 3px; margin-left: auto; }
 .outliner.is-dragging, .outliner.is-dragging .outliner-row { cursor: grabbing; }
 .outliner-row.is-dragged { opacity: 0.4; }
 .outliner-row.is-drop-target { background: var(--teal-wash-strong); box-shadow: inset 0 0 0 1px var(--teal-ink); }

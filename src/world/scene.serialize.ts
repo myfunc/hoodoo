@@ -79,7 +79,7 @@ function decodeHeights(s: SerializedTerrain): TerrainData {
 }
 
 export function serializeScene(scene: Scene): SceneFile {
-  const { groups, ...rest } = scene;
+  const { groups, smartGroups, ...rest } = scene;
   const table = tidyGroups(scene.objects, groups ?? []);
   return {
     format: SCENE_FORMAT,
@@ -95,6 +95,7 @@ export function serializeScene(scene: Scene): SceneFile {
         };
       }),
       ...(table.length ? { groups: table } : {}),
+      ...(smartGroups?.length ? { smartGroups } : {}),
     },
   };
 }
@@ -173,6 +174,7 @@ export function deserializeScene(raw: unknown): Scene {
   const bookmarks = Array.from({ length: BOOKMARK_SLOTS }, (_, i) => s.bookmarks?.[i] ?? null);
   const objects = tidyPairs(capBooleans(s.objects.map((o) => reviveObject(o, seen))));
   const groups = tidyGroups(objects, check.groupTable(s.groups));
+  const smartGroups = check.smartGroupTable(s.smartGroups);
   const camera = check.camera(s.camera, DEFAULT_CAMERA);
   // Version 1: a Hoodoo 3D scene opens with its timeline on and soft shadows; a Hoodoo 2
   // scene (or one from before the studios) is a still with crisp shadows.
@@ -187,6 +189,7 @@ export function deserializeScene(raw: unknown): Scene {
     animation: v1 && !motion ? EMPTY_ANIMATION : check.animation(s.animation, motion ? V1_MOTION_ANIMATION : EMPTY_ANIMATION, ids, camera, sky, groupIds),
     objects,
     ...(groups.length ? { groups } : {}),
+    ...(smartGroups.length ? { smartGroups } : {}),
     camera,
     sky,
     document: check.documentSetup(s.document, DEFAULT_DOCUMENT),
