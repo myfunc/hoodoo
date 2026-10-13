@@ -134,6 +134,24 @@ export class VmGpu {
     return tex;
   }
 
+  /** A texture a canvas draws (the Tool Gun's screen): clamped, without mipmaps; `updateCanvasTexture` loads it again. */
+  canvasTexture(canvas: HTMLCanvasElement): WebGLTexture {
+    const gl = this.gl;
+    const tex = gl.createTexture() as WebGLTexture;
+    this.updateCanvasTexture(tex, canvas);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return tex;
+  }
+
+  updateCanvasTexture(tex: WebGLTexture, canvas: HTMLCanvasElement): void {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, tex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.SRGB8_ALPHA8, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+  }
+
   /** A model's meshes on the GPU (positions in the model's own Source space). */
   upload(model: SourceModel): GpuModel {
     const gl = this.gl;

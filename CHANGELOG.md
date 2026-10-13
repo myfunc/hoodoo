@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.1 - 2026-10-13
+
+### Added
+- With your Garry's Mod files, the Tool Gun's little screen shows the tool's name
+  scrolling across it, as in the game.
+
 ## 0.16.0 - 2026-10-13
 
 ### Added

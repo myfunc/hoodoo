@@ -149,6 +149,7 @@ export class HandsLayer {
       this.sprites('endGlow', worldProj, false, (b) => b.sprite(end, LOOK.endGlow, [1, 1, 1, LOOK.endAlpha]));
     }
     this.gpu.clearDepth();
+    if (view.screen) this.hands.screen?.draw(view.screen, now);
     this.hands.draw(aspect, light, weaponColor);
     const vmMuzzle = this.attachment();
     if (view.firing && vmMuzzle) {

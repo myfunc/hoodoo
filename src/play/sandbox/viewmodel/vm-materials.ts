@@ -1,6 +1,7 @@
 import { decodeVtf } from '../../../io/source/vtf';
 import { loadMaterial, paramBool, paramNumber, paramVector, texturePath } from '../../../io/source/material';
 import type { SourceFiles, SourceMaterial, SourceTextureSlot } from '../../../io/source/source.types';
+import { ToolScreen } from './tool-screen';
 import type { VmGpu, VmMaterial } from './vm-gpu';
 
 /**
@@ -23,10 +24,14 @@ const DEFAULTS = {
 const WHITE: readonly [number, number, number] = [1, 1, 1];
 const LIT_SHADERS = ['vertexlitgeneric', 'unlitgeneric', 'lightmappedgeneric', 'unlittwotexture'];
 const WEAPON_COLOR_PROXY = 'playerweaponcolor';
+/** The Tool Gun's screen: cl_viewscreen.lua draws it (tool-screen.ts). */
+const TOOL_SCREEN = /v_toolgun\/screen\.vmt$/i;
 const SELF_ILLUM_TINT = '$selfillumtint';
 
 export class VmMaterials {
   private readonly textures = new Map<string, Promise<WebGLTexture | null>>();
+  /** The Tool Gun's screen, once its material is loaded. */
+  screen: ToolScreen | null = null;
 
   constructor(private readonly gpu: VmGpu, private readonly files: SourceFiles) {}
 
@@ -34,7 +39,13 @@ export class VmMaterials {
   async slot(s: SourceTextureSlot): Promise<VmMaterial | null> {
     const path = s.candidates.find((c) => this.files.has(c));
     if (!path) return null;
-    return this.load(await loadMaterial(this.files, path));
+    const source = await loadMaterial(this.files, path);
+    const m = await this.load(source);
+    if (!m || !TOOL_SCREEN.test(path)) return m;
+    const bg = source.params.get('$basetexture');
+    const bytes = bg ? await this.files.read(texturePath(bg)) : null;
+    this.screen ??= new ToolScreen(this.gpu, bytes ? decodeVtf(bytes) : null);
+    return { ...m, base: this.screen.texture };
   }
 
   /** A texture by its material name ("sprites/physbeam_white"), cached. */

@@ -56,7 +56,7 @@ export class ToolGun implements Weapon {
   }
 
   view(): WeaponView {
-    return { ...IDLE, shot: this.shot };
+    return { ...IDLE, shot: this.shot, screen: this.current.name };
   }
 
   holster(): void {

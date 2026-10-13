@@ -44,6 +44,8 @@ export interface WeaponView {
   readonly flash: { readonly body: BodyId; readonly time: number; readonly frozen: boolean } | null;
   /** The Tool Gun's last shot that did something: where it hit and when (simulation seconds). */
   readonly shot?: { readonly end: Vec3; readonly time: number } | null;
+  /** What the gun's little screen shows (the Tool Gun's tool). */
+  readonly screen?: string;
 }
 
 export interface Weapon {

@@ -4,6 +4,7 @@ import { loadModel } from '../../../io/source/model';
 import type { Matrix3x4, SourceFiles, SourceModel } from '../../../io/source/source.types';
 import { WeaponId } from '../sandbox.enums';
 import type { GpuModel, VmGpu, VmLighting, VmMaterial } from './vm-gpu';
+import type { ToolScreen } from './tool-screen';
 import { VmMaterials } from './vm-materials';
 import { Bob, type GunPose, Lag, REST_POSE, type ViewAxes } from './vm-motion';
 import { VM_CLIP, mergedBones, originOf, perspective, transform4, viewmodelMatrix, vmVerticalFov } from './vm-space';
@@ -71,6 +72,8 @@ export class Viewmodel {
     private readonly gpu: VmGpu,
     private readonly arms: Loaded | null,
     private readonly weapons: ReadonlyMap<WeaponId, Loaded>,
+    /** The Tool Gun's screen, when its model has one. */
+    readonly screen: ToolScreen | null,
   ) {}
 
   /** Loads the arms and every weapon the files have; null when there is no gun to show. */
@@ -85,7 +88,7 @@ export class Viewmodel {
     const entries = await Promise.all((Object.keys(WEAPON_LOOKS) as WeaponId[]).map(async (id) => [id, await one(WEAPON_LOOKS[id].model)] as const));
     const weapons = new Map(entries.filter((e): e is [WeaponId, Loaded] => e[1] !== null));
     if (!weapons.size) return null;
-    return new Viewmodel(gpu, await one(ARMS_MODEL), weapons);
+    return new Viewmodel(gpu, await one(ARMS_MODEL), weapons, materials.screen);
   }
 
   has(id: WeaponId): boolean {
