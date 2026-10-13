@@ -1,7 +1,7 @@
 import { ZERO3 } from '../../core/vec3';
 import type { ObjectId } from '../../model/scene.ids';
 import type { Scene, SceneObject } from '../../model/scene.types';
-import { canBePhysical, massOf } from '../../world/body-flags';
+import { canBePhysical } from '../../world/body-flags';
 import { type BodyId, Motion } from '../sim/physics';
 import type { PlaySim } from '../sim/play-sim';
 
@@ -51,18 +51,7 @@ export class Props {
 
   /** Moving freely: a fixed scene object becomes a prop with its own mass, a frozen prop thaws. */
   unfreeze(body: BodyId): void {
-    const { physics, bodies } = this.sim;
-    const item = bodies.items.get(body);
-    if (!item) return;
-    physics.setFrozen(body, false);
-    if (item.motion === Motion.Fixed) {
-      const mass = item.members.reduce((s, m) => s + massOf(this.objects.get(m.id) as SceneObject), 0);
-      const rb = physics.world.getRigidBody(body);
-      const n = rb?.numColliders() ?? 0;
-      for (let i = 0; i < n; i++) rb?.collider(i).setMass(mass / n);
-      physics.setCcd(body, true);
-      bodies.setMotion(body, Motion.Dynamic);
-    }
+    this.sim.bodies.release(body, (id) => this.objects.get(id));
     this.frozen.delete(body);
   }
 

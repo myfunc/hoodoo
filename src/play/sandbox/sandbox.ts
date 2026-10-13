@@ -3,11 +3,15 @@ import { ScrollClassifier, ScrollDevice } from '../../input/scroll-device';
 import type { Thumbnailer } from '../../render/thumbs';
 import type { Frame } from '../../render/wire/wireframe';
 import type { Hl2HudState, Hl2Weapon } from '../../ui/sandbox/hl2/hl2-hud';
-import { SandboxHud } from '../../ui/sandbox/hud';
+import { type HudTool, SandboxHud } from '../../ui/sandbox/hud';
 import { SpawnMenu } from '../../ui/sandbox/spawn-menu';
+import { ToolMenu } from '../../ui/sandbox/tool-menu';
+import { raycast } from '../../world/raycast';
 import type { World } from '../../world/world';
+import type { Vec3 } from '../../core/vec3';
 import { type ActorInput, Button } from '../sim/actor';
 import { SIM_DT } from '../sim/clock';
+import { Motion } from '../sim/physics';
 import type { PlayFrame, PlaySim } from '../sim/play-sim';
 import { SANDBOX_KEYS, isSnapKey, slotOfKey } from './binds';
 import { GameFiles } from './game-files';
@@ -20,8 +24,11 @@ import { NoticeKind, WeaponId } from './sandbox.enums';
 import { SceneEdits } from './scene-edits';
 import { SPAWN_LIMIT, tracedCount } from './spawn';
 import { SPAWN_ITEMS, spawnLists } from './spawn-lists';
+import type { ToolContext, ToolHit, ToolId } from './tools/tool';
+import { createTools } from './tools/tools';
 import { aimOf } from './weapons/grip';
 import { PhysicsGun } from './weapons/physgun';
+import { ToolGun } from './weapons/toolgun';
 import type { Weapon, WeaponContext } from './weapons/weapon';
 
 /** What the play session lends Sandbox. */
@@ -54,6 +61,8 @@ const WHEEL = { pxPerStep: 50, linePx: 16, lineMode: 1 } as const;
 /** Health is not played yet: Half-Life 2's HUD shows it full, as Garry's Mod does. */
 const FULL_HEALTH = 100;
 const MS_PER_S = 1000;
+/** Garry's Mod's tool help box flashes on a shot and fades this fast (seconds). */
+const TOOL_FLASH_S = 0.3;
 
 /** Z joins the hint once something can be undone (the spawn menu). */
 const COMMON_HINT = 'Tab setup · Esc exit';
@@ -72,6 +81,8 @@ export interface SandboxAutomation {
   readonly aim: (yaw: number, pitch: number) => void;
   /** Spawns a menu item where the player aims, as a click on its icon does; false when refused. */
   readonly spawn: (key: string) => boolean;
+  /** Puts a tool in the Tool Gun and takes the gun out, as a click in the Tools column does. */
+  readonly tool: (id: string) => void;
   /** Mouse motion as E-turning or looking. */
   readonly look: (dx: number, dy: number) => void;
   readonly hold: (code: string, down: boolean) => void;
@@ -82,7 +93,8 @@ export interface SandboxAutomation {
  * Play. The session hands it keys and the wheel first (it keeps the ones it
  * uses), the mouse when a weapon wants it, every fixed step's input (the weapon
  * acts before the world moves) and every display frame (HUD and beam). It owns
- * the loadout, the props' state, the session's undo list and the notices.
+ * the loadout with the Physics Gun and the Tool Gun, the spawn menu and its Tools
+ * column, the props' state, the scene edits and the notices.
  */
 export class Sandbox {
   private readonly props: Props;
@@ -90,7 +102,12 @@ export class Sandbox {
   private readonly menu: SpawnMenu;
   private readonly notices = new Notices();
   private readonly loadout = new Loadout();
-  private readonly weapons: ReadonlyMap<WeaponId, Weapon> = new Map([[WeaponId.PhysicsGun, new PhysicsGun()]]);
+  private readonly toolgun = new ToolGun(createTools(), {
+    trace: (eye, aim) => this.toolTrace(eye, aim),
+    context: () => this.toolContext(),
+  });
+  private readonly weapons: ReadonlyMap<WeaponId, Weapon> = new Map<WeaponId, Weapon>([[WeaponId.PhysicsGun, new PhysicsGun()], [WeaponId.ToolGun, this.toolgun]]);
+  private readonly toolMenu: ToolMenu;
   private readonly hud = new SandboxHud();
   private readonly overlay = new Overlay();
   private readonly classifier = new ScrollClassifier();
@@ -112,8 +129,10 @@ export class Sandbox {
     this.props = new Props(host.sim, host.scene);
     this.edits = new SceneEdits(host.world, host.sim);
     this.menu = new SpawnMenu(host.thumbs, spawnLists(), (key) => void this.spawn(key));
+    this.toolMenu = new ToolMenu(host.thumbs, this.toolgun.tools, (id) => this.pickTool(id as ToolId));
+    this.menu.addPanel(this.toolMenu.el);
     host.layer.classList.add('is-sandbox');
-    host.layer.append(this.overlay.canvas, this.hud.el, this.menu.el, this.menu.cursor);
+    host.layer.append(this.overlay.canvas, this.hud.el, this.menu.el, this.toolMenu.el, this.menu.cursor);
     this.game = new GameFiles({ mount: (cs) => this.overlay.canvas.after(...cs), notify: (text) => this.notify(text, NoticeKind.Hint) });
     host.addPanelSection(this.game.section.el);
     this.automate();
@@ -208,8 +227,19 @@ export class Sandbox {
       hint: `${this.weapon.hint} · ${COMMON_HINT}`,
       slots: now < this.slotsUntil ? this.loadout.slots() : null,
       notices: visible.map(({ notice, opacity }) => ({ id: notice.id, text: notice.text, kind: notice.kind, opacity })),
+      // The spawn menu covers the tool's help, as Garry's Mod's does.
+      tool: this.weapon === this.toolgun && !this.menu.open ? this.hudTool() : null,
+      picture: this.host.picture(),
     });
     this.game.sounds?.weapon(this.weapon.id, this.weapon.view(), this.host.active());
+  }
+
+  /** The Tool Gun's tool for the info panel, flashing after a shot. */
+  private hudTool(): HudTool {
+    const t = this.toolgun.tool;
+    const at = this.toolgun.firedAt;
+    const flash = at === null ? 0 : Math.max(0, 1 - (this.host.sim.time - at) / TOOL_FLASH_S);
+    return { name: t.name, about: t.about, lines: t.lines.map((l) => ({ chip: l.button, text: l.text })), flash };
   }
 
   /** The canvases (beam and halos, the guns, Half-Life 2's HUD) for a picture of frame `f`. */
@@ -245,6 +275,7 @@ export class Sandbox {
     this.weapon.holster(this.context());
     this.hud.el.remove();
     this.menu.el.remove();
+    this.toolMenu.el.remove();
     this.menu.cursor.remove();
     this.overlay.canvas.remove();
     this.host.layer.classList.remove('is-sandbox', 'is-hl2');
@@ -266,7 +297,32 @@ export class Sandbox {
   private spawnMenu(open: boolean): void {
     if (open === this.menu.open) return;
     this.menu.setOpen(open);
-    if (open) this.menu.setCount(tracedCount(this.host.world.scene), SPAWN_LIMIT);
+    if (!open) return;
+    this.menu.setCount(tracedCount(this.host.world.scene), SPAWN_LIMIT);
+    this.toolMenu.show(this.toolgun.tool.id);
+  }
+
+  /** A tool from the Tools column: into the Tool Gun, and the Tool Gun out. */
+  private pickTool(id: ToolId): void {
+    this.toolgun.select(id);
+    this.toolMenu.show(this.toolgun.tool.id);
+    if (this.weapon !== this.toolgun) this.switchWeapon(() => this.loadout.take(WeaponId.ToolGun));
+  }
+
+  /** The Tool Gun's aim through the picture's objects as play has them now, without a range limit. */
+  private toolTrace(eye: Vec3, aim: Vec3): ToolHit | null {
+    const hit = raycast(this.host.sim.frame(1).scene, eye, aim, { includePlanes: true, includeLights: false });
+    const object = hit ? this.host.world.object(hit.id) : undefined;
+    return hit && object ? { object, point: hit.point } : null;
+  }
+
+  private toolContext(): ToolContext {
+    const { bodies } = this.host.sim;
+    return {
+      edits: this.edits,
+      moving: (id) => (bodies.itemOf(id)?.motion ?? Motion.Fixed) !== Motion.Fixed,
+      joined: (id) => bodies.sharing([id]),
+    };
   }
 
   /** A spawn list's item where the player aims; past the tracer's limit, Garry's Mod's notice instead. */
@@ -314,6 +370,7 @@ export class Sandbox {
       wheel: (steps) => { this.reach += this.weapon.wantsWheel?.() ? steps : 0; },
       aim: (yaw, pitch) => { this.host.sim.player.yaw = yaw; this.host.sim.player.pitch = pitch; },
       spawn: (key) => this.spawn(key),
+      tool: (id) => this.pickTool(id as ToolId),
       look: (dx, dy) => { if (!this.look(dx, dy)) this.host.sim.driver.look(dx, dy); },
       hold: (code, down) => { this.key(code, down); },
     };

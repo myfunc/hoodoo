@@ -20,10 +20,11 @@ import { PlaneActor } from './plane-actor';
 import { flightTuning } from './plane-flight';
 import { type PlaneInScene, planeInScene } from './plane-model';
 import { planeStart } from './plane-spawn';
+import { putDown, takeUp } from './carry';
 import { type BodyId, Motion, Physics, type Pose, loadRapier } from './physics';
 import { conjQ, eulerOfQuat, mulQ, quatOfEuler, rotateQ, slerpQ } from './quat';
 import { SceneBodies } from './scene-bodies';
-import { changedForPhysics } from './scene-sync';
+import { changedForPhysics, leftInPlace } from './scene-sync';
 import { type Take, TakeRecorder, takeLimit } from './take';
 
 /** What the scene window shows for one display frame of play. */
@@ -133,15 +134,18 @@ export class PlaySim {
   /**
    * The editor's scene changed during play (Sandbox's spawns and edits, or their undo):
    * the picture shows it from now on, and the bodies of what changed are built again
-   * where the objects stand in it (scene-sync.ts). Clips and behaviours keep the scene
-   * they started with.
+   * (scene-sync.ts): where the objects stand in it when it moved them, else where
+   * play has them (carry.ts). Clips and behaviours keep the scene they started with.
    */
   sync(scene: Scene): void {
     if (scene === this.base) return;
-    const changed = changedForPhysics(this.base, scene);
+    const before = this.base;
+    const changed = changedForPhysics(before, scene);
     this.base = scene;
     if (changed.size) {
+      const carried = takeUp(this.physics, this.bodies, before, leftInPlace(before, scene, this.bodies.sharing(changed)));
       for (const body of this.bodies.resync(scene, changed)) this.prev.delete(body);
+      putDown(this.physics, this.bodies, scene, carried);
       this.physics.refresh();
       this.snapshot();
     }

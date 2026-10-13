@@ -33,14 +33,17 @@ const UNFROZEN: Rgb = [1, 0, 0];
 const MUZZLE = { x: 0.78, y: 1.02 } as const;
 /** Points this close to the eye or behind it are not drawn. */
 const NEAR = 0.05;
+/** The Tool Gun's shot without the game's files: a tracer for a moment, then a ring spreading from the hit (seconds, pixels). */
+const SHOT = { tracer: 0.1, ring: 0.3, ringFrom: 4, ringTo: 40, colour: 'rgba(150, 215, 255, ', width: 2 } as const;
 
 type Pt = readonly [number, number];
 
 /**
  * READ ME — Sandbox's 2D layer over the picture: the Physics Gun's beam from
  * the bottom of the picture to what it holds (bending toward the crosshair when
- * the body lags), the held object's halo and the green or red flash when a
- * prop is frozen or unfrozen. It projects with the play frame's camera, as the wires do.
+ * the body lags), the held object's halo, the green or red flash when a prop is
+ * frozen or unfrozen, and the Tool Gun's shot until the game's files draw them.
+ * It projects with the play frame's camera, as the wires do.
  */
 export class Overlay {
   readonly canvas: HTMLCanvasElement;
@@ -81,6 +84,28 @@ export class Overlay {
       this.halos.paint(g, silhouettes(proj, objects(view.flash.body)), view.flash.frozen ? FROZEN : UNFROZEN, fade, HALO.sizes[0] * HALO.pxPerSize);
     }
     if (beam && view.firing && view.end) this.beam(proj, picture, view);
+    if (beam && view.shot) this.shot(proj, picture, view.shot.end, sim.time - view.shot.time);
+  }
+
+  private shot(proj: WireProjector, picture: Frame, at: Vec3, age: number): void {
+    const end = this.screen(proj, at);
+    if (!end || age > SHOT.ring) return;
+    const g = this.g;
+    g.save();
+    g.lineWidth = SHOT.width;
+    if (age < SHOT.tracer) {
+      g.strokeStyle = `${SHOT.colour}${1 - age / SHOT.tracer})`;
+      g.beginPath();
+      g.moveTo(picture.x + picture.w * MUZZLE.x, picture.y + picture.h * MUZZLE.y);
+      g.lineTo(end[0], end[1]);
+      g.stroke();
+    }
+    const t = age / SHOT.ring;
+    g.strokeStyle = `${SHOT.colour}${1 - t})`;
+    g.beginPath();
+    g.arc(end[0], end[1], SHOT.ringFrom + (SHOT.ringTo - SHOT.ringFrom) * t, 0, Math.PI * 2);
+    g.stroke();
+    g.restore();
   }
 
   private beam(proj: WireProjector, picture: Frame, view: WeaponView): void {

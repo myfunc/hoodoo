@@ -50,3 +50,20 @@ function groupChanges(before: Scene, after: Scene): ObjectId[] {
   };
   return [...members(before), ...members(after)];
 }
+
+/**
+ * Of these objects, the ones `after` leaves where `before` had them: a new size,
+ * shape or flag, not a move. Their bodies are built again where play has them
+ * (carry.ts); the others where the scene puts them.
+ */
+export function leftInPlace(before: Scene, after: Scene, ids: Iterable<ObjectId>): ObjectId[] {
+  const old = new Map(before.objects.map((o) => [o.id, o.transform]));
+  const now = new Map(after.objects.map((o) => [o.id, o.transform]));
+  return [...ids].filter((id) => {
+    const a = old.get(id);
+    const b = now.get(id);
+    return !!a && !!b && sameVec(a.position, b.position) && sameVec(a.rotation, b.rotation);
+  });
+}
+
+const sameVec = (a: readonly number[], b: readonly number[]): boolean => a.every((v, i) => v === b[i]);

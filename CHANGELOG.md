@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.16.0 - 2026-10-13
+
+### Added
+- The Tool Gun in Garry's Mod mode (slot 6). Hold Q and pick a tool in the Tools column
+  on the right, its settings under the list; the tool's name, a line about it and what
+  each button does show at the top left of the picture. Mouse 1, Mouse 2 and R act on
+  what the crosshair meets, at any distance, each change one History step:
+  - Remover: take an object away, or with Mouse 2 the whole body it is part of.
+  - Resize: a step bigger or smaller (x1.1 to x2), along all axes or one; R gives the
+    size back. A prop grows up from what it stands on and keeps its place in play.
+  - Colour: paint from the swatches, at 100 to 25% alpha (see-through, tinted); Mouse 2
+    copies a colour, R gives it back.
+  - Material: the Materials Lab's presets as tiles, Chrome first; Mouse 2 copies one, R
+    gives the object its material back.
+- With your Garry's Mod files: the Tool Gun's own model in the hands, its shot sound,
+  the tracer and the selection rings where it hits.
+
+### Changed
+- Play builds a changed object's body again where play has it, with its speed and
+  frozen or not, instead of where the scene had it when Play began.
+
 ## 0.15.0 - 2026-10-13
 
 ### Added

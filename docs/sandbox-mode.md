@@ -6,8 +6,9 @@ the Hoodoo library, weld, rope and hinge them into contraptions, fit them with
 thrusters, wheels and balloons, and undo with Z. It plays like Garry's Mod and
 uses its keys.
 
-Status: building. The core, the Physics Gun and the game's own look (below)
-are in; the rest follows *Order of work*.
+Status: building. The core, the Physics Gun, the game's own look (below), the
+spawn menu and the Tool Gun with Remover, Resize, Colour and Material are in;
+the rest follows *Order of work*.
 
 ## Principles
 
@@ -17,8 +18,8 @@ are in; the rest follows *Order of work*.
 - **Everything you see is the scene.** Props, wheels, thrusters, balloons and
   ropes are ordinary Hoodoo objects, ray-traced with their shadows and
   reflections. Only the beam, the HUD and the menus are drawn over the picture.
-- **A session is a sandbox.** Leaving Play puts the scene back, as Play does,
-  unless you record a take or keep the build (*Saving builds*).
+- **Building is real.** What you spawn and change with the tools goes into the
+  scene, a History step each, and stays after Play (*Building scenes*).
 - **The Bryce look.** Stone grey, Geneva, compact segmented choices, one-line
   hints. The look of the HUD and the guns is picked from drawn variants
   before it is built.
@@ -129,13 +130,25 @@ Physics Gun's hold.
 
 ## Tool Gun
 
-One tool is active at a time, chosen in the spawn menu's Tools column. Mouse 1
-is the tool's primary action, Mouse 2 the secondary one, R its reload. Many
-tools take two clicks, and the info panel at the top left says what each
-button does at the current step. The tool traces the aim ray without a range
-limit. A shot draws a short tracer and a spark at the hit, and the gun's
-little screen shows the tool's name. Tools that place something (wheel,
+One tool is active at a time, chosen in the spawn menu's Tools column (on the
+right, by category, the tool's settings under the list; picking one takes the
+Tool Gun out). Mouse 1 is the tool's primary action, Mouse 2 the secondary
+one, R its reload, each once a press. The info panel at the top left of the
+picture is gmod_tool's: the name large, a line about it, and a line per button
+that flashes on a shot. The tool traces the aim without a range limit through
+the picture's objects as play has them (`world/raycast.ts`), so it meets
+exactly what you see. A shot that did something is gmod_tool's
+DoShootEffect: Toolgun.Single, the gun's attack, the tool tracer from the
+muzzle and the selection rings spreading from the hit (from the game's files;
+without them a thin line and a ring). Many tools take two clicks and say what
+each button does at the current step; tools that place something (wheel,
 thruster, balloon, easy weld) show a pale ghost of it where you aim.
+
+Remover and Resize take props: finite, unlocked objects (the ground, terrains
+and locked objects are the map, as Garry's Mod's world is). Colour and Material
+paint anything unlocked with a surface, ground included, since a scene is
+built in this mode. R gives back what the object had when Play began, or when
+it was spawned (`SceneEdits.original`).
 
 | Tool | Mouse 1 | Mouse 2 | R | Settings | What you see |
 |---|---|---|---|---|---|
@@ -147,16 +160,22 @@ thruster, balloon, easy weld) show a pale ghost of it where you aim.
 | Thruster | attach (welded, pushing along the normal) or update | — | — | force, forward key, reverse key, toggle, collision | a small nozzle that glows while it fires |
 | Wheel | attach on an axis along the normal | update | — | torque, friction, forward key, reverse key, toggle, size | a tyre and a hub |
 | Balloon | attach on a rope, or update | a balloon without a rope | — | lift (negative sinks), rope length, colour | a glossy balloon on its rope |
-| Remover | remove the object | remove it and everything joined to it | clear its joints | — | it fades out |
-| Colour | paint | copy the object's colour | reset | colour, alpha (transparency) | the material's colour |
-| Material | apply | copy the object's material | reset | the Materials Lab presets: glass, mirror, gold, chess, pool balls… | the material |
+| Remover | remove the object | remove it and the body it is part of (with Weld: all joined to it) | clear its joints (with Weld) | — | it is gone |
+| Resize | a step bigger | a step smaller | the size it had | step ×1.1 · ×1.25 · ×1.5 · ×2, along All · X · Y · Z | the new size, its weight with its volume |
+| Colour | paint the diffuse colour, flat | copy the object's colour and alpha | the colour it had | swatches, alpha 100 · 75 · 50 · 25 % (under 100 it lets light through, tinted) | the material's colour |
+| Material | apply | copy the object's preset | the material it had | the Materials Lab presets by family, Chrome first (Garry's Mod's env_cubemap) | the material |
 | Duplicator | paste the copy where you aim | copy the contraption under the aim | — | — | a ghost of the copy |
 
 Thruster and wheel defaults are GMod's own (force 1500, torque 3000, balloon
 lift 500, rope width 2, unbreakable joints), converted from HL units and kilos
 by the player's scale.
 
-A tool is one module:
+Resize keeps a prop where play has it: its body is built again in place, with
+its speed and frozen or not, and a prop that grows on the floor grows up from it
+(`src/play/sim/carry.ts`); an object the scene holds still grows up from its
+bottom in the scene.
+
+A tool is one module (`src/play/sandbox/tools/`):
 
 ```ts
 interface Tool {
@@ -164,24 +183,15 @@ interface Tool {
   readonly name: string;
   readonly category: ToolCategory;          // Constraints · Construction · Render
   readonly about: string;                   // one line under the name
-  readonly settings: readonly ToolSetting[]; // builds the settings panel
-  /** What Mouse 1, Mouse 2 and R do at this step: the info panel's lines. */
-  info(step: number): readonly ToolLine[];
-  primary(hit: ToolHit, ctx: ToolContext): ToolResult;
-  secondary?(hit: ToolHit, ctx: ToolContext): ToolResult;
-  reload?(hit: ToolHit, ctx: ToolContext): ToolResult;
-  /** The pale preview at the aim, if the tool places something. */
-  ghost?(hit: ToolHit, ctx: ToolContext): Ghost | null;
-  /** The weapon is put away or the tool changed: forget a half-made selection. */
-  reset(): void;
-}
-
-interface ToolResult {
-  readonly step: number;          // 0 when the action is complete
-  readonly undo?: UndoEntry;      // one Z step
-  readonly notice?: string;       // one line, bottom right
+  readonly lines: readonly ToolLine[];      // the info panel: a button and what it does
+  readonly settings: readonly ToolSetting[]; // segments, swatches, material tiles (ui/sandbox/tool-menu.ts)
+  /** A button on what the aim hits; true when the tool did something (the shot shows). */
+  use(button: ToolButton, hit: ToolHit, ctx: ToolContext): boolean;
 }
 ```
+
+Its changes go through `SceneEdits` (`change`, `remove`), one History step
+each. Two-click tools will add a step and a ghost to it.
 
 ## Undo
 
@@ -335,9 +345,11 @@ goes back as it was, as in any Play.
 
 ## Browser differences
 
-- **Pointer lock.** Q and C give the lock up while held and ask for it back on
-  release. If the browser refuses (Safari after Esc, Chrome's short cooldown),
-  *Click to play* shows.
+- **Pointer lock.** A browser gives the lock back only within a few seconds of
+  a key press, so letting go of a long-held Q could not ask for it again. The
+  menus keep the lock and move a cursor of their own instead; their settings
+  are clicks (segments, swatches, tiles), never drags. If the lock is lost
+  anyway (Safari after Esc), *Click to play* shows.
 - **Esc** always ends pointer lock (a browser rule): it closes an open menu,
   else it leaves Play.
 - **Trackpads.** Scrolling is summed into steps (`input/scroll-device.ts`), so
@@ -374,4 +386,4 @@ pictures of it.
 10. The context menu.
 11. The chosen look applied; health and suit; first-time hints.
 12. The Gravity Gun; noclip, flashlight, zoom.
-13. Saving builds.
+13. Saving builds: done by *Building scenes* (spawns and edits stay in the scene).

@@ -1,3 +1,4 @@
+import type { Frame } from '../../render/wire/wireframe';
 import { el } from '../kit/dom';
 import './sandbox.css';
 
@@ -16,6 +17,15 @@ export interface HudNotice {
   readonly opacity: number;
 }
 
+/** The Tool Gun's tool at the top left: its name, one line about it, a line per button. */
+export interface HudTool {
+  readonly name: string;
+  readonly about: string;
+  readonly lines: readonly { readonly chip: string; readonly text: string }[];
+  /** 1 just after a shot, fading to 0: the help box flashes, as Garry's Mod's does. */
+  readonly flash: number;
+}
+
 /** Everything the Sandbox HUD shows, as plain data (the play layer fills it in). */
 export interface SandboxHudState {
   /** The weapon in hand, named at the bottom right. */
@@ -25,13 +35,21 @@ export interface SandboxHudState {
   /** The slot strip at the top, shown for a moment after a switch; null hides it. */
   readonly slots: readonly HudSlot[] | null;
   readonly notices: readonly HudNotice[];
+  /** The Tool Gun's tool, while the Tool Gun is out. */
+  readonly tool: HudTool | null;
+  /** Where the picture is in the layer: the tool's help sits at its top left. */
+  readonly picture: Frame | null;
 }
+
+/** gmod_tool's help starts 40 pixels down a 1080-line screen. */
+const TOOL_TOP = 0.037;
 
 /**
  * READ ME — Sandbox's heads-up parts over the play layer (docs/sandbox-mode.md
- * › HUD): the weapon slots at the top, the notices and the weapon's name at the
- * bottom right, and the weapon's one-line hint at the bottom, in Play's colours
- * until a look is chosen. It only draws the state it is given.
+ * › HUD): the weapon slots at the top, the Tool Gun's tool at the top left, the
+ * notices and the weapon's name at the bottom right, and the weapon's one-line
+ * hint at the bottom, in Play's colours until a look is chosen. It only draws the
+ * state it is given.
  */
 export class SandboxHud {
   readonly el: HTMLElement;
@@ -39,11 +57,14 @@ export class SandboxHud {
   private readonly notices = el('div', { cls: 'sbx-notices' });
   private readonly weapon = el('div', { cls: 'sbx-weapon' });
   private readonly hint = el('div', { cls: 'sbx-hint' });
+  private readonly tool = el('div', { cls: 'sbx-tool' });
+  private readonly help = el('div', { cls: 'sbx-tool-help' });
+  private toolKey = '';
   private slotsKey = '';
   private readonly shown = new Map<number, HTMLElement>();
 
   constructor() {
-    this.el = el('div', { cls: 'sbx-hud' }, [this.slots, this.notices, this.weapon, this.hint]);
+    this.el = el('div', { cls: 'sbx-hud' }, [this.slots, this.tool, this.notices, this.weapon, this.hint]);
   }
 
   update(s: SandboxHudState): void {
@@ -51,6 +72,21 @@ export class SandboxHud {
     if (this.hint.textContent !== s.hint) this.hint.textContent = s.hint;
     this.updateSlots(s.slots);
     this.updateNotices(s.notices);
+    this.updateTool(s.tool, s.picture);
+  }
+
+  private updateTool(t: HudTool | null, picture: Frame | null): void {
+    this.tool.hidden = !t;
+    if (picture) {
+      this.tool.style.left = `${Math.round(picture.x)}px`;
+      this.tool.style.top = `${Math.round(picture.y + picture.h * TOOL_TOP)}px`;
+    }
+    this.help.style.setProperty('--flash', String(t?.flash ?? 0));
+    const key = t ? JSON.stringify([t.name, t.about, t.lines]) : '';
+    if (!t || key === this.toolKey) return;
+    this.toolKey = key;
+    this.help.replaceChildren(...t.lines.map((l) => el('div', { cls: 'sbx-tool-line' }, [el('span', { cls: 'sbx-chip', text: l.chip }), el('span', { text: l.text })])));
+    this.tool.replaceChildren(el('div', { cls: 'sbx-tool-name', text: t.name }), el('div', { cls: 'sbx-tool-about', text: t.about }), this.help);
   }
 
   private updateSlots(slots: readonly HudSlot[] | null): void {

@@ -150,10 +150,37 @@ export class SceneBodies {
     return this.byObject.get(id) ?? null;
   }
 
+  /** These objects and every object that shares a body with one of them. */
+  sharing(ids: Iterable<ObjectId>): Set<ObjectId> {
+    const out = new Set<ObjectId>();
+    for (const id of ids) {
+      out.add(id);
+      for (const m of this.byObject.get(id)?.members ?? []) out.add(m.id);
+    }
+    return out;
+  }
+
   /** A body moves another way from now on (Sandbox: a fixed object picked up becomes a prop that is drawn moving). */
   setMotion(body: BodyId, motion: Motion): void {
     const item = this.items.get(body);
     if (item) this.remember({ ...item, motion });
+  }
+
+  /** A fixed body becomes a prop (Sandbox picks a scene object up): dynamic, as heavy as its objects. */
+  release(body: BodyId, objectOf: (id: ObjectId) => SceneObject | undefined): void {
+    const item = this.items.get(body);
+    if (!item) return;
+    this.physics.setFrozen(body, false);
+    if (item.motion !== Motion.Fixed) return;
+    const mass = item.members.reduce((s, m) => {
+      const o = objectOf(m.id);
+      return o ? s + massOf(o) : s;
+    }, 0);
+    const rb = this.physics.world.getRigidBody(body);
+    const n = rb?.numColliders() ?? 0;
+    for (let i = 0; i < n; i++) rb?.collider(i).setMass(mass / n);
+    this.physics.setCcd(body, true);
+    this.setMotion(body, Motion.Dynamic);
   }
 
   /** Bodies that move by themselves (dynamic) or by keys (kinematic). */

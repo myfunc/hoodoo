@@ -40,9 +40,10 @@ export interface WeaponView {
   readonly end: Vec3 | null;
   /** The body held and the grabbed point on it. */
   readonly held: { readonly body: BodyId; readonly local: Vec3; readonly distance: number } | null;
-  /** A body that was just frozen or unfrozen, and when (simulation seconds). */
-  /** A prop just frozen (true) or unfrozen (false): Garry's Mod flashes a green or red halo. */
+  /** A prop just frozen (true) or unfrozen (false), and when (simulation seconds): Garry's Mod flashes a green or red halo. */
   readonly flash: { readonly body: BodyId; readonly time: number; readonly frozen: boolean } | null;
+  /** The Tool Gun's last shot that did something: where it hit and when (simulation seconds). */
+  readonly shot?: { readonly end: Vec3; readonly time: number } | null;
 }
 
 export interface Weapon {

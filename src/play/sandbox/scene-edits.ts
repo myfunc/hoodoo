@@ -1,6 +1,6 @@
 import { type Vec3, add, scale } from '../../core/vec3';
 import type { ObjectId } from '../../model/scene.ids';
-import type { Transform } from '../../model/scene.types';
+import type { SceneObject, Transform } from '../../model/scene.types';
 import { sameTransform } from '../../world/group-transform';
 import type { World } from '../../world/world';
 import { Layer } from '../sim/physics';
@@ -11,9 +11,11 @@ import { aimOf } from './weapons/grip';
 
 /**
  * READ ME — Sandbox's edits of the editor's scene (docs/sandbox-mode.md, Building
- * scenes): each is one History step, so what is built in Garry's Mod mode stays
- * after play and the editor's History lists it; PlaySim.sync gives the new and
- * changed objects their bodies. Z takes back only the steps of this session.
+ * scenes): spawns and the Tool Gun's changes, each one History step, so what is
+ * built in Garry's Mod mode stays after play and the editor's History lists it;
+ * PlaySim.sync gives the new and changed objects their bodies. Z takes back only
+ * the steps of this session. It remembers each object as play began with it or as
+ * it was spawned, which is what the tools' R gives back.
  */
 
 /** How far a spawn's aim looks for a surface, and where one lands with none, in player units (HL units). */
@@ -25,9 +27,27 @@ export class SceneEdits {
   private readonly first: number;
   /** Objects spawned or picked up this session: where physics leaves them is kept when play ends. */
   private readonly touched = new Set<ObjectId>();
+  private readonly originals: Map<ObjectId, SceneObject>;
 
   constructor(private readonly world: World, private readonly sim: PlaySim) {
     this.first = world.historyState().position;
+    this.originals = new Map(world.scene.objects.map((o) => [o.id, o]));
+  }
+
+  /** The object as play began with it, or as it was spawned. */
+  original(id: ObjectId): SceneObject | null {
+    return this.originals.get(id) ?? null;
+  }
+
+  /** The Tool Gun changes objects: one History step; they stay where play has them. */
+  change(ids: ReadonlySet<ObjectId>, label: string, fn: (o: SceneObject) => SceneObject): void {
+    this.world.updateObjects(ids, label, fn);
+    this.touch(ids);
+  }
+
+  /** The Remover: one History step. */
+  remove(ids: ReadonlySet<ObjectId>, label: string): void {
+    this.world.removeObjects(ids, label);
   }
 
   /** The item where the player aims; false when the props limit refuses it. */
@@ -41,7 +61,10 @@ export class SceneEdits {
     const spot: SpawnSpot = hit ? { point: hit.point, normal: hit.normal } : { point: add(eye.position, scale(aim, SPAWN_REACH.miss * unit)), normal: UP };
     const objects = placed(built.objects, eye.yaw, spot);
     this.world.addObjects(objects, `Spawn ${item.name}`, built.groups);
-    for (const o of objects) this.touched.add(o.id);
+    for (const o of objects) {
+      this.touched.add(o.id);
+      this.originals.set(o.id, o);
+    }
     return true;
   }
 

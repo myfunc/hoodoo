@@ -30,6 +30,20 @@ const FX = {
   endGlow: 'materials/sprites/physg_glow1.vmt',
   muzzleGlow: 'materials/sprites/physg_glow2.vmt',
   core: 'materials/effects/fluttercore_gmod.vmt',
+  toolTracer: 'materials/effects/tool_tracer.vmt',
+  selectRing: 'materials/effects/select_ring.vmt',
+  selectDot: 'materials/effects/select_dot.vmt',
+} as const;
+
+/**
+ * The Tool Gun's shot (gmod_tool DoShootEffect): the ToolTracer from the muzzle for a
+ * moment, and selection_indicator at the hit: a dot fading over a second and six
+ * rings spreading 256 inches a second and fading five times as fast, each at its own
+ * speed (selection_ring.lua picks them at random; these are spread evenly).
+ */
+const SHOT = {
+  tracer: 0.1, tracerWidth: 4, ringSize: 4, ringGrowth: 256, ringFade: 5, dotSize: 4, dotLife: 1,
+  ringSpeeds: [0.5, 0.7, 0.9, 1.1, 1.3, 1.5], ringColor: [0.3, 0.76, 0.98],
 } as const;
 
 /** Sizes in Source units (inches) and the beam's texture scroll per second. */
@@ -60,6 +74,8 @@ export class HandsLayer {
   private readonly batch = new SpriteBatch();
   private weapon: WeaponId | null = null;
   private last = 0;
+  /** The Tool Gun's shot last kicked (simulation seconds). */
+  private kicked: number | null = null;
   private claws = 0;
 
   private constructor(
@@ -123,6 +139,7 @@ export class HandsLayer {
     const worldProj = perspective(cam.fov, aspect, CLIP.near, CLIP.far);
     const color = beamColor(weaponColor);
     const muzzle = this.muzzle(cam.fov);
+    this.shot(view, sim.time, toView, worldProj, muzzle, now);
     if (view.firing && view.end && muzzle) {
       const end = toView(view.end);
       // Source: the control point is halfway to where the aim wants the body, the end where it is.
@@ -139,6 +156,30 @@ export class HandsLayer {
       this.sprites('muzzleGlow', vmProj, false, (b) => b.sprite(vmMuzzle, LOOK.muzzleGlow, [color[0], color[1], color[2], LOOK.muzzleAlpha]));
       this.sprites('core', vmProj, false, (b) => b.sprite(vmMuzzle, LOOK.core, color, now));
     }
+  }
+
+  /** A Tool Gun shot: the gun's attack, the tracer while it lasts, the dot and rings at the hit. */
+  private shot(view: WeaponView, time: number, toView: (p: Vec3) => Vec3, proj: Float32Array, muzzle: Vec3 | null, now: number): void {
+    const shot = view.shot;
+    if (!shot) return;
+    if (shot.time !== this.kicked) {
+      this.kicked = shot.time;
+      this.hands.fire();
+    }
+    const age = time - shot.time;
+    const end = toView(shot.end);
+    if (muzzle && age < SHOT.tracer) {
+      const fade = 1 - age / SHOT.tracer;
+      this.sprites('toolTracer', proj, false, (b) => b.quadraticBeam(muzzle, scale(add(muzzle, end), 0.5), end, SHOT.tracerWidth, [1, 1, 1, fade], now));
+    }
+    if (age < SHOT.dotLife) this.sprites('selectDot', proj, false, (b) => b.sprite(end, SHOT.dotSize, [1, 1, 1, 1 - age / SHOT.dotLife]));
+    const [r, g, bl] = SHOT.ringColor;
+    this.sprites('selectRing', proj, false, (b) => {
+      for (const speed of SHOT.ringSpeeds) {
+        const alpha = 1 - age * SHOT.ringFade * speed;
+        if (alpha > 0) b.sprite(end, SHOT.ringSize + age * SHOT.ringGrowth * speed, [r, g, bl, alpha]);
+      }
+    });
   }
 
   dispose(): void {

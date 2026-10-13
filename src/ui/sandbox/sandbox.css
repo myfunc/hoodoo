@@ -38,13 +38,13 @@
 
 /* The spawn menu (Q held, spawn-menu.ts): the Play panel's dark glass over the left of the picture, categories as a
    list with an amber rule, the icons in a grid that scrolls. Hover outlines a tile without moving anything. */
-.sbx-spawn {
-  position: absolute; left: 3%; top: 7%; width: min(760px, 66%); height: min(540px, 80%);
+.sbx-spawn, .sbx-tools {
+  position: absolute; left: 3%; top: 7%; width: min(760px, 62%); height: min(540px, 80%);
   display: flex; flex-direction: column; padding: 14px 16px 12px; border-radius: 0; cursor: default; pointer-events: auto;
   font: 12px var(--font-ui); color: #eceae2;
   background: rgba(24, 24, 27, 0.9); border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
 }
-.sbx-spawn[hidden] { display: none; }
+.sbx-spawn[hidden], .sbx-tools[hidden] { display: none; }
 .sbx-spawn-head { display: flex; align-items: baseline; gap: 14px; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
 .sbx-spawn-title { font-size: 14px; font-weight: bold; color: #ffb020; }
 .sbx-spawn-hint { color: #8f8d86; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -69,3 +69,44 @@
   filter: drop-shadow(0 0 1px #000) drop-shadow(1px 1px 1px rgba(0, 0, 0, 0.6));
 }
 .sbx-cursor[hidden] { display: none; }
+
+/* The Tool Gun's column (tool-menu.ts), on the right as Garry's Mod puts it: the tools by category, the chosen
+   one's settings under them. Everything is a click, so the menu's own cursor works it. */
+.sbx-tools { left: auto; right: 3%; width: min(300px, 30%); }
+.sbx-tools-list { flex: 0 0 auto; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); scrollbar-width: thin; }
+.sbx-tools-cat { padding: 6px 0 3px; color: #8f8d86; }
+.sbx-tools-row { padding: 4px 10px; border-left: 2px solid transparent; color: #b9b7af; cursor: pointer; white-space: nowrap; }
+.sbx-tools-row:hover, .sbx-tools-row.is-hover { color: #eceae2; }
+.sbx-tools-row.is-current { color: #ffb020; border-left-color: #ffb020; background: rgba(255, 176, 32, 0.08); }
+.sbx-tools-settings { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-top: 10px; scrollbar-width: thin; scrollbar-color: #56565c transparent; }
+.sbx-tools-setting { margin-bottom: 12px; }
+.sbx-tools-label { margin-bottom: 5px; color: #8f8d86; }
+.sbx-tools .ui-toggle.is-hover { outline: 1px solid #ffb020; outline-offset: -1px; }
+.sbx-colour-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; }
+.sbx-colour { aspect-ratio: 1; cursor: pointer; outline: 1px solid transparent; outline-offset: 0; }
+.sbx-colour:hover, .sbx-colour.is-hover { outline-color: #eceae2; }
+.sbx-colour.is-current { outline: 2px solid #ffb020; z-index: 1; }
+.sbx-colour-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.sbx-colour-now { width: 28px; height: 16px; border: 1px solid rgba(255, 255, 255, 0.3); }
+.sbx-colour-hex { color: #b9b7af; font-family: var(--font-mono, monospace); }
+.sbx-material-family { margin: 8px 0 4px; color: #8f8d86; }
+.sbx-material-row { display: flex; flex-wrap: wrap; gap: 3px; }
+.sbx-material { padding: 2px; cursor: pointer; outline: 1px solid transparent; outline-offset: -1px; }
+.sbx-material:hover, .sbx-material.is-hover { outline-color: #eceae2; }
+.sbx-material.is-current { outline: 2px solid #ffb020; }
+.scene-window .sbx-material canvas { position: static; width: 40px; height: 40px; display: block; }
+
+/* The Tool Gun's tool at the top left, as gmod_tool's DrawHUD lays it out: the name large, a line about it, then
+   a help box with a line per button that flashes on a shot (--flash 1 to 0), on a gradient that fades right. */
+.sbx-tool { left: 0; top: 18px; width: min(420px, 50%); white-space: normal; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9); }
+.sbx-tool[hidden] { display: none; }
+.sbx-tool-name, .sbx-tool-about { padding-left: 24px; background: linear-gradient(90deg, rgba(10, 10, 10, 0.7), rgba(10, 10, 10, 0)); }
+.sbx-tool-name { padding-top: 6px; font-size: 30px; font-weight: bold; line-height: 1.1; color: #f0f0f0; }
+.sbx-tool-about { padding-bottom: 6px; font-size: 14px; font-weight: bold; color: #f0f0f0; }
+.sbx-tool-help {
+  padding: 5px 0 5px 24px; color: #f0f0f0; font-weight: bold;
+  background: linear-gradient(90deg, rgba(calc(40 + 215 * var(--flash, 0)), calc(40 + 215 * var(--flash, 0)), calc(40 + 215 * var(--flash, 0)), 0.75), rgba(40, 40, 40, 0));
+}
+.sbx-tool-line { display: flex; align-items: center; gap: 8px; padding: 1px 0; white-space: nowrap; }
+.sbx-chip { min-width: 52px; padding: 0 5px; text-align: center; font-size: 11px; color: #1c1306; background: #ffb020; text-shadow: none; }
+.sbx-tools .ui-choice { width: max-content; max-width: 100%; }

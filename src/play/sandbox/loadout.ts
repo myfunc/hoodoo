@@ -10,6 +10,7 @@ export interface WeaponSlot {
 /** Garry's Mod's slots: the Physics Gun in 1, the Tool Gun in 6. */
 export const LOADOUT: readonly WeaponSlot[] = [
   { weapon: WeaponId.PhysicsGun, slot: 1, name: 'Physics Gun' },
+  { weapon: WeaponId.ToolGun, slot: 6, name: 'Tool Gun' },
 ];
 
 /**
@@ -32,6 +33,12 @@ export class Loadout {
     if (!inSlot.length) return false;
     const at = inSlot.findIndex((x) => x.i === this.index);
     return this.go(inSlot[(at + 1) % inSlot.length].i);
+  }
+
+  /** Takes this weapon out (picking a tool takes the Tool Gun); true when the weapon changed. */
+  take(weapon: WeaponId): boolean {
+    const i = this.weapons.findIndex((w) => w.weapon === weapon);
+    return i >= 0 && this.go(i);
   }
 
   /** Wheel steps (+ next, − previous); true when the weapon changed. */

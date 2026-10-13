@@ -101,3 +101,55 @@ describe('play follows the scene as it changes', () => {
     expect(hit?.point[1]).toBeCloseTo(worldBox(big).max[1], 2);
   });
 });
+
+describe('an edit that leaves a prop where it stands', () => {
+  const ground = at('ground', [0, 0, 0]);
+  // A cube's size is its half-extents: size 1 stands 2 tall.
+  const resized = (o: SceneObject, size: Vec3): SceneObject => ({ ...o, transform: { ...o.transform, size } });
+  const low = (sim: PlaySim, id: string) => worldBox(shown(sim, id)!).min[1];
+  const ready = async (o: SceneObject) => {
+    const sim = await PlaySim.create({ scene: stage([ground, o]), time: 0, player: human });
+    run(sim, 1);
+    return { sim, body: sim.bodies.itemOf(o.id)!.body };
+  };
+
+  it('builds the body again where play has the prop, and a bigger one grows up from the floor', async () => {
+    const cube = withBody(at('cube', [0, 1, 0], [1, 1, 1], 8), { physical: true });
+    const { sim, body } = await ready(cube);
+    sim.physics.teleport(body, { position: [3, 1, 0], rotation: [0, 0, 0, 1] });
+    run(sim, 30);
+    sim.sync(stage([ground, resized(cube, [2, 2, 2])]));
+    const now = shown(sim, cube.id)!;
+    expect(now.transform.position[0]).toBeCloseTo(3, 2);
+    expect(now.transform.size).toEqual([2, 2, 2]);
+    expect(low(sim, cube.id)).toBeGreaterThan(-0.01);
+    run(sim, 100);
+    expect(shown(sim, cube.id)!.transform.position[0]).toBeCloseTo(3, 1);
+    expect(shown(sim, cube.id)!.transform.position[1]).toBeCloseTo(2, 1);
+  });
+
+  it('keeps a frozen prop frozen, its lowest point where it was', async () => {
+    const cube = withBody(at('cube', [0, 1, 0], [1, 1, 1], 9), { physical: true });
+    const { sim, body } = await ready(cube);
+    sim.physics.teleport(body, { position: [0, 2, 0], rotation: [0, 0, 0, 1] });
+    sim.physics.setFrozen(body, true);
+    run(sim, 2);
+    sim.sync(stage([ground, resized(cube, [3, 3, 3])]));
+    expect(sim.physics.motion(sim.bodies.itemOf(cube.id)!.body)).toBe(Motion.Fixed);
+    run(sim, 50);
+    expect(low(sim, cube.id)).toBeCloseTo(1, 2);
+  });
+
+  it('a scene object picked up stays a prop after it is resized', async () => {
+    const crate = at('cube', [0, 1, 0], [1, 1, 1], 10);
+    const { sim, body } = await ready(crate);
+    sim.bodies.release(body, (id) => (id === crate.id ? crate : undefined));
+    sim.physics.teleport(body, { position: [-2, 1, 0], rotation: [0, 0, 0, 1] });
+    run(sim, 10);
+    sim.sync(stage([ground, resized(crate, [0.5, 0.5, 0.5])]));
+    expect(sim.bodies.itemOf(crate.id)?.motion).toBe(Motion.Dynamic);
+    run(sim, 100);
+    expect(shown(sim, crate.id)!.transform.position[0]).toBeCloseTo(-2, 1);
+    expect(shown(sim, crate.id)!.transform.position[1]).toBeCloseTo(0.5, 1);
+  });
+});

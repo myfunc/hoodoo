@@ -8,10 +8,12 @@ import { el } from '../kit/dom';
  * spawn lists over the picture. Categories on the left, ray-traced icons of the
  * category on the right (drawn the first time it shows, so play keeps the GPU
  * until then), and how many objects the tracer holds at the foot. A click asks
- * Sandbox to spawn; clicks never reach the play layer under it. The pointer stays
- * locked while it is open (a lock asked back on letting go of Q is refused once
- * the key press is a few seconds old): the mouse moves a cursor of its own,
- * which hovers and clicks what is under it. Unlocked, the system pointer works.
+ * Sandbox to spawn; clicks never reach the play layer under it. Other panels
+ * (the Tool Gun's column) open and close with it. The pointer stays locked while
+ * it is open (a lock asked back on letting go of Q is refused once the key press
+ * is a few seconds old): the mouse moves a cursor of its own, which hovers and
+ * clicks what is under it, and the wheel scrolls what it is over. Unlocked, the
+ * system pointer works.
  */
 
 export interface SpawnTile {
@@ -27,7 +29,8 @@ export interface SpawnList {
 
 const ICON_PX = 72;
 const HOVERED = 'is-hover';
-const PICKABLE = '.sbx-spawn-tile, .sbx-spawn-cat';
+/** What the cursor hovers and clicks: tiles, categories, the tools' rows, swatches and segments. */
+const PICKABLE = '.sbx-spawn-tile, .sbx-spawn-cat, .sbx-pick, .ui-toggle';
 const HINT = 'Click spawns where you aim · let go of Q to aim again';
 
 export class SpawnMenu {
@@ -38,6 +41,8 @@ export class SpawnMenu {
   private readonly grid: HTMLElement;
   private readonly count: HTMLElement;
   private readonly pages = new Map<string, HTMLElement>();
+  /** The menu's panel and the ones that open with it. */
+  private readonly panels: HTMLElement[] = [];
   private current = '';
   /** The cursor's place on the page (client pixels) and what it is over. */
   private at: [number, number] = [0, 0];
@@ -54,14 +59,7 @@ export class SpawnMenu {
     ]);
     this.cursor = el('div', { cls: 'sbx-cursor', attrs: { 'aria-hidden': 'true' } });
     this.cursor.hidden = true;
-    this.el.hidden = true;
-    // The play layer under the menu locks the pointer on a click: the menu keeps its clicks.
-    for (const type of ['click', 'mousedown', 'pointerdown', 'contextmenu'] as const) {
-      this.el.addEventListener(type, (e) => {
-        e.stopPropagation();
-        if (type === 'contextmenu') e.preventDefault();
-      });
-    }
+    this.addPanel(this.el);
     for (const list of lists) {
       const row = el('div', { cls: 'sbx-spawn-cat', text: list.name, attrs: { role: 'option', tabindex: '-1' } });
       row.addEventListener('click', () => this.show(list.name));
@@ -74,8 +72,20 @@ export class SpawnMenu {
     return !this.el.hidden;
   }
 
+  /** A panel that opens and closes with the menu and keeps its clicks from the play layer, which would lock the pointer. */
+  addPanel(panel: HTMLElement): void {
+    panel.hidden = !this.panels.length || !this.open;
+    for (const type of ['click', 'mousedown', 'pointerdown', 'contextmenu'] as const) {
+      panel.addEventListener(type, (e) => {
+        e.stopPropagation();
+        if (type === 'contextmenu') e.preventDefault();
+      });
+    }
+    this.panels.push(panel);
+  }
+
   setOpen(open: boolean): void {
-    this.el.hidden = !open;
+    for (const p of this.panels) p.hidden = !open;
     this.cursor.hidden = true;
     this.hover(null);
     if (!open) return;
@@ -100,9 +110,11 @@ export class SpawnMenu {
     if (!this.cursor.hidden) this.under()?.click();
   }
 
-  /** The locked mouse's wheel scrolls the icons. */
+  /** The locked mouse's wheel scrolls what the cursor is over (the icons when it is hidden). */
   scroll(dy: number): void {
-    this.grid.scrollTop += dy;
+    let node = this.cursor.hidden ? null : document.elementFromPoint(this.at[0], this.at[1]);
+    while (node && !(node instanceof HTMLElement && node.scrollHeight > node.clientHeight && getComputedStyle(node).overflowY !== 'visible')) node = node.parentElement;
+    (node instanceof HTMLElement && this.panels.some((p) => p.contains(node)) ? node : this.grid).scrollTop += dy;
   }
 
   private under(): HTMLElement | null {

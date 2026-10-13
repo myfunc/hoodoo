@@ -159,7 +159,7 @@ void main() {
   gl_Position = uProj * vec4(aPos, 1.0);
 }`;
 
-/** Additive: the texture's colour times the vertex colour, alpha ignored as Source's rendermode 5 does. */
+/** Additive as Source's $additive blends (SRC_ALPHA, ONE): the texture's colour times its alpha (1 without one) and the vertex colour and alpha. */
 export const SPRITE_FS = /* glsl */ `#version 300 es
 precision highp float;
 in vec2 vUv;
@@ -168,5 +168,5 @@ uniform sampler2D uTex;
 out vec4 outColor;
 void main() {
   vec4 t = texture(uTex, vUv);
-  outColor = vec4(t.rgb * vColor.rgb * vColor.a, 0.0);
+  outColor = vec4(t.rgb * t.a * vColor.rgb * vColor.a, 0.0);
 }`;
