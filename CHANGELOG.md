@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.1 - 2026-10-13
+
+### Added
+- The controls in the corner of the scene window: a line per gesture with its key,
+  folded with × to a small Controls tab and opened again from it; All keys opens
+  Help › Keyboard Shortcuts.
+
 ## 0.14.0 - 2026-10-13
 
 ### Added
