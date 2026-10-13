@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.14.3 - 2026-10-13
+
+### Changed
+- Play on a display faster than 60 Hz: the guns, the Physics Gun's beam and glow and
+  the HUD now move with the world's picture instead of twice as often, so the world
+  no longer seems to stutter next to them and the beam stays on what it holds.
+- Play skips the sun's light shafts while the sun is out of view.
+
 ## 0.14.2 - 2026-10-13
 
 ### Added

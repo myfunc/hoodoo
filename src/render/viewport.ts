@@ -167,6 +167,11 @@ export class SceneView {
     if (this.play) this.updateLive();
   }
 
+  /** Pictures Play's renderer has drawn (a new number: a new picture this frame); null when it does not count them. */
+  get playPictures(): number | null {
+    return this.play ? this.pictures.active()?.pictures ?? null : null;
+  }
+
   get cells(): readonly ViewCell[] {
     return this.cellsCache;
   }

@@ -266,7 +266,11 @@ owns:
 Per frame it reads input; per physics tick (Play runs 100 Hz) it acts before
 the step: the Physics Gun sets the held body's velocity, devices apply their
 forces, keys switch motors. After the step the poses reach the picture through
-Play's render hook.
+Play's render hook. The canvases (the guns, the beam and its glow, Half-Life
+2's HUD) draw with each new picture of the world, from the frame it was traced
+with (`pictureShown` in `src/play/session.ts`): on a 120 or 144 Hz display they
+move with the world at its picture rate instead of twice as often, and the beam
+stays on what it holds. The HUD's text and the sounds keep every display frame.
 
 ```ts
 interface SandboxJoint {

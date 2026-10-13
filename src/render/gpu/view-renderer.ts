@@ -50,4 +50,6 @@ export interface ViewRenderer {
   status(): RealtimeStatus;
   /** What the picture on screen shows; null or missing: the wires follow the editor at once. */
   readonly shown?: ShownFrame | null;
+  /** Pictures drawn so far (the game renderer): Play's own layers redraw with each new one. */
+  readonly pictures?: number;
 }

@@ -156,8 +156,8 @@ export class Sandbox {
     return { ...raw, wheel: 0 };
   }
 
-  /** Every display frame: the HUD and the beam. */
-  frame(f: PlayFrame): void {
+  /** Every display frame: the HUD's text and the gun's sound (the canvases draw in `paint`). */
+  frame(): void {
     const now = performance.now();
     const visible = this.notices.visible(now);
     const hl2 = this.game.hud;
@@ -169,13 +169,19 @@ export class Sandbox {
       slots: now < this.slotsUntil ? this.loadout.slots() : null,
       notices: visible.map(({ notice, opacity }) => ({ id: notice.id, text: notice.text, kind: notice.kind, opacity })),
     });
+    this.game.sounds?.weapon(this.weapon.id, this.weapon.view(), this.host.active());
+  }
+
+  /** The canvases (beam and halos, the guns, Half-Life 2's HUD) for a picture of frame `f`. */
+  paint(f: PlayFrame): void {
     const picture = this.host.picture();
     const view = this.weapon.view();
     const hands = this.game.hands?.has(this.weapon.id) ? this.game.hands : null;
     this.overlay.draw(f, picture, view, this.host.sim, !hands);
     if (hands && picture) hands.draw(f, picture, view, this.weapon.id, this.host.sim);
-    if (hl2 && picture) hl2.draw(picture, this.hl2State(now, visible.map((v) => v.notice)));
-    this.game.sounds?.weapon(this.weapon.id, view, this.host.active());
+    const hl2 = this.game.hud;
+    const now = performance.now();
+    if (hl2 && picture) hl2.draw(picture, this.hl2State(now, this.notices.visible(now).map((v) => v.notice)));
   }
 
   /** What Half-Life 2's HUD shows: full health, the loadout by slot, the notices with their ages. */

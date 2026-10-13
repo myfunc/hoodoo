@@ -11,7 +11,7 @@ import { PLANE_HINT, PLAY_HINT, PlayHud } from './play-hud';
 import { PlayInput } from './play-input';
 import { PlayPanel } from './play-panel';
 import { FixedClock } from './sim/clock';
-import type { PlaySim } from './sim/play-sim';
+import type { PlayFrame, PlaySim } from './sim/play-sim';
 import type { Sandbox } from './sandbox/sandbox';
 import { withTakes } from './sim/take';
 import './play.css';
@@ -21,6 +21,8 @@ const MS_PER_S = 1000;
 const PERCENT = 100;
 /** The HUD's text changes at most this often. */
 const READOUT_MS = 100;
+/** Sandbox's layers wait for the world's next picture at most this long (a resting renderer draws none). */
+const PICTURE_WAIT_MS = 50;
 const UNDO_LABEL = 'Record take';
 /** The editor's hint line while playing (the HUD names the keys). */
 const STATUS_HINT = { title: 'Play', text: 'Esc leaves · Tab setup' } as const;
@@ -69,6 +71,11 @@ class PlaySession {
   private raf = 0;
   private last = 0;
   private lastReadout = 0;
+  /** When the scene window last showed a new picture, and its count then. */
+  private pictureAt = 0;
+  private seenPictures: number | null = null;
+  /** The frame handed to the scene window this display frame: the picture it draws is of this frame. */
+  private current: PlayFrame | null = null;
   private fps = 0;
   /** The picture's traced size, per cent of the view per side (the game renderer adapts it). */
   private res = 0;
@@ -123,6 +130,7 @@ class PlaySession {
       view.events.on('live', (st) => {
         this.fps = st.fps;
         this.res = Math.round(st.scale * PERCENT);
+        this.pictureShown();
       }),
       onSetting(editor, 'player', (p: PlayerSettings) => this.sim?.setPlayer(p)),
       onSetting(editor, 'playActor', (a: PlayActor) => {
@@ -178,7 +186,7 @@ class PlaySession {
       });
       if (isFeatureOn(editor.state.features, Feature.Sandbox)) await this.startSandbox(sim);
       this.hud.ready();
-      view.setPlay({ frame: () => sim.frame(this.clock.alpha), quality: PictureMode.Game });
+      view.setPlay({ frame: () => this.current ?? sim.frame(this.clock.alpha), quality: PictureMode.Game });
       this.last = performance.now();
       this.raf = requestAnimationFrame(this.tick);
       logger.info('play started', { objects: world.scene.objects.length, bodies: sim.bodies.items.size });
@@ -243,8 +251,12 @@ class PlaySession {
       const input = this.input.sample();
       sim.step(this.sandbox ? this.sandbox.input(input) : input);
     }
+    const frame = sim.frame(this.clock.alpha);
+    this.current = frame;
     this.ctx.view.playFrame();
-    this.sandbox?.frame(sim.frame(this.clock.alpha));
+    this.sandbox?.frame();
+    // Without counted pictures, or while the renderer rests, Sandbox's canvases keep their own pace.
+    if (this.ctx.view.playPictures === null || now - this.pictureAt > PICTURE_WAIT_MS) this.sandbox?.paint(frame);
     if (now - this.lastReadout > READOUT_MS) {
       this.lastReadout = now;
       const take = sim.recording ? sim.time - (sim.takeStart ?? sim.time) : null;
@@ -255,6 +267,19 @@ class PlaySession {
     }
     this.raf = requestAnimationFrame(this.tick);
   };
+
+  /**
+   * The scene window drew a new picture: Sandbox's canvases (the guns, the beam, the HUD) follow it
+   * with the frame it was traced from, so on a display faster than the pictures they move with
+   * the world instead of between its pictures.
+   */
+  private pictureShown(): void {
+    const pictures = this.ctx.view.playPictures;
+    if (pictures === null || pictures === this.seenPictures || !this.current) return;
+    this.seenPictures = pictures;
+    this.pictureAt = performance.now();
+    this.sandbox?.paint(this.current);
+  }
 
   /** The takes become keys in one undo step, and one line says what was recorded. */
   private commit(sim: PlaySim): void {

@@ -63,6 +63,8 @@ export class GamePost {
   private down: Target[] = [];
   private up: Target[] = [];
   private shaft: Target | null = null;
+  /** The shafts' target holds nothing: no look's shafts or no sun since it was cleared. */
+  private shaftsDark = false;
   private width = 0;
   private height = 0;
   /** The last frame's traced size per side (the sharpening follows it). */
@@ -100,6 +102,7 @@ export class GamePost {
     this.up = sizes.slice(0, -1).map(([w, h]) => linear(w, h));
     const [sw, sh] = sizes[GAME.shaftLevel];
     this.shaft = linear(sw, sh);
+    this.shaftsDark = false;
   }
 
   release(): void {
@@ -189,14 +192,29 @@ export class GamePost {
       this.draw();
       src = t;
     }
+    this.lightShafts(look, sun);
+  }
+
+  /** Light shafts, when the look has them and the sun is in view; else their target is cleared once and the pass skipped. */
+  private lightShafts(look: Look, sun: SunSpot): void {
+    const gl = this.gl;
     const shafts = look.shafts;
     const out = this.shaft!;
+    if (!shafts || sun.strength <= 0) {
+      if (this.shaftsDark) return;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, out.fbo);
+      gl.clearColor(0, 0, 0, 1);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      this.shaftsDark = true;
+      return;
+    }
+    this.shaftsDark = false;
     const u = this.use(this.shafts, out, out.width, out.height);
     this.bind(UNIT_A, this.history![0].tex);
     u.i('uSrc', UNIT_A);
     u.f('uSunUv', ...sun.uv);
-    u.f('uFacing', shafts ? sun.strength : 0);
-    u.f('uShaft', shafts?.decay ?? 0, shafts?.reach ?? 0, shafts?.focus ?? 0, shafts?.threshold ?? 0);
+    u.f('uFacing', sun.strength);
+    u.f('uShaft', shafts.decay, shafts.reach, shafts.focus, shafts.threshold);
     u.f('uAspect', this.width / this.height);
     this.draw();
   }

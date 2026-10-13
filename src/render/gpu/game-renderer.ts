@@ -130,6 +130,10 @@ export class GameRenderer implements ViewRenderer {
     return this.hasImage;
   }
 
+  get pictures(): number {
+    return this.frame;
+  }
+
   /** The user's choice between a sharp and a smooth picture (Settings' playResolution). */
   setResolution(resolution: PlayResolution): void {
     if (resolution === this.resolution) return;

@@ -351,7 +351,8 @@ Every display frame:
    (σ 0.5). The pixel moves to its own average as the history gathers two
    frames' weight. A lost pixel so takes a sloped edge, not a stair step.
 4. **Bloom** (six halved levels, 13-tap Karis-averaged down, tent up) and
-   **light shafts** toward the sun on screen (32 steps at quarter size).
+   **light shafts** toward the sun on screen (32 steps at quarter size;
+   skipped while the sun is out of view or the look has none).
 5. **Composite** with the look (`game-looks.ts`): exposure, ACES or a soft
    shoulder, contrast, saturation, lift/gamma/gain, split toning, halation,
    gradient map, fringe, vignette, soft focus, sharpening (RCAS from FSR 1:
