@@ -1,0 +1,38 @@
+/* Import palette: the button in the palette titles row and its dialogs (ui/palette-import). */
+.pal-import-button { margin: 0 8px 0 auto; align-self: center; height: 20px; padding: 0 10px; white-space: nowrap; }
+
+.pal-dialog { width: 460px; }
+.pal-body { display: flex; flex-direction: column; gap: 6px; padding-bottom: 4px; }
+.pal-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pal-note { margin: 0; color: var(--ink-soft); font-size: 11px; line-height: 1.35; }
+.pal-error { margin: 0; color: var(--select); font-weight: bold; }
+.pal-label { font-size: 12px; }
+.pal-paste {
+  width: 100%; box-sizing: border-box; resize: vertical; min-height: 64px; padding: 4px 6px;
+  font: 11px/1.35 ui-monospace, Menlo, monospace; border: 1px solid var(--edge-dark); border-radius: 0;
+}
+
+.pal-head { display: flex; gap: 12px; align-items: stretch; }
+.pal-sky { position: relative; flex: 0 0 132px; height: 76px; border: 1px solid var(--edge-dark); overflow: hidden; }
+.pal-sun { position: absolute; left: 70%; top: 18%; width: 12px; height: 12px; border-radius: 50%; }
+.pal-cloud { position: absolute; left: 14%; top: 26%; width: 38%; height: 7px; opacity: 0.85; }
+.pal-ground { position: absolute; left: 0; right: 0; bottom: 0; height: 22%; }
+.pal-title { display: flex; flex-direction: column; justify-content: center; gap: 2px; min-width: 0; }
+.pal-palette-name { font: 800 16px var(--font-title); overflow-wrap: anywhere; }
+
+.pal-swatches { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.pal-swatches-objects { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.pal-swatch { display: flex; flex-direction: column; min-width: 0; }
+.pal-chip { height: 28px; border: 1px solid var(--edge-dark); }
+.pal-role, .pal-hex { font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pal-hex { font-family: ui-monospace, Menlo, monospace; color: var(--ink-soft); }
+.pal-dials { font-variant-numeric: tabular-nums; }
+.pal-name { flex: 1 1 140px; min-width: 0; }
+.pal-name:disabled { opacity: 0.5; }
+
+@media (max-width: 520px) {
+  .pal-dialog { width: calc(100vw - 24px); }
+  .pal-head { flex-direction: column; }
+  .pal-sky { flex-basis: auto; height: 56px; }
+  .pal-swatches, .pal-swatches-objects { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}

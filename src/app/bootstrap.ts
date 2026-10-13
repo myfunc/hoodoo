@@ -17,6 +17,7 @@ import { installTheme, onThemeChange } from '../ui/theme';
 import { SnapshotStore } from '../ui/snapshot-store';
 import { setMessageTime, showToast } from '../ui/panels/toast';
 import { Splash } from '../ui/chrome/splash';
+import { PaletteImport, takePaletteFromLocation } from '../ui/palette-import/palette-import';
 import { demoScene } from '../world/demo-scene';
 import { REMEMBERED, loadPrefs, rememberedOf, saveFeature, savePrefs, startFeatures } from '../io/prefs';
 import { PREVIEW_FEATURES, isFeatureOn } from '../world/preview-features';
@@ -83,6 +84,8 @@ export async function startApp(root: HTMLElement): Promise<void> {
   const saved = settings.autosave ? autosave.load() : null;
   const world = new World(shared ?? saved ?? demoScene());
   if (shared) history.replaceState(null, '', location.pathname);
+  // A palette sent from Atmosphere Palette waits in the fragment; it is offered over the restored scene.
+  const incoming = shared ? null : takePaletteFromLocation();
   const editor = new EditorStore();
   editor.update({ ...rememberedOf(prefs), features: startFeatures(prefs), settings });
   // Light or dark before anything is built, so no light frame flashes on a dark choice.
@@ -167,19 +170,27 @@ export async function startApp(root: HTMLElement): Promise<void> {
   });
   const shell = new Shell(ctx, (entry) => createFromPalette(world, entry), (item) => createGameItem(world, item));
   root.replaceChildren(shell.root);
+  const palettes = new PaletteImport(ctx);
+  palettes.listen();
+  shell.root.querySelector('.palette-titles')?.append(palettes.button());
+  const offerIncoming = () => { if (incoming) palettes.offer(incoming); };
   // Browser automation (tests, screenshots) drives the editor directly; people get the welcome window,
   // then the start window (unless they came with a share link or turned it off).
   const askedStart = startParam === START_PARAM.show;
-  const wantsStart = !shared && startParam !== START_PARAM.skip && (prefs.showStart || askedStart);
+  const wantsStart = !shared && !incoming && startParam !== START_PARAM.skip && (prefs.showStart || askedStart);
   // The start window opens under the fading splash, so the two cross-fade.
   const openStartSoon = () => void recent.ready.then(openStart);
-  if (!navigator.webdriver && settings.splash) document.body.append(new Splash(engine, () => { if (wantsStart) openStartSoon(); }).el);
-  else if (wantsStart && (askedStart || !navigator.webdriver)) openStartSoon();
+  if (!navigator.webdriver && settings.splash) document.body.append(new Splash(engine, () => { if (wantsStart) openStartSoon(); offerIncoming(); }).el);
+  else {
+    if (wantsStart && (askedStart || !navigator.webdriver)) openStartSoon();
+    offerIncoming();
+  }
   const input = new ViewportInput(view.root, world, editor, view, {
     onOpenObject: (id) => commands?.openObject(id),
     onDropFiles: (files) => {
       const file = files[0];
-      if (file.name.endsWith(FILE_EXTENSION) || file.type === 'application/json') void commands?.openFile(file);
+      if (palettes.accepts(file)) void palettes.openFile(file);
+      else if (file.name.endsWith(FILE_EXTENSION) || file.type === 'application/json') void commands?.openFile(file);
       else if (IMAGE_TYPE.test(file.type)) showToast('Open the Terrain Editor (E) and use Import image for height maps');
     },
     onFocusPicked: (kind, point) => focusAt(ctx, kind, point),
