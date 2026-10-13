@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.17.0 - 2026-10-13
+
+### Added
+- Fit Window: the picture fills the scene window instead of a 640 x 480 frame, and
+  renders, Render to Image and movies come out at the window's size. New scenes
+  start with it; File › Fit Window or Document Setup's first preset turns it on or off
+  for any scene.
+- Maximize View (the ` key, or the corner button of the display bar) now leaves the
+  picture alone in the browser window: the menu bar and the display bar slide in over
+  it at the window's top and bottom edges. It is remembered between visits.
+
+### Changed
+- Hoodoo starts dark. Settings › Interface › Theme brings the light stone back.
+
+### Fixed
+- Render View keeps up while you orbit or drag: a moving picture is drawn smaller,
+  whole in one frame, and the full size refines once things are still. An orbit went
+  at about 12 pictures a second and a drag at 3; both now run at 60.
 ## 0.16.1 - 2026-10-13
 
 ### Added

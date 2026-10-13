@@ -15,17 +15,23 @@ const DOC_PRESETS: readonly { label: string; w: number; h: number }[] = [
   { label: '2048 × 858 (cinema 2.39)', w: 2048, h: 858 },
 ];
 const DIM = { min: 32, max: 8192 } as const;
+/** The preset list's first choice: the picture fills the scene window (Fit Window). */
+const FIT = -1;
 
 /** Document Setup: the picture size and aspect of the scene window and renders. */
 export function openDocumentSetup(doc: DocumentSetup, onApply: (d: DocumentSetup) => void): void {
   let w = doc.width;
   let h = doc.height;
-  const wf = new NumberField({ value: w, digits: 0, onCommit: (v) => { w = v; } });
-  const hf = new NumberField({ value: h, digits: 0, onCommit: (v) => { h = v; } });
+  let fit = !!doc.fit;
+  // A typed size is a fixed one.
+  const wf = new NumberField({ value: w, digits: 0, onCommit: (v) => { w = v; fit = false; } });
+  const hf = new NumberField({ value: h, digits: 0, onCommit: (v) => { h = v; fit = false; } });
   const preset = new Select<number>({
-    items: DOC_PRESETS.map((p, i) => ({ value: i, label: p.label })),
-    value: Math.max(0, DOC_PRESETS.findIndex((p) => p.w === w && p.h === h)),
+    items: [{ value: FIT, label: 'Fit Window (the scene window’s size)' }, ...DOC_PRESETS.map((p, i) => ({ value: i, label: p.label }))],
+    value: fit ? FIT : Math.max(0, DOC_PRESETS.findIndex((p) => p.w === w && p.h === h)),
     onChange: (i) => {
+      fit = i === FIT;
+      if (fit) return;
       w = DOC_PRESETS[i].w;
       h = DOC_PRESETS[i].h;
       wf.set(w);
@@ -38,7 +44,7 @@ export function openDocumentSetup(doc: DocumentSetup, onApply: (d: DocumentSetup
     el('span', { text: 'Height' }), hf.el,
   ]);
   const clamp = (v: number) => Math.round(Math.min(DIM.max, Math.max(DIM.min, v)));
-  new Dialog({ title: 'Document Setup', style: DialogStyle.Stone, body, onOk: () => onApply({ width: clamp(w), height: clamp(h) }), onCancel: () => undefined }).open();
+  new Dialog({ title: 'Document Setup', style: DialogStyle.Stone, body, onOk: () => onApply({ width: clamp(w), height: clamp(h), ...(fit ? { fit } : {}) }), onCancel: () => undefined }).open();
 }
 
 export interface ExportSpec {

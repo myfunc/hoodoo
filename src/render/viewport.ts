@@ -16,7 +16,7 @@ import { finalBounces } from '../world/render-setup';
 import type { ShownFrame } from './gpu/view-renderer';
 import { outsideScope } from '../world/edit-scope';
 import { CONVERGE_FACTOR, ViewPictures } from './view-pictures';
-import { drawCellLabel, drawCellLine, fitFrame } from './view-cells';
+import { cellRoom, drawCellLabel, drawCellLine, fitFrame } from './view-cells';
 import { type Frame, type GizmoHandles, type SegmentIndex, WireProjector, drawWireframe } from './wire/wireframe';
 import { type KeyHandle, drawMotionPaths } from './wire/motion-paths';
 import { type AxisGuide, drawAxisGuide } from './wire/axis-guide';
@@ -422,6 +422,8 @@ export class SceneView {
   }
 
   private layout(): void {
+    // A new size laid the window out already (onSceneChanged).
+    if (this.fitDocument()) return;
     const s = this.editor.state;
     const doc = this.world.scene.document;
     const aspect = doc.width / doc.height;
@@ -443,6 +445,17 @@ export class SceneView {
       this.pendingRender = null;
       requestAnimationFrame(() => this.render(final));
     }
+  }
+
+  /**
+   * Fit Window: in one view the document takes the picture's room in the scene window, in
+   * screen pixels, so renders come out at the window's size. True when the size changed.
+   */
+  private fitDocument(): boolean {
+    if (this.editor.state.quad || this.width < 2 || this.height < 2) return false;
+    const room = cellRoom({ x: 0, y: 0, w: this.width, h: this.height });
+    const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
+    return this.world.fitDocument(Math.round(room.w * dpr), Math.round(room.h * dpr));
   }
 
   private placeGlCanvas(f: Frame): void {

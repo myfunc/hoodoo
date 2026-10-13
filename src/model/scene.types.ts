@@ -203,6 +203,8 @@ export interface OrthoView {
 export interface DocumentSetup {
   readonly width: number;
   readonly height: number;
+  /** Fit Window: the picture fills the scene window; width and height follow its size in screen pixels. */
+  readonly fit?: boolean;
 }
 
 /** How the scene's final picture is traced (Render, Render to Image, movies; Render Options). */

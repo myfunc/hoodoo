@@ -159,6 +159,8 @@ export class Commands {
       [Action.CopyImage]: () => void this.exportImage(1, e.state.renderSamples, true),
       [Action.ShareLink]: () => void this.share(),
       [Action.DocumentSetup]: () => openDocumentSetup(w.scene.document, (d) => w.setDocument(d)),
+      // Off keeps the window's last size as the document's.
+      [Action.FitWindow]: () => w.setDocument({ ...w.scene.document, fit: !w.scene.document.fit }),
       [Action.Undo]: () => w.undo(),
       [Action.Redo]: () => w.redo(),
       [Action.Cut]: () => { w.copy(sel()); w.removeObjects(sel(), 'Cut'); },
@@ -297,6 +299,7 @@ export class Commands {
       [Action.ToggleSidePanel]: s.sidePanel && !s.maximized,
       [Action.ToggleLeftPanel]: s.leftPanel && !s.maximized,
       [Action.MaximizeView]: s.maximized,
+      [Action.FitWindow]: !!this.ctx.world.scene.document.fit,
       [Action.ToggleDepthCue]: s.depthCue,
       [Action.ToggleGrid]: s.grid,
       [Action.ToggleGizmo]: s.gizmo,

@@ -136,7 +136,7 @@ export class DisplayBar {
 
   private idleStatus(): void {
     const d = this.ctx.world.scene.document;
-    this.status.textContent = `${d.width} × ${d.height}`;
+    this.status.textContent = `${d.fit ? 'Window ' : ''}${d.width} × ${d.height}`;
   }
 
   /** Play (preview feature) on its own, apart from the editing marks: a named chip; hidden while the feature is off. */

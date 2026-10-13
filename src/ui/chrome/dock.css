@@ -58,8 +58,24 @@ body .app .workspace { grid-template-columns: var(--left-col) minmax(0, 1fr) var
 .ui-button.edge-tab .glyph { width: 10px; height: 10px; fill: currentColor; stroke: none; vertical-align: 0; }
 
 /* Maximize View (the display bar's corners, `): the scene window alone. The side columns and their grips, the palette
-   and the timeline hide; the menu bar and the display bar stay, so the same button brings everything back. */
+   and the timeline hide; the menu bar and the display bar wait at the window's edges, so the same button brings everything back. */
 body .app .workspace.is-maximized { grid-template-columns: minmax(0, 1fr); }
 .workspace.is-maximized > .left-column, .workspace.is-maximized > .right-column { display: none; }
 .workspace.is-maximized > .center > :is(.palette-titles, .shelf, .timeline) { display: none; }
-.workspace.is-maximized > .center { grid-template-rows: minmax(0, 1fr) var(--displaybar-h); }
+
+/* Maximize View leaves the picture alone in the browser window (app/shell.ts): the menu bar and the
+   display bar lift off and slide in over the picture at the window's top and bottom edges. */
+.app.is-focus { grid-template-rows: minmax(0, 1fr); }
+.app.is-focus > .menubar, .workspace.is-maximized > .center > .display-bar {
+  left: 0; right: 0; z-index: 40; transition: transform 0.14s ease-out;
+}
+.app.is-focus > .menubar { position: fixed; top: 0; transform: translateY(-100%); }
+.workspace.is-maximized > .center > .display-bar { position: absolute; }
+.app.is-focus.show-top > .menubar { transform: none; }
+.workspace.is-maximized > .center { grid-template-rows: minmax(0, 1fr); position: relative; overflow: hidden; }
+.workspace.is-maximized > .center > .display-bar {
+  grid-row: 1; bottom: 0; height: var(--displaybar-h); transform: translateY(100%);
+  background: var(--tex-stone); border-top: 1px solid var(--edge);
+}
+.app.show-bottom .workspace.is-maximized > .center > .display-bar { transform: none; }
+.workspace.is-maximized .controls-card { display: none; }

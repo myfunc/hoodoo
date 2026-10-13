@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ShadowQuality } from '../../world/render-setup';
-import { SHADOW_RAYS, planTick, remainingMs } from '../gpu/final-view';
+import { emptyScene } from '../../world/scene.defaults';
+import { MOTION_PASS, SHADOW_RAYS, costChanged, motionScale, planTick, remainingMs } from '../gpu/final-view';
 
 describe('Render View passes', () => {
   it('queue whole passes when they fit the frame budget, never more than the target needs or eight', () => {
@@ -27,5 +28,20 @@ describe('Render View passes', () => {
     expect(SHADOW_RAYS[ShadowQuality.Off]).toBe(0);
     expect(SHADOW_RAYS[ShadowQuality.Low]).toBe(1);
     expect(SHADOW_RAYS[ShadowQuality.High]).toBeGreaterThan(1);
+  });
+
+  it('draw a moving picture at a size whose pass fits a frame, in steps, never too small', () => {
+    expect(motionScale(0)).toBe(1);
+    expect(motionScale(MOTION_PASS.frameMs)).toBe(1);
+    expect(motionScale(MOTION_PASS.frameMs * 4)).toBe(0.5);
+    expect(motionScale(48)).toBe(0.5);
+    expect(motionScale(1e6)).toBe(MOTION_PASS.minScale);
+  });
+
+  it('find the cost again for other objects or another sky, not for a moved camera', () => {
+    const scene = emptyScene();
+    expect(costChanged(null, scene)).toBe(true);
+    expect(costChanged(scene, { ...scene, camera: { ...scene.camera, yaw: 10 } })).toBe(false);
+    expect(costChanged(scene, { ...scene, sky: { ...scene.sky } })).toBe(true);
   });
 });

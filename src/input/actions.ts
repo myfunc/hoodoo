@@ -9,6 +9,7 @@ export enum Action {
   CopyImage = 'copy-image',
   ShareLink = 'share-link',
   DocumentSetup = 'document-setup',
+  FitWindow = 'fit-window',
   LoadDemo = 'load-demo',
   Undo = 'undo',
   Redo = 'redo',

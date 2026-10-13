@@ -29,6 +29,8 @@ import { onSetting } from '../world/settings';
 import { SIDE_PANES, SidePane, anyPane, growingPane } from '../world/side-panes';
 
 const PERCENT = 100;
+/** Maximize View: the pointer this close to the window's top or bottom edge brings the menu bar or the display bar in. */
+const EDGE_PX = 6;
 
 /** Elements whose right-click menu stays the browser's. */
 const TEXT_FIELDS = new Set(['INPUT', 'TEXTAREA']);
@@ -100,10 +102,12 @@ export class Shell {
       }
       this.workspace.classList.toggle('no-left', !ctx.editor.state.leftPanel);
       this.workspace.classList.toggle('is-maximized', ctx.editor.state.maximized);
+      this.root.classList.toggle('is-focus', ctx.editor.state.maximized);
       this.workspace.classList.toggle('left-bare', !ctx.editor.state.controlsOpen && !this.workspace.classList.contains('has-dock'));
     };
     ctx.editor.events.on('changed', syncPanels);
     syncPanels();
+    this.revealAtEdges(display.el);
     // Settings › Interface › Hint line.
     const syncHintLine = () => this.root.classList.toggle('no-hint-line', !ctx.editor.state.settings.hintLine);
     onSetting(ctx.editor, 'hintLine', syncHintLine);
@@ -118,6 +122,23 @@ export class Shell {
     document.addEventListener('contextmenu', (e) => {
       const t = e.target as HTMLElement | null;
       if (!t || !(TEXT_FIELDS.has(t.tagName) || t.isContentEditable)) e.preventDefault();
+    });
+  }
+
+  /**
+   * Maximize View leaves the picture alone in the browser window: the menu bar and the display
+   * bar slide in over it while the pointer is at the top or bottom edge, on the bar, or on a
+   * menu opened from it.
+   */
+  private revealAtEdges(bottomBar: HTMLElement): void {
+    const top = this.menubar.el;
+    document.addEventListener('pointermove', (e) => {
+      const t = e.target instanceof Element ? e.target : null;
+      // A pop-up opened from either bar keeps it where it is.
+      if (!this.root.classList.contains('is-focus') || t?.closest('.ui-menu')) return;
+      const menuOpen = !!top.querySelector('.is-open');
+      this.root.classList.toggle('show-top', menuOpen || e.clientY <= EDGE_PX || top.contains(t));
+      this.root.classList.toggle('show-bottom', e.clientY >= innerHeight - EDGE_PX || bottomBar.contains(t));
     });
   }
 }

@@ -44,6 +44,7 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.CopyImage]: { label: 'Copy Render to Clipboard', menu: MenuName.File, chords: [c('KeyC', MS)] },
   [Action.ShareLink]: { label: 'Copy Share Link', menu: MenuName.File, chords: [c('KeyL', MS)] },
   [Action.DocumentSetup]: { label: 'Document Setup…', menu: MenuName.File, chords: [c('KeyD', MS)] },
+  [Action.FitWindow]: { label: 'Fit Window', menu: MenuName.File, chords: [] },
   [Action.SurpriseScene]: { label: 'Surprise Me: Random Landscape', menu: MenuName.File, chords: [c('KeyN', { alt: true, shift: true })] },
   [Action.LoadDemo]: { label: 'Open Demo: Trapper Keeper Canyon', menu: MenuName.File, chords: [] },
   [Action.Undo]: { label: 'Undo', menu: MenuName.Edit, chords: [c('KeyZ', M)] },

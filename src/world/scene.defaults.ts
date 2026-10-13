@@ -4,6 +4,8 @@ import type { Animation, Camera, DocumentSetup, OrthoView, Scene } from '../mode
 
 /** Bryce 2's default document: 640 x 480. */
 export const DEFAULT_DOCUMENT: DocumentSetup = { width: 640, height: 480 };
+/** A new scene fills the scene window (Fit Window); 640 x 480 until the window measures it. */
+export const NEW_DOCUMENT: DocumentSetup = { ...DEFAULT_DOCUMENT, fit: true };
 
 export const DEFAULT_CAMERA: Camera = {
   position: [0, 2.4, 18],
@@ -37,7 +39,7 @@ export function emptyScene(): Scene {
     objects: [],
     camera: DEFAULT_CAMERA,
     sky: DEFAULT_SKY,
-    document: DEFAULT_DOCUMENT,
+    document: NEW_DOCUMENT,
     views: DEFAULT_VIEWS,
     bookmarks: Array.from({ length: BOOKMARK_SLOTS }, () => null),
   };

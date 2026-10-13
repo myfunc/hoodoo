@@ -262,8 +262,19 @@ average. Passes are cut into strips of about one animation frame of GPU time
 the page stays responsive however slow a pass is; a cheap pass runs several
 times a frame (at most eight). The first pass of a picture is always finished,
 with the scene and view it began with, so a picture shows while things keep
-moving; a pass that would only refine a stale picture is dropped. The canvas
-is the traced size and the page scales it up.
+moving; a pass that would only refine a stale picture is dropped. While changes
+keep coming (two within 140 ms) a picture is one pass at a smaller size, whole
+in one frame: the size whose pass takes about 16 ms at the full size's measured
+time per pass (`motionScale`, steps of 1/8, not under 1/4). Still for 140 ms, the
+full size starts over. The strips restart small only for other objects or another
+sky: restarting on every step of an orbit cut each picture into slivers (0.16:
+an orbit at 12 pictures a second, a drag at 3; 0.17: 60). The canvas is the
+traced size and the page scales it up.
+
+Fit Window (File › Fit Window, Document Setup's first preset; new scenes start
+with it) sizes the document to the picture's room in the scene window, in screen
+pixels (up to 2x), so every renderer, Render to Image and movies come out at
+the window's size. The size follows the window as navigation does: no undo step.
 
 Render Options (Render › Render Options…, or the sliders button beside Render
 View) is a tool window like the others: floating or docked, open while you

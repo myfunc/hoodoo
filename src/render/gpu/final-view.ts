@@ -22,6 +22,18 @@ const MS_PER_S = 1000;
 const SMOOTHING = 0.25;
 /** Whole passes one tick may queue, so a cost measured on cheaper work cannot stall the GPU for long. */
 const MAX_PASSES_PER_TICK = 8;
+/**
+ * While things move a picture is one pass at a smaller size: one that takes about `frameMs`
+ * at the full size's measured time per pass, in steps of `step`, never under `minScale`.
+ */
+export const MOTION_PASS = { frameMs: 16, minScale: 0.25, step: 1 / 8 } as const;
+
+/** The size of a moving picture against the full one, for a full pass of `fullPassMs`; 1 when a full pass fits. */
+export function motionScale(fullPassMs: number): number {
+  if (fullPassMs <= MOTION_PASS.frameMs) return 1;
+  const ideal = Math.sqrt(MOTION_PASS.frameMs / fullPassMs);
+  return Math.max(MOTION_PASS.minScale, Math.floor(ideal / MOTION_PASS.step) * MOTION_PASS.step);
+}
 
 /** One tick's work: whole passes when one fits the budget, otherwise a strip of rows. */
 export interface TickWork {
@@ -39,6 +51,10 @@ export function planTick(budget: number, width: number, height: number, rowsDone
   return { passes: 0, rows: Math.max(1, Math.min(height - rowsDone, Math.floor(budget / width))) };
 }
 
+/** Whether `next` may cost another amount a pixel than `prev`: other objects or another sky, not a moved camera or object. */
+export const costChanged = (prev: Scene | null, next: Scene | null): boolean =>
+  !prev || !next || prev.objects.length !== next.objects.length || prev.sky !== next.sky;
+
 /** Time to the target at the measured time per pass; 0 when there or not yet measured. */
 export const remainingMs = (samples: number, target: number, passMs: number): number => Math.max(0, target - samples) * passMs;
 
@@ -54,17 +70,25 @@ export const remainingMs = (samples: number, target: number, passMs: number): nu
  * Any change (an orbit, a drag, a frame of playback, an option) starts the
  * average over. The first pass of a picture is always finished, with the scene
  * and view it began with, so a picture shows while things keep changing; a pass
- * that only refines a stale picture is dropped at once. How fast that is depends
+ * that only refines a stale picture is dropped at once. While changes keep coming
+ * a picture is that one pass at a smaller size (motionScale), so an orbit stays
+ * smooth; once things are still for `settleMs` the full size starts over. How fast that is depends
  * on the options (Render Options): size, rays, bounces, shadows, lens and
  * anti-aliasing; the canvas is the traced size and the page scales it up.
  */
 export class FinalView implements ViewRenderer {
   private accum: Target | null = null;
-  /** The view in device pixels, and the traced picture (scaled by the options). */
+  /** The view in device pixels, the full picture (scaled by the options), and the one traced now. */
   private viewW = 0;
   private viewH = 0;
+  private fullW = 0;
+  private fullH = 0;
   private width = 0;
   private height = 0;
+  /** The picture is a moving one: a single pass at a smaller size. */
+  private reduced = false;
+  /** When the change before the latest came: two close together mean things are moving. */
+  private prevChange = 0;
   private opts: RenderViewOptions = DEFAULT_VIEW_CUSTOM;
   /** The latest scene and view, and the ones the average in `accum` belongs to. */
   private nextScene: Scene | null = null;
@@ -138,6 +162,7 @@ export class FinalView implements ViewRenderer {
   }
 
   reset(): void {
+    this.reduced = false;
     this.scene = null;
     this.basis = null;
     this.shownFrame = null;
@@ -153,9 +178,12 @@ export class FinalView implements ViewRenderer {
     this.nextScene = scene;
     this.nextBasis = basis;
     this.changed = true;
+    this.prevChange = this.lastChange;
     this.lastChange = performance.now();
-    // A pass that only refines the old picture is not worth finishing; a first pass is.
-    if (this.samples > 0) this.rowsDone = 0;
+    // A pass that only refines the old picture is not worth finishing; a first pass is, unless
+    // things are moving and a smaller picture can show the change sooner.
+    const moving = this.lastChange - this.prevChange < REALTIME.settleMs && motionScale(this.passMs) < 1;
+    if (this.samples > 0 || moving) this.rowsDone = 0;
   }
 
   /** The scene and view of the last whole pass on screen. */
@@ -184,10 +212,13 @@ export class FinalView implements ViewRenderer {
     this.timer.poll();
     this.pacer.finished(this.fence.elapsed, REALTIME.idleFrameMs);
     this.measure();
-    if (this.rowsDone === 0 && this.changed) this.begin();
-    if (this.samples >= this.target) return false;
+    const stillNow = this.reduced && performance.now() - this.lastChange >= REALTIME.settleMs;
+    if (this.rowsDone === 0 && (this.changed || stillNow)) this.begin();
+    // A moving picture waits for the stillness that brings the full size.
+    if (this.samples >= (this.reduced ? 1 : this.target)) return this.reduced;
     const budget = this.pacer.next(this.timer.costPerPixel, REALTIME.idleFrameMs);
-    const work = planTick(budget, this.width, this.height, this.rowsDone, this.target - this.samples);
+    // A moving picture is sized to one frame (motionScale): it goes whole, like the live view's.
+    const work = this.reduced ? { passes: 1, rows: 0 } : planTick(budget, this.width, this.height, this.rowsDone, this.target - this.samples);
     this.engine.setScene(this.scene!);
     this.engine.setView(this.view());
     if (work.passes > 0) {
@@ -228,15 +259,22 @@ export class FinalView implements ViewRenderer {
 
   /** Takes up the latest scene, view and options: a new picture. */
   private begin(): void {
-    // Another scene may cost more a pixel: the first strips are small again.
-    if (this.nextScene !== this.scene) this.pacer.restart();
+    // Other objects or another sky may cost more a pixel: the first strips are small again. An orbit
+    // or a drag keeps the cost, and restarting on each of its steps cut every picture into slivers.
+    if (costChanged(this.scene, this.nextScene)) this.pacer.restart();
+    const now = performance.now();
+    const moving = now - this.lastChange < REALTIME.settleMs && this.lastChange - this.prevChange < REALTIME.settleMs;
+    const scale = moving ? motionScale(this.passMs) : 1;
+    this.reduced = scale < 1;
+    this.width = Math.max(1, Math.round(this.fullW * scale));
+    this.height = Math.max(1, Math.round(this.fullH * scale));
     this.scene = this.nextScene;
     this.basis = this.nextBasis;
     this.changed = false;
     this.samples = 0;
     this.finished = 0;
     this.doneAt = 0;
-    this.pictureStart = performance.now();
+    this.pictureStart = now;
   }
 
   /**
@@ -245,6 +283,11 @@ export class FinalView implements ViewRenderer {
    */
   private measure(): void {
     if (this.samples <= this.finished || !this.scene) return;
+    // A moving picture's pass is smaller: the full size's time per pass stays as measured.
+    if (this.reduced) {
+      this.finished = this.samples;
+      return;
+    }
     const now = performance.now();
     const each = (now - this.pictureStart) / this.samples;
     this.passMs = this.finished === 0 && this.passMs > 0 ? this.passMs + (each - this.passMs) * SMOOTHING : each;
@@ -273,6 +316,8 @@ export class FinalView implements ViewRenderer {
   /** Passes were added to the average: show it. */
   private showPass(): void {
     this.hasImage = true;
+    // The canvas takes a moving picture's size only now, so it is never cleared before the pass shows.
+    this.engine.sizeCanvas(this.width, this.height);
     if (this.shownFrame?.scene !== this.scene || this.shownFrame?.basis !== this.basis) this.shownFrame = { scene: this.scene!, basis: this.basis! };
     const now = performance.now();
     if (this.lastShown) this.fps += (MS_PER_S / Math.max(1, now - this.lastShown) - this.fps) * SMOOTHING;
@@ -283,8 +328,11 @@ export class FinalView implements ViewRenderer {
   private allocate(): void {
     const gl = this.engine.gl;
     deleteTarget(gl, this.accum);
-    this.width = Math.max(1, Math.round(this.viewW * this.opts.scale));
-    this.height = Math.max(1, Math.round(this.viewH * this.opts.scale));
+    this.fullW = Math.max(1, Math.round(this.viewW * this.opts.scale));
+    this.fullH = Math.max(1, Math.round(this.viewH * this.opts.scale));
+    this.width = this.fullW;
+    this.height = this.fullH;
+    this.reduced = false;
     // The canvas is the traced size (resize sets it): the average is shown pixel for pixel and the
     // page scales it up. Not here: options change while another renderer owns the canvas.
     this.accum = this.engine.createTarget(this.width, this.height);

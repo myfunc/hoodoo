@@ -61,10 +61,10 @@ describe('theme', () => {
     const system = fakeSystem(true);
     const editor = new EditorStore();
     installTheme(editor, page.target, system.query);
-    expect(page.root.dataset.theme).toBe('light');
-
-    changeSetting(editor, 'theme', ThemeMode.Dark);
     expect(page.root.dataset.theme).toBe('dark');
+
+    changeSetting(editor, 'theme', ThemeMode.Light);
+    expect(page.root.dataset.theme).toBe('light');
     changeSetting(editor, 'theme', ThemeMode.System);
     expect(page.root.dataset.theme).toBe('dark');
     system.flip(false);
@@ -118,20 +118,20 @@ describe('theme setting', () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it('starts light, and an unknown stored value falls back to light', () => {
-    expect(DEFAULT_SETTINGS.theme).toBe(ThemeMode.Light);
-    expect(settingsFrom({ theme: 'sepia' }).theme).toBe(ThemeMode.Light);
+  it('starts dark, and an unknown stored value falls back to dark', () => {
+    expect(DEFAULT_SETTINGS.theme).toBe(ThemeMode.Dark);
+    expect(settingsFrom({ theme: 'sepia' }).theme).toBe(ThemeMode.Dark);
     expect(settingsFrom({ theme: ThemeMode.System }).theme).toBe(ThemeMode.System);
   });
 
   it('is remembered between visits and travels in an exported settings file', () => {
-    expect(loadPrefs().theme).toBe(ThemeMode.Light);
-    savePrefs({ theme: ThemeMode.Dark });
     expect(loadPrefs().theme).toBe(ThemeMode.Dark);
-    const file = exportPrefs('test');
     savePrefs({ theme: ThemeMode.Light });
     expect(loadPrefs().theme).toBe(ThemeMode.Light);
-    expect(importPrefs(file)).toBe(true);
+    const file = exportPrefs('test');
+    savePrefs({ theme: ThemeMode.Dark });
     expect(loadPrefs().theme).toBe(ThemeMode.Dark);
+    expect(importPrefs(file)).toBe(true);
+    expect(loadPrefs().theme).toBe(ThemeMode.Light);
   });
 });

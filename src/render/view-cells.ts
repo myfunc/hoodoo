@@ -34,10 +34,14 @@ interface Cell {
   readonly frame: Frame;
 }
 
+/** The room for a picture inside a cell: the cell less its margin (Fit Window sizes the document to it). */
+export function cellRoom(rect: Frame): { readonly w: number; readonly h: number } {
+  return { w: Math.max(rect.w - CELL_MARGIN * 2, 1), h: Math.max(rect.h - CELL_MARGIN * 2, 1) };
+}
+
 /** Largest document-aspect rectangle centred in a cell, with a small margin. */
 export function fitFrame(rect: Frame, aspect: number): Frame {
-  const w0 = Math.max(rect.w - CELL_MARGIN * 2, 1);
-  const h0 = Math.max(rect.h - CELL_MARGIN * 2, 1);
+  const { w: w0, h: h0 } = cellRoom(rect);
   const w = Math.min(w0, h0 * aspect);
   const h = w / aspect;
   return { x: rect.x + (rect.w - w) / 2, y: rect.y + (rect.h - h) / 2, w, h };

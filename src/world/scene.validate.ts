@@ -111,7 +111,8 @@ export function camera(c: unknown, d: Camera): Camera {
 export function documentSetup(doc: unknown, d: DocumentSetup): DocumentSetup {
   const r = (doc ?? {}) as Partial<Record<keyof DocumentSetup, unknown>>;
   const dim = (v: unknown, f: number) => Math.round(Math.min(DOC.max, Math.max(DOC.min, num(v, f))));
-  return { width: dim(r.width, d.width), height: dim(r.height, d.height) };
+  const size = { width: dim(r.width, d.width), height: dim(r.height, d.height) };
+  return r.fit === true ? { ...size, fit: true } : size;
 }
 
 /** The final render's options; null when there are none (the defaults then apply). */

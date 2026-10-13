@@ -278,6 +278,19 @@ export class World {
     this.commit('Document setup', { ...this.scene, document }, ChangeKind.Document);
   }
 
+  /**
+   * Fit Window: the document takes the scene window's size. Like pan and zoom it is
+   * navigation, not an edit, so it amends the current entry; false when nothing changed.
+   */
+  fitDocument(width: number, height: number): boolean {
+    const doc = this.scene.document;
+    if (!doc.fit || (doc.width === width && doc.height === height)) return false;
+    const scene = { ...this.scene, document: { ...doc, width, height } };
+    this.history.amend(scene);
+    this.events.emit('changed', { scene, kind: ChangeKind.Document });
+    return true;
+  }
+
   /** The final render's options (Render Options): one undo step, never keyed. */
   setRenderSetup(render: RenderSetup | undefined, label = 'Render options'): void {
     if (sameJson(render, this.scene.render)) return;

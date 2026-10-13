@@ -96,7 +96,7 @@ export const DEFAULT_SETTINGS: Settings = {
   liveBounces: DEFAULT_LIVE_BOUNCES,
   renderViewPreset: DEFAULT_VIEW_PRESET,
   renderViewCustom: DEFAULT_VIEW_CUSTOM,
-  theme: ThemeMode.Light,
+  theme: ThemeMode.Dark,
   player: DEFAULT_PLAYER,
   playActor: PlayActor.Walker,
   plane: DEFAULT_PLANE,
