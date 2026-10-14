@@ -2,7 +2,7 @@ import { add, scale } from '../../../core/vec3';
 import { Button } from '../../sim/actor';
 import { Layer } from '../../sim/physics';
 import { NoticeKind, WeaponId } from '../sandbox.enums';
-import { SANDBOX_SOUNDS } from '../sandbox-sounds';
+import { CUES } from '../audio/cues';
 import { type Grip, gripOf, holdTarget, pullToward, reached, snapped, turned } from './grip';
 import type { Weapon, WeaponContext, WeaponInput, WeaponView } from './weapon';
 
@@ -128,7 +128,7 @@ export class PhysicsGun implements Weapon {
   private reload(ctx: WeaponContext): void {
     if (ctx.time - this.lastReload < PHYSGUN.doubleR) {
       const n = ctx.props.unfreezeAll();
-      if (n) ctx.notify(unfrozeText(n), NoticeKind.Info, SANDBOX_SOUNDS.unfroze);
+      if (n) ctx.notify(unfrozeText(n), NoticeKind.Info, CUES.unfroze);
       else if (!this.unfrozeOne) ctx.notify('Nothing frozen', NoticeKind.Info);
       this.lastReload = -Infinity;
       return;
@@ -138,7 +138,7 @@ export class PhysicsGun implements Weapon {
     this.unfrozeOne = !!hit && ctx.props.isFrozen(hit.body);
     if (!hit || !this.unfrozeOne) return;
     ctx.props.unfreeze(hit.body);
-    ctx.notify(unfrozeText(1), NoticeKind.Info, SANDBOX_SOUNDS.unfroze);
+    ctx.notify(unfrozeText(1), NoticeKind.Info, CUES.unfroze);
     this.flash = { body: hit.body, time: ctx.time, frozen: false };
   }
 

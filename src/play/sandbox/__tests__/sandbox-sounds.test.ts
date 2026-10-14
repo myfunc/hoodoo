@@ -1,22 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import type { BodyId } from '../../sim/physics';
-import type { GameSounds } from '../game-sounds';
+import type { Cue, Mixer } from '../audio/mixer';
 import { WeaponId } from '../sandbox.enums';
 import { SandboxSounds } from '../sandbox-sounds';
 import type { WeaponView } from '../weapons/weapon';
 
-/** A GameSounds that writes down what it was asked to do. */
+/** A mixer that writes down what it was asked to do. */
 function fakeGame() {
   const log: string[] = [];
   const game = {
     recent: [],
-    play: (name: string) => log.push(`play ${name}`),
-    loop: (name: string) => ({ change: (v: number, p: number, s: number) => log.push(`${name} ${v} ${p} ${s}`) }),
+    play: (cue: Cue) => log.push(`play ${cue.game}`),
+    loop: (cue: Cue) => ({ change: (v: number, p: number, s: number) => log.push(`${cue.game} ${v} ${p} ${s}`), stop: () => undefined }),
     pause: () => undefined,
     level: () => 0,
-    dispose: () => undefined,
   };
-  return { log, game: game as unknown as GameSounds };
+  return { log, game: game as unknown as Mixer };
 }
 
 const view = (firing: boolean, holding: boolean): WeaponView => ({

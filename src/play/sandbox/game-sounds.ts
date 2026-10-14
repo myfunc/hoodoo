@@ -1,23 +1,22 @@
 import { loadSoundScripts } from '../../io/source/sound-scripts';
+import { type SurfaceSounds, loadSurfaceProperties } from '../../io/source/surface-props';
 import type { SoundScript, SourceFiles } from '../../io/source/source.types';
 import { decodeWav } from '../../io/source/wav';
 
 /**
- * READ ME — Garry's Mod's sounds from the player's files, through WebAudio.
- * A name is either a soundscript ("Weapon_Physgun.Off": its volume, a pitch from
- * its range and one of its waves at random) or a wave under sound/ as
- * `surface.PlaySound` takes it ("buttons/button15.wav"). Loops follow Source's
- * sound envelope: a volume and a pitch eased to a target over a time. A muted
- * player (`?mute=1`) still mixes everything, so scripted checks can measure the
- * level without anyone hearing it.
+ * READ ME — Garry's Mod's sounds from the player's files, decoded for the
+ * mixer (audio/mixer.ts). A name is either a soundscript ("Weapon_Physgun.Off":
+ * its volume, a pitch from its range, its sound level and one of its waves at
+ * random) or a wave under sound/ as `surface.PlaySound` takes it
+ * ("buttons/button15.wav"). The surfaces (surfaceproperties) say which
+ * soundscripts a step, a knock or a scrape on each surface plays.
  */
 
 const PERCENT = 100;
 const SOUND_DIR = 'sound/';
 const WAVE_EXT = '.wav';
-/** How many names `recent` keeps. */
-const RECENT = 8;
-const METER_SIZE = 2048;
+/** Source's sound level of a plain wave (SNDLVL_NORM, dB). */
+const NORMAL_LEVEL = 75;
 
 interface Wave {
   readonly buffer: AudioBuffer;
@@ -25,95 +24,52 @@ interface Wave {
   readonly loop: { readonly start: number; readonly end: number } | null;
 }
 
-/** A sound to start: one wave, its volume and its playback rate (1 as recorded). */
-interface Pick {
-  readonly wave: string;
+/** One sound picked to play: its wave, volume (0–1), playback rate (1 as recorded) and sound level (dB). */
+export interface Sample extends Wave {
   readonly volume: number;
   readonly rate: number;
+  readonly level: number;
 }
 
 export class GameSounds {
-  /** Names played lately, newest last (for scripted checks). */
-  readonly recent: string[] = [];
   private readonly waves = new Map<string, Promise<Wave | null>>();
-  private readonly meter: AnalyserNode;
-  private readonly samples: Float32Array<ArrayBuffer>;
 
   private constructor(
-    private readonly ctx: AudioContext,
+    private readonly ctx: BaseAudioContext,
     private readonly files: SourceFiles,
     private readonly scripts: ReadonlyMap<string, SoundScript>,
-    muted: boolean,
-  ) {
-    this.meter = ctx.createAnalyser();
-    this.meter.fftSize = METER_SIZE;
-    this.samples = new Float32Array(METER_SIZE);
-    const out = ctx.createGain();
-    out.gain.value = muted ? 0 : 1;
-    this.meter.connect(out).connect(ctx.destination);
+    /** Each surface's step, knock and scrape soundscripts, by lower-case name. */
+    readonly surfaces: ReadonlyMap<string, SurfaceSounds>,
+  ) {}
+
+  /** Reads the game's soundscripts and surfaces; without them only plain wave paths play. */
+  static async create(files: SourceFiles, ctx: BaseAudioContext): Promise<GameSounds> {
+    const [scripts, surfaces] = await Promise.all([
+      loadSoundScripts(files).catch(() => new Map<string, SoundScript>()),
+      loadSurfaceProperties(files).catch(() => new Map<string, SurfaceSounds>()),
+    ]);
+    return new GameSounds(ctx, files, scripts, surfaces);
   }
 
-  /** Reads the game's soundscripts; without them only plain wave paths play. */
-  static async create(files: SourceFiles, muted: boolean): Promise<GameSounds> {
-    const scripts = await loadSoundScripts(files).catch(() => new Map<string, SoundScript>());
-    return new GameSounds(new AudioContext(), files, scripts, muted);
+  /** Whether the name is a soundscript the game has, or a wave path. */
+  knows(name: string): boolean {
+    return name.toLowerCase().endsWith(WAVE_EXT) || this.scripts.has(name.toLowerCase());
   }
 
-  /** Plays a sound once. */
-  play(name: string): void {
+  /** The name picked and decoded, or null when the game does not have it. */
+  async sample(name: string): Promise<Sample | null> {
     const p = this.pick(name);
-    if (!p) return;
-    this.noteDown(name);
-    void this.wave(p.wave).then((w) => {
-      if (!w) return;
-      const src = this.ctx.createBufferSource();
-      src.buffer = w.buffer;
-      src.playbackRate.value = p.rate;
-      const gain = this.ctx.createGain();
-      gain.gain.value = p.volume;
-      src.connect(gain).connect(this.meter);
-      src.start();
-    });
+    if (!p) return null;
+    const w = await this.wave(p.wave);
+    return w && { ...w, volume: p.volume, rate: p.rate, level: p.level };
   }
 
-  /** A looping sound, silent and at half pitch until its envelope moves (see SoundLoop). */
-  loop(name: string): SoundLoop {
-    const p = this.pick(name);
-    const gain = this.ctx.createGain();
-    gain.gain.value = 0;
-    gain.connect(this.meter);
-    const loop = new SoundLoop(this.ctx, gain, p?.volume ?? 0, p?.rate ?? 1);
-    if (p) void this.wave(p.wave).then((w) => w && loop.start(w.buffer, w.loop));
-    return loop;
-  }
-
-  /** Stops time for every sound while Play is paused, and lets it go on after. */
-  pause(paused: boolean): void {
-    if (paused && this.ctx.state === 'running') void this.ctx.suspend();
-    if (!paused && this.ctx.state === 'suspended') void this.ctx.resume();
-  }
-
-  /** The loudest sample of the mix just now, before muting: 0 is silence. */
-  level(): number {
-    this.meter.getFloatTimeDomainData(this.samples);
-    return this.samples.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
-  }
-
-  dispose(): void {
-    void this.ctx.close();
-  }
-
-  private noteDown(name: string): void {
-    this.recent.push(name);
-    if (this.recent.length > RECENT) this.recent.shift();
-  }
-
-  private pick(name: string): Pick | null {
-    if (name.toLowerCase().endsWith(WAVE_EXT)) return { wave: name, volume: 1, rate: 1 };
+  private pick(name: string): { wave: string; volume: number; rate: number; level: number } | null {
+    if (name.toLowerCase().endsWith(WAVE_EXT)) return { wave: name, volume: 1, rate: 1, level: NORMAL_LEVEL };
     const s = this.scripts.get(name.toLowerCase());
     if (!s?.waves.length) return null;
     const between = (r: readonly [number, number]) => r[0] + Math.random() * (r[1] - r[0]);
-    return { wave: s.waves[Math.floor(Math.random() * s.waves.length)], volume: between(s.volume), rate: between(s.pitch) / PERCENT };
+    return { wave: s.waves[Math.floor(Math.random() * s.waves.length)], volume: between(s.volume), rate: between(s.pitch) / PERCENT, level: s.soundLevel };
   }
 
   private wave(path: string): Promise<Wave | null> {
@@ -132,51 +88,5 @@ export class GameSounds {
       this.waves.set(key, w);
     }
     return w;
-  }
-}
-
-/**
- * A looping sound driven like Source's CSoundEnvelopeController: `change` eases
- * the volume (0–1, times the soundscript's) and the pitch (percent) to new
- * values over some seconds, from wherever they are now.
- */
-export class SoundLoop {
-  private src: AudioBufferSourceNode | null = null;
-  /** The playback rate to start at when the wave arrives after a change. */
-  private rate: number;
-
-  constructor(
-    private readonly ctx: AudioContext,
-    private readonly gain: GainNode,
-    private readonly volume: number,
-    private readonly baseRate: number,
-  ) {
-    this.rate = baseRate * 0.5;
-  }
-
-  start(buffer: AudioBuffer, loop: { start: number; end: number } | null): void {
-    const src = this.ctx.createBufferSource();
-    src.buffer = buffer;
-    src.loop = true;
-    if (loop && loop.end > loop.start) {
-      src.loopStart = loop.start;
-      src.loopEnd = loop.end;
-    }
-    src.playbackRate.value = this.rate;
-    src.connect(this.gain);
-    src.start();
-    this.src = src;
-  }
-
-  change(volume: number, pitch: number, seconds: number): void {
-    const now = this.ctx.currentTime;
-    const ease = (p: AudioParam, to: number) => {
-      p.cancelScheduledValues(now);
-      p.setValueAtTime(p.value, now);
-      p.linearRampToValueAtTime(to, now + seconds);
-    };
-    ease(this.gain.gain, volume * this.volume);
-    this.rate = (pitch / PERCENT) * this.baseRate;
-    if (this.src) ease(this.src.playbackRate, this.rate);
   }
 }

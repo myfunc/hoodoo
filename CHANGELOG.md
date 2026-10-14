@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.36.0 - 2026-10-14
+
+### Added
+- Garry's Mod mode has sound everywhere, with or without the game's files: steps on what
+  the player stands on (by surface: concrete, dirt, grass, metal, wood, water), on a jump
+  and a landing; props knock when they meet and scrape while they slide; a splash as
+  something falls into water; the Physics Gun's hum and Off, the Tool Gun's shot, a spawn
+  icon's click, the Remover, the notices and Q and C opening.
+- With the player's Garry's Mod the game's own sounds play, chosen by Source's surface
+  properties; without it Sandbox's own stand-ins do, so nothing is silent. Sounds in the
+  world pan and fade with distance.
 ## 0.35.0 - 2026-10-14
 
 ### Added

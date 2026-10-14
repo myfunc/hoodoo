@@ -3,7 +3,7 @@ import { RecordingFiles, forgetKeptFiles, keepFiles, keptFiles } from '../../io/
 import type { SourceFiles } from '../../io/source/source.types';
 import { GameFilesSection, GameFilesState } from '../../ui/sandbox/game-files-section';
 import type { Hl2Hud } from '../../ui/sandbox/hl2/hl2-hud';
-import type { SandboxSounds } from './sandbox-sounds';
+import type { Mixer } from './audio/mixer';
 import type { HandsLayer } from './viewmodel/hands-layer';
 
 /**
@@ -18,8 +18,6 @@ import type { HandsLayer } from './viewmodel/hands-layer';
  */
 
 const GAME_FILES_PARAM = 'gamefiles';
-/** `?mute=1`: the game's sounds mix but are not heard (scripted checks). */
-const MUTE_PARAM = 'mute';
 const DEV_FOLDER = 'Served files';
 
 export interface GameFilesHost {
@@ -27,13 +25,14 @@ export interface GameFilesHost {
   readonly mount: (canvases: readonly HTMLCanvasElement[]) => void;
   /** A notice at the bottom right. */
   readonly notify: (text: string) => void;
+  /** Where the game's sounds play (Sandbox's own stand in until they are read). */
+  readonly mixer: Mixer;
 }
 
 export class GameFiles {
   readonly section: GameFilesSection;
   /** The guns in the hands: the game's, or Sandbox's own until its files are read. */
   hands: HandsLayer | null = null;
-  sounds: SandboxSounds | null = null;
   /** Half-Life 2's HUD: from the files when they have its scheme, else drawn plain. */
   hud: Hl2Hud | null = null;
   /** Stops keeping late reads of the picked folder. */
@@ -111,15 +110,13 @@ export class GameFiles {
     const generation = ++this.generation;
     this.section.set({ state: GameFilesState.Loading, folder });
     try {
-      const [{ HandsLayer }, { GameSounds }, { SandboxSounds }, { Hl2Hud }] = await Promise.all([
-        import('./viewmodel/hands-layer'), import('./game-sounds'), import('./sandbox-sounds'), import('../../ui/sandbox/hl2/hl2-hud'),
+      const [{ HandsLayer }, { GameSounds }, { Hl2Hud }] = await Promise.all([
+        import('./viewmodel/hands-layer'), import('./game-sounds'), import('../../ui/sandbox/hl2/hl2-hud'),
       ]);
       const files = await open();
-      const muted = new URLSearchParams(location.search).get(MUTE_PARAM) === '1';
-      const [hands, game, hud] = await Promise.all([HandsLayer.create(files), GameSounds.create(files, muted), Hl2Hud.create(files).catch(() => null)]);
+      const [hands, game, hud] = await Promise.all([HandsLayer.create(files), GameSounds.create(files, this.host.mixer.context), Hl2Hud.create(files).catch(() => null)]);
       const unused = () => {
         hands?.dispose();
-        game.dispose();
         hud?.dispose();
       };
       if (this.disposed || generation !== this.generation) {
@@ -132,7 +129,7 @@ export class GameFiles {
       }
       this.drop();
       this.hands = hands;
-      this.sounds = new SandboxSounds(game);
+      this.host.mixer.useGame(game);
       this.hud = hud ?? Hl2Hud.plain();
       this.host.mount([hands.canvas, this.hud.canvas]);
       this.section.set({ state: GameFilesState.Ready, folder });
@@ -151,10 +148,9 @@ export class GameFiles {
     this.stopKeeping?.();
     this.stopKeeping = null;
     this.hands?.dispose();
-    this.sounds?.dispose();
     this.hud?.dispose();
+    this.host.mixer.useGame(null);
     this.hands = null;
-    this.sounds = null;
     this.hud = null;
   }
 }

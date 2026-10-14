@@ -247,7 +247,8 @@ export class SceneBodies {
     if (!shapes.length) return [];
     const dynamic = motion === Motion.Dynamic;
     const body = this.physics.addBody({
-      motion, ...poseOf(o.transform), shapes, tag: o.id,
+      // Every scene body reports its contacts: Sandbox hears knocks and scrapes by them.
+      motion, ...poseOf(o.transform), shapes, tag: o.id, events: true,
       ...(dynamic ? { mass: massOf(o), ccd: CCD, restitution: o.kind === ShapeKind.Sphere ? RESTITUTION.ball : RESTITUTION.other } : { restitution: RESTITUTION.other }),
       friction: FRICTION,
     });
@@ -267,7 +268,7 @@ export class SceneBodies {
     if (!shapes.length) return [];
     const dynamic = motion === Motion.Dynamic;
     const body = this.physics.addBody({
-      motion, position: centre, shapes, tag: g, friction: FRICTION, restitution: RESTITUTION.other,
+      motion, position: centre, shapes, tag: g, friction: FRICTION, restitution: RESTITUTION.other, events: true,
       ...(dynamic ? { ccd: CCD, mass: mass ?? parts.reduce((s, p) => s + (p.solid ? massOf(p.o) : 0), 0) } : {}),
     });
     this.remember({ body, motion, tag: g, group: g, start: { position: centre, rotation: [0, 0, 0, 1] }, members: parts.map((p) => ({ id: p.o.id, offset: p.offset, turn: p.turn, rotation: p.o.transform.rotation, size: p.o.transform.size })) });

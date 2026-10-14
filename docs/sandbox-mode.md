@@ -56,11 +56,26 @@ their animations, WAV and soundscripts):
   0.30 1.80 2.10 by default).
 - **Halos** around what the gun holds, freezes and unfreezes, as `halo.Add`
   draws them (`halo.ts`; drawn without the files too).
-- **Sounds** (`game-sounds.ts`, `sandbox-sounds.ts`): soundscripts and waves
-  through WebAudio. The gravity gun's hold hum winds up and down like
-  weapon_physcannon's motor, Weapon_Physgun.Off plays when the beam stops,
-  and notices sound as in the sandbox gamemode. `?mute=1` mixes them
-  silently; `__hoodooSandbox.heard()` reports what played and the level.
+- **Sounds** (`audio/`, `game-sounds.ts`, `sandbox-sounds.ts`): one mixer
+  (`audio/mixer.ts`) plays every sound of the mode through WebAudio, at its
+  place in the world (panned, fading with distance by the soundscript's sound
+  level) or in the head. A cue (`audio/cues.ts`) names the game's soundscript
+  or wave and Sandbox's stand-in; the game's plays once the files are read,
+  the stand-in otherwise or when the files lack it. Steps, knocks and scrapes
+  go by surface as in Source: each object gets a Source surface from its
+  material and shape (Polished Wood on a prop is wood_box, Chrome on the
+  ground metal, a terrain dirt), and the game's surfaceproperties name the
+  soundscripts (`io/source/surface-props.ts`). The player steps every 0.4 s
+  walking and 0.3 s running above 90 units a second, louder running, once on
+  a jump and on landing (CBasePlayer::UpdateStepSound); props knock when they
+  meet (soft or hard by speed) and scrape while they slide, louder and higher
+  the faster (`audio/world-sounds.ts`); a body falling into open water
+  splashes, and knocks under water are not heard. The gravity gun's hold hum
+  winds up and down like weapon_physcannon's motor, Weapon_Physgun.Off plays
+  when the beam stops, the Tool Gun's shot, a spawn icon's click, the notices
+  and Q and C opening sound as in the sandbox gamemode. `?mute=1` mixes them
+  silently; `__hoodooSandbox.heard()` reports what played (the game's name,
+  or `synth:<id>`) and the level.
 
 Without the files Sandbox draws its own guns the same way
 (`viewmodel/own-guns.ts`): a Physics Gun and a Tool Gun built from simple
@@ -71,8 +86,10 @@ layer bobs, lights and fires them as it does the real ones; their beam and
 glow textures are drawn on canvases (`own-sprites.ts`). Half-Life 2's HUD is
 drawn plain (`ui/sandbox/hl2/hl2-plain.ts`): clientscheme.res's sizes and
 colours in system faces, the crosshair's five dots, drawn notice icons, and
-weapon names where the game's icons would be. There are no sounds and no
-arms. Without WebGL 2 the 2D beam over the picture stands in for the guns.
+weapon names where the game's icons would be. Sandbox's own sounds
+(`audio/synth.ts`) stand in for the game's: noise, tones and ringing modes
+as data, rendered once in a few variants. There are no arms. Without
+WebGL 2 the 2D beam over the picture stands in for the guns.
 
 ## Controls
 

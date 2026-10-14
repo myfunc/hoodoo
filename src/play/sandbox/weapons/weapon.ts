@@ -1,3 +1,4 @@
+import type { Cue } from '../audio/mixer';
 import type { Vec3 } from '../../../core/vec3';
 import type { Button, Eye } from '../../sim/actor';
 import type { BodyId, Physics } from '../../sim/physics';
@@ -20,7 +21,7 @@ export interface WeaponContext {
   readonly use: boolean;
   readonly snap: boolean;
   /** A notice at the bottom right, with the game's sound for it when it has one. */
-  notify(text: string, kind: NoticeKind, sound?: string): void;
+  notify(text: string, kind: NoticeKind, sound?: Cue): void;
 }
 
 /** One fixed step of the mouse buttons and R for the weapon in hand. */
