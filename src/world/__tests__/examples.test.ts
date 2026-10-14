@@ -3,16 +3,17 @@ import { isAnimated, poseAt } from '../animation/pose';
 import { EXAMPLES } from '../examples';
 import { SHOWCASE_SECONDS } from '../showcase/kit';
 
-const SHOWCASE = ['gambit', 'vapor-desk', 'pyramid-valley', 'marble-dream', 'orrery', 'squash', 'hoodoo-run', 'carving'];
+const SHOWCASE = ['meadow-day', 'city-dusk', 'islands', 'lighthouse', 'prism-lab', 'endgame', 'temple', 'domino', 'gambit', 'vapor-desk', 'pyramid-valley', 'marble-dream', 'orrery', 'squash', 'hoodoo-run', 'carving'];
 import { deserializeScene, serializeScene } from '../scene.serialize';
 
 describe('example projects', () => {
-  it('has unique ids, the stills first, then the animations, the featured one leading them', () => {
+  it('has unique ids, the featured animation leading, the classic set after the rest', () => {
     expect(new Set(EXAMPLES.map((e) => e.id)).size).toBe(EXAMPLES.length);
-    const firstAnimated = EXAMPLES.findIndex((e) => e.animated);
-    expect(firstAnimated).toBeGreaterThan(0);
-    expect(EXAMPLES.slice(firstAnimated).every((e) => e.animated)).toBe(true);
-    expect(EXAMPLES.filter((e) => e.featured).map((e) => e.id)).toEqual([EXAMPLES[firstAnimated].id]);
+    expect(EXAMPLES[0].animated && EXAMPLES[0].featured).toBe(true);
+    expect(EXAMPLES.filter((e) => e.featured)).toHaveLength(1);
+    const firstClassic = EXAMPLES.findIndex((e) => e.classic);
+    expect(firstClassic).toBeGreaterThan(0);
+    expect(EXAMPLES.slice(firstClassic).every((e) => e.classic)).toBe(true);
   });
 
   it.each(SHOWCASE.map((id) => [id] as const))('%s is an 8-second loop whose every track closes, keys on whole frames', (id) => {

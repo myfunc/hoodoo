@@ -11,7 +11,7 @@ const OUT = new URL('../src/ui/art/examples/', import.meta.url);
 const THUMB = { width: 480, height: 300, samples: 36, quality: 0.86 };
 const FEATURED = { ...THUMB, width: 960, height: 600, quality: 0.84 };
 /** Seconds into each animation where the thumbnail is taken. */
-const POSE_AT = { flight: 2.2, waltz: 1.4, 'dunes-morning': 6.5, 'arch-night': 6, gambit: 0, orrery: 1, squash: 1.3, 'hoodoo-run': 0, carving: 2.4 };
+const POSE_AT = { 'meadow-day': 2, 'city-dusk': 2.4, islands: 0, lighthouse: 2, 'prism-lab': 2, endgame: 4, temple: 4, domino: 3.6, flight: 2.2, waltz: 1.4, 'dunes-morning': 6.5, 'arch-night': 6, gambit: 0, orrery: 1, squash: 1.3, 'hoodoo-run': 0, carving: 2.4 };
 
 const browser = await puppeteer.launch(launchOptions(['--window-size=1280,900']));
 try {

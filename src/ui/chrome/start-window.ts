@@ -277,7 +277,7 @@ export class StartWindow {
         el('span', { cls: 'start-restore' }, [glyph(GLYPH.plus, GLYPH_BOX)]),
         el('span', { cls: 'start-card-line' }, [el('span', { cls: 'start-card-name', text: e.name })]),
       ]),
-      onClick: () => this.setList(showExample(this.list, e.id)),
+      onClick: () => this.setList(showExample(this.list, e)),
     }).el;
   }
 }

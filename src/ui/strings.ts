@@ -31,13 +31,13 @@ export const START = {
   unreadable: 'This scene no longer opens and was removed from the list',
   edit: 'Edit',
   editTitle: 'Hide examples with × and drag them into your order',
-  hidden: (n: number) => `Hidden (${n})`,
-  hiddenTitle: 'Examples you hid: click one to show it again',
+  hidden: (n: number) => `More (${n})`,
+  hiddenTitle: 'Classic examples and the ones you hid: click one to show it',
   reset: 'Reset',
   resetTitle: 'Every example back, in the original order',
   hide: 'Hide this example',
   restore: 'Show again',
-  allHidden: 'Every example is hidden: open Hidden to bring some back',
+  allHidden: 'Every example is tucked away: open More to bring some back',
 } as const;
 
 /** The video that started Hoodoo; the opening scene is after one made in it. */

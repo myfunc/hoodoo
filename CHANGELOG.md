@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.44.0 - 2026-10-14
+
+### Added
+- A new set of animated examples in the start window, each an 8-second loop:
+  - Meadow Day: a whole day over flower meadows, a turning windmill and a river.
+  - City at Dusk: windows and street lamps come on as the sun sets; cars drive the streets.
+  - Floating Islands: meadow islands bob over a sea of clouds; a balloon sails between them.
+  - Lighthouse: a beam sweeps a foggy night sea as a fishing boat rocks past.
+  - Prism Lab: glass on turntables under sweeping coloured spot lights.
+  - Chess Endgame: a smothered mate played out under a lamp, with depth of field.
+  - Desert Temple: the sun sweeps a carved temple while its doorway opens.
+  - Domino Run: a ball sets off forty dominoes and a tower; push them in Play.
+
+### Changed
+- The older examples are classics: they wait under More in the start window, and a click
+  brings one back. Mini City and Mini City at Night have their thumbnails.
+
 ## 0.43.0 - 2026-10-14
 
 ### Added

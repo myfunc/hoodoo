@@ -20,11 +20,20 @@ import { marbleDream } from './showcase/marble';
 import { billiardOrrery } from './showcase/orrery';
 import { pyramidValley } from './showcase/valley';
 import { vaporDesk } from './showcase/vapor';
+import { meadowDay } from './showcase/meadow-day';
+import { floatingIslands } from './showcase/islands';
+import { cityDusk } from './showcase/city-dusk';
+import { lighthouseStorm } from './showcase/lighthouse';
+import { prismLab } from './showcase/prism-lab';
+import { chessEndgame } from './showcase/endgame';
+import { desertTemple } from './showcase/temple';
+import { dominoRun } from './showcase/domino';
 import { SplashClip, SplashKind, splashBase, splashFrame, splashScene } from './splash-scene';
 
 /**
- * The example projects of the start window: finished stills, then animated scenes
- * with their keys already on the timeline. Thumbnails are rendered by
+ * The example projects of the start window: the animated showcase first, its featured
+ * scene leading, then the Play scenes; the older set is classic (in the tray until the
+ * user brings one back). Thumbnails are rendered by
  * tools/make-examples.mjs into src/ui/art/examples/<id>.jpg.
  */
 export interface Example {
@@ -37,6 +46,8 @@ export interface Example {
   readonly featured?: boolean;
   /** Listed only while this preview feature is on (the Play example). */
   readonly feature?: Feature;
+  /** An older example: it waits in the start window's tray until the user brings it back. */
+  readonly classic?: boolean;
   build(): Scene;
 }
 
@@ -160,25 +171,34 @@ function moonWaltz(): Scene {
 }
 
 export const EXAMPLES: readonly Example[] = [
-  { id: 'canyon', animated: false, name: 'Trapper Keeper Canyon', blurb: 'Strata towers and chrome eggs', build: () => demoScene() },
-  { id: 'dunes', animated: false, name: 'Golden Dunes', blurb: 'Sunrise fog and three planets', build: () => withDocument(splashScene(SplashKind.Dunes), EXAMPLE_DOCUMENT) },
-  { id: 'arch', animated: false, name: 'Ring Arch', blurb: 'A planet ring over a starry lake', build: () => withDocument(splashScene(SplashKind.Arch), EXAMPLE_DOCUMENT) },
-  { id: 'surprise', animated: false, name: 'Checkerboard Desert', blurb: `Stones · Surprise Me #${SURPRISE_SEED}`, build: () => surpriseScene(SURPRISE_SEED) },
+  { id: 'meadow-day', animated: true, featured: true, name: 'Meadow Day', blurb: 'A day and night over a windmill and flower meadows', build: meadowDay },
+  { id: 'city-dusk', animated: true, name: 'City at Dusk', blurb: 'Day to night: windows, street lamps, traffic', build: cityDusk },
+  { id: 'islands', animated: true, name: 'Floating Islands', blurb: 'Meadow islands and a balloon over a sea of clouds', build: floatingIslands },
+  { id: 'lighthouse', animated: true, name: 'Lighthouse', blurb: 'A beam sweeps the fog as a boat rocks past', build: lighthouseStorm },
+  { id: 'prism-lab', animated: true, name: 'Prism Lab', blurb: 'Glass on turntables under sweeping coloured spots', build: prismLab },
+  { id: 'endgame', animated: true, name: 'Chess Endgame', blurb: "Philidor's Legacy: a smothered mate under a lamp", build: chessEndgame },
+  { id: 'temple', animated: true, name: 'Desert Temple', blurb: 'Sun sweeps a carved temple as its door opens', build: desertTemple },
+  { id: 'domino', animated: true, name: 'Domino Run', blurb: 'A ball, 40 dominoes, a toppling tower; push in Play', build: dominoRun },
   { id: 'mini-city', animated: false, name: 'Mini City', blurb: 'Blocks with windows, streets, hills; crates to push in Play', build: miniCity },
   { id: 'mini-city-night', animated: false, name: 'Mini City at Night', blurb: 'The same city under the moon, its windows lit', build: miniCityNight },
-  { id: 'gambit', animated: true, featured: true, name: 'Sunset Gambit', blurb: 'Chess and billiards by the sea', build: sunsetGambit },
-  { id: 'vapor-desk', animated: true, name: 'Vapor Desk', blurb: 'A bell jar, a column and discs on checker decks', build: vaporDesk },
-  { id: 'pyramid-valley', animated: true, name: 'Pyramid Valley', blurb: 'Golden pyramids beam light over a green valley', build: pyramidValley },
-  { id: 'marble-dream', animated: true, name: 'Marble Dream', blurb: 'A marble head among glass arches', build: marbleDream },
-  { id: 'flight', animated: true, name: 'Canyon Flight', blurb: 'The camera flies round the eggs', build: canyonFlight },
-  { id: 'waltz', animated: true, name: 'Moon Waltz', blurb: 'Two moons orbit a ringed planet', build: moonWaltz },
-  { id: 'dunes-morning', animated: true, name: 'Dunes Morning', blurb: 'Sun, fog and planets breathe', build: () => splashMotion(SplashKind.Dunes, true) },
-  { id: 'arch-night', animated: true, name: 'Arch Night', blurb: 'The night sky wheels over the lake', build: () => splashMotion(SplashKind.Arch, false) },
-  { id: 'orrery', animated: true, name: 'Billiard Orrery', blurb: 'Groups orbit while their moons circle', build: billiardOrrery },
-  { id: 'squash', animated: true, name: 'Squash & Stretch', blurb: 'Balls bounce and pieces swell: keyed sizes', build: squashAndStretch },
-  { id: 'hoodoo-run', animated: true, name: 'Hoodoo Run', blurb: 'A fly-through: arches, spires, a mirror ball', build: hoodooRun },
-  { id: 'carving', animated: true, name: 'Boolean Carving', blurb: 'Keyed cutters bore, round and pierce', build: booleanCarving },
   { id: 'playground', animated: true, feature: Feature.Play, name: 'Playground', blurb: 'Play it: a door, a lift, a spinning bridge, a button', build: playground },
+  // The older set: in the tray until brought back.
+  { classic: true, id: 'canyon', animated: false, name: 'Trapper Keeper Canyon', blurb: 'Strata towers and chrome eggs', build: () => demoScene() },
+  { classic: true, id: 'dunes', animated: false, name: 'Golden Dunes', blurb: 'Sunrise fog and three planets', build: () => withDocument(splashScene(SplashKind.Dunes), EXAMPLE_DOCUMENT) },
+  { classic: true, id: 'arch', animated: false, name: 'Ring Arch', blurb: 'A planet ring over a starry lake', build: () => withDocument(splashScene(SplashKind.Arch), EXAMPLE_DOCUMENT) },
+  { classic: true, id: 'surprise', animated: false, name: 'Checkerboard Desert', blurb: `Stones · Surprise Me #${SURPRISE_SEED}`, build: () => surpriseScene(SURPRISE_SEED) },
+  { classic: true, id: 'gambit', animated: true, name: 'Sunset Gambit', blurb: 'Chess and billiards by the sea', build: sunsetGambit },
+  { classic: true, id: 'vapor-desk', animated: true, name: 'Vapor Desk', blurb: 'A bell jar, a column and discs on checker decks', build: vaporDesk },
+  { classic: true, id: 'pyramid-valley', animated: true, name: 'Pyramid Valley', blurb: 'Golden pyramids beam light over a green valley', build: pyramidValley },
+  { classic: true, id: 'marble-dream', animated: true, name: 'Marble Dream', blurb: 'A marble head among glass arches', build: marbleDream },
+  { classic: true, id: 'flight', animated: true, name: 'Canyon Flight', blurb: 'The camera flies round the eggs', build: canyonFlight },
+  { classic: true, id: 'waltz', animated: true, name: 'Moon Waltz', blurb: 'Two moons orbit a ringed planet', build: moonWaltz },
+  { classic: true, id: 'dunes-morning', animated: true, name: 'Dunes Morning', blurb: 'Sun, fog and planets breathe', build: () => splashMotion(SplashKind.Dunes, true) },
+  { classic: true, id: 'arch-night', animated: true, name: 'Arch Night', blurb: 'The night sky wheels over the lake', build: () => splashMotion(SplashKind.Arch, false) },
+  { classic: true, id: 'orrery', animated: true, name: 'Billiard Orrery', blurb: 'Groups orbit while their moons circle', build: billiardOrrery },
+  { classic: true, id: 'squash', animated: true, name: 'Squash & Stretch', blurb: 'Balls bounce and pieces swell: keyed sizes', build: squashAndStretch },
+  { classic: true, id: 'hoodoo-run', animated: true, name: 'Hoodoo Run', blurb: 'A fly-through: arches, spires, a mirror ball', build: hoodooRun },
+  { classic: true, id: 'carving', animated: true, name: 'Boolean Carving', blurb: 'Keyed cutters bore, round and pierce', build: booleanCarving },
 ];
 
 /** The examples to offer with these preview features on: one of a feature that is off is not listed. */

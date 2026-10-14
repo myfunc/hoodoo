@@ -11,7 +11,8 @@ describe('example list', () => {
   it('shows every example in the default order until the user changes it', () => {
     expect(ids(arrangeExamples(ALL, DEFAULT_EXAMPLE_LIST).shown)).toEqual(IDS);
     expect(arrangeExamples(ALL, DEFAULT_EXAMPLE_LIST).hidden).toEqual([]);
-    expect(ids(arrangeExamples(EXAMPLES, DEFAULT_EXAMPLE_LIST).shown)).toEqual(ids(EXAMPLES));
+    expect(ids(arrangeExamples(EXAMPLES, DEFAULT_EXAMPLE_LIST).shown)).toEqual(ids(EXAMPLES.filter((e) => !e.classic)));
+    expect(ids(arrangeExamples(EXAMPLES, DEFAULT_EXAMPLE_LIST).hidden)).toEqual(ids(EXAMPLES.filter((e) => e.classic)));
   });
 
   it('hides an example and shows it again in its old place', () => {
@@ -19,9 +20,9 @@ describe('example list', () => {
     expect(hideExample(hidden, 'b')).toBe(hidden);
     expect(ids(arrangeExamples(ALL, hidden).shown)).toEqual(['a', 'c']);
     expect(ids(arrangeExamples(ALL, hidden).hidden)).toEqual(['b', 'd']);
-    const back = showExample(hidden, 'b');
+    const back = showExample(hidden, { id: 'b' });
     expect(ids(arrangeExamples(ALL, back).shown)).toEqual(['a', 'b', 'c']);
-    expect(sameList(showExample(back, 'd'), DEFAULT_EXAMPLE_LIST)).toBe(true);
+    expect(sameList(showExample(back, { id: 'd' }), DEFAULT_EXAMPLE_LIST)).toBe(true);
   });
 
   it('moves an example before another or to the end, and forgets an order equal to the default', () => {
@@ -34,7 +35,7 @@ describe('example list', () => {
   it('keeps hidden examples in the order, so a dragged list restores them where they were', () => {
     const list = moveExample(IDS, hideExample(DEFAULT_EXAMPLE_LIST, 'a'), 'c', 'b');
     expect(ids(arrangeExamples(ALL, list).shown)).toEqual(['c', 'b', 'd']);
-    expect(ids(arrangeExamples(ALL, showExample(list, 'a')).shown)).toEqual(['a', 'c', 'b', 'd']);
+    expect(ids(arrangeExamples(ALL, showExample(list, { id: 'a' })).shown)).toEqual(['a', 'c', 'b', 'd']);
   });
 
   it('places examples a later version adds after their default predecessor and drops unknown ids', () => {
@@ -57,5 +58,16 @@ describe('example list', () => {
       expect(isExampleList(broken)).toBe(false);
       expect(settingsFrom({ examples: broken }).examples).toEqual(DEFAULT_EXAMPLE_LIST);
     }
+  });
+
+  it('keeps classic examples in the tray until one is brought back, and hides it again', () => {
+    const all = [{ id: 'new' }, { id: 'old', classic: true }];
+    expect(ids(arrangeExamples(all, DEFAULT_EXAMPLE_LIST).hidden)).toEqual(['old']);
+    const kept = showExample(DEFAULT_EXAMPLE_LIST, all[1]);
+    expect(ids(arrangeExamples(all, kept).shown)).toEqual(['new', 'old']);
+    expect(isExampleList(kept)).toBe(true);
+    const again = hideExample(kept, 'old');
+    expect(ids(arrangeExamples(all, again).hidden)).toEqual(['old']);
+    expect(again.kept).toBeUndefined();
   });
 });

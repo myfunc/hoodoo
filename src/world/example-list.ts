@@ -9,6 +9,14 @@ export interface ExampleList {
   /** Every example in the user's order; empty: the default order. */
   readonly order: readonly string[];
   readonly hidden: readonly string[];
+  /** Classic examples the user brought back (the rest of them wait in the tray); absent: none. */
+  readonly kept?: readonly string[];
+}
+
+/** An example as the list sees it: a classic one is in the tray until it is kept. */
+export interface ListedExample {
+  readonly id: string;
+  readonly classic?: boolean;
 }
 
 export const DEFAULT_EXAMPLE_LIST: ExampleList = { order: [], hidden: [] };
@@ -17,13 +25,13 @@ const isIds = (v: unknown): v is string[] => Array.isArray(v) && v.every((id) =>
 
 export function isExampleList(v: unknown): v is ExampleList {
   const r = v as Partial<Record<keyof ExampleList, unknown>> | null;
-  return typeof r === 'object' && r !== null && isIds(r.order) && isIds(r.hidden);
+  return typeof r === 'object' && r !== null && isIds(r.order) && isIds(r.hidden) && (r.kept === undefined || isIds(r.kept));
 }
 
 /** The same arrangement: the same order (an empty one is the default) and the same hidden examples. */
 export function sameList(a: ExampleList, b: ExampleList): boolean {
   const same = (x: readonly string[], y: readonly string[]) => x.length === y.length && x.every((id, i) => id === y[i]);
-  return same(a.order, b.order) && same([...a.hidden].sort(), [...b.hidden].sort());
+  return same(a.order, b.order) && same([...a.hidden].sort(), [...b.hidden].sort()) && same([...(a.kept ?? [])].sort(), [...(b.kept ?? [])].sort());
 }
 
 /** Every id of `ids` (the default order) in the user's order, newcomers after their default predecessor. */
@@ -38,20 +46,27 @@ export function orderedIds(ids: readonly string[], list: ExampleList): string[] 
   return out;
 }
 
-/** The examples to show, in order, and the hidden ones (in the same order). */
-export function arrangeExamples<T extends { readonly id: string }>(all: readonly T[], list: ExampleList): { shown: T[]; hidden: T[] } {
+const isTucked = (e: ListedExample, list: ExampleList): boolean =>
+  list.hidden.includes(e.id) || (!!e.classic && !(list.kept ?? []).includes(e.id));
+
+/** The examples to show, in order, and the ones in the tray (hidden, and classics not kept), in the same order. */
+export function arrangeExamples<T extends ListedExample>(all: readonly T[], list: ExampleList): { shown: T[]; hidden: T[] } {
   const byId = new Map(all.map((e) => [e.id, e]));
   const ordered = orderedIds(all.map((e) => e.id), list).map((id) => byId.get(id) as T);
-  const hidden = new Set(list.hidden);
-  return { shown: ordered.filter((e) => !hidden.has(e.id)), hidden: ordered.filter((e) => hidden.has(e.id)) };
+  return { shown: ordered.filter((e) => !isTucked(e, list)), hidden: ordered.filter((e) => isTucked(e, list)) };
 }
 
 export function hideExample(list: ExampleList, id: string): ExampleList {
-  return list.hidden.includes(id) ? list : { ...list, hidden: [...list.hidden, id] };
+  if (list.hidden.includes(id)) return list;
+  const { kept, ...rest } = list;
+  const left = (kept ?? []).filter((k) => k !== id);
+  return { ...rest, hidden: [...list.hidden, id], ...(left.length ? { kept: left } : {}) };
 }
 
-export function showExample(list: ExampleList, id: string): ExampleList {
-  return { ...list, hidden: list.hidden.filter((h) => h !== id) };
+/** `e` out of the tray: no longer hidden, and kept if it is a classic. */
+export function showExample(list: ExampleList, e: ListedExample): ExampleList {
+  const kept = e.classic && !(list.kept ?? []).includes(e.id) ? [...(list.kept ?? []), e.id] : list.kept;
+  return { ...list, hidden: list.hidden.filter((h) => h !== e.id), ...(kept?.length ? { kept } : {}) };
 }
 
 /** `id` moved just before `before` (null: to the end); the whole order is kept from then on. */
