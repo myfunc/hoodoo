@@ -1,6 +1,4 @@
-import { ShapeKind } from '../../model/scene.enums';
 import type { Scene } from '../../model/scene.types';
-import { bodyOf } from '../../world/body-flags';
 import { ScrollClassifier, ScrollDevice } from '../../input/scroll-device';
 import type { Thumbnailer } from '../../render/thumbs';
 import type { Frame } from '../../render/wire/wireframe';
@@ -10,20 +8,14 @@ import { SpawnMenu } from '../../ui/sandbox/spawn-menu';
 import { SkyPage } from '../../ui/sandbox/sky-page';
 import { SKY_LIBRARY } from '../../assets/sky.presets';
 import { ToolMenu } from '../../ui/sandbox/tool-menu';
-import { carvedOf } from '../../world/carved';
-import { subtree } from '../../world/group-tree';
 import { contraption } from '../../world/joints';
-import { raycast } from '../../world/raycast';
 import type { World } from '../../world/world';
-import type { Vec3 } from '../../core/vec3';
 import { type ActorInput, Button } from '../sim/actor';
 import { SIM_DT } from '../sim/clock';
-import { Motion } from '../sim/physics';
 import type { PlayFrame, PlaySim } from '../sim/play-sim';
 import { SANDBOX_KEYS, isSnapKey, slotOfKey } from './binds';
 import { GameFiles } from './game-files';
 import { SandboxJoints } from './joints';
-import { ContextWorld } from './context-world';
 import { objectMenu } from './object-menu';
 import { Loadout } from './loadout';
 import { type Notice, Notices } from './notices';
@@ -34,9 +26,11 @@ import { NoticeKind, WeaponId } from './sandbox.enums';
 import { SceneEdits } from './scene-edits';
 import { SPAWN_LIMIT, tracedCount } from './spawn';
 import { SPAWN_ITEMS, spawnLists } from './spawn-lists';
-import { type ToolContext, type ToolHit, ToolButton, type ToolId } from './tools/tool';
+import { ToolButton, type ToolId } from './tools/tool';
+import { ToolHost } from './tool-host';
+import { ContextMenu } from './context-menu';
+import type { SandboxAutomation } from './sandbox-automation';
 import { createTools } from './tools/tools';
-import { decalsOn, normalAt } from './tool-aim';
 import { aimOf } from './weapons/grip';
 import { PhysicsGun } from './weapons/physgun';
 import { ToolGun } from './weapons/toolgun';
@@ -65,10 +59,6 @@ export interface SandboxHost {
 }
 
 const SKY_TAB = 'Sky';
-/** Planes the Tool Gun's aim passes through when they are not solid. */
-const SEE_THROUGH: ReadonlySet<ShapeKind> = new Set([ShapeKind.WaterPlane, ShapeKind.CloudPlane]);
-/** A press of C shorter than this pins the context menu open. */
-const CONTEXT_TAP_MS = 250;
 /** The slot strip stays this long after a switch. */
 const SLOTS_MS = 1500;
 /** A trackpad swipe of this many pixels is one wheel step; a line of a line-mode wheel is this many pixels. */
@@ -83,29 +73,6 @@ const TOOL_FLASH_S = 0.3;
 /** Z joins the hint once something can be undone (the spawn menu). */
 const COMMON_HINT = 'Tab setup · Esc exit';
 
-/** What scripted checks may drive (window.__hoodooSandbox): they cannot lock the pointer or click for real. */
-export interface SandboxAutomation {
-  readonly state: () => { weapon: string; holding: string | null; undo: readonly string[]; notices: readonly string[] };
-  /** The game's sounds played lately and the mix's level now (null without game files). */
-  readonly heard: () => { recent: readonly string[]; level: number } | null;
-  /** Holds or lets go of a button as if the mouse or R did. */
-  readonly button: (b: Button, down: boolean) => void;
-  readonly key: (code: string) => void;
-  /** Wheel steps (+ toward the player). */
-  readonly wheel: (steps: number) => void;
-  /** Turns the player to look this way (degrees). */
-  readonly aim: (yaw: number, pitch: number) => void;
-  /** Spawns a menu item where the player aims, as a click on its icon does; false when refused. */
-  readonly spawn: (key: string) => boolean;
-  /** Puts a tool in the Tool Gun and takes the gun out, as a click in the Tools column does. */
-  readonly tool: (id: string) => void;
-  /** The object the Tool Gun's aim meets now, by id, or null. */
-  readonly aimed: () => string | null;
-  /** Mouse motion as E-turning or looking. */
-  readonly look: (dx: number, dy: number) => void;
-  readonly hold: (code: string, down: boolean) => void;
-}
-
 /**
  * READ ME — Sandbox (docs/sandbox-mode.md): Garry's Mod's weapons and tools in
  * Play. The session hands it keys and the wheel first (it keeps the ones it
@@ -118,15 +85,17 @@ export class Sandbox {
   private readonly props: Props;
   /** The scene's welds and other joints in physics. */
   private readonly joints: SandboxJoints;
-  /** The world under the context menu: Mouse 1 fires at the cursor, Mouse 2 an object's menu. */
-  private readonly contextWorld: ContextWorld;
+  /** The context menu (C) and its world clicking. */
+  private readonly contextMenu: ContextMenu;
+  /** What the Tool Gun's tools see: the traced aim and the scene. */
+  private readonly tools: ToolHost;
   private readonly edits: SceneEdits;
   private readonly menu: SpawnMenu;
   private readonly notices = new Notices();
   private readonly loadout = new Loadout();
   private readonly toolgun = new ToolGun(createTools(), {
-    trace: (eye, aim) => this.toolTrace(eye, aim),
-    context: () => this.toolContext(),
+    trace: (eye, aim) => this.tools.trace(eye, aim),
+    context: () => this.tools.context(),
   });
   private readonly weapons: ReadonlyMap<WeaponId, Weapon> = new Map<WeaponId, Weapon>([[WeaponId.PhysicsGun, new PhysicsGun()], [WeaponId.ToolGun, this.toolgun]]);
   private readonly toolMenu: ToolMenu;
@@ -135,9 +104,6 @@ export class Sandbox {
   private readonly classifier = new ScrollClassifier();
   /** Keys Sandbox answers to (the rest move the player as in Play). */
   private readonly taken: ReadonlySet<string> = new Set([SANDBOX_KEYS.undo, SANDBOX_KEYS.spawnMenu, SANDBOX_KEYS.contextMenu, ...SANDBOX_KEYS.slots]);
-  /** The context menu (C): when it opened, and whether a tap left it open with the real pointer. */
-  private contextAt = 0;
-  private pinned = false;
   private wheelPx = 0;
   private reach = 0;
   private use = false;
@@ -153,18 +119,19 @@ export class Sandbox {
   constructor(private readonly host: SandboxHost) {
     this.props = new Props(host.sim, host.scene);
     this.joints = new SandboxJoints(host.sim);
-    this.contextWorld = new ContextWorld({
-      layer: host.layer, picture: () => host.picture(), camera: () => host.sim.frame(1).camera,
-      inMenu: (t) => this.menu.contains(t),
-      fire: (eye, aim) => { if (this.weapon === this.toolgun) this.toolgun.shootAt(ToolButton.Primary, eye, aim, host.sim.time); },
-      menu: (eye, aim) => {
-        const hit = this.toolTrace(eye, aim);
-        return hit ? objectMenu(hit.object, { sim: host.sim, props: this.props, edits: this.edits, whole: (id) => this.toolContext().whole(id) }) : [];
-      },
-    });
     this.joints.sync(host.world.scene);
     this.edits = new SceneEdits(host.world, host.sim);
+    this.tools = new ToolHost(host.world, host.sim, this.edits, this.joints);
     this.menu = new SpawnMenu(host.thumbs, spawnLists(), (key) => void this.spawn(key));
+    this.contextMenu = new ContextMenu({
+      menu: this.menu, layer: host.layer, picture: () => host.picture(), camera: () => host.sim.frame(1).camera,
+      active: () => host.active(), freePointer: (on) => host.freePointer(on), opened: () => this.toolMenu.show(this.toolgun.tool.id),
+      fire: (eye, aim) => { if (this.weapon === this.toolgun) this.toolgun.shootAt(ToolButton.Primary, eye, aim, host.sim.time); },
+      objectMenu: (eye, aim) => {
+        const hit = this.tools.trace(eye, aim);
+        return hit ? objectMenu(hit.object, { sim: host.sim, props: this.props, edits: this.edits, whole: (id) => this.tools.context().whole(id) }) : [];
+      },
+    });
     this.toolMenu = new ToolMenu(host.thumbs, this.toolgun.tools, (id) => this.pickTool(id as ToolId));
     this.menu.dock(this.toolMenu.el);
     this.menu.addTab(SKY_TAB, () => {
@@ -194,7 +161,7 @@ export class Sandbox {
       return true;
     }
     if (code === SANDBOX_KEYS.contextMenu) {
-      this.contextMenu(down);
+      this.contextMenu.key(down);
       return true;
     }
     if (!down || !this.host.active()) return true;
@@ -243,12 +210,7 @@ export class Sandbox {
     this.prev = held;
     // The spawn menu has the mouse: its button clicks there, the gun rests.
     if (this.menu.open) {
-      const at = this.menu.isContext ? this.menu.cursorPoint() : null;
-      if (pressed.has(Button.Attack) && !this.menu.clickAtCursor() && at) this.contextWorld.click(0, ...at);
-      if (pressed.has(Button.Attack2) && at) {
-        this.pin();
-        this.contextWorld.click(2, ...at);
-      }
+      this.contextMenu.buttons(pressed.has(Button.Attack), pressed.has(Button.Attack2));
       this.weapon.step({ held: new Set(), pressed: new Set(), reach: 0 }, this.context());
       return { ...raw, buttons: new Set([...raw.buttons].filter((b) => b !== Button.Attack && b !== Button.Attack2)), wheel: 0 };
     }
@@ -323,7 +285,7 @@ export class Sandbox {
   }
 
   dispose(): void {
-    this.contextWorld.stop();
+    this.contextMenu.dispose();
     this.joints.dispose();
     this.game.dispose();
     this.weapon.holster(this.context());
@@ -355,48 +317,9 @@ export class Sandbox {
     this.toolMenu.show(this.toolgun.tool.id);
   }
 
-  /**
-   * Garry's Mod's context menu (C): the chosen tool's panel over the world, the
-   * menu's cursor working it. Held, it closes when C is let go; a tap pins it
-   * open and frees the real pointer (drag a slider, type a number) until the
-   * next C or a click on the world.
-   */
-  private contextMenu(down: boolean): void {
-    if (down) {
-      if (this.pinned) return this.closeContext();
-      if (!this.host.active() || this.menu.open) return;
-      this.contextAt = performance.now();
-      this.menu.setOpen(true, true);
-      this.toolMenu.show(this.toolgun.tool.id);
-      return;
-    }
-    if (!this.menu.open || this.pinned) return;
-    if (performance.now() - this.contextAt < CONTEXT_TAP_MS) this.pin();
-    else this.menu.setOpen(false);
-  }
-
-  /** The context menu stays open with the real pointer; its clicks on the world fire or open an object's menu. */
-  private pin(): void {
-    if (this.pinned) return;
-    this.pinned = true;
-    this.menu.hideCursor();
-    this.host.freePointer(true);
-    this.contextWorld.listen();
-  }
-
-  private closeContext(): void {
-    const freed = this.pinned;
-    this.pointerCaught();
-    this.menu.setOpen(false);
-    if (freed) this.host.freePointer(false);
-  }
-
   /** The pointer is caught again: a pinned context menu closes. */
   pointerCaught(): void {
-    if (!this.pinned) return;
-    this.pinned = false;
-    this.contextWorld.stop();
-    this.menu.setOpen(false);
+    this.contextMenu.pointerCaught();
   }
 
   /** A tool from the Tools column: into the Tool Gun, and the Tool Gun out. */
@@ -404,40 +327,6 @@ export class Sandbox {
     this.toolgun.select(id);
     this.toolMenu.show(this.toolgun.tool.id);
     if (this.weapon !== this.toolgun) this.switchWeapon(() => this.loadout.take(WeaponId.ToolGun));
-  }
-
-  /** The Tool Gun's aim through the picture's objects as play has them now, without a range limit. */
-  private toolTrace(eye: Vec3, aim: Vec3): ToolHit | null {
-    const scene = this.host.sim.frame(1).scene;
-    // As Garry's Mod's shots do, the aim passes through water and clouds (unless they are solid).
-    const skip = new Set(scene.objects.filter((o) => SEE_THROUGH.has(o.kind) && !bodyOf(o).solid).map((o) => o.id));
-    const opts = { includePlanes: true, includeLights: false, skip };
-    const hit = raycast(scene, eye, aim, opts);
-    const object = hit ? this.host.world.object(hit.id) : undefined;
-    if (!hit || !object) return null;
-    return { object, point: hit.point, ...normalAt(scene, eye, aim, hit, opts) };
-  }
-
-  private toolContext(): ToolContext {
-    const { bodies } = this.host.sim;
-    return {
-      edits: this.edits,
-      moving: (id) => (bodies.itemOf(id)?.motion ?? Motion.Fixed) !== Motion.Fixed,
-      joined: (id) => bodies.sharing(contraption(this.host.world.scene, bodies.sharing([id]))),
-      anchor: (id, point) => this.joints.anchorOf(id, point),
-      pose: (id) => this.host.sim.frame(1).scene.objects.find((o) => o.id === id)?.transform ?? null,
-      decalsOn: (id) => decalsOn(this.host.world.scene, id),
-      carved: (id) => {
-        const o = this.host.world.object(id);
-        return !!o && carvedOf(this.host.world.scene, o) !== null;
-      },
-      whole: (id) => {
-        const scene = this.host.world.scene;
-        const o = this.host.world.object(id);
-        const g = o ? carvedOf(scene, o) : null;
-        return new Set(g ? subtree(scene, g) : [id]);
-      },
-    };
   }
 
   /** A spawn list's item where the player aims; past the tracer's limit, Garry's Mod's notice instead. */
@@ -488,7 +377,7 @@ export class Sandbox {
       tool: (id) => this.pickTool(id as ToolId),
       aimed: () => {
         const eye = this.host.sim.driver.eye();
-        return this.toolTrace(eye.position, aimOf(eye.yaw, eye.pitch))?.object.id ?? null;
+        return this.tools.trace(eye.position, aimOf(eye.yaw, eye.pitch))?.object.id ?? null;
       },
       look: (dx, dy) => { if (!this.look(dx, dy)) this.host.sim.driver.look(dx, dy); },
       hold: (code, down) => { this.key(code, down); },
