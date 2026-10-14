@@ -35,6 +35,9 @@
 .sandbox-hl2hud { position: absolute; pointer-events: none; }
 .sbx-hud.is-hl2 .sbx-slots, .sbx-hud.is-hl2 .sbx-notices, .sbx-hud.is-hl2 .sbx-weapon { display: none; }
 .play-layer.is-hl2 .play-cross { display: none; }
+/* The hint line sits above HUD's health box (its top is 48 of 480 units up), and the Tab panel above the HUD. */
+.sbx-hud.is-hl2 .sbx-hint { bottom: calc(10% + 8px); }
+.play-layer.is-sandbox .play-panel-host { z-index: 5; }
 
 /* The spawn menu (Q held, spawn-menu.ts): the Play panel's dark glass over the left of the picture, categories as a
    list with an amber rule, the icons in a grid that scrolls. Hover outlines a tile without moving anything. */

@@ -24,6 +24,8 @@ export interface HudFont {
   readonly ascent: number;
   readonly blur: number;
   readonly scanlines: number;
+  /** Source draws it with hard edges ("antialias" "0"). */
+  readonly hard: boolean;
 }
 
 interface FontVariant {
@@ -32,6 +34,7 @@ interface FontVariant {
   readonly weight: number;
   readonly blur: number;
   readonly scanlines: number;
+  readonly antialias: boolean;
   readonly yres: readonly [number, number] | null;
 }
 
@@ -125,6 +128,7 @@ export class Hl2Scheme {
       ascent: size * m.ascent,
       blur: v.blur * grow,
       scanlines: Math.max(0, Math.round(v.scanlines * grow)),
+      hard: !v.antialias,
     };
   }
 
@@ -170,7 +174,8 @@ function variant(kv: KeyValues): FontVariant {
   const yres = keyValue(v, 'yres')?.value?.trim().split(/\s+/).map(Number);
   // Of several "name" lines the platform conditions kept the first that applies.
   const family = keyValues(v, 'name')[0]?.value ?? 'Verdana';
-  return { family, tall: num('tall'), weight: num('weight'), blur: num('blur'), scanlines: num('scanlines'), yres: yres?.length === 2 ? [yres[0], yres[1]] : null };
+  const antialias = keyValue(v, 'antialias')?.value !== '0';
+  return { family, tall: num('tall'), weight: num('weight'), blur: num('blur'), scanlines: num('scanlines'), antialias, yres: yres?.length === 2 ? [yres[0], yres[1]] : null };
 }
 
 /** Loads a TrueType face from the game into the page under its own family name. */

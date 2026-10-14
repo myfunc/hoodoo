@@ -33,6 +33,10 @@ export interface PictureRect {
 
 /** Hoodoo's weapons by the Garry's Mod weapon script whose icons they wear. */
 const WEAPON_SCRIPTS: Readonly<Record<string, string>> = { physgun: 'weapons/weapon_physgun' };
+/** Scripted weapons' selection pictures (SWEP.WepSelectIcon): the Tool Gun's from its cl_init.lua. */
+const WEAPON_PICTURES: Readonly<Record<string, string>> = { toolgun: 'vgui/gmod_tool' };
+/** weapon_base's DrawWeaponSelection: the picture inset this far (480-unit pixels as drawn: screen pixels), half as tall as wide. */
+const PICTURE_INSET = 10;
 /** Notice kinds as Garry's Mod's NOTIFY_ types, and their icons. */
 const NOTICE_ICONS: Readonly<Record<string, string>> = {
   info: 'vgui/notices/generic', undo: 'vgui/notices/undo', spawn: 'vgui/notices/generic', limit: 'vgui/notices/error', hint: 'vgui/notices/hint', cleanup: 'vgui/notices/cleanup',
@@ -57,6 +61,8 @@ type ColorKey = keyof typeof COLORS;
 /** Source's HUD box corners: 8-pixel textures, whatever the resolution. */
 const CORNER_PX = 8;
 const BYTE = 255;
+/** A hard-edged font keeps the pixels its glyph covers at least this much (alpha byte). */
+const HARD_EDGE = 96;
 const HEALTH_LABEL = 'HEALTH';
 /** HL2's crosshair glyph when a weapon names none. */
 const DEFAULT_CROSSHAIR = { font: 'Crosshairs', char: 'Q' } as const;
@@ -70,12 +76,15 @@ const LAYOUT: Readonly<Record<string, Readonly<Record<string, string>>>> = {
 interface WeaponLook {
   readonly icon: { font: string; char: string } | null;
   readonly glow: { font: string; char: string } | null;
+  readonly picture?: HTMLCanvasElement | null;
 }
 
 export class Hl2Hud {
   readonly canvas = document.createElement('canvas');
   private readonly g = this.canvas.getContext('2d') as CanvasRenderingContext2D;
   private readonly scratch = document.createElement('canvas');
+  /** The crosshair as last drawn, kept while its font and colour stay. */
+  private readonly cross = document.createElement('canvas');
   private readonly flight = new NoticeFlight();
   private s = 1;
   private last = 0;
@@ -96,6 +105,7 @@ export class Hl2Hud {
     for (const [id, script] of Object.entries(WEAPON_SCRIPTS)) {
       weapons.set(id, { icon: await scheme.weaponIcon(script, 'weapon'), glow: await scheme.weaponIcon(script, 'weapon_s') });
     }
+    for (const [id, material] of Object.entries(WEAPON_PICTURES)) weapons.set(id, { icon: null, glow: null, picture: await scheme.image(material) });
     const crosshair = (await scheme.weaponIcon(WEAPON_SCRIPTS.physgun, 'crosshair')) ?? DEFAULT_CROSSHAIR;
     const icons = new Map<string, HTMLCanvasElement>();
     for (const [kind, material] of Object.entries(NOTICE_ICONS)) {
@@ -156,15 +166,29 @@ export class Hl2Hud {
     return n;
   }
 
-  /** The crosshair glyph centred on the screen, in Source's "Normal" colour. */
+  /** The crosshair glyph centred on the screen, in Source's "Normal" colour; hard-edged when the font is. */
   private drawCrosshair(): void {
     const f = this.font(this.crosshair.font);
     if (!f) return;
-    const { g, canvas } = this;
-    g.font = f.css;
-    const w = g.measureText(this.crosshair.char).width;
-    g.fillStyle = this.color('normal');
-    g.fillText(this.crosshair.char, Math.round(canvas.width / 2 - w / 2), Math.round(canvas.height / 2 - f.tall / 2 + f.ascent));
+    const color = this.color('normal');
+    const key = `${f.css}|${color}`;
+    const c = this.cross;
+    if (c.dataset.key !== key) {
+      c.dataset.key = key;
+      const s = c.getContext('2d', { willReadFrequently: true }) as CanvasRenderingContext2D;
+      s.font = f.css;
+      c.width = Math.ceil(s.measureText(this.crosshair.char).width);
+      c.height = Math.ceil(f.tall);
+      s.font = f.css;
+      s.fillStyle = color;
+      s.fillText(this.crosshair.char, 0, f.ascent);
+      if (f.hard && c.width && c.height) {
+        const img = s.getImageData(0, 0, c.width, c.height);
+        for (let i = 3; i < img.data.length; i += 4) img.data[i] = img.data[i] >= HARD_EDGE ? BYTE : 0;
+        s.putImageData(img, 0, 0);
+      }
+    }
+    if (c.width && c.height) this.g.drawImage(c, Math.round(this.canvas.width / 2 - c.width / 2), Math.round(this.canvas.height / 2 - c.height / 2));
   }
 
   /** CHudHealth: a rounded box, the label at text_xpos and the number at digit_xpos in HudNumbers. */
@@ -214,6 +238,12 @@ export class Hl2Hud {
     // The open weapon glows (its weapon_s glyph in the blurred, scanlined font) under its plain icon.
     for (const glyph of selected ? [look?.glow, look?.icon] : [look?.icon]) if (glyph) this.centred(glyph, x, y, wide, tall, this.color('fg', alpha));
     if (!selected) return;
+    if (look?.picture) {
+      const w = wide - PICTURE_INSET * 2;
+      this.g.globalAlpha = alpha;
+      this.g.drawImage(look.picture, Math.round(x + PICTURE_INSET), Math.round(y + PICTURE_INSET), Math.round(w), Math.round(w / 2));
+      this.g.globalAlpha = 1;
+    }
     const f = this.font('HudSelectionText');
     if (!f) return;
     this.g.font = f.css;

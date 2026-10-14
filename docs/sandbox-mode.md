@@ -29,11 +29,17 @@ the rest follows *Order of work*.
 Hoodoo ships no Valve or Facepunch file. The player points Sandbox at their
 own Garry's Mod (Tab › Garry's Mod › Choose folder…) and it is read in place
 (`src/io/source/game-folder.ts`): the VPKs and loose content the game mounts,
-in gameinfo's order, never addons, downloads or saves. Chrome and Edge keep
-the folder (IndexedDB) and ask at most once a visit; other browsers ask each
-time through a folder input. A folder laid out like the game's content works
-too (a private copy for a machine without the game). `?gamefiles=<url>`
-serves such a folder over HTTP for development and scripted checks.
+in gameinfo's order, never addons, downloads or saves. Chrome's folder picker
+refuses anything under Program Files on Windows, where Steam installs the
+game, so on Windows (and in browsers without the picker) the page asks
+through a folder input; the browser then confirms the "upload", which only
+hands the files to the page. The few files the guns, sounds and HUD read
+(about 8 MB of a full install) are kept in the browser's own storage
+(`kept-files.ts`, the origin private file system) with the answers the
+loaders got, so the next visit has them at once without the folder; Forget
+drops them. A folder laid out like the game's content works too (a private
+copy for a machine without the game). `?gamefiles=<url>` serves such a
+folder over HTTP for development and scripted checks.
 
 From the files (`src/io/source/**` reads VPK, VMT, VTF, MDL/VVD/VTX with
 their animations, WAV and soundscripts):

@@ -3,24 +3,24 @@ import type { SourceFiles } from './source.types';
 
 /**
  * READ ME — the player's own Garry's Mod folder, read in place: nothing is
- * copied or sent anywhere. Where the browser lets a page keep a folder
- * (showDirectoryPicker: Chrome, Edge) the folder is remembered in IndexedDB and
- * comes back next time, at most after one "Allow" click; elsewhere the player
- * picks it each time through a folder input. Only what the game mounts is
- * walked — the VPKs and the loose models, materials, sounds, scripts and
- * resources — never addons, downloads or saves. A loose pack laid out like the
- * game's content folder (models/, materials/, sound/…) works too.
+ * sent anywhere. Only what the game mounts is walked — the VPKs and the loose
+ * models, materials, sounds, scripts and resources — never addons, downloads
+ * or saves. A loose pack laid out like the game's content folder (models/,
+ * materials/, sound/…) works too. Chrome's folder picker (showDirectoryPicker)
+ * refuses anything under Program Files on Windows, where Steam puts the game,
+ * so there the page asks through a folder input instead; Sandbox keeps the few
+ * files it uses (kept-files.ts), so the folder is picked once either way.
  */
 
 /** Folders of an install whose VPKs and loose content the game mounts. */
 const MOUNTED = ['garrysmod', 'sourceengine', 'platform'] as const;
 const CONTENT = ['models', 'materials', 'sound', 'scripts', 'resource'] as const;
 const VPK = '.vpk';
-const DB = { name: 'hoodoo-game-files', version: 1, store: 'folders', key: 'garrysmod' } as const;
 const PICKER_ID = 'hoodoo-garrysmod';
 /** Inside the install's garrysmod folder: one level too deep (sourceengine is beside it). */
 const INNER_MARK = 'garrysmod_dir.vpk';
 const WRONG_FOLDER = (name: string) => `${name}: not the GarrysMod folder`;
+const WINDOWS = /windows/i;
 
 /** A folder as the walk sees it: the browser's directory handle, or a stand-in in tests. */
 export interface FolderHandle {
@@ -34,12 +34,6 @@ export interface FileHandle {
   getFile(): Promise<File>;
 }
 
-type Access = 'granted' | 'denied' | 'prompt';
-/** Chrome's permission calls on a kept handle (not in TypeScript's DOM types yet). */
-interface KeptHandle extends FolderHandle {
-  queryPermission?(o: { mode: 'read' }): Promise<Access>;
-  requestPermission?(o: { mode: 'read' }): Promise<Access>;
-}
 type DirectoryPicker = (o: { id: string; mode: 'read' }) => Promise<FileSystemDirectoryHandle>;
 
 export interface GameFolder {
@@ -47,21 +41,10 @@ export interface GameFolder {
   readonly files: SourceFiles;
 }
 
-/** A folder picked before: its name, and whether it opens now or needs the player's click first. */
-export interface KeptFolder {
-  readonly name: string;
-  readonly ready: boolean;
-  /** Opens it; call from a click when not ready (the browser asks the player). */
-  open(): Promise<GameFolder>;
-}
-
-/** Whether the browser can keep a folder between visits. */
-export const canKeepFolder = (): boolean => typeof picker() === 'function';
-
-/** Asks the player for the folder (from a click) and keeps it where the browser allows. */
+/** Asks the player for the folder (from a click); null when they cancel. */
 export async function pickGameFolder(): Promise<GameFolder | null> {
   const pick = picker();
-  if (!pick) return pickWithInput();
+  if (!pick || WINDOWS.test(navigator.userAgent)) return pickWithInput();
   let dir: FileSystemDirectoryHandle;
   try {
     dir = await pick({ id: PICKER_ID, mode: 'read' });
@@ -69,37 +52,11 @@ export async function pickGameFolder(): Promise<GameFolder | null> {
     if (e instanceof DOMException && e.name === 'AbortError') return null;
     throw e;
   }
-  const folder = await openDirectory(dir as unknown as KeptHandle);
-  await store((s) => s.put(dir, DB.key)).catch(() => undefined);
-  return folder;
-}
-
-/** The folder picked on an earlier visit, or null. */
-export async function keptGameFolder(): Promise<KeptFolder | null> {
-  if (!canKeepFolder()) return null;
-  const dir = await store<KeptHandle | undefined>((s) => s.get(DB.key)).catch(() => undefined);
-  if (!dir) return null;
-  const ready = (await dir.queryPermission?.({ mode: 'read' })) === 'granted';
-  return {
-    name: dir.name,
-    ready,
-    open: async () => {
-      if ((await dir.requestPermission?.({ mode: 'read' })) === 'denied') throw new Error(`${dir.name}: reading not allowed`);
-      return openDirectory(dir);
-    },
-  };
-}
-
-/** Forgets the kept folder. */
-export async function forgetGameFolder(): Promise<void> {
-  await store((s) => s.delete(DB.key)).catch(() => undefined);
+  const handle = dir as unknown as FolderHandle;
+  return { name: handle.name, files: await sourceFilesFromFolder(await folderFiles(handle)) };
 }
 
 const picker = (): DirectoryPicker | undefined => (window as unknown as { showDirectoryPicker?: DirectoryPicker }).showDirectoryPicker;
-
-async function openDirectory(dir: FolderHandle): Promise<GameFolder> {
-  return { name: dir.name, files: await sourceFilesFromFolder(await folderFiles(dir)) };
-}
 
 /** The files of a picked folder the game mounts, with paths from that folder; throws when it is not a Garry's Mod folder. */
 export async function folderFiles(dir: FolderHandle): Promise<FolderFile[]> {
@@ -135,7 +92,7 @@ async function walk(dir: FolderHandle, path: string, out: FolderFile[]): Promise
   }
 }
 
-/** Browsers without showDirectoryPicker: a folder input, the files filtered to what the game mounts. */
+/** A folder input (Windows, and browsers without showDirectoryPicker), the files filtered to what the game mounts. */
 function pickWithInput(): Promise<GameFolder | null> {
   return new Promise((resolve, reject) => {
     const input = document.createElement('input');
@@ -160,19 +117,4 @@ function mounted(parts: readonly string[]): boolean {
   const [first, second] = parts.map((p) => p.toLowerCase());
   if ((MOUNTED as readonly string[]).includes(first)) return parts.length === 2 ? second.endsWith(VPK) : isContent(second);
   return isContent(first);
-}
-
-/** One request on the folder store. */
-function store<T>(request: (s: IDBObjectStore) => IDBRequest): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const open = indexedDB.open(DB.name, DB.version);
-    open.onupgradeneeded = () => open.result.createObjectStore(DB.store);
-    open.onerror = () => reject(open.error);
-    open.onsuccess = () => {
-      const db = open.result;
-      const r = request(db.transaction(DB.store, 'readwrite').objectStore(DB.store));
-      r.onsuccess = () => { db.close(); resolve(r.result as T); };
-      r.onerror = () => { db.close(); reject(r.error); };
-    };
-  });
 }

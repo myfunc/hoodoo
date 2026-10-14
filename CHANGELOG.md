@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.17.2 - 2026-10-13
+
+### Fixed
+- Sandbox: picking the Garry's Mod folder works on Windows. Chrome's folder picker
+  refuses anything under Program Files, where Steam puts the game, so nothing loaded
+  and the real guns and HUD never showed; Windows now picks through the plain folder
+  dialog. The few files Sandbox uses (about 8 MB) stay in this browser, so the guns are
+  back on the next visit without asking; Forget drops them.
+- Sandbox with the game's files: the Tool Gun shows its picture in the weapon selection,
+  Half-Life 2's crosshair dots are drawn hard-edged as the game draws them, the hint line
+  stays clear of the health box, and the Tab panel sits over the tool's info.
 ## 0.17.1 - 2026-10-13
 
 ### Fixed

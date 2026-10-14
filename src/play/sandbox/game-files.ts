@@ -1,4 +1,5 @@
-import { type KeptFolder, forgetGameFolder, keptGameFolder, pickGameFolder } from '../../io/source/game-folder';
+import { pickGameFolder } from '../../io/source/game-folder';
+import { RecordingFiles, forgetKeptFiles, keepFiles, keptFiles } from '../../io/source/kept-files';
 import type { SourceFiles } from '../../io/source/source.types';
 import { GameFilesSection, GameFilesState } from '../../ui/sandbox/game-files-section';
 import type { Hl2Hud } from '../../ui/sandbox/hl2/hl2-hud';
@@ -6,11 +7,13 @@ import type { SandboxSounds } from './sandbox-sounds';
 import type { HandsLayer } from './viewmodel/hands-layer';
 
 /**
- * READ ME — Sandbox's link to the player's own Garry's Mod: it reopens the
- * folder picked last time or lets the player pick one (src/io/source/game-folder.ts),
- * says where it stands in the Play panel, and builds what the files give — the
- * hands with the real guns, and the game's sounds — replacing them when the
- * folder changes. Without files Sandbox keeps its own look. `?gamefiles=<url>`
+ * READ ME — Sandbox's link to the player's own Garry's Mod: it lets the
+ * player pick the folder (src/io/source/game-folder.ts), keeps the few files
+ * the guns, sounds and HUD use in this browser (kept-files.ts) so they are
+ * back on the next visit without asking, says where it stands in the Play
+ * panel, and builds what the files give — the hands with the real guns, the
+ * game's sounds and Half-Life 2's HUD — replacing them when the folder
+ * changes. Without files Sandbox keeps its own look. `?gamefiles=<url>`
  * (development, scripted checks) serves the files over HTTP instead.
  */
 
@@ -32,7 +35,8 @@ export class GameFiles {
   sounds: SandboxSounds | null = null;
   /** Half-Life 2's HUD, when the files have its scheme. */
   hud: Hl2Hud | null = null;
-  private kept: KeptFolder | null = null;
+  /** Stops keeping late reads of the picked folder. */
+  private stopKeeping: (() => void) | null = null;
   /** Counts loads, so one finished after a newer one started is dropped. */
   private generation = 0;
   private disposed = false;
@@ -40,27 +44,22 @@ export class GameFiles {
   constructor(private readonly host: GameFilesHost) {
     this.section = new GameFilesSection({
       choose: () => void this.choose(),
-      allow: () => void this.allow(),
       forget: () => void this.forget(),
     });
   }
 
-  /** The files Play starts with: served ones, or the folder kept from last time. */
+  /** The files Play starts with: served ones, or the ones kept from the folder picked before. */
   async start(): Promise<void> {
     const url = new URLSearchParams(location.search).get(GAME_FILES_PARAM);
     if (url) {
       const { HttpFiles } = await import('../../io/source/http-files');
-      return this.use(DEV_FOLDER, () => HttpFiles.open(url));
-    }
-    this.kept = await keptGameFolder().catch(() => null);
-    if (this.disposed) return;
-    if (!this.kept) {
-      this.host.notify('Tab › Garry’s Mod: real guns from your copy');
+      await this.use(DEV_FOLDER, () => HttpFiles.open(url));
       return;
     }
-    if (this.kept.ready) return this.allow();
-    this.section.set({ state: GameFilesState.Kept, folder: this.kept.name });
-    this.host.notify(`Tab › Allow: read ${this.kept.name} again`);
+    const kept = await keptFiles().catch(() => null);
+    if (this.disposed) return;
+    if (kept) await this.use(kept.name, async () => kept.files);
+    else this.host.notify('Tab › Garry’s Mod: real guns from your copy');
   }
 
   dispose(): void {
@@ -72,27 +71,25 @@ export class GameFiles {
   private async choose(): Promise<void> {
     try {
       const folder = await pickGameFolder();
-      if (folder) await this.use(folder.name, async () => folder.files);
+      if (!folder) return;
+      const recording = new RecordingFiles(folder.files);
+      if (await this.use(folder.name, async () => recording)) {
+        this.stopKeeping = await keepFiles(folder.name, recording).catch(() => null);
+      }
     } catch (e) {
       this.fail(e);
     }
   }
 
-  private async allow(): Promise<void> {
-    const kept = this.kept;
-    if (kept) await this.use(kept.name, async () => (await kept.open()).files);
-  }
-
   private async forget(): Promise<void> {
     this.generation++;
-    this.kept = null;
     this.drop();
-    await forgetGameFolder();
+    await forgetKeptFiles();
     this.section.set({ state: GameFilesState.None });
   }
 
-  /** Builds the hands and sounds from a folder's files, in place of the ones before. */
-  private async use(folder: string, open: () => Promise<SourceFiles>): Promise<void> {
+  /** Builds the hands, sounds and HUD from a folder's files, in place of the ones before; true when they are in. */
+  private async use(folder: string, open: () => Promise<SourceFiles>): Promise<boolean> {
     const generation = ++this.generation;
     this.section.set({ state: GameFilesState.Loading, folder });
     try {
@@ -107,7 +104,10 @@ export class GameFiles {
         game.dispose();
         hud?.dispose();
       };
-      if (this.disposed || generation !== this.generation) return unused();
+      if (this.disposed || generation !== this.generation) {
+        unused();
+        return false;
+      }
       if (!hands) {
         unused();
         throw new Error(`${folder}: no guns found`);
@@ -118,8 +118,10 @@ export class GameFiles {
       this.hud = hud;
       this.host.mount(hud ? [hands.canvas, hud.canvas] : [hands.canvas]);
       this.section.set({ state: GameFilesState.Ready, folder });
+      return true;
     } catch (e) {
       if (generation === this.generation) this.fail(e);
+      return false;
     }
   }
 
@@ -128,6 +130,8 @@ export class GameFiles {
   }
 
   private drop(): void {
+    this.stopKeeping?.();
+    this.stopKeeping = null;
     this.hands?.dispose();
     this.sounds?.dispose();
     this.hud?.dispose();
