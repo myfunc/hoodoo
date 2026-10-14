@@ -50,6 +50,17 @@ autosave), and while props move it sends where they are ten times a second; the
 editor shows them there as a preview, without a step, until the game's next
 step puts them in the scene. Closing either window tells the other.
 
+## Slowdown auditor
+
+Play keeps the last three seconds of frames (`src/play/perf-audit.ts`): each
+frame's interval, the simulation steps it ran and how long they took, the
+bodies and the moving ones, contacts, the live picture's scale and the frame
+rate. A frame over 50 ms, or steps over 8 ms in one frame, keeps a snapshot of
+those seconds with the moving bodies (what, where, how fast), the screen and
+the version; paused play, a hidden tab and the first two seconds are not
+judged, and one snapshot per five seconds at most. The last ten stay in the
+browser; Tab › Perf log saves them as a JSON file to send.
+
 ## Layers
 
 ```

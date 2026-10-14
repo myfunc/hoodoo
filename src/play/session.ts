@@ -16,6 +16,7 @@ import type { Sandbox } from './sandbox/sandbox';
 import { withTakes } from './sim/take';
 import './play.css';
 import { isGameWindow, openGameWindow, sendPoses } from './game-window';
+import { PerfAudit } from './perf-audit';
 
 const logger = Logger.create('Play');
 const MS_PER_S = 1000;
@@ -84,6 +85,8 @@ class PlaySession {
   private res = 0;
   private paused = true;
   private ended = false;
+  /** Keeps a snapshot of the last seconds when a frame takes far too long (perf-audit.ts). */
+  private audit: PerfAudit | null = null;
   /** When the whole screen was last left (performance.now): the Esc that did it does not leave Play. */
   private screenLeftAt = -Infinity;
   /** Record was switched off by the user (not by a full track). */
@@ -205,6 +208,7 @@ class PlaySession {
     editor.update(this.restore);
     editor.setHint(READY_HINT);
     delete (window as unknown as Record<string, unknown>).__hoodooPlay;
+    this.audit?.dispose();
     if (!sim) return;
     this.commit(sim);
     sim.dispose();
@@ -221,6 +225,8 @@ class PlaySession {
         return;
       }
       this.sim = sim;
+      this.audit = new PerfAudit(sim);
+      this.panel.addSection(this.audit.section());
       sim.events.on('record', ({ on }) => {
         this.panel.sync();
         if (!on && !this.userStopped) this.ctx.toast('Take full: a track holds 600 keys');
@@ -291,10 +297,12 @@ class PlaySession {
     if (!sim || this.ended) return;
     const steps = this.paused ? 0 : this.clock.advance((now - this.last) / MS_PER_S);
     this.last = now;
+    const simStart = performance.now();
     for (let i = 0; i < steps; i++) {
       const input = this.input.sample();
       sim.step(this.sandbox ? this.sandbox.input(input) : input);
     }
+    this.audit?.frame(now, steps, performance.now() - simStart, this.paused, this.res / PERCENT, this.fps);
     const frame = sim.frame(this.clock.alpha);
     this.current = frame;
     sendPoses(sim, frame, now);

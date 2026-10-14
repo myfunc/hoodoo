@@ -85,3 +85,7 @@
 
 /* The game's own window (Play › Open in window, play/game-window.ts): the scene window alone, filling the page. */
 body.is-game-window .scene-window { position: fixed; inset: 0; z-index: 100; }
+
+/* The Perf log (perf-audit.ts): how many slow moments are kept, Save and Clear. */
+.play-perf { margin: 10px 0; }
+.play-perf-line { margin-bottom: 6px; color: #b9b7af; white-space: nowrap; }

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.21.1 - 2026-10-14
+
+### Added
+- Play keeps a snapshot of its last seconds whenever a frame stalls: Tab › Perf log says how
+  many it holds and saves them as a file to send.
 ## 0.21.0 - 2026-10-14
 
 ### Added
