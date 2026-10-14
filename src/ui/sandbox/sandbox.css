@@ -141,3 +141,24 @@
 .sbx-tool-line { display: flex; align-items: center; gap: 8px; padding: 1px 0; white-space: nowrap; }
 .sbx-chip { min-width: 52px; padding: 0 5px; text-align: center; font-size: 11px; color: #1c1306; background: #ffb020; text-shadow: none; }
 .sbx-tools .ui-choice { width: max-content; max-width: 100%; }
+
+/* The context menu (C, sandbox.ts): the same menu showing only the chosen tool's panel on the right, as Garry's
+   Mod's does; the world stays in view and takes clicks outside the panel. */
+.sbx-q.is-context { pointer-events: none; }
+.sbx-q.is-context .sbx-spawn, .sbx-q.is-context .sbx-tools .gw-tabs, .sbx-q.is-context .gw-catlist { display: none; }
+.sbx-q.is-context .sbx-q-side { margin-left: auto; align-self: flex-start; flex-basis: clamp(260px, 30%, 360px); max-height: 100%; pointer-events: auto; }
+.sbx-q.is-context .gw-sheet-body { padding: 4px; }
+
+/* DNumSlider (gw-slider.ts): label, − track + and the value; the track fills blue to the value. */
+.gw-slider-label { margin-bottom: 2px; color: var(--gw-ink); }
+.gw-slider-row { display: flex; align-items: center; gap: 4px; }
+.gw-slider-track { position: relative; flex: 1 1 auto; height: 8px; border: 1px solid #a8a8a8; border-radius: 4px; background: #f4f4f4; cursor: pointer; }
+.gw-slider-track.is-hover { border-color: var(--gw-blue); }
+.gw-slider-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--gw-blue); }
+.gw-slider-step { width: 16px; height: 16px; line-height: 15px; text-align: center; border: 1px solid #a8a8a8; border-radius: 3px; color: var(--gw-button-ink); background: linear-gradient(#eaeaea, var(--gw-button)); cursor: pointer; }
+.gw-slider-step.is-hover { border-color: var(--gw-blue); }
+.sbx-q input.ui-number.gw-slider-box { width: 46px; flex: none; color: var(--gw-ink); -webkit-text-fill-color: var(--gw-ink); background: #fff; border: 1px solid #a8a8a8; opacity: 1; }
+/* DCheckBoxLabel: a box, ticked blue. */
+.sbx-q .ui-toggle.gw-check { display: inline-flex; align-items: center; gap: 6px; color: var(--gw-ink); background: none; border: 0; cursor: pointer; }
+.sbx-q .gw-check .ui-dot { width: 12px; height: 12px; border: 1px solid #8a8a8a; border-radius: 2px; background: #fff; }
+.sbx-q .gw-check.is-on .ui-dot { background: var(--gw-down); border-color: #2f86c9; }

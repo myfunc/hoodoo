@@ -16,7 +16,8 @@ import { SceneEdits } from '../scene-edits';
 import { Colour } from '../tools/colour';
 import { MaterialTool } from '../tools/material';
 import { Remover } from '../tools/remover';
-import { Resize, ResizeAxis } from '../tools/resize';
+import { Resize, ResizeAxis, ResizeMode } from '../tools/resize';
+import { SettingKind } from '../../../ui/sandbox/tool-menu';
 import { ToolButton, type ToolContext, type ToolHit } from '../tools/tool';
 import { createTools } from '../tools/tools';
 import { ToolGun } from '../weapons/toolgun';
@@ -99,7 +100,7 @@ describe('Resize', () => {
     const heavy = withBody(crate(), { physical: true, mass: 10 });
     const b = await bench(stage([ground(), heavy]));
     const tool = new Resize();
-    tool.step = '2';
+    tool.step = 2;
     expect(tool.use(ToolButton.Primary, b.hit('Crate'), b.ctx)).toBe(true);
     expect(b.object('Crate')!.transform.size).toEqual([2, 2, 2]);
     expect(b.object('Crate')!.body?.mass).toBeCloseTo(80, 6);
@@ -115,13 +116,30 @@ describe('Resize', () => {
     const prop = { ...withBody(at('cube', [4, 1, 0], [1, 1, 1], 4), { physical: true }), name: 'Prop' };
     const b = await bench(stage([ground(), crate(), prop]));
     const tool = new Resize();
-    tool.step = '2';
+    tool.step = 2;
     tool.use(ToolButton.Primary, b.hit('Crate'), b.ctx);
     expect(worldBox(b.object('Crate')!).min[1]).toBeCloseTo(0, 6);
     tool.use(ToolButton.Primary, b.hit('Prop'), b.ctx);
     expect(b.object('Prop')!.transform.position).toEqual([4, 1, 0]);
     const shown = b.sim.frame(1).scene.objects.find((o) => o.name === 'Prop')!;
     expect(worldBox(shown).min[1]).toBeGreaterThan(-0.01);
+  });
+
+  it('Set gives an exact scale of the first size, ratio locked or not; Mouse 2 copies the object\'s scale', async () => {
+    const b = await bench(stage([ground(), crate()]));
+    const tool = new Resize();
+    tool.mode = ResizeMode.Set;
+    const scaleX = tool.settings.find((s) => s.label === 'Scale X')!;
+    if (scaleX.kind !== SettingKind.Slider) throw new Error('slider expected');
+    scaleX.set(2);
+    expect(tool.scale).toEqual([2, 2, 2]);
+    tool.lockRatio = false;
+    tool.scale = [3, 1, 0.5];
+    expect(tool.use(ToolButton.Primary, b.hit('Crate'), b.ctx)).toBe(true);
+    expect(b.object('Crate')!.transform.size).toEqual([3, 1, 0.5]);
+    tool.scale = [1, 1, 1];
+    tool.use(ToolButton.Secondary, b.hit('Crate'), b.ctx);
+    expect(tool.scale).toEqual([3, 1, 0.5]);
   });
 
   it('leaves the map alone', async () => {

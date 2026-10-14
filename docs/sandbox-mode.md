@@ -177,7 +177,7 @@ it was spawned (`SceneEdits.original`).
 | Wheel | attach on an axis along the normal | update | — | torque, friction, forward key, reverse key, toggle, size | a tyre and a hub |
 | Balloon | attach on a rope, or update | a balloon without a rope | — | lift (negative sinks), rope length, colour | a glossy balloon on its rope |
 | Remover | remove the object | remove it and the body it is part of (with Weld: all joined to it) | clear its joints (with Weld) | — | it is gone |
-| Resize | a step bigger | a step smaller | the size it had | step ×1.1 · ×1.25 · ×1.5 · ×2, along All · X · Y · Z | the new size, its weight with its volume |
+| Resize | Step: a step bigger · Set: the set scale | Step: a step smaller · Set: copy its scale onto the sliders | the size it had | Mode Step · Set, step × (slider 1.01–4), along All · X · Y · Z, scale X · Y · Z (sliders 0.1–10, of the first size), lock ratio | the new size, its weight with its volume |
 | Colour | paint the diffuse colour, flat | copy the object's colour and alpha | the colour it had | swatches, alpha 100 · 75 · 50 · 25 % (under 100 it lets light through, tinted) | the material's colour |
 | Material | apply | copy the object's preset | the material it had | the Materials Lab presets by family, Chrome first (Garry's Mod's env_cubemap) | the material |
 | Duplicator | paste the copy where you aim | copy the contraption under the aim | — | — | a ghost of the copy |
@@ -200,7 +200,7 @@ interface Tool {
   readonly category: ToolCategory;          // Constraints · Construction · Render
   readonly about: string;                   // one line under the name
   readonly lines: readonly ToolLine[];      // the info panel: a button and what it does
-  readonly settings: readonly ToolSetting[]; // segments, swatches, material tiles (ui/sandbox/tool-menu.ts)
+  readonly settings: readonly ToolSetting[]; // segments, sliders, check boxes, swatches, material tiles (ui/sandbox/tool-menu.ts)
   /** A button on what the aim hits; true when the tool did something (the shot shows). */
   use(button: ToolButton, hit: ToolHit, ctx: ToolContext): boolean;
 }
@@ -272,11 +272,16 @@ way.
 
 ## Context menu
 
-Hold C: the cursor appears and the world stays in view. The object under the
-cursor is outlined. Mouse 1 fires the Tool Gun at the cursor (GMod's world
-clicking). Mouse 2 on an object opens its menu: Remove, Freeze or Unfreeze,
-Collisions On or Off, Gravity On or Off, Materials Lab…, Attributes… (mass,
-solid). The undo list sits in a corner. Let go of C to aim again.
+C opens Garry's Mod's context menu: the chosen tool's panel on the right, the
+world in view (`spawn-menu.ts` in its context mode, `sandbox.ts`). Held, it
+works with the menu's own cursor and closes when C is let go; a tap (under a
+quarter of a second) pins it open and frees the real pointer, so sliders drag
+and numbers type, until the next C or a click on the world, which catches the
+pointer again. Play keeps running and the keys still walk.
+
+Still to come: Mouse 1 firing the Tool Gun at the cursor (GMod's world
+clicking), an object's menu on Mouse 2 (Remove, Freeze, Collisions, Gravity,
+Materials Lab…, Attributes…), and the session's undo list in a corner.
 
 ## HUD
 

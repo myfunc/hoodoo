@@ -2,12 +2,14 @@ import type { Vec3 } from '../../../core/vec3';
 import type { SceneObject } from '../../../model/scene.types';
 import { SettingKind, type ToolSetting } from '../../../ui/sandbox/tool-menu';
 import { worldBox } from '../../../world/bounds';
-import { type Tool, ToolButton, ToolCategory, type ToolContext, type ToolHit, ToolId, isProp } from './tool';
+import { type Tool, ToolButton, ToolCategory, type ToolContext, type ToolHit, ToolId, type ToolLine, isProp } from './tool';
 
 /**
- * READ ME — Resize, the props resizer Garry's Mod players add: Mouse 1 grows the
- * object a step, Mouse 2 shrinks it, R gives it back the size it had when play
- * began (or was spawned), along all axes or one of its own. Its weight follows
+ * READ ME — Resize, the props resizer Garry's Mod players add. Step: Mouse 1
+ * grows the object a step (a factor on a slider), Mouse 2 shrinks it, along all
+ * axes or one of its own. Set: Mouse 1 gives it an exact scale per axis of the
+ * size it had when play began (or was spawned), ratio locked or not; Mouse 2
+ * copies its scale onto the sliders. R gives it back its first size. Its weight follows
  * its volume. A prop is rebuilt where play has it and grows up from what it
  * stands on (play/sim/carry.ts); an object the scene holds still grows up from
  * its bottom in the scene.
@@ -20,8 +22,16 @@ export enum ResizeAxis {
   Z = 'z',
 }
 
-const STEPS = ['1.1', '1.25', '1.5', '2'] as const;
+/** Resize's two ways: a step per click, or a scale set exactly (of the size the object had when play began). */
+export enum ResizeMode {
+  Step = 'step',
+  Set = 'set',
+}
+
 const AXES: readonly ResizeAxis[] = [ResizeAxis.X, ResizeAxis.Y, ResizeAxis.Z];
+/** The step slider (a factor per click) and the scale sliders (of the first size). */
+const STEP = { min: 1.01, max: 4, step: 0.01, digits: 2, value: 1.25 } as const;
+const SCALE = { min: 0.1, max: 10, step: 0.05, digits: 2 } as const;
 /** The smallest and largest half-extent a resize gives, in world units. */
 const SIZE = { min: 0.01, max: 500 } as const;
 const SAME = 1e-9;
@@ -30,40 +40,75 @@ export class Resize implements Tool {
   readonly id = ToolId.Resize;
   readonly name = 'Resize';
   readonly category = ToolCategory.Construction;
-  readonly about = 'Make objects bigger or smaller';
-  readonly lines = [
-    { button: ToolButton.Primary, text: 'Make the object bigger' },
-    { button: ToolButton.Secondary, text: 'Make it smaller' },
-    { button: ToolButton.Reload, text: 'Give it back its size' },
-  ];
-  step: string = STEPS[1];
+  readonly about = 'Make objects bigger or smaller, by steps or to an exact scale';
+  mode = ResizeMode.Step;
+  step: number = STEP.value;
   axis = ResizeAxis.All;
+  /** The scale Set gives, per axis, of the size the object had when play began. */
+  scale: [number, number, number] = [1, 1, 1];
+  lockRatio = true;
   readonly settings: readonly ToolSetting[] = [
     {
-      kind: SettingKind.Segments, label: 'Step', items: STEPS.map((s) => ({ value: s, label: `×${s}` })),
-      get: () => this.step, set: (v) => { this.step = v; },
+      kind: SettingKind.Segments, label: 'Mode', items: [{ value: ResizeMode.Step, label: 'Step' }, { value: ResizeMode.Set, label: 'Set' }],
+      get: () => this.mode, set: (v) => { this.mode = v as ResizeMode; },
     },
+    { kind: SettingKind.Slider, label: 'Step ×', ...STEP, get: () => this.step, set: (v) => { this.step = v; } },
     {
       kind: SettingKind.Segments, label: 'Along', items: [ResizeAxis.All, ...AXES].map((a) => ({ value: a, label: a === ResizeAxis.All ? 'All' : a.toUpperCase() })),
       get: () => this.axis, set: (v) => { this.axis = v as ResizeAxis; },
     },
+    ...AXES.map((a, i) => ({ kind: SettingKind.Slider as const, label: `Scale ${a.toUpperCase()}`, ...SCALE, get: () => this.scale[i], set: (v: number) => this.setScale(i, v) })),
+    { kind: SettingKind.Check, label: 'Lock ratio', get: () => this.lockRatio, set: (v) => { this.lockRatio = v; } },
   ];
+
+  get lines(): readonly ToolLine[] {
+    return this.mode === ResizeMode.Step
+      ? [
+        { button: ToolButton.Primary, text: `Bigger ×${this.step}` },
+        { button: ToolButton.Secondary, text: 'Smaller' },
+        { button: ToolButton.Reload, text: 'Give it back its size' },
+      ]
+      : [
+        { button: ToolButton.Primary, text: `Set its scale to ${this.scale.join(' × ')}` },
+        { button: ToolButton.Secondary, text: 'Copy its scale' },
+        { button: ToolButton.Reload, text: 'Give it back its size' },
+      ];
+  }
 
   use(button: ToolButton, hit: ToolHit, ctx: ToolContext): boolean {
     const o = hit.object;
     if (!isProp(o)) return false;
-    const size = button === ToolButton.Reload ? ctx.edits.original(o.id)?.transform.size : this.scaled(o.transform.size, button === ToolButton.Primary);
-    if (!size || size.every((v, i) => Math.abs(v - o.transform.size[i]) < SAME)) return false;
+    const first = ctx.edits.original(o.id)?.transform.size ?? o.transform.size;
+    if (this.mode === ResizeMode.Set && button === ToolButton.Secondary) {
+      this.scale = o.transform.size.map((v, i) => Number((v / first[i]).toFixed(SCALE.digits))) as [number, number, number];
+      return true;
+    }
+    const size = button === ToolButton.Reload ? first
+      : this.mode === ResizeMode.Set ? clampSize(first.map((v, i) => v * this.scale[i]) as unknown as Vec3)
+        : this.scaled(o.transform.size, button === ToolButton.Primary);
+    if (size.every((v, i) => Math.abs(v - o.transform.size[i]) < SAME)) return false;
     const next = resized(o, size, !ctx.moving(o.id));
     ctx.edits.change(new Set([o.id]), `Resize ${o.name}`, () => next);
     return true;
   }
 
+  /** One axis' scale; with the ratio locked the others follow by the same factor. */
+  private setScale(i: number, v: number): void {
+    if (!this.lockRatio) {
+      this.scale[i] = v;
+      return;
+    }
+    const f = v / (this.scale[i] || 1);
+    this.scale = this.scale.map((s, k) => (k === i ? v : Number(Math.min(SCALE.max, Math.max(SCALE.min, s * f)).toFixed(SCALE.digits)))) as [number, number, number];
+  }
+
   private scaled(size: Vec3, bigger: boolean): Vec3 {
-    const f = bigger ? Number(this.step) : 1 / Number(this.step);
-    return size.map((v, i) => (this.axis === ResizeAxis.All || AXES[i] === this.axis ? Math.min(SIZE.max, Math.max(SIZE.min, v * f)) : v)) as unknown as Vec3;
+    const f = bigger ? this.step : 1 / this.step;
+    return clampSize(size.map((v, i) => (this.axis === ResizeAxis.All || AXES[i] === this.axis ? v * f : v)) as unknown as Vec3);
   }
 }
+
+const clampSize = (size: Vec3): Vec3 => size.map((v) => Math.min(SIZE.max, Math.max(SIZE.min, v))) as unknown as Vec3;
 
 /** The object at a new size (its pose in a moved group too), its weight following its volume; `lift`: it grows up from its bottom. */
 export function resized(o: SceneObject, size: Vec3, lift: boolean): SceneObject {

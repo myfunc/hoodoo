@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.22.0 - 2026-10-14
+
+### Added
+- Sandbox's context menu on C, as in Garry's Mod: the chosen tool's panel over the world.
+  Hold C to use it with the menu's cursor; tap C to pin it open with the real pointer
+  (drag sliders, type numbers) until the next C or a click on the world.
+- Tool panels have sliders with − and + and a value box, and check boxes.
+
+### Changed
+- Resize has two modes: Step (a factor per click on a slider, along all axes or one) and
+  Set (an exact scale per axis of the first size, the ratio locked or not; Mouse 2 copies
+  an object's scale onto the sliders).
 ## 0.21.1 - 2026-10-14
 
 ### Added

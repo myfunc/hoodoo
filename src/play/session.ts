@@ -274,6 +274,10 @@ class PlaySession {
 
   /** The pointer came or went: locked plays; Esc (the browser lets go, the page keeps focus) leaves; anything else pauses. */
   private locked(on: boolean, byUser: boolean): void {
+    if (on) {
+      this.menu = false;
+      this.sandbox?.pointerCaught();
+    }
     if (!on && this.menu) return;
     // Esc on the whole screen leaves the whole screen first (the browser lets the pointer go with it): Play waits.
     const screen = document.fullscreenElement === this.ctx.view.root || performance.now() - this.screenLeftAt < SCREEN_ESC_MS;

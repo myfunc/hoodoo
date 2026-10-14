@@ -57,6 +57,8 @@ export interface SandboxHost {
   addPanelSection(section: HTMLElement): void;
 }
 
+/** A press of C shorter than this pins the context menu open. */
+const CONTEXT_TAP_MS = 250;
 /** The slot strip stays this long after a switch. */
 const SLOTS_MS = 1500;
 /** A trackpad swipe of this many pixels is one wheel step; a line of a line-mode wheel is this many pixels. */
@@ -120,7 +122,10 @@ export class Sandbox {
   private readonly overlay = new Overlay();
   private readonly classifier = new ScrollClassifier();
   /** Keys Sandbox answers to (the rest move the player as in Play). */
-  private readonly taken: ReadonlySet<string> = new Set([SANDBOX_KEYS.undo, SANDBOX_KEYS.spawnMenu, ...SANDBOX_KEYS.slots]);
+  private readonly taken: ReadonlySet<string> = new Set([SANDBOX_KEYS.undo, SANDBOX_KEYS.spawnMenu, SANDBOX_KEYS.contextMenu, ...SANDBOX_KEYS.slots]);
+  /** The context menu (C): when it opened, and whether a tap left it open with the real pointer. */
+  private contextAt = 0;
+  private pinned = false;
   private wheelPx = 0;
   private reach = 0;
   private use = false;
@@ -160,6 +165,10 @@ export class Sandbox {
     if (!this.taken.has(code)) return false;
     if (code === SANDBOX_KEYS.spawnMenu) {
       this.spawnMenu(down && this.host.active());
+      return true;
+    }
+    if (code === SANDBOX_KEYS.contextMenu) {
+      this.contextMenu(down);
       return true;
     }
     if (!down || !this.host.active()) return true;
@@ -312,6 +321,43 @@ export class Sandbox {
     if (!open) return;
     this.menu.setCount(tracedCount(this.host.world.scene), SPAWN_LIMIT);
     this.toolMenu.show(this.toolgun.tool.id);
+  }
+
+  /**
+   * Garry's Mod's context menu (C): the chosen tool's panel over the world, the
+   * menu's cursor working it. Held, it closes when C is let go; a tap pins it
+   * open and frees the real pointer (drag a slider, type a number) until the
+   * next C or a click on the world.
+   */
+  private contextMenu(down: boolean): void {
+    if (down) {
+      if (this.pinned) return this.closeContext();
+      if (!this.host.active() || this.menu.open) return;
+      this.contextAt = performance.now();
+      this.menu.setOpen(true, true);
+      this.toolMenu.show(this.toolgun.tool.id);
+      return;
+    }
+    if (!this.menu.open || this.pinned) return;
+    if (performance.now() - this.contextAt < CONTEXT_TAP_MS) {
+      this.pinned = true;
+      this.menu.hideCursor();
+      this.host.freePointer(true);
+    } else this.menu.setOpen(false);
+  }
+
+  private closeContext(): void {
+    const freed = this.pinned;
+    this.pinned = false;
+    this.menu.setOpen(false);
+    if (freed) this.host.freePointer(false);
+  }
+
+  /** The pointer is caught again (a click on the world): a pinned context menu closes. */
+  pointerCaught(): void {
+    if (!this.pinned) return;
+    this.pinned = false;
+    this.menu.setOpen(false);
   }
 
   /** A tool from the Tools column: into the Tool Gun, and the Tool Gun out. */

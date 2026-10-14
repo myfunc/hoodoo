@@ -3,7 +3,8 @@ import { type Rgb, hsvToRgb, rgbToHex } from '../../core/color';
 import { materialPreview } from '../../render/icons';
 import type { Thumbnailer } from '../../render/thumbs';
 import { iconCanvas } from '../chrome/icon-canvas';
-import { Choice } from '../kit/controls';
+import { Choice, Toggle } from '../kit/controls';
+import { GwSlider } from './gw-slider';
 import { el } from '../kit/dom';
 
 /**
@@ -20,6 +21,28 @@ export enum SettingKind {
   Segments = 'segments',
   Colours = 'colours',
   Materials = 'materials',
+  /** A number on a track (DNumSlider). */
+  Slider = 'slider',
+  /** On or off (DCheckBoxLabel). */
+  Check = 'check',
+}
+
+export interface SliderSetting {
+  readonly kind: SettingKind.Slider;
+  readonly label: string;
+  readonly min: number;
+  readonly max: number;
+  readonly step: number;
+  readonly digits: number;
+  get(): number;
+  set(value: number): void;
+}
+
+export interface CheckSetting {
+  readonly kind: SettingKind.Check;
+  readonly label: string;
+  get(): boolean;
+  set(value: boolean): void;
 }
 
 export interface SegmentsSetting {
@@ -45,7 +68,7 @@ export interface MaterialsSetting {
   set(name: string): void;
 }
 
-export type ToolSetting = SegmentsSetting | ColoursSetting | MaterialsSetting;
+export type ToolSetting = SegmentsSetting | ColoursSetting | MaterialsSetting | SliderSetting | CheckSetting;
 
 export interface ToolEntry {
   readonly id: string;
@@ -116,8 +139,30 @@ export class ToolMenu {
   }
 
   private setting(tool: string, s: ToolSetting): HTMLElement {
+    // A slider and a check box carry their own label, as Garry's Mod's do.
+    if (s.kind === SettingKind.Slider) return el('div', { cls: 'sbx-tools-setting' }, [this.slider(tool, s)]);
+    if (s.kind === SettingKind.Check) return el('div', { cls: 'sbx-tools-setting' }, [this.check(tool, s)]);
     const body = s.kind === SettingKind.Segments ? this.segments(tool, s) : s.kind === SettingKind.Colours ? this.colours(tool, s) : this.materials(tool, s);
     return el('div', { cls: 'sbx-tools-setting' }, [el('div', { cls: 'sbx-tools-label', text: s.label }), body]);
+  }
+
+  private slider(tool: string, s: SliderSetting): HTMLElement {
+    const slider = new GwSlider({ label: s.label, min: s.min, max: s.max, step: s.step, digits: s.digits, value: s.get(), onChange: (v) => this.changed(tool, () => s.set(v)) });
+    this.onShow(tool, () => slider.set(s.get()));
+    return slider.el;
+  }
+
+  private check(tool: string, s: CheckSetting): HTMLElement {
+    const box = new Toggle({ label: s.label, value: s.get(), onChange: (v) => this.changed(tool, () => s.set(v)) });
+    box.el.classList.add('gw-check');
+    this.onShow(tool, () => box.set(s.get()));
+    return box.el;
+  }
+
+  /** A setting changed: the tool's other controls show what it did to them (a locked ratio moves all three scales). */
+  private changed(tool: string, apply: () => void): void {
+    apply();
+    this.refreshers.get(tool)?.();
   }
 
   /** Adds to what runs when the tool's panel shows again (a value copied with Mouse 2). */
@@ -130,7 +175,7 @@ export class ToolMenu {
   }
 
   private segments(tool: string, s: SegmentsSetting): HTMLElement {
-    const choice = new Choice<string>({ items: s.items, value: s.get(), cls: 'segmented', onChange: (v) => s.set(v) });
+    const choice = new Choice<string>({ items: s.items, value: s.get(), cls: 'segmented', onChange: (v) => this.changed(tool, () => s.set(v)) });
     this.onShow(tool, () => choice.set(s.get()));
     return choice.el;
   }

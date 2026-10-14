@@ -98,7 +98,12 @@ export class SpawnMenu {
     this.panels.push(panel);
   }
 
-  setOpen(open: boolean): void {
+  /**
+   * Opens or closes the menu. `context`: Garry's Mod's context menu (C) — only
+   * the chosen tool's panel, on the right, the world in view.
+   */
+  setOpen(open: boolean, context = false): void {
+    this.el.classList.toggle('is-context', open && context);
     for (const p of this.panels) p.hidden = !open;
     this.cursor.hidden = true;
     this.hover(null);
@@ -107,6 +112,12 @@ export class SpawnMenu {
     // Garry's Mod opens the menu with the cursor where the crosshair was.
     const r = this.el.parentElement?.getBoundingClientRect();
     if (r) this.at = [r.left + r.width / 2, r.top + r.height / 2];
+  }
+
+  /** The real pointer works the menu (the context menu pinned open): the own cursor hides. */
+  hideCursor(): void {
+    this.cursor.hidden = true;
+    this.hover(null);
   }
 
   /** Locked mouse motion moves the menu's own cursor (shown from the first move). */
