@@ -3,7 +3,7 @@ import { downloadBlob } from '../../io/download';
 import { type Remembered, defaultPrefs, exportPrefs, importPrefs, rememberedOf } from '../../io/prefs';
 import { type EditorState, type EditorStore, RENDER_SAMPLE_CHOICES } from '../../world/editor-store';
 import type { FeatureFlags } from '../../world/preview-features';
-import { DEFAULT_SETTINGS, MessageTime, OrbitSpeed, SNAP_GRID_STEPS, type Settings, ThemeMode, WalkSpeed, changeSetting } from '../../world/settings';
+import { DEFAULT_SETTINGS, LIVE_SAMPLE_CHOICES, MessageTime, OrbitSpeed, SNAP_GRID_STEPS, type Settings, ThemeMode, WalkSpeed, changeSetting } from '../../world/settings';
 import { LiveQuality, ScrollPreference } from '../../world/world.enums';
 import { Button } from '../kit/controls';
 import { showToast } from '../panels/toast';
@@ -107,7 +107,8 @@ const SECTIONS: readonly Section[] = [
         { value: LiveQuality.Detailed, label: 'Detailed', about: 'While you move or play: glass and mirrors deep, ~30 fps' },
       ]), e),
       liveDepthRow(e),
-      settingRow(remembered('renderSamples', 'Rays per pixel', 'Anti-aliasing of Render and of copies; more is smoother', RENDER_SAMPLE_CHOICES.map((n) => ({ value: n, label: String(n) }))), e),
+      settingRow(setting('liveSamples', 'Live rays', 'Rays per pixel the live picture refines to when still', LIVE_SAMPLE_CHOICES.map((n) => ({ value: n, label: String(n) }))), e),
+      settingRow(remembered('renderSamples', 'Render rays', 'Rays per pixel of Render and of copies; more is smoother', RENDER_SAMPLE_CHOICES.map((n) => ({ value: n, label: String(n) }))), e),
       ...(depth ? [finalDepthRow(e, depth)] : []),
     ],
   },

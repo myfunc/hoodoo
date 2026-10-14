@@ -139,7 +139,7 @@ export class SceneView {
     });
     this.realtime = this.pictures.realtime;
     this.quadLive = new QuadLive(engine);
-    this.quadLive.target = editor.state.renderSamples;
+    this.quadLive.target = editor.state.settings.liveSamples;
     this.quadLive.quality = editor.state.settings.liveQuality;
     this.quadLive.bounces = editor.state.settings.liveBounces;
     new ResizeObserver(() => this.resize()).observe(this.root);
@@ -215,7 +215,7 @@ export class SceneView {
   render(final = true): void {
     const s = this.editor.state;
     if (s.quad || this.pictures.active()) {
-      if (s.quad) this.quadLive.target = s.renderSamples * CONVERGE_FACTOR;
+      if (s.quad) this.quadLive.target = s.settings.liveSamples * CONVERGE_FACTOR;
       else this.pictures.converge();
       this.updateLive();
       return;
@@ -309,7 +309,7 @@ export class SceneView {
     // Live off, or Render View left with Live off: Bryce's empty scene window until the next render.
     if (!s.quad && this.pictures.rendererFor(prev) && !this.pictures.active()) this.clearRender();
     if (s.showRender !== prev.showRender && !s.showRender) this.clearRender();
-    if (s.renderSamples !== prev.renderSamples) this.quadLive.target = s.renderSamples;
+    if (s.settings.liveSamples !== prev.settings.liveSamples) this.quadLive.target = s.settings.liveSamples;
     this.quadLive.quality = s.settings.liveQuality;
     this.quadLive.bounces = s.settings.liveBounces;
     this.root.classList.toggle('quad', s.quad);

@@ -32,7 +32,7 @@ export class ViewPictures {
   constructor(engine: RayEngine, private readonly editor: EditorStore, private readonly emit: (s: RealtimeStatus) => void) {
     const s = editor.state;
     this.realtime = new RealtimeRenderer(engine);
-    this.realtime.target = s.renderSamples;
+    this.realtime.target = s.settings.liveSamples;
     this.realtime.quality = s.settings.liveQuality;
     this.realtime.bounces = s.settings.liveBounces;
     this.finalView = new FinalView(engine);
@@ -75,7 +75,7 @@ export class ViewPictures {
 
   /** The editor changed: settings to the renderers; a renderer that stops drawing forgets its picture. */
   sync(s: EditorState, prev: EditorState, scene: Scene): void {
-    if (s.renderSamples !== prev.renderSamples) this.realtime.target = s.renderSamples;
+    if (s.settings.liveSamples !== prev.settings.liveSamples) this.realtime.target = s.settings.liveSamples;
     this.realtime.quality = this.liveQuality(s);
     this.realtime.bounces = s.settings.liveBounces;
     this.game.setResolution(s.settings.playResolution);
@@ -95,7 +95,7 @@ export class ViewPictures {
   /** Render in a view that draws itself: refine to four times the rays. */
   converge(): void {
     const r = this.active();
-    if (r === this.realtime) r.target = this.editor.state.renderSamples * CONVERGE_FACTOR;
+    if (r === this.realtime) r.target = this.editor.state.settings.liveSamples * CONVERGE_FACTOR;
     else if (r === this.finalView) r.target = this.finalView.options.samples * CONVERGE_FACTOR;
   }
 

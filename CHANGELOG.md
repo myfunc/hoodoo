@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.18.1 - 2026-10-14
+
+### Changed
+- The Render page starts with what the scene window shows: Off, Live or Render View.
+  Under it only the rows that change that picture: the live picture's (while moving,
+  when still, reflections) or Render View's preset and options; then Render and images,
+  and the graphics card at the bottom.
+
+### Fixed
+- Render's rays per pixel no longer set how far the live picture refines: at 1 it stayed
+  grainy for good. The live picture has its own When still choice (4 to 256, 16 at first),
+  also in Settings › Render.
 ## 0.18.0 - 2026-10-13
 
 ### Added

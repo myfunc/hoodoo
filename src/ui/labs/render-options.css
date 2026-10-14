@@ -11,11 +11,11 @@
 .ro-rows { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 5px 10px; align-items: center; }
 .ro-rows > .ui-choice.segmented, .ro-rows > .ui-dial { justify-self: start; }
 .ro-name { font: 800 11px var(--font-title); white-space: nowrap; }
-.ro-play { display: flex; flex-direction: column; gap: 6px; }
-.ro-play[hidden] { display: none; }
+.ro-play, .ro-group { display: flex; flex-direction: column; gap: 6px; }
+.ro-play[hidden], .ro-group[hidden] { display: none; }
+.ro-gpu-line { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 10px; align-items: center; margin-top: 6px; }
 .ro-heading { margin-top: 6px; font: 800 12px var(--font-title); color: var(--heading-ink); text-shadow: var(--emboss); white-space: nowrap; }
 .ro-heading.is-first { margin-top: 0; }
-.ro-rows .ui-choice.is-idle { opacity: 0.45; }
 .ro-gpu { min-width: 0; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ro-gpu.is-software { color: #c8442c; font-weight: bold; }
 .ro-about { color: var(--ink-soft); font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -23,7 +23,6 @@
   padding: 3px 6px; border: 1px solid var(--lo); border-radius: 0; box-shadow: inset 1px 1px 0 var(--lo), 1px 1px 0 var(--hi);
   font: bold 10px/14px var(--font-ui); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.ro-body.is-off .ro-speed { color: var(--ink-soft); font-weight: normal; }
 
 /* The display bar's named chips (ui/chrome/display-bar.ts): the mark-chip dress with a name beside or instead of a mark. */
 .ui-button.mark-chip.text-chip { width: auto; padding: 0 7px; font: bold 10px/16px var(--font-ui); }

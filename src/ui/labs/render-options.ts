@@ -7,7 +7,7 @@ import {
 } from '../../world/render-setup';
 import { Feature, isFeatureOn } from '../../world/preview-features';
 import { RENDER_SAMPLE_CHOICES } from '../../world/editor-store';
-import { type PlayResolution, changeSetting } from '../../world/settings';
+import { LIVE_SAMPLE_CHOICES, type PlayResolution, changeSetting } from '../../world/settings';
 import { LiveQuality, PictureMode } from '../../world/world.enums';
 import { speedLine } from '../chrome/picture-readout';
 import { type UiContext, hintOn } from '../context';
@@ -24,6 +24,13 @@ const PERCENT = 100;
 /** Laptops with two GPUs often give the browser the slower one: the system's graphics settings pick it. */
 const GPU_HINT = 'The graphics card drawing the scene; pick the faster one in system graphics settings';
 const OFF_ON = [{ value: false, label: 'Off' }, { value: true, label: 'On' }] as const;
+
+/** What the scene window shows: nothing until Render, the live preview, or Render View. */
+enum Showing {
+  Off = 'off',
+  Live = 'live',
+  RenderView = 'render-view',
+}
 
 interface Item<T> {
   readonly value: T;
@@ -49,6 +56,18 @@ const SHADOWS: readonly Item<ShadowQuality>[] = [
   { value: ShadowQuality.High, label: 'High', hint: 'Four shadow rays per light: smooth sooner, slower' },
 ];
 
+const SHOWING: readonly Item<Showing>[] = [
+  { value: Showing.Off, label: 'Off', hint: 'Classic Bryce: the wireframe until you Render' },
+  { value: Showing.Live, label: 'Live', hint: 'The scene renders itself while you edit' },
+  { value: Showing.RenderView, label: 'Render View', hint: 'The final render in the scene window, refining in place' },
+];
+
+/** The editor's change for a Scene window choice. */
+function showingPatch(v: Showing): { liveRender?: boolean; picture: PictureMode; quad?: boolean } {
+  if (v === Showing.RenderView) return { picture: PictureMode.Final, quad: false };
+  return { liveRender: v === Showing.Live, picture: PictureMode.Edit };
+}
+
 /** One row of the panel: a name with its hint, and a control. */
 interface Row {
   readonly name: string;
@@ -58,12 +77,12 @@ interface Row {
 
 /**
  * READ ME — the Render page of the left panel (Render › Render Options… opens
- * it): everything about how the picture is drawn, in one place. Live picture:
- * the live preview while you edit, its quality and depth (personal settings).
- * Render View: the final render in the scene window, a preset or Custom
- * (world/render-setup.ts), with a speed line while it is on. Final render: its
- * rays per pixel and the scene's own bounce depth. Play: the game look, while
- * that preview is on. A tool window (ui/kit/tool-window.ts): docked in the
+ * it): how the picture is drawn. First what the scene window shows (Off, Live,
+ * Render View); under it only the rows that change that picture: the live
+ * preview's (personal settings), or Render View's preset and options
+ * (world/render-setup.ts) with its speed line. Then Render and images: their
+ * rays per pixel and the scene's own bounce depth; Play's game look while that
+ * preview is on; the GPU. A tool window (ui/kit/tool-window.ts): docked in the
  * panel at first, it can float over the scene; every change applies at once.
  */
 export class RenderOptionsTool implements ToolContent {
@@ -72,10 +91,12 @@ export class RenderOptionsTool implements ToolContent {
   readonly style = DialogStyle.Stone;
   readonly cls = 'render-options';
   readonly body: HTMLElement;
-  private readonly liveOn: Choice<boolean>;
+  private readonly showing: Choice<Showing>;
   private readonly quality: Choice<LiveQuality>;
+  private readonly liveRays: Choice<number>;
+  private readonly liveGroup: HTMLElement;
+  private readonly viewGroup: HTMLElement;
   private readonly renderRays: Choice<number>;
-  private readonly mode: Choice<boolean>;
   private readonly game: Choice<boolean>;
   private readonly picture: Choice<PlayResolution>;
   private readonly preset: Choice<RenderPreset>;
@@ -97,11 +118,12 @@ export class RenderOptionsTool implements ToolContent {
   constructor(private readonly ctx: UiContext) {
     const e = ctx.editor;
     const set = (patch: Partial<RenderViewOptions>) => this.change(patch);
-    this.liveOn = this.choice(OFF_ON, (liveRender) => e.update({ liveRender }));
+    this.showing = this.choice(SHOWING.map(({ value, label }) => ({ value, label })), (v) => e.update(showingPatch(v)));
+    SHOWING.forEach((v, i) => hintOn(ctx, this.showing.el.children[i] as HTMLElement, { title: v.label, text: v.hint }));
+    this.liveRays = this.choice(LIVE_SAMPLE_CHOICES.map((n) => ({ value: n as number, label: String(n) })), (n) => changeSetting(e, 'liveSamples', n));
     this.quality = this.choice(QUALITIES.map(({ value, label }) => ({ value, label })), (q) => changeSetting(e, 'liveQuality', q));
     QUALITIES.forEach((q, i) => hintOn(ctx, this.quality.el.children[i] as HTMLElement, { title: `Live ${q.label}`, text: q.hint }));
     this.renderRays = this.choice(RENDER_SAMPLE_CHOICES.map((n) => ({ value: n as number, label: String(n) })), (renderSamples) => e.update({ renderSamples }));
-    this.mode = this.choice(OFF_ON, (on) => e.update(on ? { picture: PictureMode.Final, quad: false } : { picture: PictureMode.Edit }));
     this.game = this.choice(OFF_ON, (on) => e.update(on ? { picture: PictureMode.Game, quad: false } : { picture: PictureMode.Edit }));
     this.picture = this.choice(PLAY_RESOLUTIONS, (r) => changeSetting(e, 'playResolution', r));
     this.preset = this.choice(PRESETS.map(({ value, label }) => ({ value, label })), (p) => changeSetting(e, 'renderViewPreset', p));
@@ -131,32 +153,33 @@ export class RenderOptionsTool implements ToolContent {
     e.events.on('changed', ({ state }) => {
       if (state.picture === PictureMode.Game && !isFeatureOn(state.features, Feature.Play)) e.update({ picture: PictureMode.Edit });
     });
+    this.liveGroup = this.group('Live picture', [
+      { name: 'While moving', hint: 'What the live picture traces while you move or drag', control: this.quality.el },
+      { name: 'When still', hint: 'Rays per pixel it refines to once nothing moves; Render refines on to four times that', control: this.liveRays.el },
+      { name: 'Reflections', hint: 'Mirror and glass bounces of the live picture', control: this.liveDepth.el },
+    ]);
+    this.viewGroup = this.group('Render View', [
+      { name: 'Preset', hint: 'Draft is quick, Final is what Render draws', control: this.preset.el },
+      { name: 'Resolution', hint: 'Pixels traced against the scene window, per side', control: this.scale.el },
+      { name: 'Rays/pixel', hint: 'Rays each pixel averages before it stops refining', control: this.samples.el },
+      { name: 'Reflections', hint: 'Mirror and glass bounces of this preset', control: this.bounces.el },
+      { name: 'Soft shadows', hint: 'The sky’s soft shadows: hard, one or four shadow rays', control: this.shadows.el },
+      { name: 'Depth of field', hint: 'The camera’s aperture; off traces a pinhole', control: this.lens.el },
+      { name: 'Anti-aliasing', hint: 'Rays spread over each pixel: smooth edges', control: this.antialias.el },
+    ], this.speed);
     this.body = el('div', { cls: 'ro-body' }, [
-      el('div', { cls: 'ro-heading is-first', text: 'Live picture' }),
-      this.rows([
-        { name: 'Live preview', hint: `The scene renders itself while you edit (${shortcutOf(Action.ToggleLiveRender)})`, control: this.liveOn.el },
-        { name: 'Quality', hint: 'What the live picture traces while you move', control: this.quality.el },
-        { name: 'Bounces', hint: 'Mirror and glass bounces of the live picture; a personal setting', control: this.liveDepth.el },
-        { name: 'GPU', hint: GPU_HINT, control: el('span', { cls: ctx.view.engine.gpu === SOFTWARE_GPU ? 'ro-gpu is-software' : 'ro-gpu', text: ctx.view.engine.gpu || 'Not reported' }) },
-      ]),
-      el('div', { cls: 'ro-heading', text: 'Render View' }),
-      this.rows([
-        { name: 'Render View', hint: `The final render in the scene window, refining in place (${key})`, control: this.mode.el },
-        { name: 'Preset', hint: 'Draft is quick, Final is what Render draws', control: this.preset.el },
-        { name: 'Resolution', hint: 'Pixels traced against the scene window, per side', control: this.scale.el },
-        { name: 'Rays/pixel', hint: 'Rays each pixel averages before it stops refining', control: this.samples.el },
-        { name: 'Bounces', hint: 'Mirror and glass bounces of this Render View preset', control: this.bounces.el },
-        { name: 'Soft shadows', hint: 'The sky’s soft shadows: hard, one or four shadow rays', control: this.shadows.el },
-        { name: 'Depth of field', hint: 'The camera’s aperture; off traces a pinhole', control: this.lens.el },
-        { name: 'Anti-aliasing', hint: 'Rays spread over each pixel: smooth edges', control: this.antialias.el },
-      ]),
-      this.speed,
-      el('div', { cls: 'ro-heading', text: 'Final render' }),
-      this.rows([
-        { name: 'Rays/pixel', hint: `Anti-aliasing of Render (${shortcutOf(Action.Render)}) and of copies; more is smoother`, control: this.renderRays.el },
-        { name: 'Bounces', hint: FINAL_DEPTH_ABOUT, control: this.finalDepth.el },
+      this.rows([{ name: 'Scene window', hint: `What the scene window shows (${shortcutOf(Action.ToggleLiveRender)}: live, ${key}: Render View)`, control: this.showing.el }]),
+      this.liveGroup,
+      this.viewGroup,
+      this.group(`Render (${shortcutOf(Action.Render)}) and images`, [
+        { name: 'Rays/pixel', hint: 'Rays per pixel of Render, Render to Image and copies; more is smoother', control: this.renderRays.el },
+        { name: 'Reflections', hint: FINAL_DEPTH_ABOUT, control: this.finalDepth.el },
       ]),
       play,
+      el('div', { cls: 'ro-gpu-line' }, [
+        el('span', { cls: 'ro-name', text: 'GPU' }),
+        el('span', { cls: ctx.view.engine.gpu === SOFTWARE_GPU ? 'ro-gpu is-software' : 'ro-gpu', text: ctx.view.engine.gpu || 'Not reported', attrs: { title: GPU_HINT } }),
+      ]),
     ]);
     this.sync();
   }
@@ -194,7 +217,11 @@ export class RenderOptionsTool implements ToolContent {
     const s = this.ctx.editor.state;
     const o = this.options();
     const on = s.picture === PictureMode.Final;
-    this.mode.set(on);
+    const showing = on ? Showing.RenderView : s.liveRender ? Showing.Live : Showing.Off;
+    this.showing.set(showing);
+    // Only the rows that change what is on screen now.
+    this.liveGroup.hidden = showing !== Showing.Live;
+    this.viewGroup.hidden = !on;
     this.game.set(s.picture === PictureMode.Game);
     this.picture.set(s.settings.playResolution);
     this.preset.set(s.settings.renderViewPreset);
@@ -208,15 +235,11 @@ export class RenderOptionsTool implements ToolContent {
     const depth = finalBounces(this.ctx.world.scene);
     if (depth !== this.shownDepth) this.finalDepth.set(depth);
     this.shownDepth = depth;
-    this.liveOn.set(s.liveRender);
     this.quality.set(s.settings.liveQuality);
-    // Render View or the game look draws the picture: the live quality waits until it is off.
-    this.quality.el.classList.toggle('is-idle', s.picture !== PictureMode.Edit);
+    this.liveRays.set(s.settings.liveSamples);
     this.liveDepth.set(s.settings.liveBounces);
     this.renderRays.set(s.renderSamples);
-    this.body.classList.toggle('is-off', !on);
-    if (!on) this.speed.textContent = `Off · turn on above or press ${shortcutOf(Action.ToggleRenderView)}`;
-    else if (!this.measuring) this.speed.textContent = 'Measuring…';
+    if (on && !this.measuring) this.speed.textContent = 'Measuring…';
     this.measuring = on;
     this.subject(on ? 'Render View on' : '');
   }
@@ -227,6 +250,11 @@ export class RenderOptionsTool implements ToolContent {
 
   private choice<T>(items: readonly { value: T; label: string }[], onChange: (v: T) => void): Choice<T> {
     return new Choice<T>({ items, value: items[0].value, cls: 'segmented', onChange });
+  }
+
+  /** A heading over its rows (and anything after them); the whole group hides at once. */
+  private group(title: string, rows: readonly Row[], after?: HTMLElement): HTMLElement {
+    return el('div', { cls: 'ro-group' }, [el('div', { cls: 'ro-heading', text: title }), this.rows(rows), after ?? null]);
   }
 
   private rows(rows: readonly Row[]): HTMLElement {

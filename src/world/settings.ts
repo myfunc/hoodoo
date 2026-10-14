@@ -67,6 +67,8 @@ export interface Settings {
   readonly liveQuality: LiveQuality;
   /** Mirror and glass bounces of the live picture (Detailed twice as many): world/render-setup.ts. */
   readonly liveBounces: number;
+  /** Rays per pixel the live picture refines to once things are still (Render refines on to four times that). */
+  readonly liveSamples: number;
   /** Render View: the preset, and the user's own options for Custom. */
   readonly renderViewPreset: RenderPreset;
   readonly renderViewCustom: RenderViewOptions;
@@ -83,6 +85,10 @@ export interface Settings {
   readonly examples: ExampleList;
 }
 
+/** The live picture's rays per pixel when still (Settings › Render, the Render page). */
+export const LIVE_SAMPLE_CHOICES = [4, 16, 64, 256] as const;
+const DEFAULT_LIVE_SAMPLES = 16;
+
 export const DEFAULT_SETTINGS: Settings = {
   showStart: true,
   splash: true,
@@ -94,6 +100,7 @@ export const DEFAULT_SETTINGS: Settings = {
   snapGrid: DEFAULT_SNAP_GRID,
   liveQuality: LiveQuality.Fast,
   liveBounces: DEFAULT_LIVE_BOUNCES,
+  liveSamples: DEFAULT_LIVE_SAMPLES,
   renderViewPreset: DEFAULT_VIEW_PRESET,
   renderViewCustom: DEFAULT_VIEW_CUSTOM,
   theme: ThemeMode.Dark,
@@ -120,6 +127,7 @@ const CHECKS: { readonly [K in keyof Settings]: Check } = {
   snapGrid: oneOf(SNAP_GRID_STEPS),
   liveQuality: oneOf(Object.values(LiveQuality)),
   liveBounces: isBounces,
+  liveSamples: oneOf(LIVE_SAMPLE_CHOICES),
   renderViewPreset: oneOf(Object.values(RenderPreset)),
   renderViewCustom: isRenderViewOptions,
   theme: oneOf(Object.values(ThemeMode)),
