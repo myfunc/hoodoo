@@ -1,5 +1,5 @@
 import type { EditorStore } from './editor-store';
-import { LiveQuality } from './world.enums';
+import { LiveQuality, GizmoStyle } from './world.enums';
 import { DEFAULT_LIVE_BOUNCES, DEFAULT_VIEW_CUSTOM, DEFAULT_VIEW_PRESET, RenderPreset, type RenderViewOptions, isBounces, isRenderViewOptions } from './render-setup';
 import { DEFAULT_PLAYER, type PlayerSettings, isPlayerSettings } from './player-settings';
 import { DEFAULT_PLANE, type PlaneSettings, PlayActor, isPlaneSettings, isPlayActor } from './plane-settings';
@@ -88,6 +88,8 @@ export interface Settings {
   readonly renderViewCustom: RenderViewOptions;
   readonly theme: ThemeMode;
   readonly layout: Layout;
+  /** The look of the selection's handles (View › Gizmo). */
+  readonly gizmoStyle: GizmoStyle;
   /** Play mode's player: size, speed, gravity, jump and mouse (world/player-settings.ts). */
   readonly player: PlayerSettings;
   /** Play mode's actor: the walker or the plane (world/plane-settings.ts). */
@@ -120,6 +122,7 @@ export const DEFAULT_SETTINGS: Settings = {
   renderViewCustom: DEFAULT_VIEW_CUSTOM,
   theme: ThemeMode.Dark,
   layout: Layout.Classic,
+  gizmoStyle: GizmoStyle.Outline,
   player: DEFAULT_PLAYER,
   playActor: PlayActor.Walker,
   plane: DEFAULT_PLANE,
@@ -148,6 +151,7 @@ const CHECKS: { readonly [K in keyof Settings]: Check } = {
   renderViewCustom: isRenderViewOptions,
   theme: oneOf(Object.values(ThemeMode)),
   layout: oneOf(Object.values(Layout)),
+  gizmoStyle: oneOf(Object.values(GizmoStyle)),
   player: isPlayerSettings,
   playActor: isPlayActor,
   plane: isPlaneSettings,

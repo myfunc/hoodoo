@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.23.0 - 2026-10-14
+
+### Changed
+- The camera turns round the point you grab, not round an unseen point ahead of it: a drag
+  on empty space, a right-drag or a two-finger swipe swings round whatever is under the
+  pointer, which keeps its place in the picture. The wheel zooms toward the pointer, and a
+  pan keeps the grabbed point under it. The focus follows that point.
+- Flying (right button and W A S D) turns the head in place, as in a game.
+
+### Added
+- View › Gizmo: the selection's handles in five looks (Glossy, Box, Outline, Pebbles,
+  Sculpted), switched live and remembered.
 ## 0.22.0 - 2026-10-14
 
 ### Added

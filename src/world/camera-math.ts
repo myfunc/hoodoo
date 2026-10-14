@@ -1,4 +1,4 @@
-import { type Vec3, add, cross, dot, normalize, scale, sub } from '../core/vec3';
+import { type Vec3, add, cross, dot, length, normalize, scale, sub } from '../core/vec3';
 import { ViewKind } from '../model/scene.enums';
 import type { Camera, OrthoView } from '../model/scene.types';
 
@@ -79,6 +79,37 @@ export function orbit(c: Camera, dYaw: number, dPitch: number): Camera {
   const pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, c.pitch + dPitch));
   const next = { ...c, yaw: c.yaw + dYaw, pitch };
   return { ...next, position: sub(pivot, scale(cameraAxes(next).forward, c.focus)) };
+}
+
+/**
+ * Orbit around a point in the scene (the one under the pointer when the drag began): the
+ * point keeps its place in the picture while the camera swings round it. The focus moves
+ * onto it, so the trackball and depth of field follow what you turned around.
+ */
+export function orbitAbout(c: Camera, p: Vec3, dYaw: number, dPitch: number): Camera {
+  const pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, c.pitch + dPitch));
+  const next = { ...c, yaw: c.yaw + dYaw, pitch };
+  const was = cameraAxes(c);
+  const now = cameraAxes(next);
+  const v = sub(c.position, p);
+  const local: Vec3 = [dot(v, was.right), dot(v, was.up), dot(v, was.forward)];
+  const position = add(p, add(add(scale(now.right, local[0]), scale(now.up, local[1])), scale(now.forward, local[2])));
+  return withFocusOn({ ...next, position }, p);
+}
+
+/** Moves toward (factor < 1) or away from a point in the scene; the point keeps its place in the picture. */
+export function dollyToward(c: Camera, p: Vec3, factor: number): Camera {
+  const v = sub(c.position, p);
+  const d = length(v);
+  if (d === 0) return c;
+  const position = add(p, scale(v, Math.max(MIN_FOCUS, d * factor) / d));
+  return withFocusOn({ ...c, position }, p);
+}
+
+/** The focus set at a point's depth in front of the camera (left alone for a point behind it). */
+function withFocusOn(c: Camera, p: Vec3): Camera {
+  const depth = dot(sub(p, c.position), cameraAxes(c).forward);
+  return depth > MIN_FOCUS ? { ...c, focus: depth } : c;
 }
 
 /** Turn in place (Bryce's camera rotation crosses). */

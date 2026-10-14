@@ -1,22 +1,12 @@
+import { GizmoStyle } from '../../world/world.enums';
 /**
  * READ ME — the looks of the selection's handles. Every look keeps the same
  * jobs (move along an axis, stretch along an axis, even resize, turn on a
  * ring); they differ in where the handles sit (GizmoLayout) and how they are
- * painted (gizmo-paint*.ts). Switch the app's look with GIZMO_STYLE below;
+ * painted (gizmo-paint*.ts). View › Gizmo picks the app's look (a setting);
  * `?gizmo=1`…`5` tries another one for a visit.
  */
-export enum GizmoStyle {
-  /** Glossy balls and bevelled copper arrows, like the control panel's icons. */
-  Glossy = 'glossy',
-  /** Bryce's selection box: square handles at its corners and faces, chunky arrows outside it. */
-  Box = 'box',
-  /** Thick two-tone lines in a dark outline with big round tips. */
-  Outline = 'outline',
-  /** A compact cluster of pebbles beside the selection, like the A / M / E tags. */
-  Pebbles = 'pebbles',
-  /** Lit solids in the scene: cones, cubes and tube rings, shaded as the ray tracer would. */
-  Sculpted = 'sculpted',
-}
+export { GizmoStyle };
 
 /** Where the handles sit. */
 export enum GizmoLayout {
@@ -98,3 +88,5 @@ export function gizmoStyleIn(search: string): GizmoStyle {
 
 /** The look the scene window draws: GIZMO_STYLE unless the address asks for another. */
 export const ACTIVE_GIZMO_STYLE: GizmoStyle = gizmoStyleIn(typeof location === 'undefined' ? '' : location.search);
+/** The address asked for a look: it wins over View › Gizmo for this visit. */
+export const ASKED_GIZMO_STYLE = typeof location !== 'undefined' && new URLSearchParams(location.search).has(STYLE_PARAM);

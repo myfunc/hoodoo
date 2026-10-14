@@ -8,7 +8,7 @@ import { paintGlossy } from './gizmo-paint-glossy';
 import { paintOutline } from './gizmo-paint-outline';
 import { paintPebbles } from './gizmo-paint-pebbles';
 import { paintSculpted } from './gizmo-paint-sculpted';
-import { ACTIVE_GIZMO_STYLE, GIZMO_SPECS, GizmoLayout, GizmoStyle, type GizmoStyleSpec, PEBBLE } from './gizmo-style';
+import { ACTIVE_GIZMO_STYLE, ASKED_GIZMO_STYLE, GIZMO_SPECS, GizmoLayout, GizmoStyle, type GizmoStyleSpec, PEBBLE } from './gizmo-style';
 import {
   BOX_CORNERS, EVEN_AXIS, type GizmoFrame, type GizmoGrip, type GizmoHandles, GizmoKind, type GizmoLook, type GizmoPart, type GizmoProjector,
 } from './gizmo.types';
@@ -278,7 +278,8 @@ const PAINTERS: Readonly<Record<GizmoStyle, (g: CanvasRenderingContext2D, h: Giz
  * the handles returned are what picking (input/pick.ts) and the drags
  * (input/gizmo-drag.ts) read.
  */
-export function drawGizmo(g: CanvasRenderingContext2D, selected: readonly SceneObject[], proj: GizmoProjector, look: GizmoLook, style = ACTIVE_GIZMO_STYLE): GizmoHandles | null {
+export function drawGizmo(g: CanvasRenderingContext2D, selected: readonly SceneObject[], proj: GizmoProjector, look: GizmoLook, chosen?: GizmoStyle): GizmoHandles | null {
+  const style = ASKED_GIZMO_STYLE || !chosen ? ACTIVE_GIZMO_STYLE : chosen;
   const h = layoutGizmo(selected, proj, style);
   if (h) PAINTERS[style](g, h, look, proj);
   return h;

@@ -527,6 +527,7 @@ export class SceneView {
         depthCue: s.depthCue,
         grid: s.grid && !overRender,
         gizmo: s.gizmo,
+        gizmoStyle: s.settings.gizmoStyle,
         gizmoHover: this.hoverState.gizmo,
         gizmoNear: this.hoverState.near,
         shadeOutside: true,

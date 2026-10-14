@@ -38,3 +38,17 @@ export enum Rig {
   Camera = 'camera',
   Sun = 'sun',
 }
+
+/** The looks of the selection's handles (render/wire/gizmo-style.ts; View › Gizmo). */
+export enum GizmoStyle {
+  /** Glossy balls and bevelled copper arrows, like the control panel's icons. */
+  Glossy = 'glossy',
+  /** Bryce's selection box: square handles at its corners and faces, chunky arrows outside it. */
+  Box = 'box',
+  /** Thick two-tone lines in a dark outline with big round tips. */
+  Outline = 'outline',
+  /** A compact cluster of pebbles beside the selection, like the A / M / E tags. */
+  Pebbles = 'pebbles',
+  /** Lit solids in the scene: cones, cubes and tube rings, shaded as the ray tracer would. */
+  Sculpted = 'sculpted',
+}

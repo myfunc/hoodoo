@@ -8,11 +8,11 @@ const CLOSED = 'closed';
 
 /** One line each: what to press, then what it does; Help › Keyboard Shortcuts has the rest. */
 const LINES: readonly (readonly [string | Action, string])[] = [
-  ['Drag empty', 'Orbit round the centre'],
-  ['Right-drag', 'Orbit, over objects too'],
+  ['Drag empty', 'Orbit round the point you grab'],
+  ['Right-drag', 'Orbit, over objects too; + WASD flies'],
   ['Shift+drag', 'Box select'],
   [Action.FrameSelected, 'Frame selection: it becomes the centre'],
-  ['Wheel', 'Dolly toward the centre'],
+  ['Wheel', 'Zoom toward the pointer'],
   ['Space+drag', 'Pan'],
   ['W A S D', 'Walk (Shift faster)'],
   ['Click', 'Select · Shift adds'],

@@ -43,7 +43,7 @@ import { openSmartGroupDialog } from '../ui/panels/smart-group-dialog';
 import { openAnimationSetup } from '../ui/labs/animation-setup';
 import { SettingsSection, openSettings } from '../ui/labs/settings-window';
 import { sceneDepth } from '../ui/labs/reflection-rows';
-import { PictureMode } from '../world/world.enums';
+import { GizmoStyle, PictureMode } from '../world/world.enums';
 import { actionShown } from '../ui/feature-gate';
 import { ScrollPreference } from '../input/scroll-device';
 import { isAnimated } from '../world/animation/pose';
@@ -168,6 +168,12 @@ export class Commands {
       [Action.LayoutModes]: () => changeSetting(e, 'layout', Layout.Modes),
       [Action.LayoutRenderWindow]: () => changeSetting(e, 'layout', Layout.RenderWindow),
       [Action.LayoutFloating]: () => changeSetting(e, 'layout', Layout.Floating),
+      // View › Gizmo: the selection's handles in one of five looks (render/wire/gizmo-style.ts).
+      [Action.GizmoGlossy]: () => changeSetting(e, 'gizmoStyle', GizmoStyle.Glossy),
+      [Action.GizmoBox]: () => changeSetting(e, 'gizmoStyle', GizmoStyle.Box),
+      [Action.GizmoOutline]: () => changeSetting(e, 'gizmoStyle', GizmoStyle.Outline),
+      [Action.GizmoPebbles]: () => changeSetting(e, 'gizmoStyle', GizmoStyle.Pebbles),
+      [Action.GizmoSculpted]: () => changeSetting(e, 'gizmoStyle', GizmoStyle.Sculpted),
       // Off keeps the window's last size as the document's.
       [Action.FitWindow]: () => w.setDocument({ ...w.scene.document, fit: !w.scene.document.fit }),
       [Action.Undo]: () => w.undo(),
@@ -316,6 +322,11 @@ export class Commands {
       [Action.LayoutModes]: s.settings.layout === Layout.Modes,
       [Action.LayoutRenderWindow]: s.settings.layout === Layout.RenderWindow,
       [Action.LayoutFloating]: s.settings.layout === Layout.Floating,
+      [Action.GizmoGlossy]: s.settings.gizmoStyle === GizmoStyle.Glossy,
+      [Action.GizmoBox]: s.settings.gizmoStyle === GizmoStyle.Box,
+      [Action.GizmoOutline]: s.settings.gizmoStyle === GizmoStyle.Outline,
+      [Action.GizmoPebbles]: s.settings.gizmoStyle === GizmoStyle.Pebbles,
+      [Action.GizmoSculpted]: s.settings.gizmoStyle === GizmoStyle.Sculpted,
       [Action.ToggleDepthCue]: s.depthCue,
       [Action.ToggleGrid]: s.grid,
       [Action.ToggleGizmo]: s.gizmo,

@@ -1,3 +1,4 @@
+import type { GizmoStyle } from '../../world/world.enums';
 import { compose, transformPoint } from '../../core/mat4';
 import { type Vec3, add, cross, dot, normalize, scale, sub } from '../../core/vec3';
 import { BooleanMode } from '../../model/scene.enums';
@@ -23,6 +24,8 @@ export interface WireOptions {
   readonly depthCue: boolean;
   readonly grid: boolean;
   readonly gizmo: boolean;
+  /** The handles' look (View › Gizmo); absent: the address's or the app's. */
+  readonly gizmoStyle?: GizmoStyle;
   readonly gizmoHover: GizmoPart | null;
   /** The pointer is near the handles: the rotate rings show. */
   readonly gizmoNear: boolean;
@@ -132,7 +135,7 @@ export function drawWireframe(g: CanvasRenderingContext2D, scene: Scene, proj: W
   }
   g.globalAlpha = 1;
   g.setLineDash([]);
-  const gizmo = opts.gizmo ? drawGizmo(g, scene.objects.filter((o) => opts.selection.has(o.id) && !o.hidden), proj, { hover: opts.gizmoHover, near: opts.gizmoNear }) : null;
+  const gizmo = opts.gizmo ? drawGizmo(g, scene.objects.filter((o) => opts.selection.has(o.id) && !o.hidden), proj, { hover: opts.gizmoHover, near: opts.gizmoNear }, opts.gizmoStyle) : null;
   if (opts.shadeOutside) shadeOutside(g, proj.frame);
   return { segments, gizmo };
 }

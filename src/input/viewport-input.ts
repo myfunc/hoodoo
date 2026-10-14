@@ -11,7 +11,6 @@ import { orbit } from '../world/camera-math';
 import { type EditorStore, isPerspective } from '../world/editor-store';
 import { moved } from '../world/transform-ops';
 import { SelectMode, type World } from '../world/world';
-import { orbitDrag } from './orbit-drag';
 import { CameraWalk } from './camera-walk';
 import {
   BUTTON_LEFT, BUTTON_MIDDLE, BUTTON_RIGHT, DRAG_THRESHOLD_PX, GESTURE_MIN_SCALE, GIZMO_PICK_PX, ORTHO_ZOOM, PICK_RADIUS_PX, PINCH_DOLLY, RING_PICK_PX, SWIPE_GAP_MS,
@@ -202,6 +201,7 @@ export class ViewportInput {
       this.state = isPerspective(cell.kind) ? Gesture.Orbit : Gesture.Pan;
       this.rightClick = e.button === BUTTON_RIGHT;
       this.nav.beginGesture(cell, 'Camera trackball');
+      this.nav.grab(cell, x, y);
       this.flyArmed = e.button === BUTTON_RIGHT && isPerspective(cell.kind);
       return;
     }
@@ -209,6 +209,7 @@ export class ViewportInput {
       this.press = { ...base, target: null };
       this.state = Gesture.Pan;
       this.nav.beginGesture(cell, 'Camera pan');
+      this.nav.grab(cell, x, y);
       return;
     }
     if (e.button !== BUTTON_LEFT) return;
@@ -266,6 +267,7 @@ export class ViewportInput {
       const turn = isPerspective(p.cell.kind);
       this.state = turn ? Gesture.Orbit : Gesture.Pan;
       this.nav.beginGesture(p.cell, turn ? 'Camera trackball' : 'Camera pan');
+      this.nav.grab(p.cell, p.x, p.y);
     }
     if (this.state === Gesture.Pressing && Math.hypot(x - p.x, y - p.y) > DRAG_THRESHOLD_PX) {
       this.state = p.target ? Gesture.MoveObjects : Gesture.BoxSelect;
@@ -283,8 +285,8 @@ export class ViewportInput {
       case Gesture.RigDrag: this.rigs.drag(x, y); break;
       case Gesture.BoxSelect: this.drawBox(p.x, p.y, x, y); break;
       case Gesture.Resize: this.resize.drag(x - p.x); break;
-      case Gesture.Orbit:
-      case Gesture.Fly: if (!this.stillClick(p, x, y)) this.nav.orbitBy(p.cell, dx, dy); break;
+      case Gesture.Orbit: if (!this.stillClick(p, x, y)) this.nav.orbitBy(p.cell, dx, dy); break;
+      case Gesture.Fly: this.nav.lookBy(p.cell, dx, dy); break;
       case Gesture.Pan: if (!this.stillClick(p, x, y)) this.nav.panBy(p.cell, dx, dy); break;
       default: break;
     }
@@ -414,20 +416,22 @@ export class ViewportInput {
       this.resize.scroll(scrollResizeFactor(e.deltaY, device));
       return;
     }
+    // A new swipe turns round and pans by the point under the fingers, as a drag does.
+    if (!this.scrollTimer) this.nav.grab(cell, x, y);
     this.scrollGesture(cell, device === ScrollDevice.Trackpad && !e.metaKey ? (e.shiftKey || e.altKey || cell.basis.ortho ? 'Camera pan' : 'Camera trackball') : 'Camera dolly');
     if (device === ScrollDevice.Pinch) {
-      this.nav.zoomBy(cell, Math.exp(e.deltaY * PINCH_DOLLY));
+      this.nav.zoomAt(cell, Math.exp(e.deltaY * PINCH_DOLLY), x, y);
       return;
     }
     if (device === ScrollDevice.Wheel || e.metaKey) {
-      this.nav.zoomBy(cell, Math.exp(e.deltaY * (cell.basis.ortho ? ORTHO_ZOOM : WHEEL_DOLLY)));
+      this.nav.zoomAt(cell, Math.exp(e.deltaY * (cell.basis.ortho ? ORTHO_ZOOM : WHEEL_DOLLY)), x, y);
       return;
     }
     // Natural scrolling: content follows the fingers, like dragging the scene with the mouse.
     const dx = -e.deltaX;
     const dy = -e.deltaY;
     if (cell.basis.ortho || e.shiftKey || e.altKey) this.nav.panBy(cell, dx * TRACKPAD_PAN, dy * TRACKPAD_PAN);
-    else this.nav.set(cell, orbitDrag(this.nav.camera(cell), dx, dy, this.editor.state.settings.orbitSpeed, TRACKPAD_ORBIT_DEG_PER_PX), 'Camera trackball');
+    else this.nav.orbitBy(cell, dx, dy, TRACKPAD_ORBIT_DEG_PER_PX);
   }
 
   /** A swipe or a pinch is one undo step: the gesture closes after a short pause. */
@@ -435,6 +439,7 @@ export class ViewportInput {
     if (cell.kind === ViewKind.Camera) this.world.beginGesture(label);
     window.clearTimeout(this.scrollTimer);
     this.scrollTimer = window.setTimeout(() => {
+      this.scrollTimer = 0;
       if (this.state !== Gesture.Idle) return;
       this.world.endGesture();
       clearDoing(this.editor);

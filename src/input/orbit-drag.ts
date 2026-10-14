@@ -5,6 +5,12 @@ import { ORBIT_DEG_PER_PX } from './input.constants';
 
 const ORBIT_PACE: Readonly<Record<OrbitSpeed, number>> = { [OrbitSpeed.Slow]: 0.5, [OrbitSpeed.Normal]: 1, [OrbitSpeed.Fast]: 2 };
 
+/** Degrees of yaw and pitch for a drag of `dx`, `dy` pixels (orbitDrag's turn, for orbits round a point). */
+export function orbitDegrees(dx: number, dy: number, speed: OrbitSpeed, sensitivity = ORBIT_DEG_PER_PX): [number, number] {
+  const degrees = sensitivity * ORBIT_PACE[speed];
+  return [-dx * degrees, dy * degrees];
+}
+
 /** Mouse drags and trackpad swipes keep their own sensitivity, scaled by Settings. */
 export function orbitDrag(camera: Camera, dx: number, dy: number, speed: OrbitSpeed, sensitivity = ORBIT_DEG_PER_PX): Camera {
   const degrees = sensitivity * ORBIT_PACE[speed];
