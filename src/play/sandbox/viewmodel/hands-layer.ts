@@ -7,6 +7,7 @@ import { Layer } from '../../sim/physics';
 import type { PlayFrame, PlaySim } from '../../sim/play-sim';
 import { WeaponId } from '../sandbox.enums';
 import { DEFAULT_WEAPON_COLOR, type WeaponView } from '../weapons/weapon';
+import { OWN_SPRITES } from './own-sprites';
 import { SpriteBatch, type Rgba } from './vm-effects';
 import { VmGpu } from './vm-gpu';
 import { handsLighting } from './vm-light';
@@ -20,8 +21,8 @@ import { Viewmodel } from './viewmodel';
  * moves and poses the hands (Viewmodel), draws the Physics Gun's beam in the
  * world's perspective from the muzzle to the held point — bending toward where
  * the aim wants it, as Source's quadratic beam does — then the hands and gun in
- * their own perspective, then the glows. Sandbox falls back to its 2D beam
- * while this layer is missing (no game files).
+ * their own perspective, then the glows. Without the game's files it shows
+ * Sandbox's own guns and effects (own-guns.ts, own-sprites.ts) the same way.
  */
 
 const FX = {
@@ -86,11 +87,20 @@ export class HandsLayer {
     this.canvas = gpu.canvas;
   }
 
+  /** Sandbox's own guns and effects, drawn without any game files. */
+  static own(): HandsLayer {
+    const gpu = new VmGpu(layerCanvas());
+    const fx = new Map<Fx, WebGLTexture>();
+    for (const k of Object.keys(FX) as Fx[]) {
+      const sprite = OWN_SPRITES[k];
+      if (sprite) fx.set(k, gpu.canvasTexture(sprite.draw(), sprite.repeat));
+    }
+    return new HandsLayer(gpu, Viewmodel.own(gpu), fx);
+  }
+
   /** Builds the layer from the player's game files, or null when they hold no gun. */
   static async create(files: SourceFiles): Promise<HandsLayer | null> {
-    const canvas = document.createElement('canvas');
-    canvas.className = 'sandbox-hands';
-    const gpu = new VmGpu(canvas);
+    const gpu = new VmGpu(layerCanvas());
     const hands = await Viewmodel.load(gpu, files);
     if (!hands) return null;
     const materials = new VmMaterials(gpu, files);
@@ -220,6 +230,12 @@ export class HandsLayer {
     build(this.batch);
     this.gpu.drawSprites(this.batch.vertices, tex, proj, depth);
   }
+}
+
+function layerCanvas(): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.className = 'sandbox-hands';
+  return canvas;
 }
 
 /** The beam and glow colour: the weapon colour as it is — above 1 it overbrights the white textures into a cyan glow with a white core. */

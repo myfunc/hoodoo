@@ -51,3 +51,14 @@ describe('Half-Life 2 weapon selection', () => {
     expect(selectionAlpha(3.2)).toBe(0);
   });
 });
+
+describe('Half-Life 2 HUD without the game files', () => {
+  it('has the scheme\'s fonts and colours in system faces', () => {
+    const s = Hl2Scheme.plain();
+    expect(s.color('SelectionTextFg', [0, 0, 0, 0])).toEqual([255, 220, 0, 220]);
+    expect(s.font('HudNumbers', 480)?.tall).toBe(32);
+    expect(s.font('HudNumbers', 960)?.tall).toBe(64);
+    expect(s.font('HudSelectionText', 900)?.tall).toBe(12);
+    expect(s.font('Crosshairs', 900)).toBeNull();
+  });
+});

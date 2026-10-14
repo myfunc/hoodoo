@@ -62,7 +62,17 @@ their animations, WAV and soundscripts):
   and notices sound as in the sandbox gamemode. `?mute=1` mixes them
   silently; `__hoodooSandbox.heard()` reports what played and the level.
 
-Without the files Sandbox keeps its own look: the 2D beam over the picture.
+Without the files Sandbox draws its own guns the same way
+(`viewmodel/own-guns.ts`): a Physics Gun and a Tool Gun built from simple
+solids as Source models where Garry's Mod's c_ models sit (measured from
+c_superphyscannon and c_toolgun), with bones, the claws' "active" pose
+parameter, draw and fire sequences and a muzzle attachment, so the hands
+layer bobs, lights and fires them as it does the real ones; their beam and
+glow textures are drawn on canvases (`own-sprites.ts`). Half-Life 2's HUD is
+drawn plain (`ui/sandbox/hl2/hl2-plain.ts`): clientscheme.res's sizes and
+colours in system faces, the crosshair's five dots, drawn notice icons, and
+weapon names where the game's icons would be. There are no sounds and no
+arms. Without WebGL 2 the 2D beam over the picture stands in for the guns.
 
 ## Controls
 

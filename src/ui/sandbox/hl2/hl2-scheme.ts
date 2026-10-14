@@ -2,6 +2,7 @@ import { keyValue, keyValues, parseKeyValues } from '../../../io/source/keyvalue
 import { loadMaterial } from '../../../io/source/material';
 import type { KeyValues, SourceFiles } from '../../../io/source/source.types';
 import { decodeVtf } from '../../../io/source/vtf';
+import { PLAIN_COLORS, PLAIN_FONTS } from './hl2-plain';
 
 /**
  * READ ME — Half-Life 2's HUD scheme from the player's game files: the fonts
@@ -95,6 +96,13 @@ export class Hl2Scheme {
     const hud = await readKv(files, FILES.layout);
     for (const el of hud?.[0]?.children ?? []) layout.set(el.key.toLowerCase(), el.children);
     return new Hl2Scheme(fonts, colors, layout, metrics, files);
+  }
+
+  /** The HUD's scheme without the game's files: its fonts in system faces and its colours (hl2-plain.ts). */
+  static plain(): Hl2Scheme {
+    const fonts = new Map(Object.entries(PLAIN_FONTS).map(([name, vs]) => [name, vs.map((v) => ({ ...v, blur: 0, scanlines: 0, antialias: true }))]));
+    const none: SourceFiles = { has: () => false, read: async () => null, list: () => [] };
+    return new Hl2Scheme(fonts, new Map(Object.entries(PLAIN_COLORS)), new Map(), new Map(Object.entries(SYSTEM_METRICS)), none);
   }
 
   /** A scheme colour by name, following names that point at other names ("SelectionTextFg" → "FgColorHud"). */

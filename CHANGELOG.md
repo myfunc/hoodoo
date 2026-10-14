@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.18.0 - 2026-10-13
+
+### Added
+- Sandbox without Garry's Mod files has its own Physics Gun and Tool Gun in hand: the
+  Physics Gun's claws open while it pulls, its core and coils glow in the weapon colour
+  and its beam bends from the muzzle; the Tool Gun shows the tool's name on its screen.
+  Both come up when taken out and kick when fired. Half-Life 2's HUD is there too —
+  health, the crosshair's dots, the weapon selection and the notices — in system faces.
+  Picking your Garry's Mod folder still swaps in the game's own guns, sounds and HUD.
 ## 0.17.2 - 2026-10-13
 
 ### Fixed

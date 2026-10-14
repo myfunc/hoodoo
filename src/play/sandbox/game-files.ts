@@ -31,9 +31,10 @@ export interface GameFilesHost {
 
 export class GameFiles {
   readonly section: GameFilesSection;
+  /** The guns in the hands: the game's, or Sandbox's own until its files are read. */
   hands: HandsLayer | null = null;
   sounds: SandboxSounds | null = null;
-  /** Half-Life 2's HUD, when the files have its scheme. */
+  /** Half-Life 2's HUD: from the files when they have its scheme, else drawn plain. */
   hud: Hl2Hud | null = null;
   /** Stops keeping late reads of the picked folder. */
   private stopKeeping: (() => void) | null = null;
@@ -48,8 +49,9 @@ export class GameFiles {
     });
   }
 
-  /** The files Play starts with: served ones, or the ones kept from the folder picked before. */
+  /** The files Play starts with: served ones, or the ones kept from the folder picked before; Sandbox's own guns meanwhile. */
   async start(): Promise<void> {
+    await this.own();
     const url = new URLSearchParams(location.search).get(GAME_FILES_PARAM);
     if (url) {
       const { HttpFiles } = await import('../../io/source/http-files');
@@ -86,6 +88,22 @@ export class GameFiles {
     this.drop();
     await forgetKeptFiles();
     this.section.set({ state: GameFilesState.None });
+    await this.own();
+  }
+
+  /** Sandbox's own guns and the plain Half-Life 2 HUD, in place of whatever was shown. */
+  private async own(): Promise<void> {
+    const [{ HandsLayer }, { Hl2Hud }] = await Promise.all([import('./viewmodel/hands-layer'), import('../../ui/sandbox/hl2/hl2-hud')]);
+    if (this.disposed) return;
+    this.drop();
+    // Without WebGL 2 there are no hands: Sandbox's 2D beam stands in (overlay.ts).
+    try {
+      this.hands = HandsLayer.own();
+    } catch {
+      this.hands = null;
+    }
+    this.hud = Hl2Hud.plain();
+    this.host.mount(this.hands ? [this.hands.canvas, this.hud.canvas] : [this.hud.canvas]);
   }
 
   /** Builds the hands, sounds and HUD from a folder's files, in place of the ones before; true when they are in. */
@@ -115,8 +133,8 @@ export class GameFiles {
       this.drop();
       this.hands = hands;
       this.sounds = new SandboxSounds(game);
-      this.hud = hud;
-      this.host.mount(hud ? [hands.canvas, hud.canvas] : [hands.canvas]);
+      this.hud = hud ?? Hl2Hud.plain();
+      this.host.mount([hands.canvas, this.hud.canvas]);
       this.section.set({ state: GameFilesState.Ready, folder });
       return true;
     } catch (e) {

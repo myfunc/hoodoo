@@ -1,5 +1,6 @@
 import type { SourceFiles } from '../../../io/source/source.types';
 import { HUD_UNITS_TALL, type HudFont, Hl2Scheme, type Rgba } from './hl2-scheme';
+import { PLAIN_CROSSHAIR, plainNoticeIcons } from './hl2-plain';
 import { NoticeFlight } from './notice-flight';
 
 /**
@@ -115,6 +116,11 @@ export class Hl2Hud {
     return new Hl2Hud(scheme, weapons, crosshair, icons);
   }
 
+  /** The HUD without the game's files: system faces, drawn icons and crosshair, names in place of weapon icons. */
+  static plain(): Hl2Hud {
+    return new Hl2Hud(Hl2Scheme.plain(), new Map(), DEFAULT_CROSSHAIR, plainNoticeIcons());
+  }
+
   draw(rect: PictureRect, state: Hl2HudState): void {
     const now = performance.now() / MS_PER_S;
     const dt = this.last ? Math.min(now - this.last, 1) : 0;
@@ -169,8 +175,8 @@ export class Hl2Hud {
   /** The crosshair glyph centred on the screen, in Source's "Normal" colour; hard-edged when the font is. */
   private drawCrosshair(): void {
     const f = this.font(this.crosshair.font);
-    if (!f) return;
     const color = this.color('normal');
+    if (!f) return this.drawDots(color);
     const key = `${f.css}|${color}`;
     const c = this.cross;
     if (c.dataset.key !== key) {
@@ -189,6 +195,15 @@ export class Hl2Hud {
       }
     }
     if (c.width && c.height) this.g.drawImage(c, Math.round(this.canvas.width / 2 - c.width / 2), Math.round(this.canvas.height / 2 - c.height / 2));
+  }
+
+  /** Half-Life 2's crosshair dots, drawn when the game's font is not there. */
+  private drawDots(color: string): void {
+    const { g, canvas } = this;
+    const size = PLAIN_CROSSHAIR.size * (window.devicePixelRatio || 1);
+    const [cx, cy] = [Math.round(canvas.width / 2 - size / 2), Math.round(canvas.height / 2 - size / 2)];
+    g.fillStyle = color;
+    for (const [x, y] of PLAIN_CROSSHAIR.dots) g.fillRect(cx + Math.round(x * size / PLAIN_CROSSHAIR.size), cy + Math.round(y * size / PLAIN_CROSSHAIR.size), size, size);
   }
 
   /** CHudHealth: a rounded box, the label at text_xpos and the number at digit_xpos in HudNumbers. */

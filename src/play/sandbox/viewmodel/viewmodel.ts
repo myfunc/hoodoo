@@ -6,6 +6,7 @@ import { WeaponId } from '../sandbox.enums';
 import type { GpuModel, VmGpu, VmLighting, VmMaterial } from './vm-gpu';
 import type { ToolScreen } from './tool-screen';
 import { VmMaterials } from './vm-materials';
+import { ownGuns } from './own-guns';
 import { Bob, type GunPose, Lag, REST_POSE, type ViewAxes } from './vm-motion';
 import { VM_CLIP, mergedBones, originOf, perspective, transform4, viewmodelMatrix, vmVerticalFov } from './vm-space';
 
@@ -89,6 +90,13 @@ export class Viewmodel {
     const weapons = new Map(entries.filter((e): e is [WeaponId, Loaded] => e[1] !== null));
     if (!weapons.size) return null;
     return new Viewmodel(gpu, await one(ARMS_MODEL), weapons, materials.screen);
+  }
+
+  /** Sandbox's own guns (own-guns.ts), for players without the game's files. */
+  static own(gpu: VmGpu): Viewmodel {
+    const { guns, screen } = ownGuns(gpu);
+    const weapons = new Map([...guns].map(([id, g]) => [id, { model: g.model, gpu: gpu.upload(g.model), slots: g.slots }] as const));
+    return new Viewmodel(gpu, null, weapons, screen);
   }
 
   has(id: WeaponId): boolean {
