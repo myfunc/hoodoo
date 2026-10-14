@@ -3,6 +3,7 @@ import { attachmentFrame, boneToModel, findSequence, sequencePose, skinMatrices 
 import { loadModel } from '../../../io/source/model';
 import type { Matrix3x4, SourceFiles, SourceModel } from '../../../io/source/source.types';
 import { WeaponId } from '../sandbox.enums';
+import { VmRole } from '../weapons/weapon';
 import type { GpuModel, VmGpu, VmLighting, VmMaterial } from './vm-gpu';
 import type { ToolScreen } from './tool-screen';
 import { VmMaterials } from './vm-materials';
@@ -29,18 +30,27 @@ export interface WeaponLook {
 export const WEAPON_LOOKS: Readonly<Record<WeaponId, WeaponLook>> = {
   [WeaponId.PhysicsGun]: { model: 'models/weapons/c_superphyscannon.mdl', fov: 54 },
   [WeaponId.ToolGun]: { model: 'models/weapons/c_toolgun.mdl', fov: 62 },
+  [WeaponId.Shotgun]: { model: 'models/weapons/c_shotgun.mdl', fov: 54 },
 };
 
 /** Gordon's HEV arms, as close to Half-Life 2 as Garry's Mod's hands get. */
 export const ARMS_MODEL = 'models/weapons/c_arms_hev.mdl';
 
 /** Activities by role, with plain sequence names as a fallback. */
-const ACTIVITY = {
-  draw: ['ACT_VM_DRAW', 'draw'],
-  idle: ['ACT_VM_IDLE', 'idle'],
-  fire: ['ACT_VM_PRIMARYATTACK', 'fire'],
-} as const;
-type Role = keyof typeof ACTIVITY;
+const ACTIVITY: Readonly<Record<VmRole, readonly string[]>> = {
+  [VmRole.Draw]: ['ACT_VM_DRAW', 'draw'],
+  [VmRole.Idle]: ['ACT_VM_IDLE', 'idle'],
+  [VmRole.Fire]: ['ACT_VM_PRIMARYATTACK', 'fire'],
+  [VmRole.Fire2]: ['ACT_VM_SECONDARYATTACK', 'altfire'],
+  [VmRole.Dry]: ['ACT_VM_DRYFIRE', 'dryfire'],
+  [VmRole.Pump]: ['ACT_SHOTGUN_PUMP', 'pump'],
+  [VmRole.ReloadStart]: ['ACT_SHOTGUN_RELOAD_START', 'reload1'],
+  [VmRole.Reload]: ['ACT_VM_RELOAD', 'reload2'],
+  [VmRole.ReloadEnd]: ['ACT_SHOTGUN_RELOAD_FINISH', 'reload3'],
+};
+type Role = VmRole;
+/** Steps that hold their last frame for the next step (a reload's), instead of falling back to idle. */
+const HOLD: ReadonlySet<VmRole> = new Set([VmRole.ReloadStart, VmRole.Reload]);
 
 interface Loaded {
   readonly model: SourceModel;
@@ -62,7 +72,7 @@ export class Viewmodel {
   private weapon: WeaponId = WeaponId.PhysicsGun;
   private sequence = -1;
   private cycle = 0;
-  private role: Role = 'idle';
+  private role: Role = VmRole.Idle;
   private readonly bob = new Bob();
   private readonly lag = new Lag();
   private pose: GunPose = REST_POSE;
@@ -106,11 +116,16 @@ export class Viewmodel {
   /** Takes a weapon out: its draw sequence, then idle. */
   deploy(id: WeaponId): void {
     this.weapon = id;
-    this.play('draw');
+    this.play(VmRole.Draw);
   }
 
   fire(): void {
-    this.play('fire');
+    this.play(VmRole.Fire);
+  }
+
+  /** A sequence by what it does (the shotgun's pump, its reload's steps). */
+  act(role: VmRole): void {
+    this.play(role);
   }
 
   /** A pose parameter of the current weapon by name (the claws, for one). */
@@ -126,7 +141,7 @@ export class Viewmodel {
     const w = this.current;
     if (!w) return;
     const seq = ACTIVITY[role].map((n) => findSequence(w.model, n)).find((i) => i >= 0) ?? -1;
-    if (seq < 0 && role !== 'idle') return this.play('idle');
+    if (seq < 0 && role !== VmRole.Idle) return this.play(VmRole.Idle);
     this.sequence = seq;
     this.cycle = 0;
     this.role = role;
@@ -136,14 +151,14 @@ export class Viewmodel {
   update(v: ViewInput): void {
     const w = this.current;
     if (!w) return;
-    if (this.sequence < 0) this.play('idle');
+    if (this.sequence < 0) this.play(VmRole.Idle);
     const seq = w.model.sequences[this.sequence];
     if (seq) {
       const length = Math.max(1, seq.frames - 1) / Math.max(seq.fps, 1);
       this.cycle += v.dt / length;
       if (this.cycle >= 1) {
         if (seq.looping) this.cycle -= Math.floor(this.cycle);
-        else if (this.role !== 'idle') this.play('idle');
+        else if (this.role !== VmRole.Idle && !HOLD.has(this.role)) this.play(VmRole.Idle);
         else this.cycle = 1;
       }
     }

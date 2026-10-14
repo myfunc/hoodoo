@@ -9,6 +9,8 @@ const SIZE = 128;
 const BEAM = { wide: 64, long: 256, core: 0.07, glow: 0.3, flicker: 0.45, seed: 7 } as const;
 const TRACER = { core: 0.12, glow: 0.35 } as const;
 const RING = { at: 0.78, width: 0.12 } as const;
+/** The muzzle flash's spikes: how many, how far (fractions of the radius) and how thick. */
+const FLASH = { spikes: 8, long: 0.95, short: 0.6, width: 0.14 } as const;
 const BLACK = '#000';
 const WHITE = '#fff';
 const GREY = '#555';
@@ -28,6 +30,7 @@ export const OWN_SPRITES: Readonly<Record<string, { readonly draw: () => HTMLCan
   toolTracer: { draw: () => beam(TRACER.core, TRACER.glow, 0), repeat: true },
   selectRing: { draw: ring, repeat: false },
   selectDot: { draw: () => glow(...GLOWS.dot), repeat: false },
+  muzzleFlash: { draw: flash, repeat: false },
 };
 
 function canvas(w: number, h: number): [HTMLCanvasElement, CanvasRenderingContext2D] {
@@ -75,6 +78,28 @@ function glow(inner: number, outer: number): HTMLCanvasElement {
   grad.addColorStop(1, BLACK);
   g.fillStyle = grad;
   g.fillRect(0, 0, SIZE, SIZE);
+  return c;
+}
+
+/** A muzzle flash: a hot middle and uneven spikes out of it. */
+function flash(): HTMLCanvasElement {
+  const [c, g] = canvas(SIZE, SIZE);
+  const r = SIZE / 2;
+  g.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < FLASH.spikes; i++) {
+    const turn = (i / FLASH.spikes) * Math.PI * 2;
+    const reach = r * (i % 2 ? FLASH.short : FLASH.long);
+    const grad = g.createLinearGradient(r, r, r + Math.cos(turn) * reach, r + Math.sin(turn) * reach);
+    grad.addColorStop(0, WHITE);
+    grad.addColorStop(1, BLACK);
+    g.strokeStyle = grad;
+    g.lineWidth = r * FLASH.width;
+    g.beginPath();
+    g.moveTo(r, r);
+    g.lineTo(r + Math.cos(turn) * reach, r + Math.sin(turn) * reach);
+    g.stroke();
+  }
+  g.drawImage(glow(...GLOWS.core), 0, 0);
   return c;
 }
 

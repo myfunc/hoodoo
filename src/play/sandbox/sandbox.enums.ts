@@ -4,6 +4,7 @@
 export enum WeaponId {
   PhysicsGun = 'physgun',
   ToolGun = 'toolgun',
+  Shotgun = 'shotgun',
 }
 
 /** What a notice at the bottom right reports: its mark and colour. */

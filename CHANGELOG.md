@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.37.0 - 2026-10-14
+
+### Added
+- Half-Life 2's shotgun in Garry's Mod mode, slot 4: Mouse 1 fires seven pellets and
+  pumps, Mouse 2 fires both barrels, R loads shell by shell and a shot breaks the load off;
+  six in the tube, 64 in reserve, as the sandbox loadout gives. Pellets push what they hit,
+  the view kicks and comes back, the muzzle flashes and hits puff dust and sparks with
+  their surface's sound. With the player's Half-Life 2 files it is the game's model and
+  sounds; without them a shotgun of Sandbox's own.
+- The HUD's AMMO box shows the rounds in the gun and in reserve.
 ## 0.36.0 - 2026-10-14
 
 ### Added

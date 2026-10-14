@@ -34,7 +34,7 @@ async function rig(objects: SceneObject[]) {
   let prev = new Set<Button>();
   const ctx = (use = false, snap = false): WeaponContext => {
     const eye = sim.driver.eye();
-    return { physics: sim.physics, props, unit: sim.player.tuning.unit, dt: SIM_DT, time: sim.time, eye, aim: aimOf(eye.yaw, eye.pitch), use, snap, notify: (t) => notes.push(t) };
+    return { physics: sim.physics, props, unit: sim.player.tuning.unit, dt: SIM_DT, time: sim.time, eye, aim: aimOf(eye.yaw, eye.pitch), use, snap, notify: (t) => notes.push(t), sound: () => undefined, kick: () => undefined };
   };
   const step = (buttons: Button[] = [], reach = 0) => {
     const held = new Set(buttons);

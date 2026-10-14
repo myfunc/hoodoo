@@ -5,7 +5,7 @@ import { type BodyId, Motion } from '../../sim/physics';
 import type { PlaySim } from '../../sim/play-sim';
 import { ShapeKind } from '../../../model/scene.enums';
 import { bodyOf } from '../../../world/body-flags';
-import { CUES, Family, type Surface, type SurfaceNames, impactCue, scrapeCue, stepCue, surfaceOf } from './cues';
+import { CUES, Family, type Surface, type SurfaceNames, bulletCue, impactCue, scrapeCue, stepCue, surfaceOf } from './cues';
 import type { MixLoop, Mixer } from './mixer';
 
 /**
@@ -29,6 +29,8 @@ const KNOCK = { min: 60, hard: 250, full: 700, gap: 0.08 } as const;
 const SCRAPE = { min: 25, full: 400, linger: 0.5, ramp: 0.08, fade: 0.2, pitchFrom: 80, pitchBy: 50, volume: 0.7, most: 6 } as const;
 /** A body falling into water faster than this (units a second) splashes, at full volume from `full`. */
 const SPLASH = { min: 80, full: 600 } as const;
+/** A bullet's hit without the game's files: the surface's knock, quieter and higher. */
+const BULLET = { volume: 0.45, pitch: 1.7 } as const;
 /** Underfoot when nothing is known of it. */
 const GROUND: Surface = { name: 'concrete', family: Family.Hard };
 
@@ -106,6 +108,13 @@ export class WorldSounds {
         this.scrapes.delete(body);
       }
     }
+  }
+
+  /** A bullet hit a body at a point: the surface's bullet impact there. */
+  bullet(body: BodyId, at: Vec3): void {
+    const s = this.surface(body) ?? GROUND;
+    const own = !this.names()?.(s.name);
+    this.mixer.play(bulletCue(s, this.names()), own ? { at, volume: BULLET.volume, pitch: BULLET.pitch } : { at });
   }
 
   dispose(): void {

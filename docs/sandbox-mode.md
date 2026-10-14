@@ -104,7 +104,7 @@ The keys are Garry's Mod's defaults (`cfg/config_default.cfg`).
 | R | reload | unfreeze, Tool Gun reload |
 | E | use | held with the Physics Gun: rotate the object |
 | Wheel | previous / next weapon | while holding with the Physics Gun: push and pull |
-| 1 … 6 | weapon slots | slot 1 Physics Gun, Gravity Gun; slot 6 Tool Gun |
+| 1 … 6 | weapon slots | slot 1 Physics Gun, Gravity Gun; slot 4 Shotgun; slot 6 Tool Gun |
 | Q (hold) | spawn menu | the spawn menu |
 | C (hold) | context menu | the context menu |
 | Z | undo | undo the last sandbox action; Shift+Z puts it back |
@@ -160,6 +160,29 @@ Half-Life 2's: Mouse 2 pulls an unfrozen body within 250 HL units and up to
 250 kg and holds it in front of you; Mouse 1 punts a body in front of you or
 launches the held one. Frozen bodies cannot be picked up. It reuses the
 Physics Gun's hold.
+
+## Shotgun
+
+Half-Life 2's weapon_shotgun (`weapons/shotgun.ts`) in slot 4, as Garry's
+Mod's sandbox loadout hands it out: six shells in the tube and 64 more.
+Mouse 1 fires seven pellets in a 10° cone (VECTOR_CONE_10DEGREES, two
+uniform randoms a side, so they crowd the middle), then pumps if shells are
+left; held, it fires again as soon as it can. Mouse 2 fires two shells at
+once, twelve pellets. R loads shell by shell (start, a shell each 0.4 s,
+finish); a shot asked for while loading ends the load and goes off after it,
+pumping first if the tube was empty; empty with the trigger held it starts
+loading by itself, and with nothing left it clicks. The times are c_shotgun's
+sequences' own (fire 0.333 s, pump 0.533 s, double 0.5 s). Each pellet
+pushes what it hits by Source's buckshot force (BULLET_IMPULSE(200, 1200) with
+its 3.5 exaggeration, 653 kg·in/s, scaled to the player): a 35 kg crate slides
+off, a 1600 kg cube from the spawn menu barely moves. A shot knocks the view
+(ViewPunch: up 1–2° and aside up to 2°, the double shot up or down up to 5°)
+and the knock comes back by itself (`view-punch.ts`, DecayPunchAngle). The
+muzzle flashes, each hit puffs dust and sparks, and the first three hits of
+a shot sound their surface's bulletimpact. The HUD shows AMMO with the
+rounds in the gun and the reserve (CHudAmmo). Without the game's files a
+SPAS-12 of simple solids (`viewmodel/own-shotgun.ts`) plays the same
+sequences, and Sandbox's own sounds stand in.
 
 ## Tool Gun
 

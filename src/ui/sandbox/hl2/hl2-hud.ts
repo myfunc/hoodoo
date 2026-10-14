@@ -20,6 +20,8 @@ export interface Hl2Weapon {
 
 export interface Hl2HudState {
   readonly health: number;
+  /** The gun's rounds and its reserve; null for a weapon without ammo (the Physics Gun, the Tool Gun). */
+  readonly ammo?: { readonly clip: number; readonly reserve: number } | null;
   /** The slots (1–6) and their weapons, the weapon out, and seconds since the last switch (null: none yet). */
   readonly selection: { readonly slots: ReadonlyMap<number, readonly Hl2Weapon[]>; readonly current: string; readonly since: number | null };
   readonly notices: readonly { readonly id: number; readonly text: string; readonly kind: string; readonly age: number; readonly life: number }[];
@@ -33,7 +35,7 @@ export interface PictureRect {
 }
 
 /** Hoodoo's weapons by the Garry's Mod weapon script whose icons they wear. */
-const WEAPON_SCRIPTS: Readonly<Record<string, string>> = { physgun: 'weapons/weapon_physgun' };
+const WEAPON_SCRIPTS: Readonly<Record<string, string>> = { physgun: 'weapons/weapon_physgun', shotgun: 'weapons/weapon_shotgun' };
 /** Scripted weapons' selection pictures (SWEP.WepSelectIcon): the Tool Gun's from its cl_init.lua. */
 const WEAPON_PICTURES: Readonly<Record<string, string>> = { toolgun: 'vgui/gmod_tool' };
 /** weapon_base's DrawWeaponSelection: the picture inset this far (480-unit pixels as drawn: screen pixels), half as tall as wide. */
@@ -65,12 +67,14 @@ const BYTE = 255;
 /** A hard-edged font keeps the pixels its glyph covers at least this much (alpha byte). */
 const HARD_EDGE = 96;
 const HEALTH_LABEL = 'HEALTH';
+const AMMO_LABEL = 'AMMO';
 /** HL2's crosshair glyph when a weapon names none. */
 const DEFAULT_CROSSHAIR = { font: 'Crosshairs', char: 'Q' } as const;
 
 /** Layout defaults (hudlayout.res, Garry's Mod's) for a file that lacks a field. */
 const LAYOUT: Readonly<Record<string, Readonly<Record<string, string>>>> = {
   HudHealth: { xpos: '16', ypos: '432', wide: '102', tall: '36', text_xpos: '8', text_ypos: '20', digit_xpos: '50', digit_ypos: '2' },
+  HudAmmo: { xpos: 'r150', ypos: '432', wide: '136', tall: '36', text_xpos: '8', text_ypos: '20', digit_xpos: '40', digit_ypos: '2', digit2_xpos: '102', digit2_ypos: '16' },
   HudWeaponSelection: { ypos: '16', SmallBoxSize: '32', LargeBoxWide: '112', LargeBoxTall: '80', LargeBoxUnselectedTall: '19', BoxGap: '6', SelectionNumberXPos: '4', SelectionNumberYPos: '4', TextYPos: '64' },
 };
 
@@ -132,6 +136,7 @@ export class Hl2Hud {
     this.s = canvas.height / HUD_UNITS_TALL;
     this.drawCrosshair();
     this.drawHealth(state.health);
+    if (state.ammo) this.drawAmmo(state.ammo);
     this.drawSelection(state.selection);
     this.flight.draw(g, canvas.width, canvas.height, state.notices, this.icons, dt);
   }
@@ -213,6 +218,16 @@ export class Hl2Hud {
     this.box(x, y, this.unit(e, 'wide'), this.unit(e, 'tall', this.canvas.height), this.color('bg'));
     this.text('Default', HEALTH_LABEL, x + this.unit(e, 'text_xpos'), y + this.unit(e, 'text_ypos'), this.color('fg'));
     this.text('HudNumbers', String(Math.max(0, Math.round(health))), x + this.unit(e, 'digit_xpos'), y + this.unit(e, 'digit_ypos'), this.color('fg'));
+  }
+
+  /** CHudAmmo: the rounds in the gun large, the reserve small beside them. */
+  private drawAmmo(ammo: { readonly clip: number; readonly reserve: number }): void {
+    const e = 'HudAmmo';
+    const [x, y] = [this.unit(e, 'xpos'), this.unit(e, 'ypos', this.canvas.height)];
+    this.box(x, y, this.unit(e, 'wide'), this.unit(e, 'tall', this.canvas.height), this.color('bg'));
+    this.text('Default', AMMO_LABEL, x + this.unit(e, 'text_xpos'), y + this.unit(e, 'text_ypos'), this.color('fg'));
+    this.text('HudNumbers', String(ammo.clip), x + this.unit(e, 'digit_xpos'), y + this.unit(e, 'digit_ypos'), this.color('fg'));
+    this.text('HudNumbersSmall', String(ammo.reserve), x + this.unit(e, 'digit2_xpos'), y + this.unit(e, 'digit2_ypos'), this.color('fg'));
   }
 
   /** CHudWeaponSelection: six boxes across the top centre; the open slot is large, its weapons stacked. */

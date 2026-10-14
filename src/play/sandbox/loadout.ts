@@ -7,9 +7,10 @@ export interface WeaponSlot {
   readonly name: string;
 }
 
-/** Garry's Mod's slots: the Physics Gun in 1, the Tool Gun in 6. */
+/** Garry's Mod's slots: the Physics Gun in 1, Half-Life 2's shotgun in 4, the Tool Gun in 6. */
 export const LOADOUT: readonly WeaponSlot[] = [
   { weapon: WeaponId.PhysicsGun, slot: 1, name: 'Physics Gun' },
+  { weapon: WeaponId.Shotgun, slot: 4, name: 'Shotgun' },
   { weapon: WeaponId.ToolGun, slot: 6, name: 'Tool Gun' },
 ];
 

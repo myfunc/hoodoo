@@ -20,6 +20,7 @@ const NUMBERS_WEIGHT = 400;
 export const PLAIN_FONTS: Readonly<Record<string, readonly PlainFontVariant[]>> = {
   default: [{ family: 'Verdana', tall: 12, weight: 700, yres: null }],
   hudnumbers: [{ family: NUMBERS_FACE, tall: 32, weight: NUMBERS_WEIGHT, yres: null }],
+  hudnumberssmall: [{ family: NUMBERS_FACE, tall: 16, weight: NUMBERS_WEIGHT, yres: null }],
   hudselectionnumbers: [{ family: 'Verdana', tall: 11, weight: 700, yres: null }],
   hudselectiontext: [
     { family: 'Verdana', tall: 8, weight: 700, yres: [1, 599] },

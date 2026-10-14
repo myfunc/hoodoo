@@ -30,6 +30,12 @@ export const CUES = {
   /** What the Remover takes fizzles away with its sparks (the game has no sound for it: Sandbox's own). */
   remove: { game: null, synth: Synth.Remove, volume: 0.6 },
   splash: { game: 'Physics.WaterSplash', synth: Synth.Splash },
+  /** Half-Life 2's shotgun (weapon_shotgun's script). */
+  shotgunFire: { game: 'Weapon_Shotgun.Single', synth: Synth.ShotgunFire },
+  shotgunDouble: { game: 'Weapon_Shotgun.Double', synth: Synth.ShotgunFire, volume: 1 },
+  shotgunReload: { game: 'Weapon_Shotgun.Reload', synth: Synth.ShotgunShell },
+  shotgunPump: { game: 'Weapon_Shotgun.Special1', synth: Synth.ShotgunPump },
+  shotgunEmpty: { game: 'Weapon_Shotgun.Empty', synth: Synth.DryFire },
 } as const satisfies Record<string, Cue>;
 
 /** A sound family: the stand-in a surface's steps, knocks and scrapes take without the game's files. */
@@ -95,5 +101,13 @@ export function scrapeCue(s: Surface, names: SurfaceNames | null): Cue {
   return { game: n ? (smooth ? n.scrapeSmooth : n.scrapeRough) : null, synth: smooth ? Synth.ScrapeSmooth : Synth.ScrapeRough };
 }
 
+/** A bullet's hit on a surface: the game's bulletimpact, else the surface's knock, small and high. */
+export function bulletCue(s: Surface, names: SurfaceNames | null): Cue {
+  return { game: names?.(s.name)?.bulletImpact ?? null, synth: IMPACT[s.family] };
+}
+
 /** The game's sounds of a surface by name (its "default" when it lacks the name), or null without the game's files. */
-export type SurfaceNames = (name: string) => { readonly stepLeft: string; readonly stepRight: string; readonly impactHard: string; readonly impactSoft: string; readonly scrapeRough: string; readonly scrapeSmooth: string } | null;
+export type SurfaceNames = (name: string) => {
+  readonly stepLeft: string; readonly stepRight: string; readonly impactHard: string; readonly impactSoft: string;
+  readonly scrapeRough: string; readonly scrapeSmooth: string; readonly bulletImpact: string;
+} | null;

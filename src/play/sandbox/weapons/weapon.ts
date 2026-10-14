@@ -22,6 +22,31 @@ export interface WeaponContext {
   readonly snap: boolean;
   /** A notice at the bottom right, with the game's sound for it when it has one. */
   notify(text: string, kind: NoticeKind, sound?: Cue): void;
+  /** The gun's own sound, in the head. */
+  sound(cue: Cue): void;
+  /** Source's ViewPunch: the view (and the aim) knocked by degrees, up and right, coming back by itself. */
+  kick(pitch: number, yaw: number): void;
+}
+
+/** The hands' sequences a gun asks for, by what they do (Source's activities). */
+export enum VmRole {
+  Draw = 'draw',
+  Idle = 'idle',
+  Fire = 'fire',
+  Fire2 = 'fire2',
+  Dry = 'dry',
+  Pump = 'pump',
+  ReloadStart = 'reload-start',
+  Reload = 'reload',
+  ReloadEnd = 'reload-end',
+}
+
+/** A bullet's hit: where, the surface's normal there, the body, and when (simulation seconds). */
+export interface Impact {
+  readonly point: Vec3;
+  readonly normal: Vec3;
+  readonly body: BodyId;
+  readonly time: number;
 }
 
 /** One fixed step of the mouse buttons and R for the weapon in hand. */
@@ -47,6 +72,14 @@ export interface WeaponView {
   readonly shot?: { readonly end: Vec3; readonly time: number } | null;
   /** What the gun's little screen shows (the Tool Gun's tool). */
   readonly screen?: string;
+  /** The sequence the hands should play now, and since when (a new time plays it again). */
+  readonly act?: { readonly role: VmRole; readonly time: number } | null;
+  /** When the muzzle last flashed (simulation seconds). */
+  readonly muzzle?: number | null;
+  /** Rounds in the gun and in reserve, for the HUD. */
+  readonly ammo?: { readonly clip: number; readonly reserve: number } | null;
+  /** The latest bullets' hits, newest last. */
+  readonly impacts?: readonly Impact[];
 }
 
 export interface Weapon {

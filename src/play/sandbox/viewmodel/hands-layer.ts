@@ -34,7 +34,14 @@ const FX = {
   toolTracer: 'materials/effects/tool_tracer.vmt',
   selectRing: 'materials/effects/select_ring.vmt',
   selectDot: 'materials/effects/select_dot.vmt',
+  muzzleFlash: 'materials/effects/muzzleflash1.vmt',
 } as const;
+
+/**
+ * A gun's muzzle flash (FX_MuzzleEffect): a few flash sprites along the barrel from the
+ * muzzle, biggest first, at random turns, for a moment; inches and seconds.
+ */
+const FLASH = { life: 0.06, sizes: [9, 6.5, 4.5], step: 2.2, color: [1, 0.86, 0.62] } as const;
 
 /**
  * The Tool Gun's shot (gmod_tool DoShootEffect): the ToolTracer from the muzzle for a
@@ -77,6 +84,8 @@ export class HandsLayer {
   private last = 0;
   /** The Tool Gun's shot last kicked (simulation seconds). */
   private kicked: number | null = null;
+  /** The gun's sequence last started (simulation seconds). */
+  private acted: number | null = null;
   private claws = 0;
 
   private constructor(
@@ -129,6 +138,10 @@ export class HandsLayer {
       this.hands.deploy(weapon);
     }
     this.place(picture);
+    if (view.act && view.act.time !== this.acted) {
+      this.acted = view.act.time;
+      this.hands.act(view.act.role);
+    }
     const cam = f.camera;
     const axes = cameraAxes(cam);
     const unit = sim.player.tuning.unit;
@@ -162,6 +175,8 @@ export class HandsLayer {
     if (view.screen) this.hands.screen?.draw(view.screen, now);
     this.hands.draw(aspect, light, weaponColor);
     const vmMuzzle = this.attachment();
+    const flashAge = view.muzzle === undefined || view.muzzle === null ? Infinity : sim.time - view.muzzle;
+    if (vmMuzzle && flashAge < FLASH.life) this.flash(vmMuzzle, aspect, 1 - flashAge / FLASH.life, view.muzzle as number);
     if (view.firing && vmMuzzle) {
       const vmProj = this.hands.projection(aspect);
       this.sprites('muzzleGlow', vmProj, false, (b) => b.sprite(vmMuzzle, LOOK.muzzleGlow, [color[0], color[1], color[2], LOOK.muzzleAlpha]));
@@ -190,6 +205,14 @@ export class HandsLayer {
         const alpha = 1 - age * SHOT.ringFade * speed;
         if (alpha > 0) b.sprite(end, SHOT.ringSize + age * SHOT.ringGrowth * speed, [r, g, bl, alpha]);
       }
+    });
+  }
+
+  /** The muzzle flash: sprites stepping forward from the muzzle, turned by the shot's time. */
+  private flash(at: Vec3, aspect: number, fade: number, seed: number): void {
+    const [r, g, b] = FLASH.color;
+    this.sprites('muzzleFlash', this.hands.projection(aspect), false, (batch) => {
+      FLASH.sizes.forEach((size, i) => batch.sprite(add(at, [0, 0, -FLASH.step * i]), size, [r, g, b, fade], seed * (i + 1)));
     });
   }
 

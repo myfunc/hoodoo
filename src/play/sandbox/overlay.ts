@@ -45,6 +45,10 @@ const REMOVED_COLOUR: Rgb = [0.65, 0.88, 1];
 const WHITE = '#fff';
 /** A cheap repeatable noise in 0..1 for the sparks' directions. */
 const BYTE = 255;
+/** A bullet's hit: a puff of dust spreading and fading, and a few sparks flying off (seconds, pixels). */
+const HIT = { seconds: 0.35, dust: [3, 16], sparks: 5, speed: 260, dot: 2 } as const;
+const DUST = 'rgba(190, 180, 160, ';
+const SPARK = 'rgba(255, 220, 150, ';
 const NOISE = { a: 12.9898, b: 78.233, scale: 43758.5453 } as const;
 const noise = (k: number, seed: number): number => {
   const v = Math.sin(k * NOISE.a + seed * NOISE.b) * NOISE.scale;
@@ -71,6 +75,14 @@ export class Overlay {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'sandbox-overlay';
     this.g = this.canvas.getContext('2d') as CanvasRenderingContext2D;
+  }
+
+  /** Bullets' hits to show: a puff and sparks where each landed. */
+  private hits: { readonly at: Vec3; readonly time: number; readonly seed: number }[] = [];
+
+  /** A bullet landed here (simulation seconds). */
+  hit(at: Vec3, time: number): void {
+    this.hits.push({ at, time, seed: Math.random() });
   }
 
   /** Objects just removed: they flash and break into sparks where they were. */
@@ -107,6 +119,8 @@ export class Overlay {
     }
     this.removed = this.removed.filter((r) => sim.time - r.time < REMOVED.seconds);
     for (const r of this.removed) this.sparks(proj, r.objects, sim.time - r.time, r.seed);
+    this.hits = this.hits.filter((h) => sim.time - h.time < HIT.seconds);
+    for (const h of this.hits) this.puff(proj, h.at, sim.time - h.time, h.seed);
     if (beam && view.firing && view.end) this.beam(proj, picture, view);
     if (beam && view.shot) this.shot(proj, picture, view.shot.end, sim.time - view.shot.time);
   }
@@ -143,6 +157,25 @@ export class Overlay {
       const y = at[1] + Math.sin(turn) * speed * age - REMOVED.rise * age;
       g.fillStyle = k % 2 ? WHITE : blue;
       g.fillRect(x - REMOVED.dot / 2, y - REMOVED.dot / 2, REMOVED.dot, REMOVED.dot);
+    }
+    g.restore();
+  }
+
+  private puff(proj: WireProjector, at: Vec3, age: number, seed: number): void {
+    const p = this.screen(proj, at);
+    if (!p) return;
+    const t = age / HIT.seconds;
+    const g = this.g;
+    g.save();
+    g.fillStyle = `${DUST}${(1 - t) * 0.5})`;
+    g.beginPath();
+    g.arc(p[0], p[1], HIT.dust[0] + (HIT.dust[1] - HIT.dust[0]) * Math.sqrt(t), 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = `${SPARK}${1 - t})`;
+    for (let k = 0; k < HIT.sparks; k++) {
+      const turn = noise(k, seed) * Math.PI * 2;
+      const d = HIT.speed * age * (0.5 + noise(k + HIT.sparks, seed));
+      g.fillRect(p[0] + Math.cos(turn) * d - HIT.dot / 2, p[1] + Math.sin(turn) * d - HIT.dot / 2, HIT.dot, HIT.dot);
     }
     g.restore();
   }

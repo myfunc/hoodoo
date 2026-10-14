@@ -23,11 +23,9 @@ import { Loadout } from './loadout';
 import { type Notice, Notices } from './notices';
 import { Overlay } from './overlay';
 import { Props } from './props';
-import { CUES, type SurfaceNames } from './audio/cues';
-import { type Cue, Mixer } from './audio/mixer';
-import { WorldSounds } from './audio/world-sounds';
-import type { GameSounds } from './game-sounds';
-import { SandboxSounds } from './sandbox-sounds';
+import { CUES } from './audio/cues';
+import type { Cue } from './audio/mixer';
+import { SandboxAudio } from './sandbox-audio';
 import { NoticeKind, WeaponId } from './sandbox.enums';
 import { SceneEdits } from './scene-edits';
 import { SPAWN_LIMIT, tracedCount } from './spawn';
@@ -40,6 +38,8 @@ import { ContextMenu } from './context-menu';
 import type { SandboxAutomation } from './sandbox-automation';
 import { createTools } from './tools/tools';
 import { aimOf } from './weapons/grip';
+import { Shotgun } from './weapons/shotgun';
+import { ViewPunch } from './view-punch';
 import { PhysicsGun } from './weapons/physgun';
 import { ToolGun } from './weapons/toolgun';
 import type { Weapon, WeaponContext } from './weapons/weapon';
@@ -75,12 +75,6 @@ const WHEEL = { pxPerStep: 50, linePx: 16, lineMode: 1 } as const;
 /** Health is not played yet: Half-Life 2's HUD shows it full, as Garry's Mod does. */
 const FULL_HEALTH = 100;
 const MS_PER_S = 1000;
-/** `?mute=1`: the sounds mix but are not heard (scripted checks). */
-const MUTE_PARAM = 'mute';
-/** A display frame longer than this (a hitch, a hidden tab) counts as this long for the scrapes' fading. */
-const MAX_FRAME_S = 0.1;
-/** The surface Source gives anything it does not name. */
-const DEFAULT_SURFACE = 'default';
 /** Garry's Mod's tool help box flashes on a shot and fades this fast (seconds). */
 const TOOL_FLASH_S = 0.3;
 
@@ -112,11 +106,15 @@ export class Sandbox {
   private readonly offMine: () => void;
   private readonly notices = new Notices();
   private readonly loadout = new Loadout();
+  /** Guns knock the view back; it comes back by itself. */
+  private readonly punch = new ViewPunch();
   private readonly toolgun = new ToolGun(createTools(), {
     trace: (eye, aim) => this.tools.trace(eye, aim),
     context: () => this.tools.context(),
   });
-  private readonly weapons: ReadonlyMap<WeaponId, Weapon> = new Map<WeaponId, Weapon>([[WeaponId.PhysicsGun, new PhysicsGun()], [WeaponId.ToolGun, this.toolgun]]);
+  private readonly weapons: ReadonlyMap<WeaponId, Weapon> = new Map<WeaponId, Weapon>([
+    [WeaponId.PhysicsGun, new PhysicsGun()], [WeaponId.Shotgun, new Shotgun()], [WeaponId.ToolGun, this.toolgun],
+  ]);
   private readonly toolMenu: ToolMenu;
   private readonly hud = new SandboxHud();
   private readonly overlay = new Overlay();
@@ -133,10 +131,7 @@ export class Sandbox {
   /** When the weapon last changed (performance.now), for Half-Life 2's selection. */
   private switchedAt: number | null = null;
   /** Every sound of the mode: the game's once its files are read, Sandbox's own until then. */
-  private readonly mixer = new Mixer(new URLSearchParams(location.search).get(MUTE_PARAM) === '1');
-  private readonly sounds = new SandboxSounds(this.mixer);
-  private readonly worldSounds: WorldSounds;
-  private lastFrame = 0;
+  private readonly sounds: SandboxAudio;
   /** The player's Garry's Mod: its hands, guns and sounds once its files are read. */
   private readonly game: GameFiles;
 
@@ -145,6 +140,7 @@ export class Sandbox {
     this.joints = new SandboxJoints(host.sim);
     this.joints.sync(host.world.scene);
     this.edits = new SceneEdits(host.world, host.sim);
+    this.sounds = new SandboxAudio(host.sim, () => host.world.scene);
     // What the Remover (or an object's menu) takes away dissolves where play shows it; a carved object's hollow does not show.
     this.edits.removing = (ids) => {
       const gone = host.sim.frame(1).scene.objects.filter((o) => ids.has(o.id) && o.boolean !== BooleanMode.Negative);
@@ -183,8 +179,7 @@ export class Sandbox {
     });
     host.layer.classList.add('is-sandbox');
     host.layer.append(this.overlay.canvas, this.hud.el, this.menu.el, this.menu.cursor);
-    this.game = new GameFiles({ mount: (cs) => this.overlay.canvas.after(...cs), notify: (text) => this.notify(text, NoticeKind.Hint, CUES.hint), mixer: this.mixer });
-    this.worldSounds = new WorldSounds(host.sim, this.mixer, () => host.world.scene, () => surfaceNames(this.mixer.gameSounds));
+    this.game = new GameFiles({ mount: (cs) => this.overlay.canvas.after(...cs), notify: (text) => this.notify(text, NoticeKind.Hint, CUES.hint), mixer: this.sounds.mixer });
     host.addPanelSection(this.game.section.el);
     this.automate();
     void this.game.start();
@@ -248,6 +243,7 @@ export class Sandbox {
 
   /** One fixed step's input: the weapon acts on it, the player gets it without the wheel. */
   input(raw: ActorInput): ActorInput {
+    this.punch.step(this.host.sim.player, SIM_DT);
     const held = new Set([...raw.buttons, ...this.forced]);
     const pressed = new Set([...held].filter((b) => !this.prev.has(b)));
     this.prev = held;
@@ -288,12 +284,7 @@ export class Sandbox {
       tool: this.weapon === this.toolgun && !this.menu.open ? this.hudTool() : null,
       picture: this.host.picture(),
     });
-    this.sounds.weapon(this.weapon.id, this.weapon.view(), this.host.active());
-    const eye = this.host.sim.driver.eye();
-    this.mixer.listen(eye.position, aimOf(eye.yaw, eye.pitch));
-    const dt = this.lastFrame ? Math.min(MAX_FRAME_S, (now - this.lastFrame) / MS_PER_S) : 0;
-    this.lastFrame = now;
-    this.worldSounds.frame(dt);
+    this.sounds.frame(this.weapon.id, this.weapon.view(), this.host.active(), this.overlay);
   }
 
   /** The Tool Gun's tool for the info panel, flashing after a shot. */
@@ -322,6 +313,7 @@ export class Sandbox {
     for (const w of this.loadout.weapons) slots.set(w.slot, [...(slots.get(w.slot) ?? []), { id: w.weapon, name: w.name }]);
     return {
       health: FULL_HEALTH,
+      ammo: this.weapon.view().ammo ?? null,
       selection: { slots, current: this.loadout.current.weapon, since: this.switchedAt === null ? null : (now - this.switchedAt) / MS_PER_S },
       notices: notices.map((n) => ({ id: n.id, text: n.text, kind: n.kind, age: (now - n.at) / MS_PER_S, life: n.life / MS_PER_S })),
     };
@@ -334,9 +326,7 @@ export class Sandbox {
 
   dispose(): void {
     this.contextMenu.dispose();
-    this.worldSounds.dispose();
     this.sounds.dispose();
-    this.mixer.dispose();
     this.offHistory();
     this.offMine();
     this.joints.dispose();
@@ -426,6 +416,8 @@ export class Sandbox {
       physics: sim.physics, props: this.props, unit: sim.player.tuning.unit, dt: SIM_DT, time: sim.time,
       eye, aim: aimOf(eye.yaw, eye.pitch), use: this.use, snap: this.snap,
       notify: (text, kind, sound) => this.notify(text, kind, sound),
+      sound: (cue) => this.sounds.play(cue),
+      kick: (pitch, yaw) => this.punch.kick(sim.player, pitch, yaw),
     };
   }
 
@@ -458,8 +450,3 @@ export class Sandbox {
   }
 }
 
-/** The game's surfaces' sounds by name ("default" for one it lacks), or null without its files. */
-function surfaceNames(game: GameSounds | null): SurfaceNames | null {
-  if (!game?.surfaces.size) return null;
-  return (name) => game.surfaces.get(name) ?? game.surfaces.get(DEFAULT_SURFACE) ?? null;
-}

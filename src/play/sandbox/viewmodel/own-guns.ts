@@ -2,6 +2,7 @@ import { type Vec3, add, cross, length, normalize, scale, sub } from '../../../c
 import type { BonePose, Matrix3x4, SourceBone, SourceModel, SourceSequence } from '../../../io/source/source.types';
 import { WeaponId } from '../sandbox.enums';
 import { MeshBuilder } from './own-mesh';
+import { ownShotgun } from './own-shotgun';
 import { ToolScreen } from './tool-screen';
 import type { VmGpu, VmMaterial } from './vm-gpu';
 
@@ -17,7 +18,7 @@ import type { VmGpu, VmMaterial } from './vm-gpu';
  */
 
 /** Material slots. */
-enum Slot {
+export enum Slot {
   Dark = 0,
   Steel = 1,
   Glow = 2,
@@ -47,10 +48,10 @@ const LOOKS: Readonly<Record<Slot, Look>> = {
   [Slot.Lamp]: { color: [1, 1, 1], glow: true, tint: [0.3, 1, 0.35] },
 };
 const PHONG = { exponent: 24, boost: 2.5, fresnel: [0.15, 0.5, 1] as const } as const;
-const SIDES = 8;
-const ROUND = 16;
-const TWIST = Math.PI / SIDES;
-const DEG = Math.PI / 180;
+export const SIDES = 8;
+export const ROUND = 16;
+export const TWIST = Math.PI / SIDES;
+export const DEG = Math.PI / 180;
 
 /**
  * The Physics Gun: a tapered body rising toward the front housing, kept under
@@ -108,7 +109,7 @@ const TOOL = {
 } as const;
 
 /** Sequences: frames at 30 a second. */
-const FPS = 30;
+export const FPS = 30;
 const DRAW = { frames: 16, drop: [-3, 2, -9] as Vec3, pitch: -24 } as const;
 const FIRE = { frames: 10, kick: -1.4, pitch: -5, peak: 0.25 } as const;
 
@@ -120,7 +121,7 @@ export interface OwnGun {
 
 /** The guns' models alone. */
 export function ownGunModels(): Map<WeaponId, SourceModel> {
-  return new Map([[WeaponId.PhysicsGun, physicsGun()], [WeaponId.ToolGun, toolGun()]]);
+  return new Map([[WeaponId.PhysicsGun, physicsGun()], [WeaponId.ToolGun, toolGun()], [WeaponId.Shotgun, ownShotgun()]]);
 }
 
 /** Both guns with their materials, and the Tool Gun's screen. */
@@ -262,24 +263,24 @@ function model(name: string, bones: SourceBone[], m: MeshBuilder, muzzle: Vec3, 
   };
 }
 
-function bone(name: string, parent: number, position: Vec3): SourceBone {
+export function bone(name: string, parent: number, position: Vec3): SourceBone {
   return { name, parent, position, quat: [0, 0, 0, 1], poseToBone: translation(scale(position, -1)), flags: 0 };
 }
 
 
-function axisQuat(axis: Vec3, angle: number): [number, number, number, number] {
+export function axisQuat(axis: Vec3, angle: number): [number, number, number, number] {
   const a = normalize(axis);
   const s = Math.sin(angle / 2);
   return [a[0] * s, a[1] * s, a[2] * s, Math.cos(angle / 2)];
 }
 
 /** A vector turned by a unit quaternion. */
-function rotate(q: readonly [number, number, number, number], v: Vec3): Vec3 {
+export function rotate(q: readonly [number, number, number, number], v: Vec3): Vec3 {
   const u: Vec3 = [q[0], q[1], q[2]];
   const t = scale(cross(u, v), 2);
   return add(add(v, scale(t, q[3])), cross(u, t));
 }
 
-function translation(p: Vec3): Matrix3x4 {
+export function translation(p: Vec3): Matrix3x4 {
   return new Float32Array([1, 0, 0, p[0], 0, 1, 0, p[1], 0, 0, 1, p[2]]);
 }
