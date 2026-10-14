@@ -1,6 +1,7 @@
 import type { GroupId, ObjectId } from '../model/scene.ids';
 import type { GroupNode, Scene, SceneObject } from '../model/scene.types';
 import { GROUP_NAME, SCENE_LIMITS } from './scene.validate';
+import { withoutJointsOf } from './joints';
 
 /**
  * READ ME — the Object Tree: groups nest. An object points at its
@@ -176,7 +177,7 @@ export function withoutObjects(scene: Scene, ids: ReadonlySet<ObjectId>): Scene 
   const index = groupIndex(scene);
   const whole = coverItems(scene, ids).groups;
   const nodes = [...index.values()].filter((g) => !chain(index, g.id).some((x) => whole.includes(x)));
-  return withGroups(scene, scene.objects.filter((o) => !ids.has(o.id)), nodes);
+  return withoutJointsOf(withGroups(scene, scene.objects.filter((o) => !ids.has(o.id)), nodes), ids);
 }
 
 /**

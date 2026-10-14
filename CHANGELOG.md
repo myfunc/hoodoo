@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.19.0 - 2026-10-13
+
+### Added
+- Sandbox's Tool Gun welds: Weld, Ball Socket and No-Collide in a new Constraints
+  category. Mouse 1 on a prop, Mouse 1 on the second object (the ground too); R clears
+  them. A welded build lifts, falls and is removed as one thing, stays welded after Play,
+  is saved with the scene, and Z takes a weld back.
+
+### Changed
+- Sandbox's spawn menu is laid out and coloured as Garry's Mod's: the Spawnlists tab with
+  its lists as a tree on the left, the Tools tab on the right with the tools by category
+  under blue headers and the chosen tool's panel beside them.
 ## 0.18.1 - 2026-10-14
 
 ### Changed

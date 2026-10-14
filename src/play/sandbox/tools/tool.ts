@@ -15,6 +15,9 @@ import type { SceneEdits } from '../scene-edits';
  */
 
 export enum ToolId {
+  Weld = 'weld',
+  NoCollide = 'nocollide',
+  BallSocket = 'ballsocket',
   Remover = 'remover',
   Resize = 'resize',
   Colour = 'colour',
@@ -22,6 +25,7 @@ export enum ToolId {
 }
 
 export enum ToolCategory {
+  Constraints = 'Constraints',
   Construction = 'Construction',
   Render = 'Render',
 }
@@ -43,8 +47,10 @@ export interface ToolContext {
   readonly edits: SceneEdits;
   /** Physics moves the object now (a prop): where it is belongs to play, not to the scene. */
   moving(id: ObjectId): boolean;
-  /** The object and every object it is one body with. */
+  /** The object and every object it is one body with or joined to. */
   joined(id: ObjectId): ReadonlySet<ObjectId>;
+  /** A point the aim met on an object, in the object's own frame (for joints); null when it has no body. */
+  anchor(id: ObjectId, point: Vec3): Vec3 | null;
 }
 
 export interface ToolLine {
@@ -65,6 +71,9 @@ export interface Tool {
 
 /** What Remover and Resize take: a finite, unlocked object (the ground, terrains and locked objects are the map). */
 export const isProp = (o: SceneObject): boolean => canBePhysical(o.kind) && !o.locked;
+
+/** What a joint's second click takes: anything solid but a light, the map included (a prop welded to it holds still); one without a body has no anchor. */
+export const isJoinable = (o: SceneObject): boolean => !LIGHT_KINDS.has(o.kind);
 
 /** What Colour and Material paint: anything unlocked with a surface (a scene is built in Garry's Mod mode, ground included). */
 export const isPaintable = (o: SceneObject): boolean => !o.locked && !LIGHT_KINDS.has(o.kind);

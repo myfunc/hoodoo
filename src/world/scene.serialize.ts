@@ -8,6 +8,7 @@ import { tidyGroups } from './group-tree';
 import { localOf, placed } from './group-pose';
 import { LIGHT_KINDS, TERRAIN_KINDS } from './objects.factory';
 import { tidyPairs } from './portals';
+import { jointTable } from './joints';
 import { withBody } from './body-flags';
 import { revivePlay } from './play/script-validate';
 import { BOOKMARK_SLOTS, DEFAULT_CAMERA, DEFAULT_DOCUMENT, DEFAULT_VIEWS, EMPTY_ANIMATION } from './scene.defaults';
@@ -184,6 +185,7 @@ export function deserializeScene(raw: unknown): Scene {
   const rig = check.rigTable(s.rig);
   const render = check.renderSetup(s.render);
   const ids = new Set(objects.map((o) => o.id));
+  const joints = jointTable(s.joints, ids);
   const groupIds = new Set([...groups.map((g) => g.id as string), ...objects.flatMap((o) => (o.groupId ? [o.groupId as string] : []))]);
   return placed({
     animation: v1 && !motion ? EMPTY_ANIMATION : check.animation(s.animation, motion ? V1_MOTION_ANIMATION : EMPTY_ANIMATION, ids, camera, sky, groupIds),
@@ -197,5 +199,6 @@ export function deserializeScene(raw: unknown): Scene {
     bookmarks: bookmarks.map((b) => (b ? check.camera(b, DEFAULT_CAMERA) : null)),
     ...(rig ? { rig } : {}),
     ...(render ? { render } : {}),
+    ...(joints.length ? { joints } : {}),
   });
 }

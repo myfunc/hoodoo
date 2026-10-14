@@ -206,8 +206,23 @@ interface Tool {
 }
 ```
 
-Its changes go through `SceneEdits` (`change`, `remove`), one History step
-each. Two-click tools will add a step and a ghost to it.
+Its changes go through `SceneEdits` (`change`, `remove`, `addJoint`,
+`removeJointsOf`), one History step each.
+
+Weld, Ball Socket and No-Collide are two clicks (`tools/pair-tool.ts`): Mouse 1
+on a prop, Mouse 1 on the second object (the map too: a prop welded to it holds
+still); the info panel says what the next click does, R forgets a first click or
+clears the object's joints of that kind. A joint is a record of the scene
+(`SceneJoint`, `world/joints.ts`) with an anchor in each object's own frame, so
+it is saved with the scene, undone with Z, dropped with either object, and holds
+after play wherever play left the objects. Play turns the scene's joints into
+physics (`play/sandbox/joints.ts`), again after every change of the scene (a
+rebuilt body loses its joints): a Weld is a fixed joint that keeps the pair as
+they stand, its No-collide setting (on, as Garry's Mod's box) keeps the pair from
+touching each other; a Ball Socket pivots at the second click; a No-Collide
+lets the pair pass through each other. Joined objects are one contraption to the
+Remover's Mouse 2 and to the Physics Gun: what it carries stays, joined parts
+included, where play leaves it. Easy Weld (Mouse 2) is still to come.
 
 ## Undo
 
@@ -226,14 +241,26 @@ asked back on letting go of Q would be refused once the key press is a few
 seconds old, and play would stop at *Click to play*. The gun's button clicks
 under that cursor, the wheel scrolls the icons; the keys still walk.
 
-Left, the spawn lists (`src/play/sandbox/spawn-lists.ts`): Primitives (the
-Create palette's shapes), Chess and Billiards (the Object Library's items).
+The menu is laid out as Garry's Mod's (`spawnmenu.lua`, `toolpanel.lua`):
+margins of a tenth of what the screen has past 1024 × 768 (25 to 256 pixels,
+none on a smaller screen), the creation sheet on the left with its Spawnlists
+tab, and the tool sheet on the right (300 to 460 pixels) with its Tools tab. It
+wears GWEN's default skin, its colours taken from `gwenskin/GModDefault.png`:
+translucent grey sheets with tabs on top, white trees and lists, blue category
+headers and selections, DermaDefault's Tahoma 13. Tabs Hoodoo has no content for
+(Weapons, NPCs, Vehicles…) are left out rather than shown empty.
+
+Left, the spawn lists (`src/play/sandbox/spawn-lists.ts`) as a tree under *Your
+Spawnlists*: Primitives (the Create palette's shapes), Chess and Billiards (the
+Object Library's items).
 Right, their ray-traced icons, drawn the first time a list shows, as the
 Create palette and the Object Library draw theirs. A click spawns the item
 where you aim (`spawn.ts`): turned to face you and resting on the surface
 along its normal, as a Physical prop, so it settles. A board is one physical
-group; a chess set keeps its board as one body and its pieces loose. The
-tools column comes with the Tool Gun.
+group; a chess set keeps its board as one body and its pieces loose. In the
+tool sheet the tools are listed by category (Constraints, Construction, Render)
+on the left and the chosen tool's control panel on the right: its name on a blue
+header, one line about it, its settings.
 
 Props come at their library size: a pool ball is one unit in radius and the
 chess pieces are at board scale. To play at chess scale, use Play's Tiny

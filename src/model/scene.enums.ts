@@ -166,3 +166,13 @@ export enum SmartRuleKind {
   Material = 'material',
   Name = 'name',
 }
+
+/** Sandbox's joints between objects (docs/sandbox-mode.md › Tool Gun), kept with the scene. */
+export enum JointKind {
+  /** Glued together where they are. */
+  Weld = 'weld',
+  /** The two pass through each other. */
+  NoCollide = 'nocollide',
+  /** Turning freely about a pivot. */
+  BallSocket = 'ballsocket',
+}

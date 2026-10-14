@@ -2,6 +2,7 @@
 export type ObjectId = string & { readonly __brand: 'ObjectId' };
 export type GroupId = string & { readonly __brand: 'GroupId' };
 export type SmartGroupId = string & { readonly __brand: 'SmartGroupId' };
+export type JointId = string & { readonly __brand: 'JointId' };
 
 const RADIX = 36;
 const RANDOM_CHARS = 6;
@@ -16,8 +17,10 @@ const mint = (prefix: string): string => {
 export const newObjectId = (): ObjectId => mint('o') as ObjectId;
 export const newGroupId = (): GroupId => mint('g') as GroupId;
 export const newSmartGroupId = (): SmartGroupId => mint('s') as SmartGroupId;
+export const newJointId = (): JointId => mint('j') as JointId;
 
 /** Boundary casts for ids that come back from a saved file. */
 export const asObjectId = (raw: string): ObjectId => raw as ObjectId;
 export const asGroupId = (raw: string): GroupId => raw as GroupId;
 export const asSmartGroupId = (raw: string): SmartGroupId => raw as SmartGroupId;
+export const asJointId = (raw: string): JointId => raw as JointId;

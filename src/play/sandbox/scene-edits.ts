@@ -1,6 +1,8 @@
 import { type Vec3, add, scale } from '../../core/vec3';
 import type { ObjectId } from '../../model/scene.ids';
-import type { SceneObject, Transform } from '../../model/scene.types';
+import type { JointKind } from '../../model/scene.enums';
+import type { SceneJoint, SceneObject, Transform } from '../../model/scene.types';
+import { jointsOf } from '../../world/joints';
 import { sameTransform } from '../../world/group-transform';
 import type { World } from '../../world/world';
 import { Layer } from '../sim/physics';
@@ -43,6 +45,19 @@ export class SceneEdits {
   change(ids: ReadonlySet<ObjectId>, label: string, fn: (o: SceneObject) => SceneObject): void {
     this.world.updateObjects(ids, label, fn);
     this.touch(ids);
+  }
+
+  /** A Constraints tool's joint: one History step. */
+  addJoint(joint: SceneJoint, label: string): void {
+    this.world.setJoints([...(this.world.scene.joints ?? []), joint], label);
+  }
+
+  /** Takes the object's joints of these kinds away, one History step; false when it had none. */
+  removeJointsOf(id: ObjectId, kinds: ReadonlySet<JointKind>, label: string): boolean {
+    const gone = new Set(jointsOf(this.world.scene, id, kinds).map((j) => j.id));
+    if (!gone.size) return false;
+    this.world.setJoints((this.world.scene.joints ?? []).filter((j) => !gone.has(j.id)), label);
+    return true;
   }
 
   /** The Remover: one History step. */

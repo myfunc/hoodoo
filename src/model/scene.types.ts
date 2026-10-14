@@ -6,6 +6,7 @@ import type {
   ColorChannel,
   Ease,
   Family,
+  JointKind,
   ShapeKind,
   SmartRuleKind,
   SkyMode,
@@ -14,7 +15,7 @@ import type {
   ValueChannel,
   ViewKind,
 } from './scene.enums';
-import type { GroupId, ObjectId, SmartGroupId } from './scene.ids';
+import type { GroupId, JointId, ObjectId, SmartGroupId } from './scene.ids';
 import type { PlayScript, TriggerZone } from './play.types';
 
 export interface Transform {
@@ -143,6 +144,26 @@ export interface SmartGroup {
   readonly id: SmartGroupId;
   readonly name: string;
   readonly rule: SmartRule;
+}
+
+/**
+ * A Sandbox joint (Weld, No-Collide, Ball Socket): two objects, or one and the
+ * world, held as Play's physics holds them. Anchors are points in each object's
+ * own frame (its position and turn, not its size), so they hold wherever play
+ * leaves the objects.
+ */
+export interface SceneJoint {
+  readonly id: JointId;
+  readonly kind: JointKind;
+  readonly a: ObjectId;
+  /** Null: the world. */
+  readonly b: ObjectId | null;
+  readonly anchorA: Vec3;
+  readonly anchorB: Vec3;
+  /** Breaks under more than this force; absent: never (Garry's Mod's default). */
+  readonly forceLimit?: number;
+  /** The two still collide with each other. */
+  readonly collide?: boolean;
 }
 
 export interface CloudSettings {
@@ -288,4 +309,6 @@ export interface Scene {
   readonly rig?: { readonly camera?: RigFlags; readonly sun?: RigFlags };
   /** The final render's options; absent: the defaults (six bounces). */
   readonly render?: RenderSetup;
+  /** Sandbox's welds and other joints; absent when there are none. */
+  readonly joints?: readonly SceneJoint[];
 }

@@ -7,9 +7,11 @@ import { Choice } from '../kit/controls';
 import { el } from '../kit/dom';
 
 /**
- * READ ME — the Tool Gun's column of the spawn menu (Q held, docs/sandbox-mode.md
- * › Tool Gun), on the right as in Garry's Mod: the tools by category, then the
- * chosen tool's settings, built from what the tool describes. Everything is a
+ * READ ME — the Tool Gun's sheet of the spawn menu (Q held, docs/sandbox-mode.md
+ * › Tool Gun), on the right as Garry's Mod's toolpanel.lua lays it out: the Tools
+ * tab, the tools listed by category with blue headers on the left, and the
+ * chosen tool's control panel on the right — its name, one line about it, then
+ * its settings, built from what the tool describes. Everything is a
  * click (segments, swatches, material tiles), so the spawn menu's own cursor
  * works it while the pointer stays locked; nothing is dragged.
  */
@@ -49,6 +51,8 @@ export interface ToolEntry {
   readonly id: string;
   readonly name: string;
   readonly category: string;
+  /** One line under the name in the control panel. */
+  readonly about: string;
   readonly settings: readonly ToolSetting[];
 }
 
@@ -61,27 +65,34 @@ export class ToolMenu {
   readonly el: HTMLElement;
   private readonly list: HTMLElement;
   private readonly settings: HTMLElement;
+  private readonly title: HTMLElement;
+  private readonly about: HTMLElement;
   private readonly rows = new Map<string, HTMLElement>();
   /** Each tool's settings panel, built the first time the tool is chosen. */
   private readonly panels = new Map<string, HTMLElement>();
   private readonly refreshers = new Map<string, () => void>();
 
   constructor(private readonly thumbs: Thumbnailer, private readonly tools: readonly ToolEntry[], private readonly pick: (id: string) => void) {
-    this.list = el('div', { cls: 'sbx-tools-list', attrs: { role: 'listbox', 'aria-label': 'Tools' } });
+    this.list = el('div', { cls: 'gw-catlist sbx-tools-list', attrs: { role: 'listbox', 'aria-label': 'Tools' } });
     this.settings = el('div', { cls: 'sbx-tools-settings' });
-    this.el = el('div', { cls: 'sbx-tools', attrs: { 'aria-label': 'Tools' } }, [
-      el('div', { cls: 'sbx-spawn-head' }, [el('span', { cls: 'sbx-spawn-title', text: 'Tools' })]),
-      this.list,
-      this.settings,
+    this.title = el('div', { cls: 'gw-cpanel-title' });
+    this.about = el('div', { cls: 'gw-cpanel-about' });
+    this.el = el('div', { cls: 'gw-sheet sbx-tools', attrs: { 'aria-label': 'Tools' } }, [
+      el('div', { cls: 'gw-tabs' }, [el('div', { cls: 'gw-tab is-active', text: 'Tools' })]),
+      el('div', { cls: 'gw-sheet-body sbx-tools-body' }, [
+        this.list,
+        el('div', { cls: 'gw-cpanel' }, [el('div', { cls: 'gw-cpanel-head' }, [this.title]), el('div', { cls: 'gw-cpanel-body' }, [this.about, this.settings])]),
+      ]),
     ]);
     for (const category of [...new Set(tools.map((t) => t.category))]) {
-      this.list.append(el('div', { cls: 'sbx-tools-cat', text: category }));
+      const items = el('div', { cls: 'gw-cat-items' });
       for (const t of tools.filter((x) => x.category === category)) {
-        const row = el('div', { cls: `sbx-tools-row ${PICK}`, text: t.name, attrs: { role: 'option', tabindex: '-1' } });
+        const row = el('div', { cls: `gw-cat-item sbx-tools-row ${PICK}`, text: t.name, attrs: { role: 'option', tabindex: '-1' } });
         row.addEventListener('click', () => this.pick(t.id));
         this.rows.set(t.id, row);
-        this.list.append(row);
+        items.append(row);
       }
+      this.list.append(el('div', { cls: 'gw-cat' }, [el('div', { cls: 'gw-cat-head', text: category }), items]));
     }
   }
 
@@ -92,6 +103,8 @@ export class ToolMenu {
       row.setAttribute('aria-selected', String(key === id));
     }
     const tool = this.tools.find((t) => t.id === id);
+    this.title.textContent = tool?.name ?? '';
+    this.about.textContent = tool?.about ?? '';
     if (!tool) return this.settings.replaceChildren();
     let panel = this.panels.get(id);
     if (!panel) {

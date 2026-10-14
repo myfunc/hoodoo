@@ -39,32 +39,49 @@
 .sbx-hud.is-hl2 .sbx-hint { bottom: calc(10% + 8px); }
 .play-layer.is-sandbox .play-panel-host { z-index: 5; }
 
-/* The spawn menu (Q held, spawn-menu.ts): the Play panel's dark glass over the left of the picture, categories as a
-   list with an amber rule, the icons in a grid that scrolls. Hover outlines a tile without moving anything. */
-.sbx-spawn, .sbx-tools {
-  position: absolute; left: 3%; top: 7%; width: min(760px, 62%); height: min(540px, 80%);
-  display: flex; flex-direction: column; padding: 14px 16px 12px; border-radius: 0; cursor: default; pointer-events: auto;
-  font: 12px var(--font-ui); color: #eceae2;
-  background: rgba(24, 24, 27, 0.9); border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+/* The spawn menu (Q held, spawn-menu.ts) as Garry's Mod lays it out (spawnmenu.lua): margins of a tenth of what the
+   screen has past 1024 x 768, 25 to 256 pixels (none on a smaller screen), the creation sheet on the left and the tool
+   sheet on the right. The skin is GWEN's default (garrysmod/lua/skins/default.lua), its colours taken from
+   gwenskin/GModDefault.png: translucent grey sheets with tabs on top, white trees and lists, blue category headers and
+   selections, DermaDefault's Tahoma 13. */
+.sbx-q {
+  --gw-sheet: rgba(157, 162, 165, 0.6); --gw-tab: #9da1a5; --gw-tab-off: #787a7c; --gw-white: #fff; --gw-ink: #0a0a0a;
+  --gw-blue: rgba(0, 168, 255, 0.8); --gw-pick: #5b8cf7; --gw-hover: rgba(90, 140, 248, 0.4); --gw-edge: rgba(0, 0, 0, 0.3);
+  --gw-button: #e0e0e0; --gw-button-ink: #525252; --gw-down: #53b1f4;
+  position: absolute; display: flex; gap: 8px; cursor: default; pointer-events: auto; font: 13px Tahoma, Verdana, sans-serif;
+  left: clamp(0px, (100% - 1024px) * 0.1, 256px); right: clamp(0px, (100% - 1024px) * 0.1, 256px);
+  top: clamp(0px, (100% - 768px) * 0.1, 256px); bottom: clamp(0px, (100% - 768px) * 0.1, 256px);
 }
-.sbx-spawn[hidden], .sbx-tools[hidden] { display: none; }
-.sbx-spawn-head { display: flex; align-items: baseline; gap: 14px; padding-bottom: 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
-.sbx-spawn-title { font-size: 14px; font-weight: bold; color: #ffb020; }
-.sbx-spawn-hint { color: #8f8d86; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sbx-spawn-body { flex: 1 1 auto; min-height: 0; display: flex; gap: 16px; padding-top: 12px; }
-.sbx-spawn-cats { flex: 0 0 132px; display: flex; flex-direction: column; gap: 2px; padding-right: 14px; border-right: 1px solid rgba(255, 255, 255, 0.1); }
-.sbx-spawn-cat { padding: 7px 10px; border-left: 2px solid transparent; color: #b9b7af; cursor: pointer; white-space: nowrap; }
-.sbx-spawn-cat:hover, .sbx-spawn-cat.is-hover { color: #eceae2; }
-.sbx-spawn-cat.is-current { color: #ffb020; border-left-color: #ffb020; background: rgba(255, 176, 32, 0.08); }
-.sbx-spawn-grid { flex: 1 1 auto; min-width: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #56565c transparent; }
-.sbx-spawn-page { display: grid; grid-template-columns: repeat(auto-fill, 88px); gap: 10px; align-content: start; }
-.sbx-spawn-tile { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 4px; cursor: pointer; outline: 1px solid transparent; outline-offset: -1px; }
-.sbx-spawn-tile:hover, .sbx-spawn-tile.is-hover { outline-color: #ffb020; background: rgba(255, 176, 32, 0.06); }
-.sbx-spawn-tile:active { background: rgba(255, 176, 32, 0.16); }
-.scene-window .sbx-spawn-tile canvas { position: static; width: 72px; height: 72px; display: block; }
-.sbx-spawn-name { max-width: 80px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #b9b7af; }
-.sbx-spawn-count { padding-top: 8px; margin-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.1); color: #8f8d86; text-align: right; }
-.sbx-spawn-count.is-full { color: #ff8a7a; }
+.sbx-q[hidden] { display: none; }
+.sbx-q-side { flex: 0 0 clamp(300px, 40%, 460px); min-width: 0; display: flex; }
+.gw-sheet { position: relative; flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; color: var(--gw-white); }
+.gw-tabs { flex: 0 0 auto; display: flex; align-items: flex-end; gap: 2px; padding-left: 8px; }
+.gw-tab { padding: 3px 10px 4px; border-radius: 4px 4px 0 0; background: var(--gw-tab-off); color: rgba(255, 255, 255, 0.4); white-space: nowrap; }
+.gw-tab.is-active { background: var(--gw-tab); color: var(--gw-white); padding-top: 5px; }
+.gw-sheet-body { flex: 1 1 auto; min-height: 0; display: flex; gap: 6px; padding: 6px; border-radius: 4px; background: var(--gw-sheet); }
+.sbx-spawn-hint { margin-left: auto; padding: 0 8px 4px; color: rgba(255, 255, 255, 0.7); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5); }
+
+/* DTree: the spawn lists, white, a folder open over its lists, the chosen one blue. */
+.gw-tree { flex: 0 0 clamp(120px, 26%, 200px); overflow-y: auto; padding: 3px 0; border-radius: 4px; background: var(--gw-white); color: var(--gw-ink); }
+.gw-tree-node { padding: 1px 6px 1px 18px; position: relative; white-space: nowrap; }
+.gw-tree-node::before { content: ''; position: absolute; left: 6px; top: 6px; border-style: solid; border-width: 5px 4px 0; border-color: #6f6f6f transparent transparent; }
+.gw-tree-leaf { margin-left: 18px; padding: 1px 6px; white-space: nowrap; cursor: pointer; }
+.gw-tree-leaf:hover, .gw-tree-leaf.is-hover { background: var(--gw-hover); }
+.gw-tree-leaf.is-current { background: var(--gw-pick); color: var(--gw-white); }
+.sbx-spawn-right { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.gw-content { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.5) transparent; }
+.sbx-spawn-page { display: grid; grid-template-columns: repeat(auto-fill, 80px); gap: 4px; align-content: start; }
+/* ContentIcon: the item's picture on a light tile, its name under it; hover rings it in blue. */
+.sbx-spawn-tile {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 3px 2px; cursor: pointer;
+  border-radius: 4px; background: rgba(255, 255, 255, 0.85); border: 1px solid var(--gw-edge); color: var(--gw-ink);
+}
+.sbx-spawn-tile:hover, .sbx-spawn-tile.is-hover { border-color: var(--gw-blue); box-shadow: 0 0 0 2px var(--gw-blue); }
+.sbx-spawn-tile:active { background: var(--gw-down); }
+.scene-window .sbx-spawn-tile canvas { position: static; width: 64px; height: 64px; display: block; }
+.sbx-spawn-name { max-width: 74px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.sbx-spawn-count { padding-top: 4px; color: rgba(255, 255, 255, 0.85); font-size: 11px; text-align: right; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5); }
+.sbx-spawn-count.is-full { color: #ff6a5a; }
 /* The menu's own cursor while the pointer stays locked: a plain arrow, white with a dark edge. */
 .sbx-cursor {
   position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none;
@@ -73,30 +90,41 @@
 }
 .sbx-cursor[hidden] { display: none; }
 
-/* The Tool Gun's column (tool-menu.ts), on the right as Garry's Mod puts it: the tools by category, the chosen
-   one's settings under them. Everything is a click, so the menu's own cursor works it. */
-.sbx-tools { left: auto; right: 3%; width: min(300px, 30%); }
-.sbx-tools-list { flex: 0 0 auto; padding: 8px 0; border-bottom: 1px solid rgba(255, 255, 255, 0.1); scrollbar-width: thin; }
-.sbx-tools-cat { padding: 6px 0 3px; color: #8f8d86; }
-.sbx-tools-row { padding: 4px 10px; border-left: 2px solid transparent; color: #b9b7af; cursor: pointer; white-space: nowrap; }
-.sbx-tools-row:hover, .sbx-tools-row.is-hover { color: #eceae2; }
-.sbx-tools-row.is-current { color: #ffb020; border-left-color: #ffb020; background: rgba(255, 176, 32, 0.08); }
-.sbx-tools-settings { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-top: 10px; scrollbar-width: thin; scrollbar-color: #56565c transparent; }
-.sbx-tools-setting { margin-bottom: 12px; }
-.sbx-tools-label { margin-bottom: 5px; color: #8f8d86; }
-.sbx-tools .ui-toggle.is-hover { outline: 1px solid #ffb020; outline-offset: -1px; }
+/* The tool sheet (tool-menu.ts), as toolpanel.lua lays it out: the tools in a DCategoryList on the left — white,
+   a blue header per category, the chosen tool blue — and its control panel on the right: a blue header with the
+   tool's name, one line about it, its settings. Settings wear GWEN's buttons: light grey, pressed blue. */
+.sbx-tools-body { gap: 6px; }
+.gw-catlist { flex: 0 0 42%; min-width: 0; overflow-y: auto; border-radius: 4px; background: var(--gw-white); color: var(--gw-ink); scrollbar-width: thin; }
+.gw-cat + .gw-cat { margin-top: 2px; }
+.gw-cat-head { padding: 2px 6px; background: var(--gw-blue); color: var(--gw-white); font-weight: bold; }
+.gw-cat-item { padding: 1px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gw-cat-item:nth-child(even) { background: rgba(59, 59, 59, 0.05); }
+.gw-cat-item:hover, .gw-cat-item.is-hover { background: var(--gw-hover); }
+.gw-cat-item.is-current { background: var(--gw-pick); color: var(--gw-white); }
+.gw-cpanel { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; border-radius: 4px; overflow: hidden; background: var(--gw-white); color: var(--gw-ink); }
+.gw-cpanel-head { padding: 2px 6px; background: var(--gw-blue); color: var(--gw-white); font-weight: bold; }
+.gw-cpanel-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px 8px; scrollbar-width: thin; }
+.gw-cpanel-about { margin-bottom: 8px; color: #333; }
+.sbx-tools-settings { padding-top: 2px; }
+.sbx-tools-setting { margin-bottom: 10px; }
+.sbx-tools-label { margin-bottom: 3px; color: var(--gw-ink); }
+.sbx-q .segmented { border: 1px solid #a8a8a8; border-radius: 3px; overflow: hidden; }
+.sbx-q .segmented .ui-toggle { color: var(--gw-button-ink); background: linear-gradient(#eaeaea, var(--gw-button)); border: 0; }
+.sbx-q .segmented .ui-toggle + .ui-toggle { border-left: 1px solid #b8b8b8; }
+.sbx-q .segmented .ui-toggle.is-on { color: var(--gw-white); background: var(--gw-down); }
+.sbx-q .ui-toggle.is-hover { outline: 1px solid var(--gw-blue); outline-offset: -1px; }
 .sbx-colour-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; }
 .sbx-colour { aspect-ratio: 1; cursor: pointer; outline: 1px solid transparent; outline-offset: 0; }
-.sbx-colour:hover, .sbx-colour.is-hover { outline-color: #eceae2; }
-.sbx-colour.is-current { outline: 2px solid #ffb020; z-index: 1; }
+.sbx-colour:hover, .sbx-colour.is-hover { outline-color: #0a0a0a; }
+.sbx-colour.is-current { outline: 2px solid #5b8cf7; z-index: 1; }
 .sbx-colour-row { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
-.sbx-colour-now { width: 28px; height: 16px; border: 1px solid rgba(255, 255, 255, 0.3); }
-.sbx-colour-hex { color: #b9b7af; font-family: var(--font-mono, monospace); }
-.sbx-material-family { margin: 8px 0 4px; color: #8f8d86; }
+.sbx-colour-now { width: 28px; height: 16px; border: 1px solid rgba(0, 0, 0, 0.4); }
+.sbx-colour-hex { color: #333; font-family: var(--font-mono, monospace); }
+.sbx-material-family { margin: 8px 0 4px; color: #333; }
 .sbx-material-row { display: flex; flex-wrap: wrap; gap: 3px; }
 .sbx-material { padding: 2px; cursor: pointer; outline: 1px solid transparent; outline-offset: -1px; }
-.sbx-material:hover, .sbx-material.is-hover { outline-color: #eceae2; }
-.sbx-material.is-current { outline: 2px solid #ffb020; }
+.sbx-material:hover, .sbx-material.is-hover { outline-color: rgba(0, 168, 255, 0.8); }
+.sbx-material.is-current { outline: 2px solid #5b8cf7; }
 .scene-window .sbx-material canvas { position: static; width: 40px; height: 40px; display: block; }
 
 /* The Tool Gun's tool at the top left, as gmod_tool's DrawHUD lays it out: the name large, a line about it, then

@@ -3,7 +3,7 @@ import { Logger } from '../core/log';
 import { add } from '../core/vec3';
 import { SmartRuleKind, type ViewKind } from '../model/scene.enums';
 import { type GroupId, type ObjectId, type SmartGroupId, newGroupId, newObjectId } from '../model/scene.ids';
-import type { Animation, BodyFlags, Camera, DocumentSetup, GroupNode, Material, OrthoView, RenderSetup, Scene, SceneObject, Sky, SmartGroup, SmartRule, Transform } from '../model/scene.types';
+import type { Animation, BodyFlags, Camera, DocumentSetup, GroupNode, Material, OrthoView, RenderSetup, Scene, SceneJoint, SceneObject, Sky, SmartGroup, SmartRule, Transform } from '../model/scene.types';
 import { frameTime, recordKeys, withKey, withPose } from './animation/keying';
 import { poseAt } from './animation/pose';
 import { repivoted, settled } from './group-edits';
@@ -13,6 +13,7 @@ import { type TreeItems, cloneGroups, coverItems, dissolved, familyOf, freshGrou
 import { withGroupBody } from './body-flags';
 import type { PlayScript } from '../model/play.types';
 import { withScript } from './play/scripts';
+import { withJoints } from './joints';
 import { History } from './history';
 import { limitBreach } from './scene-limits';
 import { SCENE_LIMITS } from './scene.constants';
@@ -202,6 +203,11 @@ export class World {
       return fn(o);
     });
     if (touched) this.commit(label, { ...this.scene, objects }, ChangeKind.Objects);
+  }
+
+  /** Play's Sandbox: the scene's joints (welds and the like) replaced, one undo step. */
+  setJoints(joints: readonly SceneJoint[], label: string): void {
+    this.commit(label, withJoints(this.scene, joints), ChangeKind.Objects);
   }
 
   /** Play's Sandbox: objects left where physics put them, one undo step, never keyed (the playhead may be anywhere). */

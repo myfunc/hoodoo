@@ -4,12 +4,14 @@ import { iconCanvas } from '../chrome/icon-canvas';
 import { el } from '../kit/dom';
 
 /**
- * READ ME — Sandbox's spawn menu (Q held, docs/sandbox-mode.md): Garry's Mod's
- * spawn lists over the picture. Categories on the left, ray-traced icons of the
- * category on the right (drawn the first time it shows, so play keeps the GPU
- * until then), and how many objects the tracer holds at the foot. A click asks
- * Sandbox to spawn; clicks never reach the play layer under it. Other panels
- * (the Tool Gun's column) open and close with it. The pointer stays locked while
+ * READ ME — Sandbox's spawn menu (Q held, docs/sandbox-mode.md), laid out as
+ * Garry's Mod's (gamemodes/sandbox spawnmenu.lua): over the picture with
+ * margins, the creation sheet on the left — its Spawnlists tab with the lists
+ * as a tree and the ray-traced icons of the chosen one (drawn the first time it
+ * shows, so play keeps the GPU until then), how many objects the tracer holds at
+ * the foot — and the tool sheet docked on the right (tool-menu.ts). Its skin is
+ * GWEN's default (sandbox.css). A click asks Sandbox to spawn; clicks never
+ * reach the play layer under it. The pointer stays locked while
  * it is open (a lock asked back on letting go of Q is refused once the key press
  * is a few seconds old): the mouse moves a cursor of its own, which hovers and
  * clicks what is under it, and the wheel scrolls what it is over. Unlocked, the
@@ -32,6 +34,8 @@ const HOVERED = 'is-hover';
 /** What the cursor hovers and clicks: tiles, categories, the tools' rows, swatches and segments. */
 const PICKABLE = '.sbx-spawn-tile, .sbx-spawn-cat, .sbx-pick, .ui-toggle';
 const HINT = 'Click spawns where you aim · let go of Q to aim again';
+const SPAWNLISTS = 'Spawnlists';
+const YOUR_LISTS = 'Your Spawnlists';
 
 export class SpawnMenu {
   readonly el: HTMLElement;
@@ -40,6 +44,8 @@ export class SpawnMenu {
   private readonly cats: HTMLElement;
   private readonly grid: HTMLElement;
   private readonly count: HTMLElement;
+  /** Where the tool sheet docks, on the right. */
+  private readonly side: HTMLElement;
   private readonly pages = new Map<string, HTMLElement>();
   /** The menu's panel and the ones that open with it. */
   private readonly panels: HTMLElement[] = [];
@@ -49,19 +55,22 @@ export class SpawnMenu {
   private hovered: HTMLElement | null = null;
 
   constructor(private readonly thumbs: Thumbnailer, private readonly lists: readonly SpawnList[], private readonly spawn: (key: string) => void) {
-    this.cats = el('div', { cls: 'sbx-spawn-cats', attrs: { role: 'listbox', 'aria-label': 'Spawn lists' } });
-    this.grid = el('div', { cls: 'sbx-spawn-grid' });
-    this.count = el('div', { cls: 'sbx-spawn-count' });
-    this.el = el('div', { cls: 'sbx-spawn', attrs: { 'aria-label': 'Spawn menu' } }, [
-      el('div', { cls: 'sbx-spawn-head' }, [el('span', { cls: 'sbx-spawn-title', text: 'Spawn' }), el('span', { cls: 'sbx-spawn-hint', text: HINT })]),
-      el('div', { cls: 'sbx-spawn-body' }, [this.cats, this.grid]),
-      this.count,
+    this.cats = el('div', { cls: 'gw-tree sbx-spawn-cats', attrs: { role: 'tree', 'aria-label': 'Spawn lists' } }, [
+      el('div', { cls: 'gw-tree-node is-open', text: YOUR_LISTS }),
     ]);
+    this.grid = el('div', { cls: 'gw-content sbx-spawn-grid' });
+    this.count = el('div', { cls: 'sbx-spawn-count' });
+    this.side = el('div', { cls: 'sbx-q-side' });
+    const create = el('div', { cls: 'gw-sheet sbx-spawn', attrs: { 'aria-label': 'Spawn menu' } }, [
+      el('div', { cls: 'gw-tabs' }, [el('div', { cls: 'gw-tab is-active', text: SPAWNLISTS }), el('span', { cls: 'sbx-spawn-hint', text: HINT })]),
+      el('div', { cls: 'gw-sheet-body sbx-spawn-body' }, [this.cats, el('div', { cls: 'sbx-spawn-right' }, [this.grid, this.count])]),
+    ]);
+    this.el = el('div', { cls: 'sbx-q' }, [create, this.side]);
     this.cursor = el('div', { cls: 'sbx-cursor', attrs: { 'aria-hidden': 'true' } });
     this.cursor.hidden = true;
     this.addPanel(this.el);
     for (const list of lists) {
-      const row = el('div', { cls: 'sbx-spawn-cat', text: list.name, attrs: { role: 'option', tabindex: '-1' } });
+      const row = el('div', { cls: 'gw-tree-leaf sbx-spawn-cat', text: list.name, attrs: { role: 'treeitem', tabindex: '-1' } });
       row.addEventListener('click', () => this.show(list.name));
       this.cats.append(row);
     }
@@ -70,6 +79,11 @@ export class SpawnMenu {
 
   get open(): boolean {
     return !this.el.hidden;
+  }
+
+  /** The tool sheet, docked on the right inside the menu. */
+  dock(panel: HTMLElement): void {
+    this.side.append(panel);
   }
 
   /** A panel that opens and closes with the menu and keeps its clicks from the play layer, which would lock the pointer. */

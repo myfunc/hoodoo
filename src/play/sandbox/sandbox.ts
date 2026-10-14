@@ -6,6 +6,7 @@ import type { Hl2HudState, Hl2Weapon } from '../../ui/sandbox/hl2/hl2-hud';
 import { type HudTool, SandboxHud } from '../../ui/sandbox/hud';
 import { SpawnMenu } from '../../ui/sandbox/spawn-menu';
 import { ToolMenu } from '../../ui/sandbox/tool-menu';
+import { contraption } from '../../world/joints';
 import { raycast } from '../../world/raycast';
 import type { World } from '../../world/world';
 import type { Vec3 } from '../../core/vec3';
@@ -15,6 +16,7 @@ import { Motion } from '../sim/physics';
 import type { PlayFrame, PlaySim } from '../sim/play-sim';
 import { SANDBOX_KEYS, isSnapKey, slotOfKey } from './binds';
 import { GameFiles } from './game-files';
+import { SandboxJoints } from './joints';
 import { Loadout } from './loadout';
 import { type Notice, Notices } from './notices';
 import { Overlay } from './overlay';
@@ -83,6 +85,8 @@ export interface SandboxAutomation {
   readonly spawn: (key: string) => boolean;
   /** Puts a tool in the Tool Gun and takes the gun out, as a click in the Tools column does. */
   readonly tool: (id: string) => void;
+  /** The object the Tool Gun's aim meets now, by id, or null. */
+  readonly aimed: () => string | null;
   /** Mouse motion as E-turning or looking. */
   readonly look: (dx: number, dy: number) => void;
   readonly hold: (code: string, down: boolean) => void;
@@ -98,6 +102,8 @@ export interface SandboxAutomation {
  */
 export class Sandbox {
   private readonly props: Props;
+  /** The scene's welds and other joints in physics. */
+  private readonly joints: SandboxJoints;
   private readonly edits: SceneEdits;
   private readonly menu: SpawnMenu;
   private readonly notices = new Notices();
@@ -127,12 +133,14 @@ export class Sandbox {
 
   constructor(private readonly host: SandboxHost) {
     this.props = new Props(host.sim, host.scene);
+    this.joints = new SandboxJoints(host.sim);
+    this.joints.sync(host.world.scene);
     this.edits = new SceneEdits(host.world, host.sim);
     this.menu = new SpawnMenu(host.thumbs, spawnLists(), (key) => void this.spawn(key));
     this.toolMenu = new ToolMenu(host.thumbs, this.toolgun.tools, (id) => this.pickTool(id as ToolId));
-    this.menu.addPanel(this.toolMenu.el);
+    this.menu.dock(this.toolMenu.el);
     host.layer.classList.add('is-sandbox');
-    host.layer.append(this.overlay.canvas, this.hud.el, this.menu.el, this.toolMenu.el, this.menu.cursor);
+    host.layer.append(this.overlay.canvas, this.hud.el, this.menu.el, this.menu.cursor);
     this.game = new GameFiles({ mount: (cs) => this.overlay.canvas.after(...cs), notify: (text) => this.notify(text, NoticeKind.Hint) });
     host.addPanelSection(this.game.section.el);
     this.automate();
@@ -206,13 +214,15 @@ export class Sandbox {
     this.reach = 0;
     this.weapon.step({ held, pressed, reach }, this.context());
     const body = this.weapon.view().held?.body;
-    if (body !== undefined) this.edits.touch(this.host.sim.bodies.items.get(body)?.members.map((m) => m.id) ?? []);
+    // What it holds and all joined to it move: they stay where play leaves them.
+    if (body !== undefined) this.edits.touch(contraption(this.host.world.scene, this.host.sim.bodies.items.get(body)?.members.map((m) => m.id) ?? []));
     return { ...raw, wheel: 0 };
   }
 
   /** The editor's scene changed during play: the props follow it (PlaySim.sync has the bodies). */
   sync(scene: Scene): void {
     this.props.sync(scene);
+    this.joints.sync(scene);
   }
 
   /** Every display frame: the HUD's text and the gun's sound (the canvases draw in `paint`). */
@@ -271,11 +281,11 @@ export class Sandbox {
   }
 
   dispose(): void {
+    this.joints.dispose();
     this.game.dispose();
     this.weapon.holster(this.context());
     this.hud.el.remove();
     this.menu.el.remove();
-    this.toolMenu.el.remove();
     this.menu.cursor.remove();
     this.overlay.canvas.remove();
     this.host.layer.classList.remove('is-sandbox', 'is-hl2');
@@ -321,7 +331,8 @@ export class Sandbox {
     return {
       edits: this.edits,
       moving: (id) => (bodies.itemOf(id)?.motion ?? Motion.Fixed) !== Motion.Fixed,
-      joined: (id) => bodies.sharing([id]),
+      joined: (id) => bodies.sharing(contraption(this.host.world.scene, bodies.sharing([id]))),
+      anchor: (id, point) => this.joints.anchorOf(id, point),
     };
   }
 
@@ -371,6 +382,10 @@ export class Sandbox {
       aim: (yaw, pitch) => { this.host.sim.player.yaw = yaw; this.host.sim.player.pitch = pitch; },
       spawn: (key) => this.spawn(key),
       tool: (id) => this.pickTool(id as ToolId),
+      aimed: () => {
+        const eye = this.host.sim.driver.eye();
+        return this.toolTrace(eye.position, aimOf(eye.yaw, eye.pitch))?.object.id ?? null;
+      },
       look: (dx, dy) => { if (!this.look(dx, dy)) this.host.sim.driver.look(dx, dy); },
       hold: (code, down) => { this.key(code, down); },
     };
