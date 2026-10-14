@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.41.0 - 2026-10-14
+
+### Fixed
+- In Play, chess pieces and other turned or hull-shaped objects stand upright on the
+  ground plane instead of toppling: the ground keeps a sheet under it that props rest on.
+
+### Added
+- Groundwork for Garry's Mod's own props in the spawn menu: reading a prop's model,
+  pictures and collision from the player's files, Garry's Mod's spawnlists, and the props'
+  icons. They spawn once the ray tracer draws models.
 ## 0.40.0 - 2026-10-14
 
 ### Added

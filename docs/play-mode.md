@@ -131,8 +131,11 @@ whose keys all share one pose, changing only a material, a light or the
 visibility, leaves the body as its flags say.
 Shapes: spheres, boxes, cylinders and cones natively; squashed ones,
 pyramids, tori and lathes as convex hulls; terrains and lattices as height
-fields; disks and squares as thin boxes; the ground as a half-space. Water
-that is not solid gets a floor half the player's height below it. Boolean
+fields; disks and squares as thin boxes; the ground as a half-space, with a
+sheet under it that only props touch (layer Floor, which no query sees):
+Rapier's half-space holds a convex hull by one point, and a chess piece or
+any turned or hull-shaped prop toppled where it should stand. Water that is
+not solid gets the same floor half the player's height below it. Boolean
 groups are approximated: Negative and Intersect members are left out; hidden
 objects are not solid, and one keyed to show is solid only while it shows.
 Every body holds what the picture draws, so the player meets the surface it

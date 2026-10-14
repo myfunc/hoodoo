@@ -188,9 +188,13 @@ export class VmGpu {
 
   /** Sizes the canvas to its box and clears it. */
   begin(): void {
-    const { gl, canvas } = this;
     const dpr = window.devicePixelRatio || 1;
-    const [w, h] = [Math.round(canvas.clientWidth * dpr), Math.round(canvas.clientHeight * dpr)];
+    this.beginAt(Math.round(this.canvas.clientWidth * dpr), Math.round(this.canvas.clientHeight * dpr));
+  }
+
+  /** A frame of `w × h` pixels on a canvas that is not on the page (the spawn icons'). */
+  beginAt(w: number, h: number): void {
+    const { gl, canvas } = this;
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w;
       canvas.height = h;

@@ -9,7 +9,7 @@ import { sameTransform } from '../../world/group-transform';
 import { movedByScript, shownByRules } from '../../world/play/scripts';
 import { ALL_LAYERS, type BodyId, Layer, Motion, type Physics, type Pose } from './physics';
 import { type Quat, conjQ, eulerOfQuat, mulQ, quatOfEuler, rotateQ } from './quat';
-import { ShapeType, placedShapes, shapesOf } from './shapes';
+import { GROUND, placedShapes, shapesOf } from './shapes';
 
 /**
  * READ ME — the scene as bodies. Each solid object becomes a body: Fixed, or
@@ -277,7 +277,7 @@ export class SceneBodies {
 
   private waterFloor(o: SceneObject, playerHeight: number): void {
     const position: Vec3 = [o.transform.position[0], o.transform.position[1] - playerHeight * WADE_DEPTH, o.transform.position[2]];
-    this.physics.addBody({ motion: Motion.Fixed, position, shapes: [{ type: ShapeType.HalfSpace, normal: [0, 1, 0] }], tag: o.id });
+    this.physics.addBody({ motion: Motion.Fixed, position, shapes: [...GROUND], tag: o.id });
   }
 
   private remember(item: BodyItem): void {

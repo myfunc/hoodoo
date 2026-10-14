@@ -1,3 +1,4 @@
+import { Layer } from './layers';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { type Vec3, ZERO3, add, dot, length, scale, sub } from '../../core/vec3';
 import type { Trace } from './pmove';
@@ -29,14 +30,8 @@ export enum Motion {
   Dynamic = 'dynamic',
 }
 
-/** Collision layers, as bits: a body is in one and collides with a set (`collidesWith`). */
-export enum Layer {
-  World = 1,
-  Prop = 2,
-  Player = 4,
-  /** Collides with the world only (dropped parts, "collide with world only"). */
-  Debris = 8,
-}
+/** Collision layers (layers.ts), here for what already reads them from physics. */
+export { Layer };
 export const ALL_LAYERS = 0xffff;
 const GROUP_SHIFT = 16;
 
@@ -194,7 +189,7 @@ export class Physics {
     for (const s of spec.shapes) {
       const c = this.colliderDesc(s);
       if (!c) continue;
-      c.setCollisionGroups(groups(layer, spec.collidesWith ?? ALL_LAYERS)).setSensor(spec.sensor === true);
+      c.setCollisionGroups(groups(s.layer ?? layer, s.collidesWith ?? spec.collidesWith ?? ALL_LAYERS)).setSensor(spec.sensor === true);
       if (share !== undefined) c.setMass(share);
       if (spec.friction !== undefined) c.setFriction(spec.friction);
       if (spec.restitution !== undefined) c.setRestitution(spec.restitution);

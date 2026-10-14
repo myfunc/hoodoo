@@ -3,6 +3,7 @@ import { latheProfile } from '../../assets/lathe.profiles';
 import { type Vec3, ZERO3, add } from '../../core/vec3';
 import { ShapeKind } from '../../model/scene.enums';
 import type { SceneObject } from '../../model/scene.types';
+import { Layer } from './layers';
 import { IDENTITY_Q, type Quat, mulQ, rotateQ } from './quat';
 
 /**
@@ -29,6 +30,9 @@ interface Placed {
   /** Where the shape sits in its body's frame (default: at the origin, unturned). */
   readonly offset?: Vec3;
   readonly rotation?: Quat;
+  /** The shape's own layer and what it meets, when not its body's (the ground's sheet for props). */
+  readonly layer?: number;
+  readonly collidesWith?: number;
 }
 
 export type ShapeSpec = Placed & (
@@ -47,6 +51,15 @@ export type ShapeSpec = Placed & (
 export const THIN = 0.01;
 /** Solid water or clouds reach this far each way: a sheet as large as any scene. */
 const SHEET_HALF = 1e4;
+/**
+ * The ground: a half-space, which the player and every query meet; and under it a sheet as large as
+ * any scene that only props touch, since Rapier's half-space holds a convex hull (a game prop) by
+ * one point and it topples where it should stand.
+ */
+export const GROUND: readonly ShapeSpec[] = [
+  { type: ShapeType.HalfSpace, normal: [0, 1, 0] },
+  { type: ShapeType.Box, half: [SHEET_HALF, 1, SHEET_HALF], offset: [0, -1, 0], layer: Layer.Floor, collidesWith: Layer.Prop | Layer.Debris },
+];
 /** Sizes within this ratio count as round. */
 const ROUND = 1e-3;
 const ELLIPSOID = { rings: 8, sides: 16 } as const;
@@ -204,7 +217,7 @@ export function shapesOf(o: SceneObject): ShapeSpec[] {
     case ShapeKind.Terrain:
     case ShapeKind.Lattice:
       return terrain(o, size);
-    case ShapeKind.GroundPlane: return [{ type: ShapeType.HalfSpace, normal: [0, 1, 0] }];
+    case ShapeKind.GroundPlane: return [...GROUND];
     case ShapeKind.WaterPlane:
     case ShapeKind.CloudPlane:
       return [{ type: ShapeType.Box, half: [SHEET_HALF, THIN, SHEET_HALF], offset: [0, -THIN, 0] }];
