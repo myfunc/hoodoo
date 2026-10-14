@@ -96,6 +96,29 @@ describe('spawning into the editor\'s scene', () => {
     expect(world.scene.objects.map((o) => o.name)).toEqual(['Ground Plane', 'Cube']);
   });
 
+  it('Shift+Z puts steps back; the History list jumps but never before play began', async () => {
+    const world = new World(stage([at('ground', [0, 0, 0])]));
+    world.addObjects([at('cube', [4, 1, 0], [1, 1, 1], 9)], 'Before play');
+    const sim = await PlaySim.create({ scene: world.scene, time: 0, player: human });
+    world.events.on('changed', ({ scene }) => sim.sync(scene));
+    const edits = new SceneEdits(world, sim);
+    edits.spawn(item('sphere'));
+    edits.spawn(item('cone'));
+    expect(edits.redo()).toBeNull();
+    edits.undo();
+    expect(edits.steps().map((s) => [s.label, s.current, s.undone])).toEqual([
+      ['Spawn Cone', false, true], ['Spawn Sphere', true, false], ['Play began', false, false],
+    ]);
+    expect(edits.redo()).toBe('Spawn Cone');
+    expect(world.scene.objects.map((o) => o.name)).toContain('Cone');
+    const began = edits.steps().at(-1)!.position;
+    edits.jumpTo(began - 1);
+    expect(world.scene.objects).toHaveLength(4);
+    edits.jumpTo(began);
+    expect(world.scene.objects.map((o) => o.name)).toEqual(['Ground Plane', 'Cube']);
+    expect(edits.steps()[0].undone).toBe(true);
+  });
+
   it('refuses a spawn past the tracer\'s limit', async () => {
     const many = Array.from({ length: SPAWN_LIMIT - 1 }, (_, i) => at('cube', [i * 3, 1, -20], [1, 1, 1], i + 1));
     const world = new World(stage([at('ground', [0, 0, 0]), ...many]));

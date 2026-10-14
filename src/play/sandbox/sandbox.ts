@@ -5,6 +5,7 @@ import type { Frame } from '../../render/wire/wireframe';
 import type { Hl2HudState, Hl2Weapon } from '../../ui/sandbox/hl2/hl2-hud';
 import { type HudTool, SandboxHud } from '../../ui/sandbox/hud';
 import { SpawnMenu } from '../../ui/sandbox/spawn-menu';
+import { HistoryList } from '../../ui/sandbox/history-list';
 import { SkyPage } from '../../ui/sandbox/sky-page';
 import { SKY_LIBRARY } from '../../assets/sky.presets';
 import { ToolMenu } from '../../ui/sandbox/tool-menu';
@@ -93,6 +94,9 @@ export class Sandbox {
   private readonly tools: ToolHost;
   private readonly edits: SceneEdits;
   private readonly menu: SpawnMenu;
+  /** The context menu's History of this play session, on the left. */
+  private readonly history: HistoryList;
+  private readonly offHistory: () => void;
   private readonly notices = new Notices();
   private readonly loadout = new Loadout();
   private readonly toolgun = new ToolGun(createTools(), {
@@ -136,6 +140,13 @@ export class Sandbox {
     });
     this.toolMenu = new ToolMenu(host.thumbs, this.toolgun.tools, (id) => this.pickTool(id as ToolId));
     this.menu.dock(this.toolMenu.el);
+    this.history = new HistoryList((position) => {
+      this.edits.jumpTo(position);
+      this.menu.setCount(tracedCount(host.world.scene), SPAWN_LIMIT);
+    });
+    this.menu.dockLeft(this.history.el);
+    this.history.show(this.edits.steps());
+    this.offHistory = host.world.events.on('history', () => this.history.show(this.edits.steps()));
     this.menu.addTab(SKY_TAB, () => {
       const page = new SkyPage(host.thumbs, SKY_LIBRARY, (p) => this.edits.setSky(p.sky, `Sky ${p.name}`));
       page.mark(SKY_LIBRARY.find((p) => p.sky === host.world.scene.sky)?.name ?? null);
@@ -167,7 +178,7 @@ export class Sandbox {
       return true;
     }
     if (!down || !this.host.active()) return true;
-    if (code === SANDBOX_KEYS.undo) this.undoLast();
+    if (code === SANDBOX_KEYS.undo) this.undoLast(this.snap);
     const slot = slotOfKey(code);
     if (slot) this.switchWeapon(() => this.loadout.pick(slot));
     return true;
@@ -288,6 +299,7 @@ export class Sandbox {
 
   dispose(): void {
     this.contextMenu.dispose();
+    this.offHistory();
     this.joints.dispose();
     this.game.dispose();
     this.weapon.holster(this.context());
@@ -304,9 +316,11 @@ export class Sandbox {
     if (sound) this.game.sounds?.play(sound);
   }
 
-  private undoLast(): void {
-    const label = this.edits.undo();
-    this.notify(label ? `Undone ${label}` : 'Nothing to undo', NoticeKind.Undo, label ? SANDBOX_SOUNDS.undo : undefined);
+  /** Z takes back the newest step; Shift+Z puts back the one undone last. */
+  private undoLast(redo: boolean): void {
+    const label = redo ? this.edits.redo() : this.edits.undo();
+    const text = label ? `${redo ? 'Redone' : 'Undone'} ${label}` : redo ? 'Nothing to redo' : 'Nothing to undo';
+    this.notify(text, NoticeKind.Undo, label ? SANDBOX_SOUNDS.undo : undefined);
     this.menu.setCount(tracedCount(this.host.world.scene), SPAWN_LIMIT);
   }
 

@@ -48,8 +48,9 @@ export class SpawnMenu {
   private readonly cats: HTMLElement;
   private readonly grid: HTMLElement;
   private readonly count: HTMLElement;
-  /** Where the tool sheet docks, on the right. */
+  /** Where the tool sheet docks, on the right, and the context menu's History, on the left. */
   private readonly side: HTMLElement;
+  private readonly left: HTMLElement;
   /** The creation sheet's tabs (Spawnlists, Sky…) and what each shows, built the first time it opens. */
   private readonly tabs: HTMLElement;
   private readonly body: HTMLElement;
@@ -69,11 +70,12 @@ export class SpawnMenu {
     this.grid = el('div', { cls: 'gw-content sbx-spawn-grid' });
     this.count = el('div', { cls: 'sbx-spawn-count' });
     this.side = el('div', { cls: 'sbx-q-side' });
+    this.left = el('div', { cls: 'sbx-q-left' });
     this.tabs = el('div', { cls: 'gw-tabs' }, [el('span', { cls: 'sbx-spawn-hint', text: HINT })]);
     this.body = el('div', { cls: 'gw-sheet-body sbx-spawn-body' });
     const create = el('div', { cls: 'gw-sheet sbx-spawn', attrs: { 'aria-label': 'Spawn menu' } }, [this.tabs, this.body]);
     this.addTab(SPAWNLISTS, () => el('div', { cls: 'sbx-spawn-lists' }, [this.cats, el('div', { cls: 'sbx-spawn-right' }, [this.grid, this.count])]));
-    this.el = el('div', { cls: 'sbx-q' }, [create, this.side]);
+    this.el = el('div', { cls: 'sbx-q' }, [this.left, create, this.side]);
     this.cursor = el('div', { cls: 'sbx-cursor', attrs: { 'aria-hidden': 'true' } });
     this.cursor.hidden = true;
     this.addPanel(this.el);
@@ -109,6 +111,11 @@ export class SpawnMenu {
   /** The tool sheet, docked on the right inside the menu. */
   dock(panel: HTMLElement): void {
     this.side.append(panel);
+  }
+
+  /** A sheet on the left that shows only in the context menu (C). */
+  dockLeft(panel: HTMLElement): void {
+    this.left.append(panel);
   }
 
   /** A panel that opens and closes with the menu and keeps its clicks from the play layer, which would lock the pointer. */

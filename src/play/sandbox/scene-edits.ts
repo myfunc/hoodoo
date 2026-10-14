@@ -26,6 +26,8 @@ import { aimOf } from './weapons/grip';
 /** How far a spawn's aim looks for a surface, and where one lands with none, in player units (HL units). */
 const SPAWN_REACH = { surface: 4096, miss: 160 } as const;
 const UP: Vec3 = [0, 1, 0];
+/** The oldest entry of the session's History list. */
+const PLAY_BEGAN = 'Play began';
 
 export class SceneEdits {
   /** History's position when play began: Z stops there. */
@@ -183,6 +185,27 @@ export class SceneEdits {
   get labels(): string[] {
     const { labels, position } = this.world.historyState();
     return labels.slice(this.first + 1, position + 1).reverse();
+  }
+
+  /** Puts back the step undone last: its label, or null when there is none. */
+  redo(): string | null {
+    const { labels, position } = this.world.historyState();
+    if (!this.world.canRedo()) return null;
+    this.world.redo();
+    return labels[position + 1] ?? null;
+  }
+
+  /** This session's History, newest first: each step, whether it is the current one or undone; the last is where play began. */
+  steps(): { readonly label: string; readonly position: number; readonly current: boolean; readonly undone: boolean }[] {
+    const { labels, position } = this.world.historyState();
+    const out = [];
+    for (let i = labels.length - 1; i >= this.first; i--) out.push({ label: i === this.first ? PLAY_BEGAN : labels[i], position: i, current: i === position, undone: i > position });
+    return out;
+  }
+
+  /** Back or forward to a step of this session (never before play began). */
+  jumpTo(position: number): void {
+    if (position >= this.first) this.world.jumpTo(position);
   }
 
   /** Takes back this session's newest step: its label, or null when none is left. */

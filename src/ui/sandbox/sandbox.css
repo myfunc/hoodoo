@@ -148,6 +148,11 @@
 .sbx-q.is-context .sbx-spawn, .sbx-q.is-context .sbx-tools .gw-tabs, .sbx-q.is-context .gw-catlist { display: none; }
 .sbx-q.is-context .sbx-q-side { margin-left: auto; align-self: flex-start; flex-basis: clamp(260px, 30%, 360px); max-height: 100%; pointer-events: auto; }
 .sbx-q.is-context .gw-sheet-body { padding: 4px; }
+.sbx-q-left { display: none; }
+.sbx-q.is-context .sbx-q-left { display: flex; align-self: flex-start; flex: 0 0 clamp(180px, 20%, 260px); max-height: 60%; min-width: 0; pointer-events: auto; }
+.sbx-history { flex: 1; min-width: 0; }
+.sbx-history-list { flex: 1; min-width: 0; overflow-y: auto; border-radius: 4px; background: var(--gw-white); color: var(--gw-ink); scrollbar-width: thin; }
+.sbx-history .gw-cat-item.is-undone { color: #9a9a9a; font-style: italic; }
 
 /* DNumSlider (gw-slider.ts): label, − track + and the value; the track fills blue to the value. */
 .gw-slider-label { margin-bottom: 2px; color: var(--gw-ink); }

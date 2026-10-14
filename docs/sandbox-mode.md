@@ -90,7 +90,7 @@ The keys are Garry's Mod's defaults (`cfg/config_default.cfg`).
 | 1 … 6 | weapon slots | slot 1 Physics Gun, Gravity Gun; slot 6 Tool Gun |
 | Q (hold) | spawn menu | the spawn menu |
 | C (hold) | context menu | the context menu |
-| Z | undo | undo the last sandbox action |
+| Z | undo | undo the last sandbox action; Shift+Z puts it back |
 | V | noclip | fly through everything |
 | F | flashlight | a spotlight at the eye |
 | B | zoom | narrow the field of view while held |
@@ -235,9 +235,14 @@ History step.
 
 Every Sandbox edit is a step of the editor's History (see *Building scenes*):
 Z takes back the newest step made since Play began, and a notice says *Undone
-Spawn Cube*; steps from before Play stay. GMod undoes only spawns and joints;
+Spawn Cube*; steps from before Play stay. Shift+Z puts back the step undone
+last (*Redone Spawn Cube*). GMod undoes only spawns and joints and has no redo;
 here every edit can be taken back, and after Play the editor's History has
 them all.
+
+The context menu (C) shows this session's History on the left, newest first:
+the current step blue, the undone ones faint, *Play began* at the bottom. A
+click goes back or forward to that step; the list never reaches before Play.
 
 ## Spawn menu
 
@@ -302,7 +307,7 @@ name, Remove (a carved object whole), Freeze or Unfreeze for a prop, Physical
 and Solid (Play's body flags, one History step; Physical on a part of a carved
 object switches the whole of it), Remove joints. Pinned, clicks on the world are
 taken before they would catch the pointer again; the next C closes the menu.
-The session's undo list comes with History in Garry's Mod mode.
+The session's History list is on the left (see *Undo*).
 
 ## HUD
 

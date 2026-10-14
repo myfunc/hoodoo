@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.29.0 - 2026-10-14
+
+### Added
+- Garry's Mod mode: Shift+Z puts back the step undone last, with a *Redone* notice.
+- The context menu (C) shows this play session's History on the left, newest first: the
+  current step blue, the undone ones faint. A click goes back or forward to that step; the
+  list ends where play began.
 ## 0.28.0 - 2026-10-14
 
 ### Added
