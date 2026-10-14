@@ -1,7 +1,7 @@
 import { hexToRgb as h } from '../../core/color';
 import type { Vec3 } from '../../core/vec3';
 import { TEXTURED_COLOR, material, texture } from '../../model/material.factory';
-import { ChannelSource, ColorChannel, SkyMode, TextureKind, TextureMapping } from '../../model/scene.enums';
+import { SkyMode, TextureKind, TextureMapping } from '../../model/scene.enums';
 import type { Key, Scene, SceneObject, TerrainData, Transform } from '../../model/scene.types';
 import { type Field, field, sample } from '../terrain/heightfield';
 import { Noise2D } from '../terrain/noise2d';
@@ -36,15 +36,12 @@ const HILLS: readonly { u: number; v: number; r: number; peak: number; pad: numb
 ];
 const PAD_EDGE = 1.8;
 
-/** Lime on the flat tops, deep green down the faces, purple flowers glowing in the ambient light. */
+/** Grass, lime on the gentle ground and deep green down the faces, with cornflowers, daisies and buttercups in clumps. */
 const MEADOW = material({
   name: 'Valley Meadow',
-  textures: [
-    texture(TextureKind.Slope, 1, [h('#d8ec3a'), h('#4aa418'), h('#15560c')], { detail: 4 }),
-    texture(TextureKind.Spots, 5, [h('#0a2a04'), h('#0a2a04'), h('#ff30ff')], { detail: 2, contrast: 70 }),
-  ],
-  colorSources: { ...TEXTURED_COLOR, [ColorChannel.Ambient]: ChannelSource.TexB },
-  values: { diffusion: 94, ambience: 55, specularity: 6 },
+  textures: [texture(TextureKind.Flowers, 1.4, [h('#2a5a12'), h('#94c234'), h('#4a74ff')], { detail: 5 })],
+  colorSources: TEXTURED_COLOR,
+  values: { diffusion: 94, ambience: 40, specularity: 6 },
 });
 const RIVER_WATER = material({
   name: 'River Blue',

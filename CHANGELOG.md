@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.40.0 - 2026-10-14
+
+### Added
+- A Flowers texture: grass in two greens with flowers in clumps, each with five or six
+  petals and a heart, some in the main colour, some pale, some buttercup yellow. They grow
+  on gentle ground only; Detail sets how many. Far off they blend into the meadow's colour
+  instead of glittering.
+
+### Changed
+- Pyramid Valley's meadow is the new Flowers (cornflowers, daisies and buttercups) instead
+  of glowing purple dots, and so is the Flower Meadow material.
+
+### Fixed
+- Terrain close up no longer shows dark contour lines: a shadow ray started inside the
+  ground and met it.
+
 ## 0.39.0 - 2026-10-14
 
 ### Changed

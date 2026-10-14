@@ -110,7 +110,9 @@ Span terrainSpan(bool lattice, vec3 ro, vec3 rd, float layer, float res) {
               float mid = 0.5 * (lo + hi);
               if (terrainInside(lattice, layer, res, ro + rd * mid)) hi = mid; else lo = mid;
             }
-            return Span(hi, box.t1, terrainNormal(lattice, layer, res, ro + rd * hi), box.n1);
+            // The hit is the last point outside: a ray leaving it toward a light starts above
+            // the ground, not in it (from inside, every shadow ray met its own terrain: contour lines).
+            return Span(lo, box.t1, terrainNormal(lattice, layer, res, ro + rd * lo), box.n1);
           }
           prev = t;
         }

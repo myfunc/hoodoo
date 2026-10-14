@@ -226,6 +226,10 @@ vec4 evalTexture(int mat, int slot, Surface s) {
   gTexNormal = axisN;
   // A flat pattern changes only along the surface: no blur across it.
   gTexAxes = mapping == MAP_PARAMETRIC ? vec3(gTexFoot, gTexFoot, 0.0) : gTexFoot * sqrt(max(1.0 - axisN * axisN, 0.0));
+  if (isFlowers(kind)) {
+    vec4 m = flowers(p, axisN, gTexFoot, int(t0.z + 0.5), t1.rgb, t2.rgb, t3.rgb);
+    return vec4(m.rgb, clamp((m.a - 0.5) * (1.0 + t2.w * 0.04) + 0.5, 0.0, 1.0));
+  }
   float v = kind == T_POOLBALL ? poolBall(s.lp, t1.w) : (isSheen(kind) ? sheenScalar(kind, t0.y, s.wp, s.lp, s.n) : textureScalar(kind, p, int(t0.z + 0.5), s));
   v = clamp((v - 0.5) * (1.0 + t2.w * 0.04) + 0.5, 0.0, 1.0);
   vec3 col = isSheen(kind) ? sheenColor(kind, v, t0.y, s.lp, t1.rgb, t2.rgb, t3.rgb) : ramp(v, t1.rgb, t2.rgb, t3.rgb);

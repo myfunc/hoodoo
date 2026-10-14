@@ -23,6 +23,7 @@ export const TEXTURE_KIND_LABELS: Readonly<Record<TextureKind, string>> = {
   [TextureKind.Facade]: 'Facade',
   [TextureKind.FacadeGlass]: 'Facade Glass',
   [TextureKind.FacadeLit]: 'Facade Lit Windows',
+  [TextureKind.Flowers]: 'Flowers',
 };
 
 export const MAPPING_LABELS: Readonly<Record<TextureMapping, string>> = {

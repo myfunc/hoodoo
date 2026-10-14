@@ -124,7 +124,7 @@ const terrains: Material[] = [
   }),
   material({
     name: 'Flower Meadow',
-    textures: [texture(TextureKind.Spots, 9, [h('#2f7a16'), h('#86c22c'), h('#a35ad8')], { detail: 2, contrast: 30 })],
+    textures: [texture(TextureKind.Flowers, 4, [h('#2a6a14'), h('#7fb82a'), h('#4a74ff')], { detail: 4 })],
     colorSources: TEXTURED_COLOR,
     values: { diffusion: 88, ambience: 22, specularity: 6 },
   }),

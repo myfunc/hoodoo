@@ -71,6 +71,8 @@ export enum TextureKind {
   FacadeGlass = 19,
   /** About a third of the panes (1 where lit): drive ambience for windows lit at night. Keep its seed the Facade's: a seed shifts the windows. */
   FacadeLit = 20,
+  /** A meadow: grass in the first two colours with flowers of the third in clumps, some pale, some yellow; Detail sets how many. */
+  Flowers = 21,
 }
 
 export enum TextureMapping {
