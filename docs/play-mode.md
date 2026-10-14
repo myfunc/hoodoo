@@ -153,6 +153,19 @@ triangles.
 volumes) and `events` (contact events). Queries see the world as of the last
 step; `refresh()` updates them after adding bodies.
 
+### Carved objects
+
+A group with boolean parts (members set to Positive, Negative or Intersect)
+is one carved object, as the tracer draws it, and Play keeps it one: a single
+body, welded as it were (`world/carved.ts`, `scene-bodies.ts`). Its cutting
+parts (Negative, Intersect) never collide but ride along, so a hole moves with
+what it bores. It is physical when the group is, or when any of its solid parts
+is; otherwise it stands still, and the Physics Gun lifts it whole. A carved
+group inside a physical or carved group is part of that one's body. Parts with
+keys of their own still follow their keys. In Attributes › Physics, a part of a
+carved object switches Physical for the whole object and says it is one body
+with its group; the Remover takes it away whole.
+
 ## Actors, behaviours, events
 
 ```ts

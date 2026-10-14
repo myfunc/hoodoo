@@ -3,7 +3,7 @@ import { type Tool, ToolButton, ToolCategory, type ToolContext, type ToolHit, To
 
 const ALL_JOINTS: ReadonlySet<JointKind> = new Set(Object.values(JointKind));
 
-/** Garry's Mod's Remover: Mouse 1 takes the object away, Mouse 2 the whole contraption it is part of (one body, or welded), R its joints. */
+/** Garry's Mod's Remover: Mouse 1 takes the object away (a carved object whole), Mouse 2 the whole contraption it is part of (one body, or welded), R its joints. */
 export class Remover implements Tool {
   readonly id = ToolId.Remover;
   readonly name = 'Remover';
@@ -20,7 +20,7 @@ export class Remover implements Tool {
     const o = hit.object;
     if (!isProp(o)) return false;
     if (button === ToolButton.Reload) return ctx.edits.removeJointsOf(o.id, ALL_JOINTS, `Remove joints of ${o.name}`);
-    const ids = button === ToolButton.Primary ? new Set([o.id]) : ctx.joined(o.id);
+    const ids = button === ToolButton.Primary ? ctx.whole(o.id) : ctx.joined(o.id);
     ctx.edits.remove(ids, `Remove ${o.name}`);
     return true;
   }

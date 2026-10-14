@@ -6,6 +6,8 @@ import type { Hl2HudState, Hl2Weapon } from '../../ui/sandbox/hl2/hl2-hud';
 import { type HudTool, SandboxHud } from '../../ui/sandbox/hud';
 import { SpawnMenu } from '../../ui/sandbox/spawn-menu';
 import { ToolMenu } from '../../ui/sandbox/tool-menu';
+import { carvedOf } from '../../world/carved';
+import { subtree } from '../../world/group-tree';
 import { contraption } from '../../world/joints';
 import { raycast } from '../../world/raycast';
 import type { World } from '../../world/world';
@@ -333,6 +335,12 @@ export class Sandbox {
       moving: (id) => (bodies.itemOf(id)?.motion ?? Motion.Fixed) !== Motion.Fixed,
       joined: (id) => bodies.sharing(contraption(this.host.world.scene, bodies.sharing([id]))),
       anchor: (id, point) => this.joints.anchorOf(id, point),
+      whole: (id) => {
+        const scene = this.host.world.scene;
+        const o = this.host.world.object(id);
+        const g = o ? carvedOf(scene, o) : null;
+        return new Set(g ? subtree(scene, g) : [id]);
+      },
     };
   }
 

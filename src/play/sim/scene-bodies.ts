@@ -1,8 +1,9 @@
 import { type Vec3, ZERO3, add, scale, sub } from '../../core/vec3';
-import { BooleanMode, ShapeKind } from '../../model/scene.enums';
+import { ShapeKind } from '../../model/scene.enums';
 import type { GroupId, ObjectId } from '../../model/scene.ids';
 import type { Key, Scene, SceneObject, Transform } from '../../model/scene.types';
-import { bodyOf, groupBody, massOf } from '../../world/body-flags';
+import { bodyOf, massOf } from '../../world/body-flags';
+import { BodyGroups, isCutter } from '../../world/carved';
 import { chain, groupIndex } from '../../world/group-tree';
 import { sameTransform } from '../../world/group-transform';
 import { movedByScript, shownByRules } from '../../world/play/scripts';
@@ -66,16 +67,11 @@ function keyedVisibility(scene: Scene): { readonly keyed: ReadonlySet<ObjectId>;
   };
 }
 
-/** Whether an object takes part in collisions at all: never a trigger zone; a hidden one only when a rule or its keys show it (`shown`). */
-const collides = (o: SceneObject, shown: ReadonlySet<ObjectId>): boolean =>
-  !o.zone && (!o.hidden || shown.has(o.id)) && bodyOf(o).solid && !(o.groupId && (o.boolean === BooleanMode.Negative || o.boolean === BooleanMode.Intersect));
+/** Whether an object is in play at all: never a trigger zone; a hidden one only when a rule or its keys show it (`shown`). */
+const present = (o: SceneObject, shown: ReadonlySet<ObjectId>): boolean => !o.zone && (!o.hidden || shown.has(o.id));
 
-/** The outermost physical group around an object, or null. */
-function physicalGroup(scene: Scene, o: SceneObject): GroupId | null {
-  const index = groupIndex(scene);
-  const groups = chain(index, o.groupId).filter((g) => groupBody(index.get(g)).physical);
-  return groups.at(-1) ?? null;
-}
+/** Whether an object collides: present and solid; a carved object's cutting parts never do (world/carved.ts). */
+const collides = (o: SceneObject, shown: ReadonlySet<ObjectId>): boolean => present(o, shown) && bodyOf(o).solid && !isCutter(o);
 
 const poseOf = (t: Transform): Pose => ({ position: t.position, rotation: quatOfEuler(t.rotation) });
 
@@ -99,12 +95,13 @@ export class SceneBodies {
   resync(scene: Scene, ids: ReadonlySet<ObjectId>): BodyId[] {
     const objects = new Map(scene.objects.map((o) => [o.id, o]));
     const index = groupIndex(scene);
+    const bodies = new BodyGroups(scene);
     const affected = new Set<ObjectId>();
     for (const id of ids) {
       affected.add(id);
       for (const m of this.byObject.get(id)?.members ?? []) affected.add(m.id);
       const o = objects.get(id);
-      const g = o ? physicalGroup(scene, o) : null;
+      const g = o ? bodies.of(o) : null;
       if (g) for (const m of scene.objects) if (chain(index, m.groupId).includes(g)) affected.add(m.id);
     }
     const dropped = new Set<BodyId>();
@@ -126,21 +123,26 @@ export class SceneBodies {
     return [...dropped];
   }
 
-  /** Bodies for these objects of `scene`: one each, or one per physical group, keyed ones kinematic. */
+  /**
+   * Bodies for these objects of `scene`: one each, or one per physical or carved
+   * group (its cutting parts ride along without shapes), keyed ones kinematic.
+   */
   private build(scene: Scene, objects: readonly SceneObject[]): void {
     const keyed = keyedOf(scene);
     const visibility = keyedVisibility(scene);
     const shown = new Set([...shownByRules(scene), ...visibility.shown]);
-    const groups = new Map<GroupId, SceneObject[]>();
+    const bodies = new BodyGroups(scene);
+    const groups = new Map<GroupId, { o: SceneObject; solid: boolean }[]>();
     const made: BodyId[] = [];
     for (const o of objects) {
-      if (!collides(o, shown) || this.skip?.has(o.id)) continue;
-      const g = keyed(o) ? null : physicalGroup(scene, o);
-      if (g) groups.set(g, [...(groups.get(g) ?? []), o]);
-      else made.push(...this.addObject(o, keyed(o) ? Motion.Kinematic : bodyOf(o).physical ? Motion.Dynamic : Motion.Fixed));
+      if (!present(o, shown) || this.skip?.has(o.id)) continue;
+      const solid = collides(o, shown);
+      const g = keyed(o) ? null : bodies.of(o);
+      if (g) groups.set(g, [...(groups.get(g) ?? []), { o, solid }]);
+      else if (solid) made.push(...this.addObject(o, keyed(o) ? Motion.Kinematic : bodyOf(o).physical ? Motion.Dynamic : Motion.Fixed));
     }
     const index = groupIndex(scene);
-    for (const [g, members] of groups) made.push(...this.addGroup(g, members, index.get(g)?.body?.mass));
+    for (const [g, members] of groups) made.push(...this.addGroup(g, members, bodies.physical(g) ? Motion.Dynamic : Motion.Fixed, index.get(g)?.body?.mass));
     for (const body of made) if (this.items.get(body)?.members.some((m) => visibility.keyed.has(m.id))) this.blinking.set(body, true);
     this.blink(scene);
   }
@@ -174,7 +176,7 @@ export class SceneBodies {
     if (item.motion !== Motion.Fixed) return;
     const mass = item.members.reduce((s, m) => {
       const o = objectOf(m.id);
-      return o ? s + massOf(o) : s;
+      return o && !isCutter(o) ? s + massOf(o) : s;
     }, 0);
     const rb = this.physics.world.getRigidBody(body);
     const n = rb?.numColliders() ?? 0;
@@ -253,17 +255,22 @@ export class SceneBodies {
     return [body];
   }
 
-  /** One body for a physical group: its frame starts at the members' centre, unturned. */
-  private addGroup(g: GroupId, members: readonly SceneObject[], mass: number | undefined): BodyId[] {
-    const centre = scale(members.reduce((s, o) => add(s, o.transform.position), ZERO3), 1 / members.length);
-    const parts = members.map((o) => ({ o, offset: sub(o.transform.position, centre), turn: quatOfEuler(o.transform.rotation) }));
-    const shapes = parts.flatMap((p) => placedShapes(shapesOf(p.o), p.offset, p.turn));
+  /**
+   * One body for a physical or carved group: its frame starts at the members'
+   * centre, unturned; only solid members give it shapes and weight, the others
+   * (cutting parts, soft ones) move with it.
+   */
+  private addGroup(g: GroupId, members: readonly { o: SceneObject; solid: boolean }[], motion: Motion, mass: number | undefined): BodyId[] {
+    const centre = scale(members.reduce((s, m) => add(s, m.o.transform.position), ZERO3), 1 / members.length);
+    const parts = members.map(({ o, solid }) => ({ o, solid, offset: sub(o.transform.position, centre), turn: quatOfEuler(o.transform.rotation) }));
+    const shapes = parts.flatMap((p) => (p.solid ? placedShapes(shapesOf(p.o), p.offset, p.turn) : []));
     if (!shapes.length) return [];
+    const dynamic = motion === Motion.Dynamic;
     const body = this.physics.addBody({
-      motion: Motion.Dynamic, position: centre, shapes, tag: g, ccd: CCD, friction: FRICTION, restitution: RESTITUTION.other,
-      mass: mass ?? members.reduce((s, o) => s + massOf(o), 0),
+      motion, position: centre, shapes, tag: g, friction: FRICTION, restitution: RESTITUTION.other,
+      ...(dynamic ? { ccd: CCD, mass: mass ?? parts.reduce((s, p) => s + (p.solid ? massOf(p.o) : 0), 0) } : {}),
     });
-    this.remember({ body, motion: Motion.Dynamic, tag: g, group: g, start: { position: centre, rotation: [0, 0, 0, 1] }, members: parts.map((p) => ({ id: p.o.id, offset: p.offset, turn: p.turn, rotation: p.o.transform.rotation, size: p.o.transform.size })) });
+    this.remember({ body, motion, tag: g, group: g, start: { position: centre, rotation: [0, 0, 0, 1] }, members: parts.map((p) => ({ id: p.o.id, offset: p.offset, turn: p.turn, rotation: p.o.transform.rotation, size: p.o.transform.size })) });
     return [body];
   }
 

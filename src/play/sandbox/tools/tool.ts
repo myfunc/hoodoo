@@ -49,6 +49,8 @@ export interface ToolContext {
   moving(id: ObjectId): boolean;
   /** The object and every object it is one body with or joined to. */
   joined(id: ObjectId): ReadonlySet<ObjectId>;
+  /** The object as the player sees it: a carved object's parts all together (world/carved.ts), else the object alone. */
+  whole(id: ObjectId): ReadonlySet<ObjectId>;
   /** A point the aim met on an object, in the object's own frame (for joints); null when it has no body. */
   anchor(id: ObjectId, point: Vec3): Vec3 | null;
 }

@@ -5,3 +5,6 @@
 .props-physics .ui-button.props-chip { height: 20px; padding: 0 5px; white-space: nowrap; flex: none; }
 .props-physics .props-mass { width: 44px; flex: none; }
 .props-unit { flex: none; margin-left: -1px; color: var(--ink-faint); }
+/* A carved object's part: a second line under the switches says it is one body with its group. */
+.props-line.props-physics { flex-wrap: wrap; }
+.props-note { flex: 1 0 100%; padding-left: 54px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-faint); }

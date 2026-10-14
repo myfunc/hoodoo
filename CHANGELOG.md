@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.21.0 - 2026-10-13
+
+### Changed
+- A group with boolean parts is one carved object in Play: one body, as if welded. The
+  cutting parts move with it, so a hole stays in what it bores; it falls and tumbles
+  whole when the group or any of its solid parts is Physical, and the Physics Gun lifts
+  it whole otherwise. Attributes › Physics on any part switches the whole object and says
+  it is one body with its group; Sandbox's Remover takes it away whole.
 ## 0.20.2 - 2026-10-14
 
 ### Changed
