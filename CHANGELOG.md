@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.38.0 - 2026-10-14
+
+### Changed
+- Garry's Mod mode's props limit is the scene's own, 2000 objects instead of 160: each
+  picture draws the ones that matter to its camera.
 ## 0.37.0 - 2026-10-14
 
 ### Added

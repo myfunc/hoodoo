@@ -334,9 +334,11 @@ Props come at their library size: a pool ball is one unit in radius and the
 chess pieces are at board scale. To play at chess scale, use Play's Tiny
 character.
 
-The ray tracer draws at most 160 objects, the scene's own included; the menu's
-foot counts them. A spawn past that shows *Props limit reached (160)*, GMod's
-way.
+Props go up to the scene's own limit (2000 objects, the scene's own
+included); the menu's foot counts them. Each picture draws the 160 that
+matter to its camera (render/object-budget.ts), so a crowd far away costs
+nothing to draw; physics still moves them all. A spawn past the limit shows
+*Props limit reached (2000)*, GMod's way.
 
 ## Context menu
 

@@ -75,6 +75,8 @@ export class Mixer {
 
   /** Where the eye is and which way it looks: sounds in the world pan and fade from here. */
   listen(eye: Vec3, forward: Vec3): void {
+    // A broken frame (a NaN eye) leaves the ear where it was rather than throwing every frame.
+    if (![...eye, ...forward].every(Number.isFinite)) return;
     const l = this.ctx.listener;
     const t = this.ctx.currentTime;
     if (l.positionX) {

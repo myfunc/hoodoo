@@ -375,7 +375,7 @@ export class Sandbox {
     if (this.weapon !== this.toolgun) this.switchWeapon(() => this.loadout.take(WeaponId.ToolGun));
   }
 
-  /** A spawn list's item where the player aims; past the tracer's limit, Garry's Mod's notice instead. */
+  /** A spawn list's item where the player aims; past the scene's limit, Garry's Mod's notice instead. */
   private spawn(key: string): boolean {
     const item = findSpawnItem(key);
     if (!item) return false;

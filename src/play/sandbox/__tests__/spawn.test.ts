@@ -119,7 +119,7 @@ describe('spawning into the editor\'s scene', () => {
     expect(edits.steps()[0].undone).toBe(true);
   });
 
-  it('refuses a spawn past the tracer\'s limit', async () => {
+  it('refuses a spawn past the scene\'s limit', async () => {
     const many = Array.from({ length: SPAWN_LIMIT - 1 }, (_, i) => at('cube', [i * 3, 1, -20], [1, 1, 1], i + 1));
     const world = new World(stage([at('ground', [0, 0, 0]), ...many]));
     expect(tracedCount(world.scene)).toBe(SPAWN_LIMIT);

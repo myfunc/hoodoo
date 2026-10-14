@@ -1,20 +1,21 @@
 import { type Vec3, add, scale, sub } from '../../core/vec3';
 import type { Scene, SceneObject } from '../../model/scene.types';
-import { MAX_OBJECTS } from '../../render/gpu/render.constants';
 import { unionBox, worldBox } from '../../world/bounds';
 import { LIGHT_KINDS } from '../../world/objects.factory';
+import { SCENE_LIMITS } from '../../world/scene.validate';
 import { eulerOfQuat, mulQ, quatOfEuler, rotateQ } from '../sim/quat';
 
 /**
  * READ ME — where a spawn lands (docs/sandbox-mode.md, Spawn menu): its build is
  * turned to the player's heading, so it faces them as Garry's Mod's props do, and
  * moved so its box rests on the aimed surface along the surface's normal, a hair
- * off it, so it settles instead of starting inside the floor or the wall. The
- * tracer draws at most MAX_OBJECTS objects, which is Sandbox's props limit.
+ * off it, so it settles instead of starting inside the floor or the wall. Props
+ * go up to the scene's own limit: each picture draws the ones that matter to its
+ * camera (render/object-budget.ts).
  */
 
-/** The ray tracer's most: a spawn past it is refused, as Garry's Mod refuses one past its limit. */
-export const SPAWN_LIMIT = MAX_OBJECTS;
+/** The scene's most: a spawn past it is refused, as Garry's Mod refuses one past its limit. */
+export const SPAWN_LIMIT = SCENE_LIMITS.objects;
 /** Room between a spawn and what it rests on. */
 const SPAWN_GAP = 0.002;
 
