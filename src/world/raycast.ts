@@ -65,6 +65,9 @@ function portalT(o: Vec3, d: Vec3): number {
   return t > 0 && p[0] * p[0] + p[1] * p[1] <= 1 ? t : Infinity;
 }
 
+/** How close above a terrain's surface a sample still counts as on it (object units; the box spans 2). */
+const FLOOR_EPS = 1e-4;
+
 function terrainT(obj: SceneObject, o: Vec3, d: Vec3): number {
   const t = obj.terrain;
   if (!t) return Infinity;
@@ -74,7 +77,8 @@ function terrainT(obj: SceneObject, o: Vec3, d: Vec3): number {
   const lattice = obj.kind === ShapeKind.Lattice;
   const inside = (p: Vec3) => {
     const h = sample(f, (p[0] + 1) / 2, (p[2] + 1) / 2);
-    return lattice ? Math.abs(p[1]) < h : p[1] < h * 2 - 1;
+    // A flat terrain lies on the box's floor, where the ray leaves: the floor itself counts as ground.
+    return lattice ? Math.abs(p[1]) < h : p[1] <= h * 2 - 1 + FLOOR_EPS;
   };
   const start = Math.max(a, 0);
   const dt = (b - start) / TERRAIN_STEPS;

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.24.1 - 2026-10-14
+
+### Fixed
+- A terrain flat at height 0 can be clicked, landed on and aimed at: picking found nothing
+  on it, as its surface lies on the floor of its box.
 ## 0.24.0 - 2026-10-14
 
 ### Added
