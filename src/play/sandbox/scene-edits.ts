@@ -30,6 +30,8 @@ const UP: Vec3 = [0, 1, 0];
 const PLAY_BEGAN = 'Play began';
 
 export class SceneEdits {
+  /** Told just before objects go (the Remover's dissolve shows them where play has them). */
+  removing: ((ids: ReadonlySet<ObjectId>) => void) | null = null;
   /** History's position when play began: Z stops there. */
   private readonly first: number;
   /** Objects spawned or picked up this session: where physics leaves them is kept when play ends. */
@@ -136,6 +138,7 @@ export class SceneEdits {
 
   /** The Remover: one History step. */
   remove(ids: ReadonlySet<ObjectId>, label: string): void {
+    this.removing?.(ids);
     this.world.removeObjects(ids, label);
   }
 

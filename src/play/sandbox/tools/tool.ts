@@ -1,4 +1,5 @@
 import type { Vec3 } from '../../../core/vec3';
+import { BooleanMode } from '../../../model/scene.enums';
 import type { ObjectId } from '../../../model/scene.ids';
 import type { SceneObject, Transform } from '../../../model/scene.types';
 import type { ToolSetting } from '../../../ui/sandbox/tool-menu';
@@ -83,6 +84,29 @@ export interface Tool {
   readonly repeat?: number;
   /** Mouse motion the tool takes instead of the view (Easy Weld turns its prop); `snap`: Shift is down. */
   look?(dx: number, dy: number, ctx: ToolContext, snap: boolean): boolean;
+}
+
+/** What Colour, Material and Resize change: the object as the player sees it (a carved object whole), without the decals lying on it. */
+export function surfaceOf(id: ObjectId, ctx: ToolContext): ReadonlySet<ObjectId> {
+  const decals = ctx.decalsOn(id);
+  return new Set([...ctx.whole(id)].filter((x) => !decals.has(x)));
+}
+
+/** What a step calls the object: a carved object's hollow (the cutter the aim met inside it) by the part that shows. */
+export function nameOf(o: SceneObject, ctx: ToolContext): string {
+  if (o.boolean !== BooleanMode.Negative) return o.name;
+  const whole = ctx.whole(o.id);
+  return ctx.edits.scene.objects.find((x) => whole.has(x.id) && x.boolean !== BooleanMode.Negative)?.name ?? o.name;
+}
+
+/** The objects of `ids` that `fn` would change, as the scene has them; `fn` gives null for no change. */
+export function changes(ids: ReadonlySet<ObjectId>, ctx: ToolContext, fn: (o: SceneObject) => SceneObject | null): Map<ObjectId, SceneObject> {
+  const out = new Map<ObjectId, SceneObject>();
+  for (const o of ctx.edits.scene.objects) {
+    const next = ids.has(o.id) ? fn(o) : null;
+    if (next && next !== o) out.set(o.id, next);
+  }
+  return out;
 }
 
 /** What Remover and Resize take: a finite, unlocked object (the ground, terrains and locked objects are the map). */

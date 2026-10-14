@@ -36,6 +36,21 @@ const NEAR = 0.05;
 /** The Tool Gun's shot without the game's files: a tracer for a moment, then a ring spreading from the hit (seconds, pixels). */
 const SHOT = { tracer: 0.1, ring: 0.3, ringFrom: 4, ringTo: 40, colour: 'rgba(150, 215, 255, ', width: 2 } as const;
 
+/**
+ * Garry's Mod's Remover (effect entity_remove): the object flashes pale blue and
+ * breaks into sparks that fly out and up as they fade (seconds, pixels a second, pixels).
+ */
+const REMOVED = { seconds: 0.7, sparks: 48, speed: 170, rise: 80, glow: 4, dot: 3, flash: 0.8, sparkGlow: 6 } as const;
+const REMOVED_COLOUR: Rgb = [0.65, 0.88, 1];
+const WHITE = '#fff';
+/** A cheap repeatable noise in 0..1 for the sparks' directions. */
+const BYTE = 255;
+const NOISE = { a: 12.9898, b: 78.233, scale: 43758.5453 } as const;
+const noise = (k: number, seed: number): number => {
+  const v = Math.sin(k * NOISE.a + seed * NOISE.b) * NOISE.scale;
+  return v - Math.floor(v);
+};
+
 type Pt = readonly [number, number];
 
 /**
@@ -49,11 +64,18 @@ export class Overlay {
   readonly canvas: HTMLCanvasElement;
   private readonly g: CanvasRenderingContext2D;
   private readonly halos = new HaloPainter();
+  /** Objects the Remover took, as they were, and when (simulation seconds). */
+  private removed: { readonly objects: readonly SceneObject[]; readonly time: number; readonly seed: number }[] = [];
 
   constructor() {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'sandbox-overlay';
     this.g = this.canvas.getContext('2d') as CanvasRenderingContext2D;
+  }
+
+  /** Objects just removed: they flash and break into sparks where they were. */
+  dissolve(objects: readonly SceneObject[], time: number): void {
+    if (objects.length) this.removed.push({ objects, time, seed: Math.random() });
   }
 
   /** `beam` false when the hands layer draws Garry's Mod's own beam. */
@@ -83,8 +105,46 @@ export class Overlay {
       const fade = 1 - Math.sqrt(age / HALO.flashSeconds);
       this.halos.paint(g, silhouettes(proj, objects(view.flash.body)), view.flash.frozen ? FROZEN : UNFROZEN, fade, HALO.sizes[0] * HALO.pxPerSize);
     }
+    this.removed = this.removed.filter((r) => sim.time - r.time < REMOVED.seconds);
+    for (const r of this.removed) this.sparks(proj, r.objects, sim.time - r.time, r.seed);
     if (beam && view.firing && view.end) this.beam(proj, picture, view);
     if (beam && view.shot) this.shot(proj, picture, view.shot.end, sim.time - view.shot.time);
+  }
+
+  private sparks(proj: WireProjector, objects: readonly SceneObject[], age: number, seed: number): void {
+    const fade = 1 - age / REMOVED.seconds;
+    const shapes = silhouettes(proj, objects).filter((s) => s.length);
+    this.halos.paint(this.g, shapes, REMOVED_COLOUR, fade, REMOVED.glow);
+    const points = shapes.flat();
+    if (!points.length) return;
+    const centre = points.reduce<[number, number]>((c, p) => [c[0] + p[0] / points.length, c[1] + p[1] / points.length], [0, 0]);
+    const g = this.g;
+    const blue = `rgb(${REMOVED_COLOUR.map((c) => Math.round(c * BYTE)).join(', ')})`;
+    g.save();
+    // The body flashes white as it goes.
+    g.globalAlpha = fade * fade * REMOVED.flash;
+    g.fillStyle = WHITE;
+    for (const shape of shapes) {
+      g.beginPath();
+      shape.forEach((p, k) => (k ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])));
+      g.fill();
+    }
+    g.globalAlpha = fade;
+    g.shadowColor = blue;
+    g.shadowBlur = REMOVED.sparkGlow;
+    for (let k = 0; k < REMOVED.sparks; k++) {
+      // From a point of the outline (or between it and the middle), out from the middle and up.
+      const from = points[Math.floor(noise(k, seed) * points.length)];
+      const inside = noise(k + REMOVED.sparks, seed);
+      const at: Pt = [centre[0] + (from[0] - centre[0]) * inside, centre[1] + (from[1] - centre[1]) * inside];
+      const turn = noise(k + REMOVED.sparks * 2, seed) * Math.PI * 2;
+      const speed = REMOVED.speed * (0.5 + noise(k + REMOVED.sparks * 3, seed));
+      const x = at[0] + Math.cos(turn) * speed * age;
+      const y = at[1] + Math.sin(turn) * speed * age - REMOVED.rise * age;
+      g.fillStyle = k % 2 ? WHITE : blue;
+      g.fillRect(x - REMOVED.dot / 2, y - REMOVED.dot / 2, REMOVED.dot, REMOVED.dot);
+    }
+    g.restore();
   }
 
   private shot(proj: WireProjector, picture: Frame, at: Vec3, age: number): void {

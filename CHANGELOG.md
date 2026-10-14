@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.32.0 - 2026-10-14
+
+### Fixed
+- Garry's Mod mode's Tool Gun treats a carved object as one thing: Colour and Material
+  change all its parts but its decals, and Resize grows every part by one factor instead
+  of pulling one part out of it.
+- A tool step is named after the part that shows (*Resize Pedestal Cup*), not the hollow
+  the aim met inside it, and painting the same colour again makes no empty step.
+
+### Added
+- What the Remover takes flashes white and breaks into sparks where it was, as in Garry's
+  Mod.
 ## 0.31.0 - 2026-10-14
 
 ### Added

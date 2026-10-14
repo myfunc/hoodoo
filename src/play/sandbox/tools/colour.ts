@@ -2,7 +2,7 @@ import type { Rgb } from '../../../core/color';
 import { ChannelSource, ColorChannel, ValueChannel } from '../../../model/scene.enums';
 import type { Material } from '../../../model/scene.types';
 import { SettingKind, type ToolSetting } from '../../../ui/sandbox/tool-menu';
-import { type Tool, ToolButton, ToolCategory, type ToolContext, type ToolHit, ToolId, isPaintable } from './tool';
+import { type Tool, ToolButton, ToolCategory, type ToolContext, type ToolHit, ToolId, changes, isPaintable, nameOf, surfaceOf } from './tool';
 
 /**
  * READ ME — Garry's Mod's Colour tool on a Hoodoo material: Mouse 1 paints the
@@ -36,6 +36,9 @@ const recoloured = (m: Material, from: Material): Material => ({
   valueSources: { ...m.valueSources, [ValueChannel.Transparency]: from.valueSources.transparency },
 });
 
+const sameColour = (a: Material, b: Material): boolean =>
+  a.colors.diffuse.every((v, i) => v === b.colors.diffuse[i]) && a.colorSources.diffuse === b.colorSources.diffuse && a.values.transparency === b.values.transparency;
+
 export class Colour implements Tool {
   readonly id = ToolId.Colour;
   readonly name = 'Colour';
@@ -66,10 +69,15 @@ export class Colour implements Tool {
       this.alpha = ALPHAS.reduce((best, a) => (Math.abs(Number(a) - clear) < Math.abs(Number(best) - clear) ? a : best));
       return true;
     }
-    const from = ctx.edits.original(o.id)?.material;
-    if (button === ToolButton.Reload && !from) return false;
-    const material = from && button === ToolButton.Reload ? recoloured(o.material, from) : painted(o.material, this.colour, Number(this.alpha));
-    ctx.edits.change(new Set([o.id]), `Colour ${o.name}`, (x) => ({ ...x, material }));
+    // A carved object is painted whole, as Garry's Mod paints an entity; R gives every part back its own colour.
+    const next = changes(surfaceOf(o.id, ctx), ctx, (x) => {
+      const from = ctx.edits.original(x.id)?.material;
+      if (button === ToolButton.Reload) return from ? { ...x, material: recoloured(x.material, from) } : null;
+      const material = painted(x.material, this.colour, Number(this.alpha));
+      return sameColour(material, x.material) ? null : { ...x, material };
+    });
+    if (!next.size) return false;
+    ctx.edits.change(new Set(next.keys()), `Colour ${nameOf(o, ctx)}`, (x) => next.get(x.id) ?? x);
     return true;
   }
 }

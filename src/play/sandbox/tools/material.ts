@@ -1,6 +1,6 @@
 import { MATERIAL_LIBRARY, presetMaterial } from '../../../assets/materials.presets';
 import { SettingKind, type ToolSetting } from '../../../ui/sandbox/tool-menu';
-import { type Tool, ToolButton, ToolCategory, type ToolContext, type ToolHit, ToolId, isPaintable } from './tool';
+import { type Tool, ToolButton, ToolCategory, type ToolContext, type ToolHit, ToolId, changes, isPaintable, nameOf, surfaceOf } from './tool';
 
 /**
  * READ ME — Garry's Mod's Material tool with the Materials Lab's presets in place
@@ -34,9 +34,14 @@ export class MaterialTool implements Tool {
       this.preset = o.material.name;
       return true;
     }
-    const material = button === ToolButton.Reload ? ctx.edits.original(o.id)?.material : presetMaterial(this.preset);
-    if (!material || material === o.material) return false;
-    ctx.edits.change(new Set([o.id]), `Material ${o.name}`, (x) => ({ ...x, material }));
+    // A carved object takes the material whole; R gives every part back its own.
+    const preset = presetMaterial(this.preset);
+    const next = changes(surfaceOf(o.id, ctx), ctx, (x) => {
+      const material = button === ToolButton.Reload ? ctx.edits.original(x.id)?.material : preset;
+      return !material || material === x.material || (button !== ToolButton.Reload && x.material.name === preset.name) ? null : { ...x, material };
+    });
+    if (!next.size) return false;
+    ctx.edits.change(new Set(next.keys()), `Material ${nameOf(o, ctx)}`, (x) => next.get(x.id) ?? x);
     return true;
   }
 }

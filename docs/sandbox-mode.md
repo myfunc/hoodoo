@@ -193,6 +193,14 @@ its speed and frozen or not, and a prop that grows on the floor grows up from it
 (`src/play/sim/carry.ts`); an object the scene holds still grows up from its
 bottom in the scene.
 
+A carved object (world/carved.ts) is one thing to the tools, as an entity is in
+Garry's Mod: Colour and Material change all its parts but the decals on it,
+Resize grows every part (decals too) by one factor about the part the aim met,
+and a step is named after the part that shows, not the hollow the aim may meet
+inside it. A tool that would change nothing (the same colour again) makes no
+step. What the Remover takes flashes white and breaks into sparks where it was
+(Garry's Mod's entity_remove).
+
 A tool is one module (`src/play/sandbox/tools/`):
 
 ```ts

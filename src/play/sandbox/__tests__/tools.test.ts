@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createEntry } from '../../../assets/object.catalog';
 import type { Vec3 } from '../../../core/vec3';
+import { BooleanMode } from '../../../model/scene.enums';
 import { asGroupId } from '../../../model/scene.ids';
 import type { Scene, SceneObject } from '../../../model/scene.types';
 import { withBody } from '../../../world/body-flags';
@@ -164,6 +165,49 @@ describe('Remover', () => {
     expect(b.edits.undo()).toBe('Remove Left');
     expect(b.edits.undo()).toBe('Remove Crate');
     expect(b.world.scene.objects.map((o) => o.name)).toEqual(['Ground Plane', 'Crate', 'Left', 'Right']);
+  });
+});
+
+describe('a carved object', () => {
+  /** A cup: a cube carved by a sphere, with a decal on it, one body as the player sees it. */
+  async function cup() {
+    const g = asGroupId('cup');
+    const body = { ...at('cube', [0, 1, 0], [1, 1, 1], 7), name: 'Cup', groupId: g };
+    const hollow = { ...at('sphere', [0, 1.8, 0], [0.8, 0.8, 0.8], 8), name: 'Hollow', groupId: g, boolean: BooleanMode.Negative };
+    const decal = { ...at('cube', [1, 1, 0], [0.01, 0.2, 0.2], 9), name: 'Dot', groupId: g, boolean: BooleanMode.Positive };
+    const b = await bench(stage([ground(), body, hollow, decal], [{ id: g, name: 'Cup', parentId: null, collapsed: true }]));
+    const parts = () => new Set(b.world.scene.objects.filter((o) => o.groupId === g).map((o) => o.id));
+    const ctx: ToolContext = { ...b.ctx, whole: () => parts(), decalsOn: () => new Set([b.object('Dot')!.id]), carved: () => true };
+    return { ...b, ctx };
+  }
+
+  it('Colour and Material change it whole but the decal; a repeat changes nothing and makes no step', async () => {
+    const b = await cup();
+    const colour = new Colour();
+    colour.colour = [1, 0, 0];
+    expect(colour.use(ToolButton.Primary, b.hit('Hollow'), b.ctx)).toBe(true);
+    expect(['Cup', 'Hollow'].map((n) => b.object(n)!.material.colors.diffuse)).toEqual([[1, 0, 0], [1, 0, 0]]);
+    expect(b.object('Dot')!.material.colors.diffuse).not.toEqual([1, 0, 0]);
+    expect(colour.use(ToolButton.Primary, b.hit('Cup'), b.ctx)).toBe(false);
+    const material = new MaterialTool();
+    expect(material.use(ToolButton.Primary, b.hit('Cup'), b.ctx)).toBe(true);
+    expect(['Cup', 'Hollow', 'Dot'].map((n) => b.object(n)!.material.name)).toEqual(['Chrome', 'Chrome', expect.not.stringMatching('Chrome')]);
+    expect(material.use(ToolButton.Primary, b.hit('Cup'), b.ctx)).toBe(false);
+    expect(b.edits.labels).toEqual(['Material Cup', 'Colour Cup']);
+  });
+
+  it('Resize grows every part, decal too, by one factor about the part hit; R brings the first size back', async () => {
+    const b = await cup();
+    const tool = new Resize();
+    expect(tool.use(ToolButton.Primary, b.hit('Cup'), b.ctx)).toBe(true);
+    expect(b.object('Cup')!.transform.size).toEqual([1.25, 1.25, 1.25]);
+    expect(b.object('Hollow')!.transform.size[0]).toBeCloseTo(1);
+    expect(b.object('Dot')!.transform.position[0]).toBeCloseTo(1.25);
+    expect(b.object('Hollow')!.transform.position[1] - b.object('Cup')!.transform.position[1]).toBeCloseTo(1);
+    expect(tool.use(ToolButton.Reload, b.hit('Hollow'), b.ctx)).toBe(true);
+    expect(b.object('Cup')!.transform.size[0]).toBeCloseTo(1);
+    expect(b.object('Hollow')!.transform.size[0]).toBeCloseTo(0.8);
+    expect(b.object('Dot')!.transform.position[0]).toBeCloseTo(1);
   });
 });
 

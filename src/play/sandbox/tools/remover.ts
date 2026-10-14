@@ -1,5 +1,5 @@
 import { JointKind } from '../../../model/scene.enums';
-import { type Tool, ToolButton, ToolCategory, type ToolContext, type ToolHit, ToolId, isProp } from './tool';
+import { type Tool, ToolButton, ToolCategory, type ToolContext, type ToolHit, ToolId, isProp, nameOf } from './tool';
 
 const ALL_JOINTS: ReadonlySet<JointKind> = new Set(Object.values(JointKind));
 
@@ -19,9 +19,9 @@ export class Remover implements Tool {
   use(button: ToolButton, hit: ToolHit, ctx: ToolContext): boolean {
     const o = hit.object;
     if (!isProp(o)) return false;
-    if (button === ToolButton.Reload) return ctx.edits.removeJointsOf(o.id, ALL_JOINTS, `Remove joints of ${o.name}`);
+    if (button === ToolButton.Reload) return ctx.edits.removeJointsOf(o.id, ALL_JOINTS, `Remove joints of ${nameOf(o, ctx)}`);
     const ids = button === ToolButton.Primary ? ctx.whole(o.id) : ctx.joined(o.id);
-    ctx.edits.remove(ids, `Remove ${o.name}`);
+    ctx.edits.remove(ids, `Remove ${nameOf(o, ctx)}`);
     return true;
   }
 }

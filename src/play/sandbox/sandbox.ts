@@ -1,3 +1,4 @@
+import { BooleanMode } from '../../model/scene.enums';
 import type { Scene } from '../../model/scene.types';
 import { ScrollClassifier, ScrollDevice } from '../../input/scroll-device';
 import type { Thumbnailer } from '../../render/thumbs';
@@ -129,6 +130,8 @@ export class Sandbox {
     this.joints = new SandboxJoints(host.sim);
     this.joints.sync(host.world.scene);
     this.edits = new SceneEdits(host.world, host.sim);
+    // What the Remover (or an object's menu) takes away dissolves where play shows it; a carved object's hollow does not show.
+    this.edits.removing = (ids) => this.overlay.dissolve(host.sim.frame(1).scene.objects.filter((o) => ids.has(o.id) && o.boolean !== BooleanMode.Negative), host.sim.time);
     this.tools = new ToolHost(host.world, host.sim, this.edits, this.joints);
     this.menu = new SpawnMenu(host.thumbs, spawnLists((id) => this.forgetMine(id)), (key) => void this.spawn(key));
     this.contextMenu = new ContextMenu({

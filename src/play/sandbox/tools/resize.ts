@@ -1,8 +1,8 @@
 import type { Vec3 } from '../../../core/vec3';
 import type { SceneObject } from '../../../model/scene.types';
 import { SettingKind, type ToolSetting } from '../../../ui/sandbox/tool-menu';
-import { worldBox } from '../../../world/bounds';
-import { type Tool, ToolButton, ToolCategory, type ToolContext, type ToolHit, ToolId, type ToolLine, isProp } from './tool';
+import { unionBox, worldBox } from '../../../world/bounds';
+import { type Tool, ToolButton, ToolCategory, type ToolContext, type ToolHit, ToolId, type ToolLine, changes, isProp, nameOf } from './tool';
 
 /**
  * READ ME — Resize, the props resizer Garry's Mod players add. Step: Mouse 1
@@ -87,8 +87,17 @@ export class Resize implements Tool {
       : this.mode === ResizeMode.Set ? clampSize(first.map((v, i) => v * this.scale[i]) as unknown as Vec3)
         : this.scaled(o.transform.size, button === ToolButton.Primary);
     if (size.every((v, i) => Math.abs(v - o.transform.size[i]) < SAME)) return false;
+    const whole = ctx.whole(o.id);
+    if (whole.size > 1) {
+      // A carved object grows as one, decals and all: every part by the same factor about the part the aim met.
+      const next = changes(whole, ctx, (x) => scaledAbout(x, o, uniformOf(size, o.transform.size)));
+      const before = ctx.edits.scene.objects.filter((x) => next.has(x.id));
+      const lifted = liftedAll(before, next, !ctx.moving(o.id) && !o.local);
+      ctx.edits.change(new Set(lifted.keys()), `Resize ${nameOf(o, ctx)}`, (x) => lifted.get(x.id) ?? x);
+      return true;
+    }
     const next = resized(o, size, !ctx.moving(o.id));
-    ctx.edits.change(new Set([o.id]), `Resize ${o.name}`, () => next);
+    ctx.edits.change(new Set([o.id]), `Resize ${nameOf(o, ctx)}`, () => next);
     return true;
   }
 
@@ -120,4 +129,29 @@ export function resized(o: SceneObject, size: Vec3, lift: boolean): SceneObject 
   const sink = lift && !o.local ? worldBox(o).min[1] - worldBox(next).min[1] : 0;
   const p = o.transform.position;
   return { ...next, body, transform: { ...next.transform, position: sink > 0 ? [p[0], p[1] + sink, p[2]] : p } };
+}
+
+/** One factor for a change of size along three axes: the axis that changes most. */
+const uniformOf = (size: Vec3, from: Vec3): number =>
+  size.map((v, i) => v / from[i]).reduce((best, r) => (Math.abs(Math.log(r)) > Math.abs(Math.log(best)) ? r : best), 1);
+
+/** A part of a carved object grown by `f` about the centre of `pivot` (the part the aim met), its weight with its volume. */
+export function scaledAbout(o: SceneObject, pivot: SceneObject, f: number): SceneObject {
+  const about = (p: Vec3, c: Vec3): Vec3 => c.map((v, i) => v + (p[i] - v) * f) as unknown as Vec3;
+  const grow = (v: Vec3): Vec3 => v.map((x) => x * f) as unknown as Vec3;
+  const local = o.local && { ...o.local, size: grow(o.local.size), position: pivot.local ? about(o.local.position, pivot.local.position) : o.local.position };
+  const body = o.body?.mass === undefined ? o.body : { ...o.body, mass: o.body.mass * f ** 3 };
+  return { ...o, body, transform: { ...o.transform, size: grow(o.transform.size), position: about(o.transform.position, pivot.transform.position) }, ...(local ? { local } : {}) };
+}
+
+/** Grown parts standing still rise as one, so the whole does not sink into what it stands on. */
+function liftedAll(before: readonly SceneObject[], next: ReadonlyMap<SceneObject['id'], SceneObject>, lift: boolean): Map<SceneObject['id'], SceneObject> {
+  const was = unionBox(before.map(worldBox));
+  const now = unionBox([...next.values()].map(worldBox));
+  const sink = lift && was && now ? was.min[1] - now.min[1] : 0;
+  if (sink <= 0) return new Map(next);
+  return new Map([...next].map(([id, o]) => {
+    const p = o.transform.position;
+    return [id, { ...o, transform: { ...o.transform, position: [p[0], p[1] + sink, p[2]] } }];
+  }));
 }
