@@ -65,6 +65,12 @@ export enum TextureKind {
   Beam = 16,
   /** Spectrum bands near the rim about Y, 1 / frequency of the radius wide (on a disc, a rainbow); its scalar is the band's opacity. */
   Rainbow = 17,
+  /** Windows on the walls: wall 0, frame 0.5, glass 1; Detail picks the style (1 office, 2 houses, 3 warehouse). */
+  Facade = 18,
+  /** The same windows' glass alone (1 on the panes): drive reflection, so glass mirrors the sky and walls stay matt. */
+  FacadeGlass = 19,
+  /** About a third of the panes (1 where lit): drive ambience for windows lit at night. Keep its seed the Facade's: a seed shifts the windows. */
+  FacadeLit = 20,
 }
 
 export enum TextureMapping {

@@ -20,6 +20,9 @@ export const TEXTURE_KIND_LABELS: Readonly<Record<TextureKind, string>> = {
   [TextureKind.Iridescent]: 'Iridescent',
   [TextureKind.Beam]: 'Light Beam',
   [TextureKind.Rainbow]: 'Rainbow',
+  [TextureKind.Facade]: 'Facade',
+  [TextureKind.FacadeGlass]: 'Facade Glass',
+  [TextureKind.FacadeLit]: 'Facade Lit Windows',
 };
 
 export const MAPPING_LABELS: Readonly<Record<TextureMapping, string>> = {

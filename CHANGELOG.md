@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.34.0 - 2026-10-14
+
+### Added
+- Windows without modelling them: the Facade textures put window cells on an object's
+  walls (not its roof), in three styles by Detail (office, houses, warehouse). Facade
+  paints wall, frame and glass; Facade Glass is the panes alone, to make them mirror the
+  sky while the walls stay matt; Facade Lit Windows is about a third of the panes, to glow
+  through the ambient channel. Materials Lab › Buildings has Office Tower, Brick Houses
+  and Warehouse wired that way.
 ## 0.33.0 - 2026-10-14
 
 ### Added

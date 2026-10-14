@@ -50,6 +50,38 @@ vec3 gLocalNormal = vec3(0, 1, 0);
 // The current pattern's footprint in its own units, overall and along each axis (evalTexture).
 float gTexFoot = 0.0;
 vec3 gTexAxes = vec3(0);
+// The surface's normal in the pattern's own axes (evalTexture): a facade puts its windows on walls only.
+vec3 gTexNormal = vec3(0, 1, 0);
+
+#define T_FACADE 18
+#define T_FACADE_GLASS 19
+#define T_FACADE_LIT 20
+// A pixel wider than this share of a window cell sees the facade's average, not its windows (no shimmer far off).
+#define FACADE_BLUR 0.35
+
+// One window cell (f in 0..1, across and up) by style: 1 office (wide glass), 2 houses
+// (tall windows in brick), 3 warehouse (a strip of glass high up). x: glass, y: glass or frame.
+vec2 facadeCell(vec2 f, int style) {
+  vec4 g = style == 2 ? vec4(0.3, 0.7, 0.28, 0.82) : (style == 3 ? vec4(0.06, 0.94, 0.66, 0.84) : vec4(0.12, 0.88, 0.2, 0.86));
+  float frame = 0.05;
+  float glass = step(g.x, f.x) * step(f.x, g.y) * step(g.z, f.y) * step(f.y, g.w);
+  float framed = step(g.x - frame, f.x) * step(f.x, g.y + frame) * step(g.z - frame, f.y) * step(f.y, g.w + frame);
+  return vec2(glass, framed);
+}
+
+// Windows on the walls: a cell 1 / Scale wide and a storey 1.3 times that high; roofs are wall.
+// Facade: wall 0, frame 0.5, glass 1. Glass: 1 on the glass. Lit: 1 on about a third of the panes.
+float facade(vec3 p, int kind, int style) {
+  vec3 an = abs(gTexNormal);
+  if (an.y > 0.7) return 0.0;
+  bool alongZ = an.x > an.z;
+  vec2 cell = vec2(alongZ ? p.z : p.x, p.y / 1.3);
+  if (gTexFoot > FACADE_BLUR) return kind == T_FACADE ? 0.45 : (kind == T_FACADE_GLASS ? 0.4 : 0.12);
+  vec2 w = facadeCell(fract(cell), style);
+  if (kind == T_FACADE_GLASS) return w.x;
+  if (kind == T_FACADE_LIT) return w.x * step(0.66, hash13(vec3(floor(cell), alongZ ? 1.0 : 0.0)));
+  return w.x > 0.5 ? 1.0 : (w.y > 0.5 ? 0.5 : 0.0);
+}
 
 // A checkerboard box-filtered over `w` along each axis (after Inigo Quilez): squares smaller
 // than a pixel turn grey instead of flickering. An axis the surface does not move along
@@ -81,6 +113,7 @@ float featureKeep(float size) { return 1.0; }
 // One fractal and at most one cellular evaluation per call: each kind only picks
 // the input point and shapes the result (keeps the compiled shader small).
 float textureScalar(int kind, vec3 p, int octaves, Surface s) {
+  if (kind >= T_FACADE && kind <= T_FACADE_LIT) return facade(p, kind, clamp(octaves, 1, 3));
   // The fractal's input is the point stretched by k.
   vec3 k = vec3(1.0);
   int oct = octaves;
@@ -190,6 +223,7 @@ vec4 evalTexture(int mat, int slot, Surface s) {
   float unit = mapping == MAP_WORLD || mapping == MAP_FOLLOWS ? 1.0 : (mapping == MAP_OBJECT ? gLocalScale : PARAMETRIC_UNITS * gLocalScale);
   gTexFoot = gFoot * t0.y * unit;
   vec3 axisN = mapping == MAP_WORLD ? s.n : gLocalNormal;
+  gTexNormal = axisN;
   // A flat pattern changes only along the surface: no blur across it.
   gTexAxes = mapping == MAP_PARAMETRIC ? vec3(gTexFoot, gTexFoot, 0.0) : gTexFoot * sqrt(max(1.0 - axisN * axisN, 0.0));
   float v = kind == T_POOLBALL ? poolBall(s.lp, t1.w) : (isSheen(kind) ? sheenScalar(kind, t0.y, s.wp, s.lp, s.n) : textureScalar(kind, p, int(t0.z + 0.5), s));

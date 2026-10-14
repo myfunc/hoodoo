@@ -13,6 +13,8 @@ export interface MaterialCategory {
 const A = ChannelSource.TexA;
 const B = ChannelSource.TexB;
 const OBJ = TextureMapping.Object;
+const FOLLOWS = TextureMapping.Follows;
+const C = ChannelSource.TexC;
 
 const rocks: Material[] = [
   material({
@@ -344,6 +346,35 @@ const metals: Material[] = [
   }),
 ];
 
+/**
+ * Buildings: windows from the Facade textures, as Bryce built looks from procedural textures and
+ * channels. A paints wall, frame and glass; B (the glass alone) makes panes mirror the sky and
+ * shine while walls stay matt; C (lit panes) glows warm through the ambient channel.
+ */
+const LIT_RAMP = [h('#1c1b1a'), h('#1c1b1a'), h('#ffcf7a')] as const;
+const GLASS_RAMP = [h('#000000'), h('#808080'), h('#ffffff')] as const;
+const BUILDING_VALUES = { diffusion: 85, ambience: 70, specularity: 90 } as const;
+
+function building(name: string, cell: number, style: number, colors: readonly [string, string, string], reflection: number): Material {
+  return material({
+    name,
+    textures: [
+      texture(TextureKind.Facade, 1 / cell, [h(colors[0]), h(colors[1]), h(colors[2])], { detail: style, mapping: FOLLOWS }),
+      texture(TextureKind.FacadeGlass, 1 / cell, GLASS_RAMP, { detail: style, mapping: FOLLOWS }),
+      texture(TextureKind.FacadeLit, 1 / cell, LIT_RAMP, { detail: style, mapping: FOLLOWS }),
+    ],
+    colorSources: { diffuse: A, ambient: C },
+    valueSources: { reflection: B, specularity: B },
+    values: { ...BUILDING_VALUES, reflection },
+  });
+}
+
+const buildings: Material[] = [
+  building('Office Tower', 3, 1, ['#8a8d92', '#2c2f33', '#22384f'], 70),
+  building('Brick Houses', 2.4, 2, ['#8e3b26', '#e8e2d4', '#1d2a33'], 45),
+  building('Warehouse', 5, 3, ['#9a9a92', '#3a3a3a', '#6f8796'], 25),
+];
+
 const basic: Material[] = [
   material({ name: 'Default' }),
   material({
@@ -382,6 +413,7 @@ export const MATERIAL_LIBRARY: readonly MaterialCategory[] = [
   { name: 'Wild & Fun', materials: wild },
   { name: 'Glass', materials: glass },
   { name: 'Metals', materials: metals },
+  { name: 'Buildings', materials: buildings },
   { name: 'Simple & Basic', materials: basic },
   { name: 'Chess & Billiards', materials: GAMES_MATERIALS },
 ];
