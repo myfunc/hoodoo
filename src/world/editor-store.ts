@@ -45,8 +45,10 @@ export interface EditorState {
   readonly sidePanel: boolean;
   /** Which panels of the right column are on (world/side-panes.ts). */
   readonly sidePanes: SidePanes;
-  /** The scene window takes the whole workspace: the side columns, the palette and the timeline hide (not remembered). */
+  /** The scene window takes the whole workspace: the side columns, the palette and the timeline hide. */
   readonly maximized: boolean;
+  /** The timeline shows its tracks; off, only the transport and the ruler (a strip under the picture). */
+  readonly timelineFull: boolean;
   /** The left column: camera controls, render balls and docked tool windows. */
   readonly leftPanel: boolean;
   /** Bryce's camera controls and render balls at the top of the left column; folded, the panels below take the room. */
@@ -100,6 +102,7 @@ export const INITIAL_EDITOR: EditorState = {
   sidePanel: true,
   sidePanes: ALL_PANES,
   maximized: false,
+  timelineFull: false,
   leftPanel: true,
   controlsOpen: true,
   toolPlaces: DEFAULT_TOOL_PLACES,

@@ -21,10 +21,13 @@ describe('Fit Window', () => {
     expect(w.scene.document).toEqual(DEFAULT_DOCUMENT);
   });
 
-  it('travels in the scene file; a file without it keeps its fixed size', () => {
+  it('travels in the scene file; a file from before it fills the window', () => {
     const fit = { ...emptyScene(), document: { ...WINDOW, fit: true } };
     expect(deserializeScene(JSON.parse(JSON.stringify(serializeScene(fit)))).document).toEqual({ ...WINDOW, fit: true });
     const fixed = { ...emptyScene(), document: DEFAULT_DOCUMENT };
     expect(deserializeScene(JSON.parse(JSON.stringify(serializeScene(fixed)))).document.fit).toBeUndefined();
+    const old = JSON.parse(JSON.stringify(serializeScene(fixed)));
+    delete old.scene.document.fit;
+    expect(deserializeScene(old).document.fit).toBe(true);
   });
 });

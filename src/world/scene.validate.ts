@@ -112,7 +112,8 @@ export function documentSetup(doc: unknown, d: DocumentSetup): DocumentSetup {
   const r = (doc ?? {}) as Partial<Record<keyof DocumentSetup, unknown>>;
   const dim = (v: unknown, f: number) => Math.round(Math.min(DOC.max, Math.max(DOC.min, num(v, f))));
   const size = { width: dim(r.width, d.width), height: dim(r.height, d.height) };
-  return r.fit === true ? { ...size, fit: true } : size;
+  // Files from before Fit Window (0.17.0) fill the window too; only a size kept on purpose says fit: false.
+  return r.fit === false ? size : { ...size, fit: true };
 }
 
 /** The final render's options; null when there are none (the defaults then apply). */

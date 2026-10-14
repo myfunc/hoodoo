@@ -91,6 +91,9 @@ export class Timeline {
     hintOn(ctx, filter.el, { title: 'Rows', text: 'Animated, all or selected' });
     hintOn(ctx, strip.el, { title: 'Film strip', text: 'Camera pictures by time' });
     this.range = el('span', { cls: 'tl-range' });
+    // The tracks fold away: the transport and the ruler stay, a strip under the picture.
+    const tracks = new Button({ label: 'Tracks', cls: 'tl-tracks', title: 'Show or fold the tracks', onClick: () => ctx.editor.update({ timelineFull: !ctx.editor.state.timelineFull }) });
+    hintOn(ctx, tracks.el, { title: 'Tracks', text: 'Every animated thing with its keys; folded, the timeline is one strip' });
     this.fit = new Button({ label: 'Fit', cls: 'tl-fit', title: 'Show the whole scene', onClick: () => {
       this.state.fit();
       this.redraw();
@@ -107,6 +110,7 @@ export class Timeline {
         ]),
         this.clock.el,
         this.loop.el,
+        tracks.el,
         el('span', { cls: 'tl-bar-gap' }),
         filter.el,
         el('span', { cls: 'tl-bar-label', text: 'Strip' }),
@@ -139,7 +143,16 @@ export class Timeline {
       this.surfacesRead = false;
       this.redraw();
     });
+    const fold = () => {
+      this.el.classList.toggle('is-mini', !ctx.editor.state.timelineFull);
+      tracks.el.classList.toggle('is-active', ctx.editor.state.timelineFull);
+    };
+    fold();
     ctx.editor.events.on('changed', ({ state, previous }) => {
+      if (state.timelineFull !== previous.timelineFull) {
+        fold();
+        this.redraw();
+      }
       if (state.playing !== previous.playing || state.selectedKeys !== previous.selectedKeys) this.redraw();
     });
     this.redraw();

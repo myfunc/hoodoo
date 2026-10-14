@@ -41,7 +41,7 @@ export interface Example {
 
 const TAU = 2 * Math.PI;
 const RAD_PER_DEG = Math.PI / 180;
-const EXAMPLE_DOCUMENT = { width: 960, height: 600 } as const;
+const EXAMPLE_DOCUMENT = { width: 960, height: 600, fit: true } as const;
 const SURPRISE_SEED = 2024;
 /** The animated examples keep the Bryce 3D look they were made with. */
 const SOFT_SHADOWS = 100;

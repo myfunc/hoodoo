@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.20.2 - 2026-10-14
+
+### Changed
+- The timeline starts folded into one strip under the picture: play, the time and the ruler
+  to scrub. Tracks unfolds every animated thing with its keys, and the choice is remembered.
+- Scenes saved before Fit Window, and the examples, fill the scene window too; a size kept
+  on purpose in Document Setup stays.
 ## 0.20.1 - 2026-10-13
 
 ### Fixed

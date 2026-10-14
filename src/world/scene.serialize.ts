@@ -87,6 +87,8 @@ export function serializeScene(scene: Scene): SceneFile {
     version: SCENE_VERSION,
     scene: {
       ...rest,
+      // A fixed size is written as such: a file without the flag fills the window (scene.validate.ts).
+      document: { ...scene.document, fit: !!scene.document.fit },
       objects: scene.objects.map((o) => {
         const { local: _local, ...rest } = o;
         return {

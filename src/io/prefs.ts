@@ -9,7 +9,7 @@ import { ScrollPreference } from '../world/world.enums';
 import { SITE_DEFAULTS } from './site-defaults';
 
 /** Editor state kept as you left it between visits; the Settings window shows it too. */
-export const REMEMBERED = ['scroll', 'renderSamples', 'sidePanel', 'sidePanes', 'liveRender', 'leftPanel', 'controlsOpen', 'toolPlaces', 'maximized'] as const;
+export const REMEMBERED = ['scroll', 'renderSamples', 'sidePanel', 'sidePanes', 'liveRender', 'leftPanel', 'controlsOpen', 'toolPlaces', 'maximized', 'timelineFull'] as const;
 export type Remembered = Pick<EditorState, (typeof REMEMBERED)[number]>;
 
 /** Settings that outlive a session: the Settings window's (world/settings.ts), the remembered editor state, preview features. */
@@ -35,7 +35,7 @@ const logger = Logger.create('Prefs');
 
 /** The part of the editor state that is remembered. */
 export function rememberedOf(s: Remembered): Remembered {
-  return { scroll: s.scroll, renderSamples: s.renderSamples, sidePanel: s.sidePanel, sidePanes: s.sidePanes, liveRender: s.liveRender, leftPanel: s.leftPanel, controlsOpen: s.controlsOpen, toolPlaces: s.toolPlaces, maximized: s.maximized };
+  return { scroll: s.scroll, renderSamples: s.renderSamples, sidePanel: s.sidePanel, sidePanes: s.sidePanes, liveRender: s.liveRender, leftPanel: s.leftPanel, controlsOpen: s.controlsOpen, toolPlaces: s.toolPlaces, maximized: s.maximized, timelineFull: s.timelineFull };
 }
 
 const flag = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback);
@@ -56,6 +56,7 @@ export function prefsFrom(raw: Record<string, unknown>): Prefs {
     leftPanel: flag(raw.leftPanel, DEFAULTS.leftPanel),
     controlsOpen: flag(raw.controlsOpen, DEFAULTS.controlsOpen),
     maximized: flag(raw.maximized, DEFAULTS.maximized),
+    timelineFull: flag(raw.timelineFull, DEFAULTS.timelineFull),
     // A window never moved keeps its default place (the Render page docked).
     toolPlaces: { ...DEFAULTS.toolPlaces, ...toolPlacesFrom(raw.toolPlaces) },
     liveRender: flag(raw.liveRender, DEFAULTS.liveRender),
