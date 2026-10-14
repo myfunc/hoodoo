@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.29.1 - 2026-10-14
+
+### Fixed
+- Garry's Mod mode's Q › My Objects now follows the list as it changes: an object saved or
+  removed in the editor, or in the game's own window, shows there at once.
 ## 0.29.0 - 2026-10-14
 
 ### Added

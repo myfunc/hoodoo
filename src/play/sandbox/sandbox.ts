@@ -27,7 +27,7 @@ import { NoticeKind, WeaponId } from './sandbox.enums';
 import { SceneEdits } from './scene-edits';
 import { SPAWN_LIMIT, tracedCount } from './spawn';
 import { SpawnCategory, findSpawnItem, listOf, spawnLists } from './spawn-lists';
-import { itemOf, removeMyObject, saveMyObject } from '../../io/my-objects';
+import { itemOf, onMyObjectsChanged, removeMyObject, saveMyObject } from '../../io/my-objects';
 import type { ObjectId } from '../../model/scene.ids';
 import { ToolButton, type ToolId } from './tools/tool';
 import { ToolHost } from './tool-host';
@@ -97,6 +97,8 @@ export class Sandbox {
   /** The context menu's History of this play session, on the left. */
   private readonly history: HistoryList;
   private readonly offHistory: () => void;
+  /** Q › My Objects follows the list, saved here, in the editor or in another window. */
+  private readonly offMine: () => void;
   private readonly notices = new Notices();
   private readonly loadout = new Loadout();
   private readonly toolgun = new ToolGun(createTools(), {
@@ -147,6 +149,7 @@ export class Sandbox {
     this.menu.dockLeft(this.history.el);
     this.history.show(this.edits.steps());
     this.offHistory = host.world.events.on('history', () => this.history.show(this.edits.steps()));
+    this.offMine = onMyObjectsChanged(() => this.menu.setList(listOf(SpawnCategory.Mine, (x) => this.forgetMine(x))));
     this.menu.addTab(SKY_TAB, () => {
       const page = new SkyPage(host.thumbs, SKY_LIBRARY, (p) => this.edits.setSky(p.sky, `Sky ${p.name}`));
       page.mark(SKY_LIBRARY.find((p) => p.sky === host.world.scene.sky)?.name ?? null);
@@ -300,6 +303,7 @@ export class Sandbox {
   dispose(): void {
     this.contextMenu.dispose();
     this.offHistory();
+    this.offMine();
     this.joints.dispose();
     this.game.dispose();
     this.weapon.holster(this.context());
@@ -363,12 +367,10 @@ export class Sandbox {
     const top = o?.groupId ? part.groups.find((g) => g.parentId === null) : null;
     const saved = saveMyObject(top?.name ?? o?.name ?? 'Object', part);
     this.notify(saved ? `Saved ${saved.name} to My Objects` : 'Could not save: the browser\'s storage is full', saved ? NoticeKind.Info : NoticeKind.Limit);
-    this.menu.setList(listOf(SpawnCategory.Mine, (x) => this.forgetMine(x)));
   }
 
   private forgetMine(id: string): void {
     removeMyObject(id);
-    this.menu.setList(listOf(SpawnCategory.Mine, (x) => this.forgetMine(x)));
   }
 
   /** Changes the weapon (the old one lets go) and shows the slot strip. */
