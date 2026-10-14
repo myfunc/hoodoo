@@ -9,6 +9,9 @@ import { el, glyph } from '../kit/dom';
 import { GLYPH, GLYPH_BOX } from '../kit/glyphs';
 import { VIEW_NAMES } from '../strings';
 import { pictureLine } from './picture-readout';
+import { LOAD_WARN, type SceneLoad, loadPercent, sceneLoad } from '../../render/scene-load';
+import { MAX_LIGHTS, MAX_OBJECTS } from '../../render/gpu/render.constants';
+import { openMenu } from '../kit/controls';
 import { showWhile } from '../feature-gate';
 import { Feature } from '../../world/preview-features';
 import '../labs/render-options.css';
@@ -16,6 +19,8 @@ import './display-bar.css';
 
 const MS_PER_S = 1000;
 const PERCENT = 100;
+/** The tracer's limits, as the load popup names them. */
+const MAX_SHOWN = { objects: MAX_OBJECTS, lights: MAX_LIGHTS } as const;
 const VIEW_ACTIONS: Readonly<Record<ViewKind, Action>> = {
   [ViewKind.Camera]: Action.ViewCamera,
   [ViewKind.Top]: Action.ViewTop,
@@ -56,6 +61,9 @@ export class DisplayBar {
   private readonly viewSelect: Select<ViewKind>;
   private readonly undo: Button;
   private readonly redo: Button;
+  private readonly load: Button;
+  private loadQueued = false;
+  private lastFps = 0;
 
   constructor(private readonly ctx: UiContext) {
     this.viewSelect = new Select<ViewKind>({
@@ -67,6 +75,8 @@ export class DisplayBar {
     this.undo = new Button({ cls: 'ghost', title: `Undo (${shortcutOf(Action.Undo)})`, content: glyph(GLYPH.undo, GLYPH_BOX), onClick: () => ctx.dispatch(Action.Undo) });
     this.redo = new Button({ cls: 'ghost', title: `Redo (${shortcutOf(Action.Redo)})`, content: glyph(GLYPH.redo, GLYPH_BOX), onClick: () => ctx.dispatch(Action.Redo) });
     this.status = el('span', { cls: 'status' });
+    this.load = new Button({ cls: 'mark-chip text-chip load-chip', label: 'Load', onClick: (e) => this.showLoad(e) });
+    hintOn(ctx, this.load.el, { title: 'Scene load', text: 'How much of the tracer the scene takes; click for what costs most' });
     const left = this.toggle(Action.ToggleLeftPanel);
     left.classList.add('is-mirrored');
     this.el = el('div', { cls: 'display-bar' }, [
@@ -89,6 +99,7 @@ export class DisplayBar {
       this.tool(Action.ZoomIn, GLYPH.plus, 'Zoom In', 'Move closer'),
       this.tool(Action.FrameSelected, GLYPH.frame, 'Frame Selection', 'Fit the selection in the view'),
       el('div', { cls: 'grow' }),
+      this.load.el,
       this.status,
       // The picture's two switches by the status line that reports on it; view modes such as Play stay apart.
       el('div', { cls: 'sep' }),
@@ -104,6 +115,8 @@ export class DisplayBar {
       this.sync();
     });
     ctx.world.events.on('history', () => this.sync());
+    ctx.world.events.on('changed', () => this.queueLoad());
+    this.queueLoad();
     this.scrollSideways();
     this.sync();
     this.idleStatus();
@@ -119,6 +132,7 @@ export class DisplayBar {
   }
 
   set live(s: RealtimeStatus) {
+    if (s.moving && s.fps > 0) this.lastFps = s.fps;
     this.status.textContent = pictureLine(s);
   }
 
@@ -176,5 +190,33 @@ export class DisplayBar {
     for (const t of this.toggles) t.button.active = this.ctx.isChecked(t.action);
     this.undo.disabled = !this.ctx.world.canUndo();
     this.redo.disabled = !this.ctx.world.canRedo();
+  }
+
+  /** The load readout follows the scene, once a frame at most. */
+  private queueLoad(): void {
+    if (this.loadQueued) return;
+    this.loadQueued = true;
+    requestAnimationFrame(() => {
+      this.loadQueued = false;
+      const l = sceneLoad(this.ctx.world.scene);
+      this.load.el.textContent = `Load ${loadPercent(l)}%`;
+      this.load.el.classList.toggle('is-warn', l.share >= LOAD_WARN && l.leftOut === 0 && l.lightsLeftOut === 0);
+      this.load.el.classList.toggle('is-over', l.leftOut > 0 || l.lightsLeftOut > 0);
+    });
+  }
+
+  /** What the scene asks of the tracer, and what to trim, worst first. */
+  private showLoad(e: MouseEvent): void {
+    const l: SceneLoad = sceneLoad(this.ctx.world.scene);
+    const rows = [
+      `Objects ${l.objects} / ${MAX_SHOWN.objects}${l.leftOut ? ` · ${l.leftOut} not drawn` : ''}`,
+      `Lights ${l.lights} / ${MAX_SHOWN.lights}${l.lightsLeftOut ? ` · ${l.lightsLeftOut} unlit` : ''}`,
+      `Terrains ${l.terrains}${l.finestTerrain ? ` · finest ${l.finestTerrain}×${l.finestTerrain}` : ''}`,
+      `Glass and mirrors ${l.glassy} · Booleans ${l.booleans} · Portals ${l.portals}`,
+      ...(this.lastFps ? [`Live picture while moving: ${this.lastFps} fps`] : []),
+    ];
+    const tips = l.tips.length ? l.tips : ['Light scene: nothing to trim'];
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    openMenu(r.left, r.top, [...rows.map((label) => ({ label })), { label: '', separator: true }, ...tips.map((label) => ({ label }))]);
   }
 }

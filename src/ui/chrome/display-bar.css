@@ -2,3 +2,7 @@
    on a narrow window it scrolls sideways (wheel or trackpad) instead of running under the side panel. */
 .display-bar { overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
 .display-bar::-webkit-scrollbar { display: none; }
+
+/* Scene load (render/scene-load.ts): amber close to a limit, red once something is left out. */
+.ui-button.load-chip.is-warn { color: #b8860b; border-color: #b8860b; }
+.ui-button.load-chip.is-over { color: #fff; background: #b8432a; border-color: #b8432a; }

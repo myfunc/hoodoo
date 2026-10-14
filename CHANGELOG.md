@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.31.0 - 2026-10-14
+
+### Added
+- Scene load on the display bar: how much of the tracer the scene takes (objects of the
+  160 drawn at once, lights of 8), amber close to a limit, red once something is left
+  out. A click lists terrains, glass and mirrors, booleans, portals, the live picture's
+  frame rate and what to trim first. Objects past the 160 were left out without a word.
 ## 0.30.0 - 2026-10-14
 
 ### Added
