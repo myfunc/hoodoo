@@ -24,9 +24,9 @@ const PNG = '.png';
 const VIEW = { pitch: 25, yaw: 220, back: 15, fovBase: 4, fovPerSize: 0.04, near: 1 } as const;
 const DEG = Math.PI / 180;
 /** Plain studio light: the ambient cube's faces (+x −x +y −y +z −z) and one key light from above and behind the eye. */
-const AMBIENT = [0.35, 0.35, 0.55, 0.2, 0.35, 0.35] as const;
+const AMBIENT = [0.6, 0.6, 0.85, 0.35, 0.6, 0.6] as const;
 const KEY: Vec3 = [-0.4, 0.8, 0.45];
-const KEY_COLOR: Vec3 = [1, 0.96, 0.9];
+const KEY_COLOR: Vec3 = [1.3, 1.25, 1.17];
 const AXES = 3;
 const NO_TINT: readonly [number, number, number] = [1, 1, 1];
 

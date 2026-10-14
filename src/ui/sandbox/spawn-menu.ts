@@ -23,7 +23,11 @@ export interface SpawnTile {
   readonly remove?: () => void;
   readonly key: string;
   readonly name: string;
-  readonly icon: () => IconSpec;
+  /** Hoodoo's own icon, ray traced; or `picture`, a ready one (the game's props), fetched when the tile first shows. */
+  readonly icon?: () => IconSpec;
+  readonly picture?: () => Promise<HTMLCanvasElement | null>;
+  /** A title over the tiles that follow it (a spawnlist's header), not a tile. */
+  readonly header?: boolean;
 }
 
 export interface SpawnList {
@@ -31,9 +35,15 @@ export interface SpawnList {
   readonly empty?: string;
   readonly name: string;
   readonly tiles: readonly SpawnTile[];
+  /** How deep in the tree it sits (Garry's Mod's nested spawnlists); 0 at the top. */
+  readonly depth?: number;
 }
 
 const ICON_PX = 72;
+/** A nested spawnlist's step in, pixels. */
+const TREE_INDENT = 14;
+/** Where a top-level list sits (the tree's leaf margin, sandbox.css). */
+const TREE_BASE = 18;
 const HOVERED = 'is-hover';
 /** What the cursor hovers and clicks: tiles, categories, the tools' rows, swatches and segments. */
 const PICKABLE = '.sbx-spawn-tile, .sbx-spawn-cat, .sbx-pick, .ui-toggle, .gw-tab';
@@ -59,6 +69,10 @@ export class SpawnMenu {
   /** The menu's panel and the ones that open with it. */
   private readonly panels: HTMLElement[] = [];
   private current = '';
+  private readonly seen: IntersectionObserver;
+  /** The game's spawnlists, under their own node, while its files are read. */
+  private gameNode: HTMLElement | null = null;
+  private gameNames = new Set<string>();
   /** The cursor's place on the page (client pixels) and what it is over. */
   private at: [number, number] = [0, 0];
   private hovered: HTMLElement | null = null;
@@ -79,11 +93,15 @@ export class SpawnMenu {
     this.cursor = el('div', { cls: 'sbx-cursor', attrs: { 'aria-hidden': 'true' } });
     this.cursor.hidden = true;
     this.addPanel(this.el);
-    for (const list of lists) {
-      const row = el('div', { cls: 'gw-tree-leaf sbx-spawn-cat', text: list.name, attrs: { role: 'treeitem', tabindex: '-1' } });
-      row.addEventListener('click', () => this.show(list.name));
-      this.cats.append(row);
-    }
+    // The game's props' pictures are fetched when their tiles come into view.
+    this.seen = new IntersectionObserver((seen) => {
+      for (const e of seen) {
+        if (!e.isIntersecting) continue;
+        this.seen.unobserve(e.target);
+        (e.target as HTMLElement & { fetch?: () => void }).fetch?.();
+      }
+    }, { root: this.grid });
+    for (const list of lists) this.cats.append(this.row(list));
     if (lists.length) this.show(lists[0].name);
   }
 
@@ -208,10 +226,30 @@ export class SpawnMenu {
     this.count.classList.toggle('is-full', objects >= limit);
   }
 
+  /** Garry's Mod's own spawnlists (null: none, its files forgotten), in a node of their own under Hoodoo's. */
+  setGameLists(title: string, lists: readonly SpawnList[] | null): void {
+    this.gameNode?.remove();
+    for (const n of this.gameNames) this.pages.delete(n);
+    this.lists = this.lists.filter((l) => !this.gameNames.has(l.name));
+    this.gameNames = new Set(lists?.map((l) => l.name) ?? []);
+    this.gameNode = null;
+    if (!lists?.length) return;
+    this.lists = [...this.lists, ...lists];
+    this.gameNode = el('div', {}, [el('div', { cls: 'gw-tree-node is-open', text: title }), ...lists.map((l) => this.row(l))]);
+    this.cats.append(this.gameNode);
+  }
+
+  private row(list: SpawnList): HTMLElement {
+    const row = el('div', { cls: 'gw-tree-leaf sbx-spawn-cat', text: list.name, attrs: { role: 'treeitem', tabindex: '-1', 'data-list': list.name } });
+    if (list.depth) row.style.marginLeft = `${TREE_BASE + TREE_INDENT * list.depth}px`;
+    row.addEventListener('click', () => this.show(list.name));
+    return row;
+  }
+
   private show(name: string): void {
     this.current = name;
     this.cats.querySelectorAll<HTMLElement>('.sbx-spawn-cat').forEach((row) => {
-      const on = row.textContent === name;
+      const on = row.dataset.list === name;
       row.classList.toggle('is-current', on);
       row.setAttribute('aria-selected', String(on));
     });
@@ -232,10 +270,25 @@ export class SpawnMenu {
   }
 
   private tile(t: SpawnTile): HTMLElement {
+    if (t.header) return el('div', { cls: 'sbx-spawn-header', text: t.name });
+    const picture = t.icon ? iconCanvas(this.thumbs, t.icon(), ICON_PX) : el('canvas', { cls: 'sbx-spawn-picture' });
     const tile = el('div', { cls: 'sbx-spawn-tile', title: t.name, attrs: { role: 'button', tabindex: '-1', 'aria-label': `Spawn ${t.name}` } }, [
-      iconCanvas(this.thumbs, t.icon(), ICON_PX),
+      picture,
       el('span', { cls: 'sbx-spawn-name', text: t.name }),
     ]);
+    if (t.picture) {
+      const fetchPicture = t.picture;
+      Object.assign(tile, {
+        fetch: () => void fetchPicture().then((c) => {
+          if (!c) return;
+          const canvas = picture as HTMLCanvasElement;
+          canvas.width = c.width;
+          canvas.height = c.height;
+          canvas.getContext('2d')?.drawImage(c, 0, 0);
+        }),
+      });
+      this.seen.observe(tile);
+    }
     tile.addEventListener('click', () => this.spawn(t.key));
     if (t.remove) {
       const cross = el('div', { cls: 'sbx-spawn-remove sbx-pick', text: '×', title: `Take ${t.name} out of the list` });

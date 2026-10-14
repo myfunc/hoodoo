@@ -29,7 +29,9 @@ import { SandboxAudio } from './sandbox-audio';
 import { NoticeKind, WeaponId } from './sandbox.enums';
 import { SceneEdits } from './scene-edits';
 import { SPAWN_LIMIT, tracedCount } from './spawn';
-import { SpawnCategory, findSpawnItem, listOf, spawnLists } from './spawn-lists';
+import { SpawnCategory, type SpawnItem, findSpawnItem, listOf, spawnLists } from './spawn-lists';
+import { GamePropMenu } from './game-prop-menu';
+import { PROP_KEY } from './game-prop-store';
 import { itemOf, onMyObjectsChanged, removeMyObject, saveMyObject } from '../../io/my-objects';
 import type { ObjectId } from '../../model/scene.ids';
 import { ToolButton, type ToolId } from './tools/tool';
@@ -99,6 +101,8 @@ export class Sandbox {
   private readonly tools: ToolHost;
   private readonly edits: SceneEdits;
   private readonly menu: SpawnMenu;
+  /** Garry's Mod's own props in the spawn menu, while its files are read. */
+  private readonly gameProps: GamePropMenu;
   /** The context menu's History of this play session, on the left. */
   private readonly history: HistoryList;
   private readonly offHistory: () => void;
@@ -149,6 +153,7 @@ export class Sandbox {
     };
     this.tools = new ToolHost(host.world, host.sim, this.edits, this.joints);
     this.menu = new SpawnMenu(host.thumbs, spawnLists((id) => this.forgetMine(id)), (key) => void this.spawn(key));
+    this.gameProps = new GamePropMenu(this.menu);
     this.contextMenu = new ContextMenu({
       menu: this.menu, layer: host.layer, picture: () => host.picture(), camera: () => host.sim.frame(1).camera,
       active: () => host.active(), freePointer: (on) => host.freePointer(on),
@@ -179,7 +184,13 @@ export class Sandbox {
     });
     host.layer.classList.add('is-sandbox');
     host.layer.append(this.overlay.canvas, this.hud.el, this.menu.el, this.menu.cursor);
-    this.game = new GameFiles({ mount: (cs) => this.overlay.canvas.after(...cs), notify: (text) => this.notify(text, NoticeKind.Hint, CUES.hint), mixer: this.sounds.mixer });
+    this.game = new GameFiles({ mount: (cs) => this.overlay.canvas.after(...cs), notify: (text) => this.notify(text, NoticeKind.Hint, CUES.hint), mixer: this.sounds.mixer,
+      files: (files) => {
+        this.gameProps.setFiles(files);
+        // The scene's game props are read again, and built as themselves instead of their boxes.
+        if (files) void this.gameProps.readScene(host.world.scene).then((ids) => host.sim.refreshBodies(ids));
+      },
+    });
     host.addPanelSection(this.game.section.el);
     this.automate();
     void this.game.start();
@@ -377,8 +388,19 @@ export class Sandbox {
 
   /** A spawn list's item where the player aims; past the scene's limit, Garry's Mod's notice instead. */
   private spawn(key: string): boolean {
+    if (key.startsWith(PROP_KEY)) {
+      // A game prop is read first (once), then spawned where the player aims then.
+      void this.gameProps.object(key).then((o) => {
+        if (o) this.spawnItem({ key, name: o.name, category: SpawnCategory.Primitives, build: () => ({ objects: [o], groups: [] }) });
+        else this.notify('Could not read that model from your files', NoticeKind.Limit, CUES.limit);
+      });
+      return true;
+    }
     const item = findSpawnItem(key);
-    if (!item) return false;
+    return item ? this.spawnItem(item) : false;
+  }
+
+  private spawnItem(item: SpawnItem): boolean {
     const done = this.edits.spawn(item);
     // Garry's Mod's spawn icons click (ContentIcon: ui/buttonclickrelease).
     if (done) this.sounds.play(CUES.spawn);

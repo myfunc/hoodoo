@@ -299,22 +299,26 @@ The context menu (C) shows this session's History on the left, newest first:
 the current step blue, the undone ones faint, *Play began* at the bottom. A
 click goes back or forward to that step; the list never reaches before Play.
 
-## Game props (in progress)
+## Game props
 
-Garry's Mod's own props, from the player's files, are on their way to the
-spawn menu (PJuly-r6hz5.44; the ray tracer's meshes are the editor's side).
-What reads them is in: `io/source/static-prop.ts` turns a model
-(MDL/VVD/VTX, posed at rest) into a mesh in Hoodoo's axes (y up, a Half-Life
-inch is 0.025 units, so a 72-inch player is 1.8 tall) — positions, normals
-and UVs as Float32Array, indices as Uint32Array, one group of triangles per
-material with its base texture as RGBA — and `io/source/phy.ts` reads its
-collision (.phy: IVP compact surfaces, convex pieces in metres, IVP's axes)
-with the mass and surface the game gives it. `play/sim/prop-shapes.ts` makes
-those pieces convex hulls, stretched as the object is scaled.
-`io/source/spawnlists.ts` reads Garry's Mod's spawnlists
-(settings/spawnlist/*.txt) and `game-props.ts` keeps the models the files
-hold; `viewmodel/prop-icons.ts` gives each its icon: the one the game cached
-(materials/spawnicons), else one drawn the game's way (PositionSpawnIcon).
+With the player's Garry's Mod read (Tab › Garry's Mod), the spawn menu's tree
+gets a node, Game Spawnlists: Garry's Mod's own spawnlists
+(settings/spawnlist/*.txt, nested as the game nests them, headers over their
+runs; `io/source/spawnlists.ts`, `game-props.ts`), each keeping the models the
+files hold. A tile's icon comes when it first shows (`viewmodel/prop-icons.ts`:
+the one the game cached in materials/spawnicons, else one drawn the game's way,
+PositionSpawnIcon). A click reads the prop once (`io/source/static-prop.ts`:
+MDL/VVD/VTX posed at rest, turned to Hoodoo's axes, a Half-Life inch 0.025
+units; a part per material with its base texture; `$alphatest` cuts out) and
+spawns it at its true size, physical, with the game's mass, as a Mesh object
+the ray tracer draws (`game-prop-store.ts`, `assets/mesh-library.ts`). Its
+body is its collision model's convex pieces (`io/source/phy.ts`,
+`play/sim/prop-collision.ts`), centred on the mesh's box and stretched as the
+object is resized; it sounds like the surface the game gives it
+(Metal_Barrel.ImpactSoft, Wood_Crate.ScrapeRough). A scene keeps only the
+model's path: game props already in it are read again when the files are, and
+their bodies rebuilt (`PlaySim.refreshBodies`); without the files they are
+their boxes. `$translucent` pictures are drawn opaque for now.
 
 ## Spawn menu
 

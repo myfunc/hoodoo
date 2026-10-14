@@ -27,6 +27,8 @@ export interface GameFilesHost {
   readonly notify: (text: string) => void;
   /** Where the game's sounds play (Sandbox's own stand in until they are read). */
   readonly mixer: Mixer;
+  /** The player's files were read, or let go (null): the game's props come and go with them. */
+  readonly files?: (files: SourceFiles | null) => void;
 }
 
 export class GameFiles {
@@ -130,6 +132,7 @@ export class GameFiles {
       this.drop();
       this.hands = hands;
       this.host.mixer.useGame(game);
+      this.host.files?.(files);
       this.hud = hud ?? Hl2Hud.plain();
       this.host.mount([hands.canvas, this.hud.canvas]);
       this.section.set({ state: GameFilesState.Ready, folder });
@@ -150,6 +153,7 @@ export class GameFiles {
     this.hands?.dispose();
     this.hud?.dispose();
     this.host.mixer.useGame(null);
+    this.host.files?.(null);
     this.hands = null;
     this.hud = null;
   }

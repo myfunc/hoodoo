@@ -4,6 +4,7 @@ import { propShapes } from '../prop-shapes';
 import { createEntry } from '../../../assets/object.catalog';
 import { LatheProfile, ShapeKind } from '../../../model/scene.enums';
 import { createObject } from '../../../world/objects.factory';
+import { registerPropCollision } from '../prop-collision';
 import { GROUND, ShapeType, shapesOf } from '../shapes';
 
 let R: Rapier;
@@ -46,5 +47,19 @@ describe('a game prop\'s body', () => {
       // Still upright: the turn's w stays near 1.
       expect(Math.abs(p.pose(body).rotation[3])).toBeGreaterThan(0.999);
     }
+  });
+
+  it('builds a game prop (a Mesh object) from its pieces, its box centred on the object and stretched to its size', () => {
+    // A piece from 0 to 2 up and ±1 across, in the model's units; the mesh's box is centred at 1 up.
+    const piece = new Float32Array([-1, 0, -1, 1, 0, -1, 1, 0, 1, -1, 0, 1, 0, 2, 0]);
+    registerPropCollision('models/test.mdl', { hulls: [piece], centre: [0, 1, 0], half: [1, 1, 1], surfaceprop: 'metal' });
+    const o = { ...createObject(createEntry('cube'), { seed: 1, position: [0, 0, 0], size: [2, 2, 2] }), kind: ShapeKind.Mesh, mesh: 'models/test.mdl' };
+    const [s] = shapesOf(o);
+    expect(s.type).toBe(ShapeType.Hull);
+    // Twice the size, about the box's centre: the bottom at -2, the tip at +2.
+    const ys = s.type === ShapeType.Hull ? [...s.points].filter((_, i) => i % 3 === 1) : [];
+    expect(Math.min(...ys)).toBe(-2);
+    expect(Math.max(...ys)).toBe(2);
+    expect(shapesOf({ ...o, mesh: 'models/unknown.mdl' })).toEqual([{ type: ShapeType.Box, half: [2, 2, 2] }]);
   });
 });

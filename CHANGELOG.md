@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.43.0 - 2026-10-14
+
+### Added
+- Garry's Mod's own props in Garry's Mod mode: with your Garry's Mod read, the spawn menu has
+  Game Spawnlists — Garry's Mod's lists (Construction Props, Half-Life 2 › Props and the
+  rest) with their icons. A click spawns the prop at its true size with its pictures, its
+  collision model and the game's mass, and it sounds like its surface. Props saved in a
+  scene come back as themselves when your files are read.
 ## 0.42.0 - 2026-10-14
 
 ### Added

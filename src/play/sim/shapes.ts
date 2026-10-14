@@ -4,6 +4,7 @@ import { type Vec3, ZERO3, add } from '../../core/vec3';
 import { ShapeKind } from '../../model/scene.enums';
 import type { SceneObject } from '../../model/scene.types';
 import { Layer } from './layers';
+import { propCollision } from './prop-collision';
 import { IDENTITY_Q, type Quat, mulQ, rotateQ } from './quat';
 
 /**
@@ -60,6 +61,7 @@ export const GROUND: readonly ShapeSpec[] = [
   { type: ShapeType.HalfSpace, normal: [0, 1, 0] },
   { type: ShapeType.Box, half: [SHEET_HALF, 1, SHEET_HALF], offset: [0, -1, 0], layer: Layer.Floor, collidesWith: Layer.Prop | Layer.Debris },
 ];
+const XYZ = 3;
 /** Sizes within this ratio count as round. */
 const ROUND = 1e-3;
 const ELLIPSOID = { rings: 8, sides: 16 } as const;
@@ -207,6 +209,7 @@ export function shapesOf(o: SceneObject): ShapeSpec[] {
     case ShapeKind.Stone:
       return [round && near(a, b) ? { type: ShapeType.Ball, radius: a } : hull(ellipsoid(size))];
     case ShapeKind.Cube: return [{ type: ShapeType.Box, half: size }];
+    case ShapeKind.Mesh: return meshShapes(o.mesh, size);
     case ShapeKind.Cylinder: return [round ? { type: ShapeType.Cylinder, halfHeight: b, radius: a } : hull([...ring(a, c, -b), ...ring(a, c, b)])];
     case ShapeKind.Cone: return [round ? { type: ShapeType.Cone, halfHeight: b, radius: a } : hull([...ring(a, c, -b), 0, b, 0])];
     case ShapeKind.Pyramid: return [hull([-a, -b, -c, a, -b, -c, a, -b, c, -a, -b, c, 0, b, 0])];
@@ -223,6 +226,21 @@ export function shapesOf(o: SceneObject): ShapeSpec[] {
       return [{ type: ShapeType.Box, half: [SHEET_HALF, THIN, SHEET_HALF], offset: [0, -THIN, 0] }];
     default: return [];
   }
+}
+
+/**
+ * A game prop's body: its convex pieces where the picture is (the mesh's box centre at the
+ * object's origin), stretched as the object is; its box while its collision is not known.
+ */
+function meshShapes(key: string | undefined, size: Vec3): ShapeSpec[] {
+  const c = propCollision(key);
+  if (!c?.hulls.length) return [{ type: ShapeType.Box, half: size }];
+  const k = size.map((v, i) => v / (c.half[i] || 1));
+  return c.hulls.map((h) => {
+    const points = new Float32Array(h.length);
+    for (let i = 0; i < h.length; i++) points[i] = (h[i] - c.centre[i % XYZ]) * k[i % XYZ];
+    return { type: ShapeType.Hull, points };
+  });
 }
 
 /** The shapes moved into another frame: `offset` and `turn` place the object's frame in it. */

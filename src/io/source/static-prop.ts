@@ -168,18 +168,3 @@ async function propMaterial(files: SourceFiles, model: SourceModel, slot: number
   return { name: path, rgba: t.rgba(), width: t.width, height: t.height, translucent: paramBool(m, '$translucent'), alphaTest: paramBool(m, '$alphatest') };
 }
 
-/**
- * The prop as the scene's mesh library will take it (the editor's MeshData: parts by picture,
- * alpha-tested pictures cut out where alpha is under a half, UVs from the picture's top left).
- */
-export function meshDataOf(p: PropMesh): {
-  positions: Float32Array; normals: Float32Array; uvs: Float32Array; indices: Uint32Array;
-  parts: { start: number; count: number; image: number; alpha: number }[];
-  images: { width: number; height: number; data: Uint8Array }[];
-} {
-  return {
-    positions: p.positions, normals: p.normals, uvs: p.uvs, indices: p.indices,
-    parts: p.groups.map((g) => ({ start: g.start, count: g.count, image: g.material, alpha: p.materials[g.material]?.alphaTest ? 1 : 0 })),
-    images: p.materials.map((m) => ({ width: m.width, height: m.height, data: m.rgba })),
-  };
-}

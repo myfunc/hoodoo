@@ -152,6 +152,18 @@ export class PlaySim {
     this.version++;
   }
 
+  /** Builds these objects' bodies again where play has them (a game prop's collision arrived after its box). */
+  refreshBodies(ids: ReadonlySet<ObjectId>): void {
+    if (!ids.size) return;
+    const scene = this.base;
+    const carried = takeUp(this.physics, this.bodies, scene, this.bodies.sharing(ids));
+    for (const body of this.bodies.resync(scene, ids)) this.prev.delete(body);
+    putDown(this.physics, this.bodies, scene, carried);
+    this.physics.refresh();
+    this.snapshot();
+    this.version++;
+  }
+
   get context(): ActorContext {
     return { physics: this.physics, events: this.events, dt: SIM_DT, time: this.time };
   }

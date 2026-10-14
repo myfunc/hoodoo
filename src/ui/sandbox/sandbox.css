@@ -79,6 +79,7 @@
 .sbx-spawn-tile:hover, .sbx-spawn-tile.is-hover { border-color: var(--gw-blue); box-shadow: 0 0 0 2px var(--gw-blue); }
 .sbx-spawn-tile:active { background: var(--gw-down); }
 .scene-window .sbx-spawn-tile canvas { position: static; width: 64px; height: 64px; display: block; }
+.sbx-spawn-header { grid-column: 1 / -1; padding: 4px 2px 0; font-weight: bold; color: var(--gw-ink); border-bottom: 1px solid rgba(0, 0, 0, 0.2); }
 .sbx-spawn-name { max-width: 74px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .sbx-spawn-count { padding-top: 4px; color: rgba(255, 255, 255, 0.85); font-size: 11px; text-align: right; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5); }
 .sbx-spawn-count.is-full { color: #ff6a5a; }

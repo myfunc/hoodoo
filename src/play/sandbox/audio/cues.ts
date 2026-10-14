@@ -1,5 +1,6 @@
 import { ShapeKind } from '../../../model/scene.enums';
 import type { SceneObject } from '../../../model/scene.types';
+import { propCollision } from '../../sim/prop-collision';
 import type { Cue } from './mixer';
 import { Synth } from './synth';
 
@@ -73,13 +74,22 @@ const BY_MATERIAL: readonly { readonly match: RegExp; readonly world: string; re
 ];
 
 /** The surface of a scene object: by its material's name, else by its shape (ground hard, terrain earthy, a loose shape plastic). */
-export function surfaceOf(o: Pick<SceneObject, 'kind' | 'material'>, loose: boolean): Surface {
+export function surfaceOf(o: Pick<SceneObject, 'kind' | 'material' | 'mesh'>, loose: boolean): Surface {
   if (o.kind === ShapeKind.WaterPlane) return { name: 'water', family: Family.Water };
+  // A game prop has the surface the game gives it.
+  const prop = o.kind === ShapeKind.Mesh ? propCollision(o.mesh)?.surfaceprop : undefined;
+  if (prop) return { name: prop.toLowerCase(), family: familyOfSurface(prop) };
   const m = BY_MATERIAL.find((x) => x.match.test(o.material.name));
   if (m) return { name: loose ? m.prop : m.world, family: m.family };
   if (o.kind === ShapeKind.Terrain) return { name: 'dirt', family: Family.Soft };
   if (o.kind === ShapeKind.Stone) return { name: 'concrete', family: Family.Hard };
   return loose ? { name: 'plastic_box', family: Family.Plastic } : { name: 'concrete', family: Family.Hard };
+}
+
+/** A Source surface's family by its name ("metal_barrel" metal, "wood_crate" wood). */
+export function familyOfSurface(name: string): Family {
+  return BY_MATERIAL.find((x) => x.match.test(name) || x.world === name.toLowerCase())?.family
+    ?? (/plastic|computer|cardboard|paper/i.test(name) ? Family.Plastic : /flesh|watermelon|foliage|dirt|grass|mud/i.test(name) ? Family.Soft : Family.Hard);
 }
 
 /** What a step on a surface plays: the game's left or right foot, the family's stand-in. */
