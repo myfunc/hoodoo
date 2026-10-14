@@ -1,10 +1,14 @@
+import { ShapeKind } from '../../model/scene.enums';
 import type { Scene } from '../../model/scene.types';
+import { bodyOf } from '../../world/body-flags';
 import { ScrollClassifier, ScrollDevice } from '../../input/scroll-device';
 import type { Thumbnailer } from '../../render/thumbs';
 import type { Frame } from '../../render/wire/wireframe';
 import type { Hl2HudState, Hl2Weapon } from '../../ui/sandbox/hl2/hl2-hud';
 import { type HudTool, SandboxHud } from '../../ui/sandbox/hud';
 import { SpawnMenu } from '../../ui/sandbox/spawn-menu';
+import { SkyPage } from '../../ui/sandbox/sky-page';
+import { SKY_LIBRARY } from '../../assets/sky.presets';
 import { ToolMenu } from '../../ui/sandbox/tool-menu';
 import { carvedOf } from '../../world/carved';
 import { subtree } from '../../world/group-tree';
@@ -30,6 +34,7 @@ import { SPAWN_LIMIT, tracedCount } from './spawn';
 import { SPAWN_ITEMS, spawnLists } from './spawn-lists';
 import type { ToolContext, ToolHit, ToolId } from './tools/tool';
 import { createTools } from './tools/tools';
+import { decalsOn, normalAt } from './tool-aim';
 import { aimOf } from './weapons/grip';
 import { PhysicsGun } from './weapons/physgun';
 import { ToolGun } from './weapons/toolgun';
@@ -57,6 +62,9 @@ export interface SandboxHost {
   addPanelSection(section: HTMLElement): void;
 }
 
+const SKY_TAB = 'Sky';
+/** Planes the Tool Gun's aim passes through when they are not solid. */
+const SEE_THROUGH: ReadonlySet<ShapeKind> = new Set([ShapeKind.WaterPlane, ShapeKind.CloudPlane]);
 /** A press of C shorter than this pins the context menu open. */
 const CONTEXT_TAP_MS = 250;
 /** The slot strip stays this long after a switch. */
@@ -146,6 +154,11 @@ export class Sandbox {
     this.menu = new SpawnMenu(host.thumbs, spawnLists(), (key) => void this.spawn(key));
     this.toolMenu = new ToolMenu(host.thumbs, this.toolgun.tools, (id) => this.pickTool(id as ToolId));
     this.menu.dock(this.toolMenu.el);
+    this.menu.addTab(SKY_TAB, () => {
+      const page = new SkyPage(host.thumbs, SKY_LIBRARY, (p) => this.edits.setSky(p.sky, `Sky ${p.name}`));
+      page.mark(SKY_LIBRARY.find((p) => p.sky === host.world.scene.sky)?.name ?? null);
+      return page.el;
+    });
     host.layer.classList.add('is-sandbox');
     host.layer.append(this.overlay.canvas, this.hud.el, this.menu.el, this.menu.cursor);
     this.game = new GameFiles({ mount: (cs) => this.overlay.canvas.after(...cs), notify: (text) => this.notify(text, NoticeKind.Hint) });
@@ -369,9 +382,14 @@ export class Sandbox {
 
   /** The Tool Gun's aim through the picture's objects as play has them now, without a range limit. */
   private toolTrace(eye: Vec3, aim: Vec3): ToolHit | null {
-    const hit = raycast(this.host.sim.frame(1).scene, eye, aim, { includePlanes: true, includeLights: false });
+    const scene = this.host.sim.frame(1).scene;
+    // As Garry's Mod's shots do, the aim passes through water and clouds (unless they are solid).
+    const skip = new Set(scene.objects.filter((o) => SEE_THROUGH.has(o.kind) && !bodyOf(o).solid).map((o) => o.id));
+    const opts = { includePlanes: true, includeLights: false, skip };
+    const hit = raycast(scene, eye, aim, opts);
     const object = hit ? this.host.world.object(hit.id) : undefined;
-    return hit && object ? { object, point: hit.point } : null;
+    if (!hit || !object) return null;
+    return { object, point: hit.point, ...normalAt(scene, eye, aim, hit, opts) };
   }
 
   private toolContext(): ToolContext {
@@ -381,6 +399,11 @@ export class Sandbox {
       moving: (id) => (bodies.itemOf(id)?.motion ?? Motion.Fixed) !== Motion.Fixed,
       joined: (id) => bodies.sharing(contraption(this.host.world.scene, bodies.sharing([id]))),
       anchor: (id, point) => this.joints.anchorOf(id, point),
+      decalsOn: (id) => decalsOn(this.host.world.scene, id),
+      carved: (id) => {
+        const o = this.host.world.object(id);
+        return !!o && carvedOf(this.host.world.scene, o) !== null;
+      },
       whole: (id) => {
         const scene = this.host.world.scene;
         const o = this.host.world.object(id);

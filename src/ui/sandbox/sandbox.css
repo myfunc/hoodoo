@@ -162,3 +162,10 @@
 .sbx-q .ui-toggle.gw-check { display: inline-flex; align-items: center; gap: 6px; color: var(--gw-ink); background: none; border: 0; cursor: pointer; }
 .sbx-q .gw-check .ui-dot { width: 12px; height: 12px; border: 1px solid #8a8a8a; border-radius: 2px; background: #fff; }
 .sbx-q .gw-check.is-on .ui-dot { background: var(--gw-down); border-color: #2f86c9; }
+
+/* The creation sheet's pages (spawn-menu.ts tabs): the spawn lists (tree and icons) and the Sky tab's tiles. */
+.sbx-spawn-lists { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; gap: 6px; }
+.sbx-sky-page { flex: 1 1 auto; }
+.sbx-spawn-tile.is-current { border-color: #2f86c9; box-shadow: 0 0 0 2px var(--gw-pick); }
+.gw-tab:not(.is-active) { cursor: pointer; }
+.gw-tab.is-hover:not(.is-active) { color: rgba(255, 255, 255, 0.8); }

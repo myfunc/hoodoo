@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.24.0 - 2026-10-14
+
+### Added
+- Sandbox builds maps in first person: the Tool Gun's Terrain tool paints a terrain's
+  heights (raise, lower, smooth, flatten; hold to paint, one stroke one step), and the
+  spawn menu's Map list sets down a flat terrain, hills, water, floors, walls and blocks.
+- The spawn menu's Sky tab: pick any sky of the library and it is over the world at once.
+- The Tool Gun's Decal tool sticks dots, squares and rings of paint on surfaces; on a prop
+  they ride along with it.
+
+### Changed
+- The Tool Gun's aim passes through water and clouds, as Garry's Mod's shots do.
 ## 0.23.0 - 2026-10-14
 
 ### Changed

@@ -23,6 +23,7 @@ const PRESSES: readonly (readonly [Button, ToolButton])[] = [
   [Button.Attack2, ToolButton.Secondary],
   [Button.Reload, ToolButton.Reload],
 ];
+const MS_PER_S = 1000;
 const IDLE: WeaponView = { firing: false, end: null, held: null, flash: null, shot: null };
 
 export class ToolGun implements Weapon {
@@ -30,6 +31,8 @@ export class ToolGun implements Weapon {
   readonly hint = 'Hold Q to pick a tool';
   private current: Tool;
   private shot: WeaponView['shot'] = null;
+  /** A brush stroke under way: its button and when it dabs next (simulation seconds). */
+  private stroke: { readonly button: ToolButton; next: number } | null = null;
 
   constructor(readonly tools: readonly Tool[], private readonly host: ToolGunHost) {
     this.current = tools[0];
@@ -40,6 +43,7 @@ export class ToolGun implements Weapon {
   }
 
   select(id: ToolId): void {
+    if (this.stroke) this.endStroke();
     this.current = this.tools.find((t) => t.id === id) ?? this.current;
   }
 
@@ -49,10 +53,33 @@ export class ToolGun implements Weapon {
   }
 
   step(input: WeaponInput, ctx: WeaponContext): void {
+    // A brush (a tool that repeats) keeps going while its button is held: one stroke, one History step.
+    if (this.stroke) {
+      const held = PRESSES.find(([, t]) => t === this.stroke?.button)?.[0];
+      if (!held || !input.held.has(held)) return this.endStroke();
+      if (ctx.time < this.stroke.next) return;
+      this.stroke.next = ctx.time + (this.current.repeat ?? 0) / MS_PER_S;
+      this.fire(this.stroke.button, ctx);
+      return;
+    }
     const button = PRESSES.find(([b]) => input.pressed.has(b))?.[1];
     if (!button) return;
+    const repeat = this.current.repeat;
+    if (repeat && button !== ToolButton.Reload) {
+      this.host.context().edits.beginStroke(this.current.name);
+      this.stroke = { button, next: ctx.time + repeat / MS_PER_S };
+    }
+    this.fire(button, ctx);
+  }
+
+  private fire(button: ToolButton, ctx: WeaponContext): void {
     const hit = this.host.trace(ctx.eye.position, ctx.aim);
     if (hit && this.current.use(button, hit, this.host.context())) this.shot = { end: hit.point, time: ctx.time };
+  }
+
+  private endStroke(): void {
+    this.stroke = null;
+    this.host.context().edits.endStroke();
   }
 
   view(): WeaponView {
@@ -61,5 +88,6 @@ export class ToolGun implements Weapon {
 
   holster(): void {
     this.shot = null;
+    if (this.stroke) this.endStroke();
   }
 }

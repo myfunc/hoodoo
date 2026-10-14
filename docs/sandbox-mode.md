@@ -179,6 +179,8 @@ it was spawned (`SceneEdits.original`).
 | Remover | remove the object | remove it and the body it is part of (with Weld: all joined to it) | clear its joints (with Weld) | — | it is gone |
 | Resize | Step: a step bigger · Set: the set scale | Step: a step smaller · Set: copy its scale onto the sliders | the size it had | Mode Step · Set, step × (slider 1.01–4), along All · X · Y · Z, scale X · Y · Z (sliders 0.1–10, of the first size), lock ratio | the new size, its weight with its volume |
 | Colour | paint the diffuse colour, flat | copy the object's colour and alpha | the colour it had | swatches, alpha 100 · 75 · 50 · 25 % (under 100 it lets light through, tinted) | the material's colour |
+| Terrain | paint the brush (raise · lower · smooth · flatten), held: on and on, one stroke one step | the opposite (lower · raise); Flatten: take the level under the aim | smooth | brush, radius (slider, world units), strength (slider) | the terrain's new heights |
+| Decal | stick a dot, square or ring on the surface, a hair above it | take the decal under the aim away | take every decal off what is under the aim | shape, size (slider), colour swatches | a flat mark that never collides; on a lone prop it rides along (prop and decals one carved group) |
 | Material | apply | copy the object's preset | the material it had | the Materials Lab presets by family, Chrome first (Garry's Mod's env_cubemap) | the material |
 | Duplicator | paste the copy where you aim | copy the contraption under the aim | — | — | a ghost of the copy |
 
@@ -251,8 +253,11 @@ headers and selections, DermaDefault's Tahoma 13. Tabs Hoodoo has no content for
 (Weapons, NPCs, Vehicles…) are left out rather than shown empty.
 
 Left, the spawn lists (`src/play/sandbox/spawn-lists.ts`) as a tree under *Your
-Spawnlists*: Primitives (the Create palette's shapes), Chess and Billiards (the
-Object Library's items).
+Spawnlists*: Primitives (the Create palette's shapes), Map (a flat terrain to
+paint, hills, water, a floor, a wall, a block: they stand still, as a map does),
+Chess and Billiards (the Object Library's items). The Sky tab (`ui/sandbox/
+sky-page.ts`) shows Hoodoo's sky library; a click puts that sky over the world,
+one History step.
 Right, their ray-traced icons, drawn the first time a list shows, as the
 Create palette and the Object Library draw theirs. A click spawns the item
 where you aim (`spawn.ts`): turned to face you and resting on the surface

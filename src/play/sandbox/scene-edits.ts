@@ -1,7 +1,7 @@
 import { type Vec3, add, scale } from '../../core/vec3';
 import type { ObjectId } from '../../model/scene.ids';
 import type { JointKind } from '../../model/scene.enums';
-import type { SceneJoint, SceneObject, Transform } from '../../model/scene.types';
+import type { GroupNode, SceneJoint, SceneObject, Sky, Transform } from '../../model/scene.types';
 import { jointsOf } from '../../world/joints';
 import { sameTransform } from '../../world/group-transform';
 import type { World } from '../../world/world';
@@ -47,6 +47,20 @@ export class SceneEdits {
     this.touch(ids);
   }
 
+  /** The sky over the world (the spawn menu's Sky tab): one History step. */
+  setSky(sky: Sky, label: string): void {
+    this.world.setSky(sky, label);
+  }
+
+  /** A brush stroke begins: its changes until `endStroke` are one History step. */
+  beginStroke(label: string): void {
+    this.world.beginGesture(label);
+  }
+
+  endStroke(): void {
+    this.world.endGesture();
+  }
+
   /** A Constraints tool's joint: one History step. */
   addJoint(joint: SceneJoint, label: string): void {
     this.world.setJoints([...(this.world.scene.joints ?? []), joint], label);
@@ -58,6 +72,26 @@ export class SceneEdits {
     if (!gone.size) return false;
     this.world.setJoints((this.world.scene.joints ?? []).filter((j) => !gone.has(j.id)), label);
     return true;
+  }
+
+  /** Objects the Tool Gun makes (a decal): one History step; they stay after play. */
+  add(objects: readonly SceneObject[], label: string): void {
+    this.world.addObjects(objects, label);
+    for (const o of objects) {
+      this.touched.add(o.id);
+      this.originals.set(o.id, o);
+    }
+  }
+
+  /** A decal on a lone prop: prop and decal one new group (the decal a boolean part), one History step. */
+  decorate(prop: ObjectId, group: GroupNode, decal: SceneObject): void {
+    this.world.beginGesture('Decal');
+    this.world.updateObjects(new Set([prop]), 'Decal', (o) => ({ ...o, groupId: group.id }));
+    this.world.addObjects([decal], 'Decal', [group]);
+    this.world.endGesture();
+    this.touched.add(decal.id);
+    this.touched.add(prop);
+    this.originals.set(decal.id, decal);
   }
 
   /** The Remover: one History step. */

@@ -32,7 +32,7 @@ export interface SpawnList {
 const ICON_PX = 72;
 const HOVERED = 'is-hover';
 /** What the cursor hovers and clicks: tiles, categories, the tools' rows, swatches and segments. */
-const PICKABLE = '.sbx-spawn-tile, .sbx-spawn-cat, .sbx-pick, .ui-toggle';
+const PICKABLE = '.sbx-spawn-tile, .sbx-spawn-cat, .sbx-pick, .ui-toggle, .gw-tab';
 const HINT = 'Click spawns where you aim · let go of Q to aim again';
 const SPAWNLISTS = 'Spawnlists';
 const YOUR_LISTS = 'Your Spawnlists';
@@ -46,6 +46,10 @@ export class SpawnMenu {
   private readonly count: HTMLElement;
   /** Where the tool sheet docks, on the right. */
   private readonly side: HTMLElement;
+  /** The creation sheet's tabs (Spawnlists, Sky…) and what each shows, built the first time it opens. */
+  private readonly tabs: HTMLElement;
+  private readonly body: HTMLElement;
+  private readonly sheets = new Map<string, { tab: HTMLElement; build: () => HTMLElement; page: HTMLElement | null }>();
   private readonly pages = new Map<string, HTMLElement>();
   /** The menu's panel and the ones that open with it. */
   private readonly panels: HTMLElement[] = [];
@@ -61,10 +65,10 @@ export class SpawnMenu {
     this.grid = el('div', { cls: 'gw-content sbx-spawn-grid' });
     this.count = el('div', { cls: 'sbx-spawn-count' });
     this.side = el('div', { cls: 'sbx-q-side' });
-    const create = el('div', { cls: 'gw-sheet sbx-spawn', attrs: { 'aria-label': 'Spawn menu' } }, [
-      el('div', { cls: 'gw-tabs' }, [el('div', { cls: 'gw-tab is-active', text: SPAWNLISTS }), el('span', { cls: 'sbx-spawn-hint', text: HINT })]),
-      el('div', { cls: 'gw-sheet-body sbx-spawn-body' }, [this.cats, el('div', { cls: 'sbx-spawn-right' }, [this.grid, this.count])]),
-    ]);
+    this.tabs = el('div', { cls: 'gw-tabs' }, [el('span', { cls: 'sbx-spawn-hint', text: HINT })]);
+    this.body = el('div', { cls: 'gw-sheet-body sbx-spawn-body' });
+    const create = el('div', { cls: 'gw-sheet sbx-spawn', attrs: { 'aria-label': 'Spawn menu' } }, [this.tabs, this.body]);
+    this.addTab(SPAWNLISTS, () => el('div', { cls: 'sbx-spawn-lists' }, [this.cats, el('div', { cls: 'sbx-spawn-right' }, [this.grid, this.count])]));
     this.el = el('div', { cls: 'sbx-q' }, [create, this.side]);
     this.cursor = el('div', { cls: 'sbx-cursor', attrs: { 'aria-hidden': 'true' } });
     this.cursor.hidden = true;
@@ -79,6 +83,23 @@ export class SpawnMenu {
 
   get open(): boolean {
     return !this.el.hidden;
+  }
+
+  /** A tab of the creation sheet; the first one added shows first. Its page is built when it first opens. */
+  addTab(name: string, build: () => HTMLElement): void {
+    const tab = el('div', { cls: 'gw-tab', text: name, attrs: { role: 'tab', tabindex: '-1' } });
+    tab.addEventListener('click', () => this.openTab(name));
+    this.tabs.insertBefore(tab, this.tabs.lastElementChild);
+    this.sheets.set(name, { tab, build, page: null });
+    if (this.sheets.size === 1) this.openTab(name);
+  }
+
+  private openTab(name: string): void {
+    const sheet = this.sheets.get(name);
+    if (!sheet) return;
+    sheet.page ??= sheet.build();
+    for (const [n, s] of this.sheets) s.tab.classList.toggle('is-active', n === name);
+    this.body.replaceChildren(sheet.page);
   }
 
   /** The tool sheet, docked on the right inside the menu. */

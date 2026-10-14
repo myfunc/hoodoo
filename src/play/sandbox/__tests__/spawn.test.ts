@@ -54,9 +54,17 @@ describe('what the spawn menu offers', () => {
     expect(spawnItemsOf(SpawnCategory.Primitives).map((i) => i.key)).toContain('torus');
     expect(spawnItemsOf(SpawnCategory.Chess).map((i) => i.name)).toContain('Black Queen');
     expect(spawnItemsOf(SpawnCategory.Billiards).map((i) => i.name)).toContain('Pool Rack');
-    for (const i of SPAWN_ITEMS.filter((x) => !x.game || x.game.kind === 'piece' || x.game.kind === 'ball')) {
+    for (const i of SPAWN_ITEMS.filter((x) => x.category !== SpawnCategory.Map && (!x.game || x.game.kind === 'piece' || x.game.kind === 'ball'))) {
       expect(i.build().objects.every((o) => bodyOf(o).physical)).toBe(true);
     }
+  });
+
+  it('has map pieces that stand still, a flat terrain level to paint', () => {
+    const map = spawnItemsOf(SpawnCategory.Map);
+    expect(map.map((i) => i.name)).toEqual(['Flat Terrain', 'Hills', 'Water', 'Floor', 'Wall', 'Block']);
+    for (const i of map) expect(i.build().objects.every((o) => !bodyOf(o).physical)).toBe(true);
+    const flat = map[0].build().objects[0].terrain!;
+    expect(new Set(flat.heights).size).toBe(1);
   });
 
   it('keeps a chess set\'s board one body and its pieces loose', () => {

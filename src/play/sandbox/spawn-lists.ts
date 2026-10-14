@@ -21,6 +21,8 @@ import { createObject } from '../../world/objects.factory';
 
 export enum SpawnCategory {
   Primitives = 'Primitives',
+  /** Map pieces: terrains to paint, water, floors, walls and blocks; they stand still, as a map does. */
+  Map = 'Map',
   Chess = 'Chess',
   Billiards = 'Billiards',
 }
@@ -33,6 +35,8 @@ export interface SpawnItem {
   readonly build: () => GameBuild;
   /** A Chess & Billiards item: its icon is framed as the Object Library frames it. */
   readonly game?: GameItem;
+  /** The Create palette entry whose icon it shows, when its key is not one. */
+  readonly icon?: string;
 }
 
 /** The palette's shapes that make sense as props, in its order (object.catalog.ts ids). */
@@ -85,9 +89,31 @@ const game = (g: GameItem): SpawnItem => ({
   key: g.name, name: g.name, category: isChess(g) ? SpawnCategory.Chess : SpawnCategory.Billiards, game: g, build: () => gameProps(g),
 });
 
+/** A flat terrain's level, of its height: room to dig below as well as to raise. */
+const FLAT_LEVEL = 0.1;
+/** Map pieces: a palette shape at a map's size, standing still; a flat terrain starts level, to paint. */
+const MAP_PIECES: readonly { key: string; name: string; entry: string; size?: Vec3; flat?: boolean }[] = [
+  { key: 'map-flat', name: 'Flat Terrain', entry: 'terrain', size: [20, 4, 20], flat: true },
+  { key: 'map-hills', name: 'Hills', entry: 'terrain', size: [20, 5, 20] },
+  { key: 'map-water', name: 'Water', entry: 'water' },
+  { key: 'map-floor', name: 'Floor', entry: 'cube', size: [10, 0.25, 10] },
+  { key: 'map-wall', name: 'Wall', entry: 'cube', size: [5, 2.5, 0.25] },
+  { key: 'map-block', name: 'Block', entry: 'cube', size: [4, 6, 4] },
+];
+
+const mapPiece = (p: (typeof MAP_PIECES)[number]): SpawnItem => ({
+  key: p.key, name: p.name, category: SpawnCategory.Map, icon: p.entry,
+  build: () => {
+    const o = { ...createObject(createEntry(p.entry), { seed: randomSeed(), position: [0, 0, 0], size: p.size }), name: p.name };
+    const terrain = p.flat && o.terrain ? { resolution: o.terrain.resolution, heights: new Float32Array(o.terrain.resolution ** 2).fill(FLAT_LEVEL) } : o.terrain;
+    return { objects: [{ ...o, terrain }], groups: [] };
+  },
+});
+
 /** Everything the spawn menu offers, in its order. */
 export const SPAWN_ITEMS: readonly SpawnItem[] = [
   ...PRIMITIVES.map(primitive),
+  ...MAP_PIECES.map(mapPiece),
   ...GAME_ROWS.flat().filter((g) => g.profile !== LatheProfile.Column && g.profile !== LatheProfile.Pedestal).map(game),
 ];
 
@@ -99,7 +125,7 @@ const BALL_FACING: Vec3 = [-16, 36, 0];
 /** An item's icon: a shape as the Create palette draws it, a library item as the Object Library frames it. */
 function iconOf(item: SpawnItem): IconSpec {
   const g = item.game;
-  if (!g) return createIcon(createEntry(item.key));
+  if (!g) return createIcon(createEntry(item.icon ?? item.key));
   const built = buildGameItem(g, 0, 0).objects;
   // The rack leaves its cue ball out (it waits far in front); a lone ball shows its number.
   const shown = g.kind === GameItemKind.Rack ? built.slice(0, -1)

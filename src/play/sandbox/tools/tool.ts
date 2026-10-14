@@ -18,9 +18,11 @@ export enum ToolId {
   Weld = 'weld',
   NoCollide = 'nocollide',
   BallSocket = 'ballsocket',
+  Terrain = 'terrain',
   Remover = 'remover',
   Resize = 'resize',
   Colour = 'colour',
+  Decal = 'decal',
   Material = 'material',
 }
 
@@ -41,6 +43,8 @@ export interface ToolHit {
   /** The object under the aim, as the editor's scene has it. */
   readonly object: SceneObject;
   readonly point: Vec3;
+  /** The surface's normal there, facing the eye, when it could be found. */
+  readonly normal?: Vec3;
 }
 
 export interface ToolContext {
@@ -51,6 +55,10 @@ export interface ToolContext {
   joined(id: ObjectId): ReadonlySet<ObjectId>;
   /** The object as the player sees it: a carved object's parts all together (world/carved.ts), else the object alone. */
   whole(id: ObjectId): ReadonlySet<ObjectId>;
+  /** The decals lying on an object (Decal): in its group, or on its surface. */
+  decalsOn(id: ObjectId): ReadonlySet<ObjectId>;
+  /** The object is part of a carved object (a group with boolean parts). */
+  carved(id: ObjectId): boolean;
   /** A point the aim met on an object, in the object's own frame (for joints); null when it has no body. */
   anchor(id: ObjectId, point: Vec3): Vec3 | null;
 }
@@ -69,6 +77,8 @@ export interface Tool {
   readonly settings: readonly ToolSetting[];
   /** A button on what the aim hits; true when the tool did something (the shot shows, as in Garry's Mod). */
   use(button: ToolButton, hit: ToolHit, ctx: ToolContext): boolean;
+  /** Milliseconds between uses while Mouse 1 or 2 is held (a brush); absent: once a press. One hold is one History step. */
+  readonly repeat?: number;
 }
 
 /** What Remover and Resize take: a finite, unlocked object (the ground, terrains and locked objects are the map). */
