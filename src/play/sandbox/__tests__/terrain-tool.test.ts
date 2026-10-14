@@ -28,7 +28,7 @@ async function bench() {
   const edits = new SceneEdits(world, sim);
   const ctx: ToolContext = {
     edits, moving: (id) => (sim.bodies.itemOf(id)?.motion ?? Motion.Fixed) !== Motion.Fixed,
-    joined: (id) => new Set([id]), anchor: () => null, whole: (id) => new Set([id]), decalsOn: () => new Set(), carved: () => false,
+    joined: (id) => new Set([id]), anchor: () => null, whole: (id) => new Set([id]), decalsOn: () => new Set(), carved: () => false, pose: () => null,
   };
   const field = () => world.scene.objects[0];
   const height = (u: number, v: number) => {

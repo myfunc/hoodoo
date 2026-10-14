@@ -224,7 +224,12 @@ they stand, its No-collide setting (on, as Garry's Mod's box) keeps the pair fro
 touching each other; a Ball Socket pivots at the second click; a No-Collide
 lets the pair pass through each other. Joined objects are one contraption to the
 Remover's Mouse 2 and to the Physics Gun: what it carries stays, joined parts
-included, where play leaves it. Easy Weld (Mouse 2) is still to come.
+included, where play leaves it. Easy Weld (Mouse 2, `tools/easy-weld.ts`):
+Mouse 2 on a prop picks it by the face under the aim, Mouse 2 on another object
+turns the prop so that face lies on the spot and moves it there; the mouse then
+turns it about the spot's normal (Shift: by 45°) and a click welds it where it
+stands; R before the click takes the move back. The move and the weld are one
+History step.
 
 ## Undo
 

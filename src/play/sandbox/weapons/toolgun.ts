@@ -82,6 +82,11 @@ export class ToolGun implements Weapon {
     this.host.context().edits.endStroke();
   }
 
+  /** The tool may take the mouse (Easy Weld turning its prop). */
+  look(dx: number, dy: number, ctx: WeaponContext): boolean {
+    return this.current.look?.(dx, dy, this.host.context(), ctx.snap) ?? false;
+  }
+
   view(): WeaponView {
     return { ...IDLE, shot: this.shot, screen: this.current.name };
   }

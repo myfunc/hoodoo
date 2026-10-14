@@ -33,7 +33,7 @@ async function bench(objects: SceneObject[]) {
   const ctx: ToolContext = {
     edits, moving: (id) => (sim.bodies.itemOf(id)?.motion ?? Motion.Fixed) !== Motion.Fixed,
     joined: (id) => new Set([id]), anchor: () => null, whole: (id) => new Set([id]),
-    decalsOn: (id) => decalsOn(world.scene, id),
+    decalsOn: (id) => decalsOn(world.scene, id), pose: () => null,
     carved: (id) => { const o = world.object(id); return !!o && carvedOf(world.scene, o) !== null; },
   };
   const object = (name: string) => world.scene.objects.find((o) => o.name === name)!;

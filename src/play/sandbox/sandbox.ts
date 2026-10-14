@@ -399,6 +399,7 @@ export class Sandbox {
       moving: (id) => (bodies.itemOf(id)?.motion ?? Motion.Fixed) !== Motion.Fixed,
       joined: (id) => bodies.sharing(contraption(this.host.world.scene, bodies.sharing([id]))),
       anchor: (id, point) => this.joints.anchorOf(id, point),
+      pose: (id) => this.host.sim.frame(1).scene.objects.find((o) => o.id === id)?.transform ?? null,
       decalsOn: (id) => decalsOn(this.host.world.scene, id),
       carved: (id) => {
         const o = this.host.world.object(id);

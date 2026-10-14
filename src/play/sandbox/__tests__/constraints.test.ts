@@ -45,6 +45,7 @@ async function bench(scene: Scene) {
     joined: (id) => sim.bodies.sharing(contraption(world.scene, [id])),
     anchor: (id, point) => joints.anchorOf(id, point),
     whole: (id) => new Set([id]), decalsOn: () => new Set(), carved: () => false,
+    pose: (id) => sim.frame(1).scene.objects.find((o) => o.id === id)?.transform ?? null,
   };
   const object = (name: string) => world.scene.objects.find((o) => o.name === name)!;
   const hit = (name: string, point?: Vec3): ToolHit => ({ object: object(name), point: point ?? object(name).transform.position });
@@ -84,6 +85,40 @@ describe('Weld', () => {
     expect(b.world.scene.joints).toBeUndefined();
     b.world.undo();
     expect(b.world.scene.joints).toHaveLength(1);
+  });
+});
+
+describe('Easy Weld', () => {
+  it('puts the picked face of a prop onto the spot, turns it with the mouse, welds it: one History step', async () => {
+    const block = { ...createObject(createEntry('cube'), { seed: 5, position: [0, 1, 0], size: [0.5, 1, 0.5] }), name: 'Block' };
+    const b = await bench(stage([ground(), block, prop('Crate', [3, 0.5, 0], 2)]));
+    const weld = new Weld();
+    // Mouse 2 on the crate's top face, then on the block's side facing +X.
+    expect(weld.use(ToolButton.Secondary, { ...b.hit('Crate', [3, 1, 0]), normal: [0, 1, 0] }, b.ctx)).toBe(true);
+    expect(weld.lines[0].text).toContain('spot');
+    expect(weld.use(ToolButton.Secondary, { ...b.hit('Block', [0.5, 1.2, 0]), normal: [1, 0, 0] }, b.ctx)).toBe(true);
+    const crate = () => b.object('Crate').transform;
+    // Its top face (0.5 above its centre) now lies on the spot, facing back at the block: the centre 0.5 out along +X.
+    expect(crate().position[0]).toBeCloseTo(1, 3);
+    expect(crate().position[1]).toBeCloseTo(1.2, 3);
+    expect(weld.look(100, 0, b.ctx, true)).toBe(true);
+    expect(crate().position[0]).toBeCloseTo(1, 3);
+    expect(weld.use(ToolButton.Primary, b.hit('Crate'), b.ctx)).toBe(true);
+    expect(b.edits.labels).toEqual(['Easy Weld']);
+    expect(b.world.scene.joints).toHaveLength(1);
+    b.run(100);
+    expect(b.height('Crate')).toBeCloseTo(1.2, 1);
+  });
+
+  it('R takes the move back before the click', async () => {
+    const block = { ...createObject(createEntry('cube'), { seed: 5, position: [0, 1, 0], size: [0.5, 1, 0.5] }), name: 'Block' };
+    const b = await bench(stage([ground(), block, prop('Crate', [3, 0.5, 0], 2)]));
+    const weld = new Weld();
+    weld.use(ToolButton.Secondary, { ...b.hit('Crate', [3, 1, 0]), normal: [0, 1, 0] }, b.ctx);
+    weld.use(ToolButton.Secondary, { ...b.hit('Block', [0.5, 1.2, 0]), normal: [1, 0, 0] }, b.ctx);
+    expect(weld.use(ToolButton.Reload, b.hit('Crate'), b.ctx)).toBe(true);
+    expect(b.object('Crate').transform.position).toEqual([3, 0.5, 0]);
+    expect(b.edits.labels).toEqual([]);
   });
 });
 

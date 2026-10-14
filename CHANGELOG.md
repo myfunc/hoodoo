@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.25.0 - 2026-10-14
+
+### Added
+- Easy Weld on the Weld tool's Mouse 2, as in Garry's Mod: pick a prop by a face, pick a
+  spot on another object, and the prop sets that face on the spot; the mouse turns it
+  (Shift by 45°) and a click welds it there. R takes the move back; the move and the weld
+  are one step to undo.
 ## 0.24.1 - 2026-10-14
 
 ### Fixed

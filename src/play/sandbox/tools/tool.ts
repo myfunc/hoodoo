@@ -1,6 +1,6 @@
 import type { Vec3 } from '../../../core/vec3';
 import type { ObjectId } from '../../../model/scene.ids';
-import type { SceneObject } from '../../../model/scene.types';
+import type { SceneObject, Transform } from '../../../model/scene.types';
 import type { ToolSetting } from '../../../ui/sandbox/tool-menu';
 import { canBePhysical } from '../../../world/body-flags';
 import { LIGHT_KINDS } from '../../../world/objects.factory';
@@ -55,6 +55,8 @@ export interface ToolContext {
   joined(id: ObjectId): ReadonlySet<ObjectId>;
   /** The object as the player sees it: a carved object's parts all together (world/carved.ts), else the object alone. */
   whole(id: ObjectId): ReadonlySet<ObjectId>;
+  /** Where an object is in play now (its world place, turn and size), or null. */
+  pose(id: ObjectId): Transform | null;
   /** The decals lying on an object (Decal): in its group, or on its surface. */
   decalsOn(id: ObjectId): ReadonlySet<ObjectId>;
   /** The object is part of a carved object (a group with boolean parts). */
@@ -79,6 +81,8 @@ export interface Tool {
   use(button: ToolButton, hit: ToolHit, ctx: ToolContext): boolean;
   /** Milliseconds between uses while Mouse 1 or 2 is held (a brush); absent: once a press. One hold is one History step. */
   readonly repeat?: number;
+  /** Mouse motion the tool takes instead of the view (Easy Weld turns its prop); `snap`: Shift is down. */
+  look?(dx: number, dy: number, ctx: ToolContext, snap: boolean): boolean;
 }
 
 /** What Remover and Resize take: a finite, unlocked object (the ground, terrains and locked objects are the map). */
