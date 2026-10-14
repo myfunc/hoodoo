@@ -129,6 +129,7 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.InstallApp]: { label: 'Install as App…', menu: MenuName.Help, chords: [] },
   [Action.About]: { label: 'About Hoodoo', menu: MenuName.Help, chords: [] },
   [Action.SourceCode]: { label: 'Source Code on GitHub', menu: MenuName.Help, chords: [] },
+  [Action.UsageLog]: { label: 'Usage Log…', menu: MenuName.Help, chords: [] },
   [Action.TutorialBook]: { label: 'Tutorial Book…', menu: MenuName.Help, chords: [] },
   [Action.ScrollAuto]: { label: 'Scroll Gestures: Detect Device', menu: MenuName.View, chords: [] },
   [Action.ScrollWheel]: { label: 'Scroll Gestures: Mouse Wheel Zooms', menu: MenuName.View, chords: [] },

@@ -32,6 +32,7 @@ import { shortcutOf } from '../input/bindings';
 import { EditorStore } from '../world/editor-store';
 import { World } from '../world/world';
 import { installAutomationHooks } from './automation-hooks';
+import { UsageTracking } from './usage-tracking';
 import { offerTutorialBook } from '../ui/labs/tutorial-book-hint';
 import { Commands } from './commands';
 import { RecentTracker } from './recent-ops';
@@ -115,9 +116,13 @@ export async function startApp(root: HTMLElement): Promise<void> {
   else if (saved) tracker.resume(SCENE_NAME.lastScene, autosave.loadThumbnail());
   else tracker.begin(SCENE_NAME.demo);
   let commands: Commands | null = null;
+  const usage = new UsageTracking(editor);
   const ctx: UiContext = {
     world, editor, thumbs, view, snapshots: new SnapshotStore(),
-    dispatch: (a, arg) => commands?.run(a, arg),
+    dispatch: (a, arg) => {
+      usage.action(a);
+      commands?.run(a, arg);
+    },
     isChecked: (a) => commands?.isChecked(a) ?? false,
     isEnabled: (a) => commands?.isEnabled(a) ?? true,
     toast: showToast,
@@ -219,7 +224,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
       return;
     }
     e.preventDefault();
-    commands?.run(hit.action, hit.arg);
+    ctx.dispatch(hit.action, hit.arg);
   });
   autosave.thumbnail = () => thumbnailOf(view);
   autosave.written = (_scene, text, thumb) => tracker.autosaved(text, thumb);
@@ -236,7 +241,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
       showToast('The graphics card was reset. Reload the page to keep rendering (your scene is autosaved).');
     });
   }
-  installAutomationHooks(world, view, thumbs);
+  installAutomationHooks(world, view, thumbs, () => usage.log);
   offerTutorialBook(ctx);
   installPwa();
   logger.info('started', { objects: world.scene.objects.length, shared: !!shared });

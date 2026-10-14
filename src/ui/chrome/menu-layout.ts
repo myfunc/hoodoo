@@ -15,5 +15,5 @@ export const MENUS: readonly { name: MenuName; items: readonly MenuEntry[] }[] =
   { name: MenuName.Animation, items: [Action.ToggleAnimation, SEP, Action.PlayPause, Action.FirstFrame, Action.LastFrame, SEP, Action.PrevFrame, Action.NextFrame, Action.PrevKey, Action.NextKey, SEP, Action.AddKey, Action.RemoveKey, Action.KeyCamera, Action.ClearAnimation, SEP, Action.SelectAllKeys, Action.DeleteKeys, SEP, Action.ClosePathLoop, Action.OpenPath, SEP, Action.ToggleLoop, Action.ToggleMotionPaths, Action.AnimationSetup] },
   // Portals and trigger zones have a menu and a window of their own (Owner TO581: not in Objects). Play shows in View too.
   { name: MenuName.Play, items: [Action.Play, SEP, Action.PortalsTriggers, SEP, Action.CreatePortals, Action.LinkPortals, SEP, Action.CreateTriggerZone] },
-  { name: MenuName.Help, items: [Action.TutorialBook, SEP, Action.CommandPalette, Action.Shortcuts, SEP, Action.SourceCode, Action.InstallApp, SEP, Action.About] },
+  { name: MenuName.Help, items: [Action.TutorialBook, SEP, Action.CommandPalette, Action.Shortcuts, SEP, Action.SourceCode, Action.InstallApp, SEP, Action.UsageLog, Action.About] },
 ];

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.1 - 2026-10-14
+
+### Added
+- Help › Usage Log… saves what the editor is used for, counted in this browser only and
+  never sent anywhere: commands and how many came from a shortcut, presses in each place
+  of the window, keys, and minutes in each picture mode and panel layout.
 ## 0.19.0 - 2026-10-13
 
 ### Added

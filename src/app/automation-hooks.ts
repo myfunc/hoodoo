@@ -1,4 +1,5 @@
 import { presetMaterial } from '../assets/materials.presets';
+import type { UsageLog } from '../io/usage-log';
 import { createEntry } from '../assets/object.catalog';
 import { SKY_LIBRARY } from '../assets/sky.presets';
 import type { Vec3 } from '../core/vec3';
@@ -56,7 +57,7 @@ function pagePoints(view: SceneView, points: readonly Vec3[]): [number, number][
  * status, scene summary, a GPU benchmark, a test-scene builder, and where objects
  * and the move handles sit on the page (tools/make-tutorials.mjs clicks them).
  */
-export function installAutomationHooks(world: World, view: SceneView, thumbs: Thumbnailer): void {
+export function installAutomationHooks(world: World, view: SceneView, thumbs: Thumbnailer, usage: () => UsageLog): void {
   const w = window as unknown as Record<string, unknown>;
   w.__hoodoo = {
     world,
@@ -65,6 +66,8 @@ export function installAutomationHooks(world: World, view: SceneView, thumbs: Th
     settings: () => exportPrefs(APP_VERSION),
     /** Shows another dark look (ui/theme-variants.ts) while the theme is Dark, to compare them. */
     darkVariant: (variant: DarkVariant) => setDarkVariant({ root: document.documentElement, titleBar: document.querySelector<HTMLMetaElement>('meta[name="theme-color"]') }, variant),
+    /** What the editor was used for here (io/usage-log.ts), as Help › Usage Log… saves it. */
+    usage: () => structuredClone(usage()),
     summary: () => ({ objects: world.scene.objects.length, rendering: view.isRendering, picture: view.hasPicture }),
     /** GPU ms of full 1-sample frames of the current scene from the camera. */
     bench: async (width = BENCH_W, height = BENCH_H, frames = BENCH_FRAMES) => {

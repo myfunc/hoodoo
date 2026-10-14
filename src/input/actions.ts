@@ -74,6 +74,7 @@ export enum Action {
   Shortcuts = 'shortcuts',
   About = 'about',
   SourceCode = 'source-code',
+  UsageLog = 'usage-log',
   InstallApp = 'install-app',
   ScrollAuto = 'scroll-auto',
   ScrollWheel = 'scroll-wheel',

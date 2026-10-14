@@ -1,4 +1,6 @@
 import { Logger } from '../core/log';
+import { downloadBlob } from '../io/download';
+import { loadUsage } from '../io/usage-log';
 import { randomSeed } from '../core/rng';
 import { Action } from '../input/actions';
 import { SceneSaved, pickSceneFile, readSceneFile, saveScene } from '../io/project-file';
@@ -245,6 +247,8 @@ export class Commands {
       [Action.MaterialLibrary]: () => this.materials(),
       [Action.CommandPalette]: () => openCommandPalette(ctx),
       [Action.Shortcuts]: () => openShortcuts(e.state.features),
+      // Counted in this browser only (app/usage-tracking.ts); saved as a file to read or send.
+      [Action.UsageLog]: () => downloadBlob(new Blob([JSON.stringify(loadUsage(), null, 2)], { type: 'application/json' }), 'hoodoo-usage.json'),
       [Action.About]: () => openAbout(),
       [Action.SourceCode]: () => openSource(),
       [Action.InstallApp]: () => void promptInstall(),
