@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.21.0 - 2026-10-14
+
+### Added
+- View › Layout, five ways to lay the window out, to keep the ones that work:
+  - Classic: as before, panels on both sides.
+  - Toy: Create, the camera, the picture and one big Play; the rest waits in the menus.
+  - Modes: Build, Look, Render and Play tabs above the palette, each with its own panels
+    (Look opens the Materials Lab on Sky&Fog, Render shows Render View with its page).
+  - Render Window: the Render page floats over the picture's top right; Render and Play on
+    the palette's title row.
+  - Floating: the picture fills the window; the palette, Live, Render View, Play and the
+    scene list float over it.
 ## 0.21.0 - 2026-10-13
 
 ### Changed

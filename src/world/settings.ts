@@ -24,6 +24,20 @@ export type SnapGrid = (typeof SNAP_GRID_STEPS)[number];
 export const DEFAULT_SNAP_GRID: SnapGrid = 0.5;
 
 /** The interface's colours: Bryce's light stone, a dark one, or as the system asks. */
+/** How the window is laid out (View › Layout; ui/chrome/layouts.ts): kept while the owner picks the ones to stay. */
+export enum Layout {
+  /** Bryce's: panels on both sides, the palette on top, the bar below. */
+  Classic = 'classic',
+  /** A first visit: Create, the camera, the picture and Play. */
+  Toy = 'toy',
+  /** Build, Look, Render and Play tabs on top, each with its own panels. */
+  Modes = 'modes',
+  /** The Render page floats over the picture, beside Play on top. */
+  RenderWindow = 'render-window',
+  /** The picture fills the window; the palette and the scene list float over it. */
+  Floating = 'floating',
+}
+
 export enum ThemeMode {
   Light = 'light',
   Dark = 'dark',
@@ -73,6 +87,7 @@ export interface Settings {
   readonly renderViewPreset: RenderPreset;
   readonly renderViewCustom: RenderViewOptions;
   readonly theme: ThemeMode;
+  readonly layout: Layout;
   /** Play mode's player: size, speed, gravity, jump and mouse (world/player-settings.ts). */
   readonly player: PlayerSettings;
   /** Play mode's actor: the walker or the plane (world/plane-settings.ts). */
@@ -104,6 +119,7 @@ export const DEFAULT_SETTINGS: Settings = {
   renderViewPreset: DEFAULT_VIEW_PRESET,
   renderViewCustom: DEFAULT_VIEW_CUSTOM,
   theme: ThemeMode.Dark,
+  layout: Layout.Classic,
   player: DEFAULT_PLAYER,
   playActor: PlayActor.Walker,
   plane: DEFAULT_PLANE,
@@ -131,6 +147,7 @@ const CHECKS: { readonly [K in keyof Settings]: Check } = {
   renderViewPreset: oneOf(Object.values(RenderPreset)),
   renderViewCustom: isRenderViewOptions,
   theme: oneOf(Object.values(ThemeMode)),
+  layout: oneOf(Object.values(Layout)),
   player: isPlayerSettings,
   playActor: isPlayActor,
   plane: isPlaneSettings,

@@ -19,6 +19,7 @@ import { ShaderLoader } from '../ui/chrome/shader-loader';
 import { Timeline } from '../ui/chrome/timeline';
 import { ToolRail } from '../ui/chrome/tool-rail';
 import { toolWindows } from '../ui/chrome/tool-windows';
+import { installLayouts } from '../ui/chrome/layouts';
 import { el } from '../ui/kit/dom';
 import { HistoryPanel } from '../ui/panels/history-panel';
 import { showOffer } from '../ui/panels/offer-toast';
@@ -108,6 +109,7 @@ export class Shell {
     ctx.editor.events.on('changed', syncPanels);
     syncPanels();
     this.revealAtEdges(display.el);
+    installLayouts(ctx, { root: this.root, titles: palette.titles, center, windows });
     // Settings › Interface › Hint line.
     const syncHintLine = () => this.root.classList.toggle('no-hint-line', !ctx.editor.state.settings.hintLine);
     onSetting(ctx.editor, 'hintLine', syncHintLine);

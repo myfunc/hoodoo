@@ -1,0 +1,49 @@
+/* View › Layout (ui/chrome/layouts.ts): what each layout hides, floats or adds. Colours from the theme. */
+
+/* Chips on the palette's title row: which ones show depends on the layout. */
+.layout-chips { display: none; margin-left: auto; margin-right: 8px; gap: 6px; align-items: center; align-self: center; }
+.layout-chips > * { display: none; }
+.ui-button.layout-chip { height: 22px; padding: 0 12px; font: bold 12px/20px var(--font-ui); }
+.ui-button.layout-chip.is-on { background: var(--teal); border-color: var(--teal); color: #fff; }
+.ui-button.layout-chip.is-play { padding: 0 16px; }
+.mode-strip { display: none; }
+.app:not([data-layout=classic]) .pal-import-button { display: none; }
+
+/* Toy: Create, the camera, the picture and one big Play. */
+.app[data-layout=toy] .layout-chips, .app[data-layout=toy] .layout-chips > .is-play { display: flex; }
+.app[data-layout=toy] .ui-button.layout-chip.is-play { height: 30px; font-size: 15px; padding: 0 22px; }
+.app[data-layout=toy] .workspace { --side-col: 0px; --left-col: var(--left-w); }
+.app[data-layout=toy] .right-column, .app[data-layout=toy] .left-column > .tool-rail,
+.app[data-layout=toy] .left-column .dock-section, .app[data-layout=toy] .controls-corner { display: none; }
+.app[data-layout=toy] .palette-title:not(.is-active) { visibility: hidden; }
+.app[data-layout=toy] .display-bar > :nth-child(n+8) { display: none; }
+
+/* Modes: tabs above the palette; the right column keeps Attributes and the scene list. */
+.app[data-layout=modes] .mode-strip { display: flex; gap: 2px; padding: 6px 12px 0; align-items: flex-end; }
+.app[data-layout=modes] .center { grid-template-rows: 34px var(--titles-h) var(--tray-h) 1fr auto var(--displaybar-h); }
+.app[data-layout=modes] .ui-button.layout-chip.mode-tab { height: 28px; padding: 0 24px; font-size: 14px; }
+.app[data-layout=modes] .side-panel > .panel:nth-child(n+3) { display: none; }
+.app[data-layout=modes] .play-chip { display: none; }
+
+/* Render Window: the Render page floats over the picture; Play and its switch on top. */
+.app[data-layout=render-window] .layout-chips,
+.app[data-layout=render-window] .layout-chips > :is(.is-play, :first-child) { display: flex; }
+.app[data-layout=render-window] .play-chip { display: none; }
+
+/* Floating: the picture fills the window; the palette, the picture's switches and the scene list float over it. */
+.app[data-layout=floating].is-focus .center > .palette-titles,
+.app[data-layout=floating].is-focus .center > .shelf {
+  display: flex; position: fixed; z-index: 35; left: 0; right: 0; margin: 0 auto; width: max-content; max-width: calc(100vw - 640px);
+  background: var(--column-bg); opacity: 0.94; border: 1px solid var(--column-edge); box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+.app[data-layout=floating].is-focus .center > .palette-titles { top: 12px; padding: 4px 12px 0; border-bottom: 0; }
+.app[data-layout=floating].is-focus .center > .shelf { display: block; top: calc(12px + var(--titles-h) + 4px); border-top: 0; padding: 0 8px 4px; }
+.app[data-layout=floating].is-focus .layout-chips { display: flex; position: fixed; top: 14px; right: 24px; }
+.app[data-layout=floating].is-focus .layout-chips > :not(:first-child) { display: flex; }
+.app[data-layout=floating].is-focus .workspace > .right-column {
+  display: flex; position: fixed; z-index: 35; right: 24px; top: 52px; width: 260px; max-height: 60vh;
+  background: var(--column-bg); opacity: 0.94; border: 1px solid var(--column-edge); box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+.app[data-layout=floating].is-focus .right-column > :not(.side-panel),
+.app[data-layout=floating].is-focus .side-panel > .panel:not(:nth-child(2)) { display: none; }
+.app[data-layout=floating].is-focus .side-panel { display: flex; flex-direction: column; width: 100%; overflow: auto; }

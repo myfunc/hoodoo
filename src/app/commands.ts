@@ -1,4 +1,5 @@
 import { Logger } from '../core/log';
+import { Layout, changeSetting } from '../world/settings';
 import { downloadBlob } from '../io/download';
 import { loadUsage } from '../io/usage-log';
 import { randomSeed } from '../core/rng';
@@ -161,6 +162,12 @@ export class Commands {
       [Action.CopyImage]: () => void this.exportImage(1, e.state.renderSamples, true),
       [Action.ShareLink]: () => void this.share(),
       [Action.DocumentSetup]: () => openDocumentSetup(w.scene.document, (d) => w.setDocument(d)),
+      // View › Layout (ui/chrome/layouts.ts): each lays the window out its own way.
+      [Action.LayoutClassic]: () => changeSetting(e, 'layout', Layout.Classic),
+      [Action.LayoutToy]: () => changeSetting(e, 'layout', Layout.Toy),
+      [Action.LayoutModes]: () => changeSetting(e, 'layout', Layout.Modes),
+      [Action.LayoutRenderWindow]: () => changeSetting(e, 'layout', Layout.RenderWindow),
+      [Action.LayoutFloating]: () => changeSetting(e, 'layout', Layout.Floating),
       // Off keeps the window's last size as the document's.
       [Action.FitWindow]: () => w.setDocument({ ...w.scene.document, fit: !w.scene.document.fit }),
       [Action.Undo]: () => w.undo(),
@@ -304,6 +311,11 @@ export class Commands {
       [Action.ToggleLeftPanel]: s.leftPanel && !s.maximized,
       [Action.MaximizeView]: s.maximized,
       [Action.FitWindow]: !!this.ctx.world.scene.document.fit,
+      [Action.LayoutClassic]: s.settings.layout === Layout.Classic,
+      [Action.LayoutToy]: s.settings.layout === Layout.Toy,
+      [Action.LayoutModes]: s.settings.layout === Layout.Modes,
+      [Action.LayoutRenderWindow]: s.settings.layout === Layout.RenderWindow,
+      [Action.LayoutFloating]: s.settings.layout === Layout.Floating,
       [Action.ToggleDepthCue]: s.depthCue,
       [Action.ToggleGrid]: s.grid,
       [Action.ToggleGizmo]: s.gizmo,

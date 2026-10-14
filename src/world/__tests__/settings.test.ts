@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { EditorStore } from '../editor-store';
-import { DEFAULT_SETTINGS, OrbitSpeed, SNAP_GRID_STEPS, changeSetting, onSetting, settingsFrom } from '../settings';
+import { DEFAULT_SETTINGS, Layout, OrbitSpeed, SNAP_GRID_STEPS, changeSetting, onSetting, settingsFrom } from '../settings';
 import { LiveQuality } from '../world.enums';
 
 describe('settings', () => {
@@ -44,5 +44,13 @@ describe('settings', () => {
     changeSetting(editor, 'liveQuality', LiveQuality.Full);
     expect(heard).toEqual([LiveQuality.Detailed]);
     expect(editor.state.settings).toEqual({ ...DEFAULT_SETTINGS, hintLine: false, liveQuality: LiveQuality.Full });
+  });
+});
+
+describe('View › Layout', () => {
+  it('starts Classic, keeps a known layout and drops an unknown one', () => {
+    expect(DEFAULT_SETTINGS.layout).toBe(Layout.Classic);
+    expect(settingsFrom({ layout: Layout.Floating }).layout).toBe(Layout.Floating);
+    expect(settingsFrom({ layout: 'sideways' }).layout).toBe(Layout.Classic);
   });
 });
