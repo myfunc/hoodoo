@@ -237,7 +237,9 @@ export class RealtimeRenderer implements ViewRenderer {
     if (!this.accum || !this.preview || !this.scene || !this.basis) return false;
     if (!this.engine.isReady) return true;
     if (this.fence.busy) {
-      if (this.previewPending) this.previewLate = true;
+      // Late is past the frame's budget, not merely past the next animation frame: on a 240 Hz
+      // screen that comes after 4 ms, and every frame read as late kept the picture at its smallest.
+      if (this.previewPending && performance.now() - this.previewAt > this.motionBudget) this.previewLate = true;
       return true;
     }
     this.timer.poll();
@@ -390,7 +392,7 @@ export class RealtimeRenderer implements ViewRenderer {
 
   /**
    * Once per preview frame, tells the size control how it went: its measured cost, or whether it was
-   * late. Late is the frame still on the GPU at the next animation frame, or a fence time over
+   * late. Late is the frame still on the GPU past its budget, or a fence time over
    * `lateBudgets` budgets: then the frame counts at its fence time, which also holds what the timer
    * does not see (the page's own drawing on a GPU that shows it, a timer that reads low).
    */

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.17.1 - 2026-10-13
+
+### Fixed
+- First person no longer turns at a stroke now and then: the mouse is read raw where the
+  browser can (Chrome on Windows), without the system's pointer acceleration, as Garry's
+  Mod reads it; a lone move far bigger than the ones around it, and the first one after
+  the pointer is caught, are dropped.
+- On screens faster than 60 Hz the live picture kept shrinking while things moved: a frame
+  still on the graphics card at the next screen refresh (4 ms at 240 Hz) counted as late.
+  Late is now past the frame's own budget.
 ## 0.17.0 - 2026-10-13
 
 ### Added

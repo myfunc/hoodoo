@@ -1,5 +1,6 @@
 import { KEY, TEXT_TAGS } from '../core/keys';
 import type { Vec3 } from '../core/vec3';
+import { LookFilter } from './look-filter';
 import { type ActorInput, Button } from './sim/actor';
 
 /** Play's keys (layout-independent codes); the hint line names them. */
@@ -57,6 +58,7 @@ export class PlayInput {
   private readonly buttons = new Set<Button>();
   private wheel = 0;
   private releasing = false;
+  private readonly lookFilter = new LookFilter();
   private readonly off: (() => void)[] = [];
   /** The game runs: held keys and buttons count (the session turns it off while paused). */
   active = false;
@@ -66,10 +68,12 @@ export class PlayInput {
     this.listen(window, 'keyup', (e) => this.key(e as KeyboardEvent, false), true, false);
     this.listen(window, 'blur', () => this.clear());
     this.listen(document, 'mousemove', (e) => {
-      if (this.isLocked) hooks.look((e as MouseEvent).movementX, (e as MouseEvent).movementY);
+      const m = e as MouseEvent;
+      if (this.isLocked && this.lookFilter.accept(m.movementX, m.movementY, m.timeStamp)) hooks.look(m.movementX, m.movementY);
     });
     this.listen(document, 'pointerlockchange', () => {
       const on = this.isLocked;
+      if (on) this.lookFilter.restart();
       if (!on) this.clear();
       hooks.locked(on, !this.releasing);
       this.releasing = false;
@@ -96,11 +100,19 @@ export class PlayInput {
     return document.pointerLockElement === this.layer;
   }
 
-  /** Locks the pointer to the play layer (needs a click or a key press just before). */
+  /**
+   * Locks the pointer to the play layer (needs a click or a key press just before). Raw
+   * mouse moves where the browser has them (Chrome on Windows): no pointer acceleration,
+   * as Garry's Mod reads the mouse, and none of the cursor's jumps at the screen's edge.
+   */
   lock(): void {
-    const request = this.layer.requestPointerLock() as unknown as Promise<void> | undefined;
-    // A refused lock (no recent click) leaves the session paused with "Click to play".
-    request?.catch?.(() => this.hooks.locked(false, false));
+    const refused = () => this.hooks.locked(false, false);
+    const raw = this.layer.requestPointerLock({ unadjustedMovement: true }) as unknown as Promise<void> | undefined;
+    // Without raw moves (macOS) the plain lock; a refused one (no recent click) leaves play paused with "Click to play".
+    raw?.catch?.((e: unknown) => {
+      if (e instanceof DOMException && e.name === 'NotSupportedError') (this.layer.requestPointerLock() as unknown as Promise<void> | undefined)?.catch?.(refused);
+      else refused();
+    });
   }
 
   /** Lets the pointer go without ending play (Tab, the setup panel). */
