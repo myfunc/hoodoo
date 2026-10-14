@@ -25,6 +25,8 @@ export { SCENE_LIMITS } from './scene.constants';
 export const GROUP_NAME = 'Group';
 const MAX_COORD = 1e6;
 const MIN_SIZE = 1e-4;
+/** Longest mesh key a file may hold (a model path is far shorter). */
+const MESH_KEY_MAX = 512;
 
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) < MAX_COORD;
 
@@ -43,6 +45,11 @@ export function transform(t: unknown): Transform {
   const r = (t ?? {}) as Partial<Record<keyof Transform, unknown>>;
   const size = vec3(r.size, 'size').map((s) => (Math.abs(s) < MIN_SIZE ? MIN_SIZE : s)) as unknown as Vec3;
   return { position: vec3(r.position, 'position'), rotation: vec3(r.rotation, 'rotation'), size };
+}
+
+/** A mesh's key in the mesh library: any short text (a model's path); unreadable, the empty key (drawn as a box). */
+export function meshKey(k: unknown): string {
+  return typeof k === 'string' && k.length <= MESH_KEY_MAX ? k : '';
 }
 
 export function shapeKind(k: unknown): ShapeKind {

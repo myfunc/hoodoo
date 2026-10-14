@@ -109,6 +109,12 @@ Mat evalMaterial(int m, Surface s, inout vec3 n, bool full) {
   mt.reflection = pickValue(ex.y, src(vs1.y), t0, t1, t2);
   mt.ior = ex.z;
   mt.bump = ex.w;
+  // A mesh's own picture tints its colours; the mip level from how many texels a pixel covers.
+  if (gMeshNow.z >= 0.0) {
+    vec3 pic = meshPicture(gMeshNow, log2(max(gFoot * gLocalScale * gMeshNow.w, 1.0))).rgb;
+    mt.diffuse *= pic;
+    mt.ambient *= pic;
+  }
   if (bumped) {
     float v0 = bs == 1 ? t0.a : (bs == 2 ? t1.a : t2.a);
     vec3 g = (taps - v0) / h / freq;
@@ -128,6 +134,7 @@ vec2 parametricUv(int kind, vec3 lp) {
     return vec2(atan(q.z, q.x) / TAU + 0.5, acos(clamp(q.y, -1.0, 1.0)) / PI);
   }
   if (kind == K_PORTAL) return lp.xy * 0.5 + 0.5;
+  if (kind == K_MESH) return gMeshNow.xy;
   return lp.xz * 0.5 + 0.5;
 }
 

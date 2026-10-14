@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.42.0 - 2026-10-14
+
+### Added
+- Triangle meshes in the ray tracer: a Mesh object draws a model's own triangles with
+  smooth normals, its pictures (mip-mapped) and cut-out parts such as a chain-link fence,
+  with shadows and reflections like any shape, in renders, the live view and Play. Each
+  mesh gets a bounding volume hierarchy; picking hits its triangles, and the wireframe
+  draws its creases and borders. A scene keeps only a mesh's key: one the page has not
+  loaded is drawn as its box. This is what Garry's Mod mode's game props will wear.
+
 ## 0.41.0 - 2026-10-14
 
 ### Fixed

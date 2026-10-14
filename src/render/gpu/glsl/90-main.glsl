@@ -151,6 +151,7 @@ vec4 radiance(vec3 ro, vec3 rd) {
         gStretch = 1.0 / max(abs(dot(h.n, d)), GRAZING_MIN);
         gFoot = (gOrthoFoot + (gPathT + h.t) * gPixelAngle) * sqrt(gStretch);
       }
+      gMeshNow = ob.kind == K_MESH ? h.aux : vec4(0.0, 0.0, -1.0, 0.0);
       Surface sf = surfaceAt(h.obj, wp, n);
       mt = evalMaterial(h.obj, sf, n, !shadow);
     }

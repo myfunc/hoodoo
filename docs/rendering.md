@@ -19,12 +19,23 @@ skipping.
   function that bends each edge of the side view into a smooth curve, then
   bevels and narrows it like carved wood (`assets/lathe-head.ts`, shared with
   picking). Profiles live in one float texture (`lathe-pack.ts`).
+- Triangle meshes (a game's props, `37-mesh.glsl`): each mesh is fitted to the
+  unit box when it is registered (`assets/mesh-library.ts`), its triangles are
+  sorted into a bounding volume hierarchy (`world/mesh-bvh.ts`, binned surface
+  area heuristic, shared with picking) and packed with their normals and
+  picture coordinates into one float texture (`mesh-pack.ts`); their pictures
+  are layers of one texture array, mip-mapped, sampled at the level the
+  pixel's footprint asks for. The walk is one flat loop that tests a node or a
+  triangle per step, nearer child first. A part marked Cutout is absent where
+  its picture's alpha is under one half (fences, leaves), for shadows too. A
+  scene stores only a mesh's key; one the page has not loaded draws as its box.
 - Boolean groups: Positive objects are cut by Negative members and clipped by
   Intersect members of their group.
 - Bryce 2 materials: ambient, diffuse and specular colour channels, diffusion,
   ambience, specularity, metallicity, transparency, reflection, refraction and
-  bump, each driven flat or by one of three procedural 3D textures (14 kinds, the last the
-  numbered Pool Ball).
+  bump, each driven flat or by one of three procedural 3D textures (the numbered
+  Pool Ball, window facades and a flower meadow among them); a mesh's own picture
+  tints its diffuse and ambient colours.
 - Sun or moon, radial and spot lights, shadows through transparent objects.
 - The Bryce sky: gradient modes, sun disc and halo, cumulus and stratus,
   haze, height fog, stars.

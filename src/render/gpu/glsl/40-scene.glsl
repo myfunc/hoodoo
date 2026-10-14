@@ -72,6 +72,7 @@ Span shapeSpan(Obj o, vec3 ro, vec3 rd) {
   if (k == K_TERRAIN || k == K_LATTICE) return terrainSpan(k == K_LATTICE, lo, ld, o.params.x, o.params.z);
   if (k == K_PORTAL) return portalSpan(lo, ld);
   if (k == K_LATHE) return latheSpan(lo, ld, o.params.y);
+  if (k == K_MESH) return meshSpan(lo, ld, o.params.y);
   return NO_SPAN;
 }
 
@@ -121,6 +122,7 @@ struct Hit {
   int obj;
   vec3 n;      // world normal facing the ray's side as computed
   bool inside;
+  vec4 aux;    // a mesh's surface (gMeshHit in 37-mesh.glsl)
 };
 
 // Nearest surface hit closer than tmax. With anyOpaque, the first opaque hit ends the
@@ -132,6 +134,7 @@ bool traceScene(vec3 ro, vec3 rd, float tmax, out Hit hit, bool anyOpaque) {
   hit.obj = -1;
   hit.n = vec3(0.0, 1.0, 0.0);
   hit.inside = false;
+  hit.aux = vec4(0.0, 0.0, -1.0, 0.0);
   int base = 0;
   int cursor = -1;
   Obj o;
@@ -180,6 +183,7 @@ bool traceScene(vec3 ro, vec3 rd, float tmax, out Hit hit, bool anyOpaque) {
       hit.obj = base - 1;
       hit.inside = inside && s.t0 < s.t1;
       hit.n = toWorldNormal(o, inside ? s.n1 : s.n0);
+      hit.aux = o.kind == K_MESH ? gMeshHit : vec4(0.0, 0.0, -1.0, 0.0);
       if (anyOpaque && (o.flags & F_OPAQUE) != 0) return true;
     }
   }

@@ -21,6 +21,8 @@ export enum ShapeKind {
   Portal = 17,
   /** A turned solid: a profile from assets/lathe.profiles.ts spun about Y (`shapeParam` picks it). */
   Lathe = 18,
+  /** A triangle mesh from the mesh library (assets/mesh-library.ts), by its key (SceneObject.mesh). */
+  Mesh = 19,
 }
 
 /** The profiles of Lathe objects (their `shapeParam`): saved in files, so append only. */

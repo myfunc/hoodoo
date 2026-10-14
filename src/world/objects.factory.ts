@@ -1,7 +1,9 @@
 import { DEFAULT_LATTICE, DEFAULT_LIGHT, DEFAULT_TERRAIN, DEFAULT_TERRAIN_RESOLUTION, type CreateEntry, type TerrainRecipe } from '../assets/object.catalog';
 import { presetMaterial } from '../assets/materials.presets';
+import type { MeshEntry } from '../assets/mesh-library';
+import { material } from '../model/material.factory';
 import { ZERO3, type Vec3 } from '../core/vec3';
-import { BooleanMode, ShapeKind, TextureMapping } from '../model/scene.enums';
+import { BooleanMode, Family, ShapeKind, TextureMapping } from '../model/scene.enums';
 import { newObjectId } from '../model/scene.ids';
 import type { Material, SceneObject } from '../model/scene.types';
 import { buildTerrain } from './terrain/terrain-recipe';
@@ -58,5 +60,43 @@ export function createObject(entry: CreateEntry, opts: CreateOptions): SceneObje
     terrain: TERRAIN_KINDS.has(entry.kind) ? buildTerrain(recipe, DEFAULT_TERRAIN_RESOLUTION, opts.seed) : null,
     light: LIGHT_KINDS.has(entry.kind) ? DEFAULT_LIGHT : null,
     shapeParam: entry.kind === ShapeKind.Stone ? opts.seed : entry.shapeParam,
+  };
+}
+
+/** What a mesh wears unless told otherwise: white, so its own pictures show their colours. */
+export const MESH_MATERIAL: Material = material({
+  name: 'Mesh',
+  colors: { diffuse: [1, 1, 1], ambient: [0.6, 0.6, 0.6], specular: [1, 1, 1] },
+  values: { diffusion: 85, ambience: 35, specularity: 12 },
+});
+
+export interface MeshOptions {
+  readonly position?: Vec3;
+  /** World units per unit of the mesh's own (a game's inches to metres, say); 1 by default. */
+  readonly scale?: number;
+  readonly name?: string;
+  readonly material?: Material;
+}
+
+/** A Mesh object wearing the library's `entry` at its own proportions, standing on the ground unless placed. */
+export function meshObject(entry: MeshEntry, opts: MeshOptions = {}): SceneObject {
+  const k = opts.scale ?? 1;
+  const size: Vec3 = [entry.half[0] * k, entry.half[1] * k, entry.half[2] * k];
+  return {
+    id: newObjectId(),
+    name: opts.name ?? entry.key.split('/').pop() ?? entry.key,
+    kind: ShapeKind.Mesh,
+    transform: { position: opts.position ?? [0, size[1], 0], rotation: ZERO3, size },
+    material: opts.material ?? MESH_MATERIAL,
+    boolean: BooleanMode.Neutral,
+    groupId: null,
+    family: Family.Gray,
+    locked: false,
+    hidden: false,
+    showAsBox: false,
+    terrain: null,
+    light: null,
+    shapeParam: 0,
+    mesh: entry.key,
   };
 }

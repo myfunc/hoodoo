@@ -99,6 +99,8 @@ export interface SceneObject {
   readonly script?: PlayScript;
   /** Play mode: a trigger zone, never drawn in renders (a Cube or a Sphere); absent on everything else. */
   readonly zone?: TriggerZone;
+  /** A Mesh's key in the mesh library; one the page does not have is drawn as its box. Absent on everything else. */
+  readonly mesh?: string;
 }
 
 /** How an object or a group takes part in Play mode's physics (docs/play-mode.md). */

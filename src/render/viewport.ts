@@ -7,6 +7,7 @@ import { type ViewBasis, cameraBasis, orthoBasis } from '../world/camera-math';
 import { type EditorState, type EditorStore, PaneMode, paneMode } from '../world/editor-store';
 import type { World } from '../world/world';
 import { ChangeKind } from '../world/world.events';
+import { onMeshesChanged } from '../assets/mesh-library';
 import type { RayEngine } from './gpu/engine';
 import { ProgressiveRenderer, type RenderProgress } from './gpu/progressive';
 import { QuadLive } from './gpu/quad-live';
@@ -150,6 +151,8 @@ export class SceneView {
     new ResizeObserver(() => this.resize()).observe(this.root);
     world.events.on('changed', ({ kind }) => this.onSceneChanged(kind));
     world.events.on('selection', () => this.requestDraw());
+    // A mesh arriving (a game's model read in the background) redraws the objects that wear it.
+    onMeshesChanged(() => this.onSceneChanged(ChangeKind.Objects));
     // Edit Group: the picture shows the group alone.
     world.events.on('scope', () => {
       this.requestDraw();

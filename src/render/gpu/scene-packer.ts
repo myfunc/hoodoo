@@ -124,7 +124,8 @@ export function packedObjects(scene: Scene): SceneObject[] {
   return drawn(scene).filter((o) => !LIGHT_KINDS.has(o.kind)).slice(0, MAX_OBJECTS);
 }
 
-export function packScene(scene: Scene): PackedScene {
+/** `meshSlots`: each drawable mesh's header texel by key (mesh-pack.ts); a Mesh without one is drawn as its box. */
+export function packScene(scene: Scene, meshSlots: ReadonlyMap<string, number> = new Map()): PackedScene {
   const visible = drawn(scene);
   const lights = visible.filter((o) => LIGHT_KINDS.has(o.kind)).slice(0, MAX_LIGHTS);
   const all = visible.filter((o) => !LIGHT_KINDS.has(o.kind));
@@ -147,9 +148,12 @@ export function packScene(scene: Scene): PackedScene {
     if (o.boolean === BooleanMode.Positive && o.groupId && modified.has(o.groupId)) flags |= FLAG_HAS_MODIFIERS;
     if (o.kind === ShapeKind.WaterPlane || o.kind === ShapeKind.Portal) flags |= FLAG_NO_SHADOW;
     if (o.material.values.transparency === 0 && o.material.valueSources.transparency === ChannelSource.Flat) flags |= FLAG_OPAQUE;
-    out4(objects, base + OBJ_AT.header, o.kind, o.boolean, group, flags);
+    const meshSlot = o.kind === ShapeKind.Mesh ? meshSlots.get(o.mesh ?? '') : undefined;
+    const kind = o.kind === ShapeKind.Mesh && meshSlot === undefined ? ShapeKind.Cube : o.kind;
+    out4(objects, base + OBJ_AT.header, kind, o.boolean, group, flags);
     const layer = TERRAIN_KINDS.has(o.kind) ? terrainLayer++ : 0;
-    out4(objects, base + OBJ_AT.params, layer, o.kind === ShapeKind.Lathe ? latheIndex(o.shapeParam) : o.shapeParam, terrains.res, 0);
+    const param = o.kind === ShapeKind.Lathe ? latheIndex(o.shapeParam) : meshSlot ?? o.shapeParam;
+    out4(objects, base + OBJ_AT.params, layer, param, terrains.res, 0);
     const partner = partners.get(o.id);
     if (partner) out4(objects, base + OBJ_AT.portal, rowOf.get(partner) ?? 0, 0, 0, 0);
     if (INFINITE_KINDS.has(o.kind)) out4(objects, base + OBJ_AT.bound, 0, 0, 0, -1);

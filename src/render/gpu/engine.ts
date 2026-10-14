@@ -13,6 +13,8 @@ import { MAT_TEXELS, MAX_OBJECTS, OBJ_TEXELS, TEXEL_FLOATS } from './render.cons
 import { NOISE_SIZE, bakeNoise } from './noise-texture';
 import { type PackedScene, packScene, scanRows, skyUniforms } from './scene-packer';
 import { packLathe } from './lathe-pack';
+import { MeshTextures } from './mesh-textures';
+import { meshLibraryVersion } from '../../assets/mesh-library';
 import { FAST_DEFINE, GAME_DEFINE, TRACE_SOURCE, withDefines } from './trace-source';
 
 const COLD_FLAG = 'cold';
@@ -36,6 +38,8 @@ const UNIT_TERRAINS = 2;
 const UNIT_NOISE = 3;
 const UNIT_TERRAIN_MAX = 4;
 const UNIT_LATHE = 5;
+const UNIT_MESH = 6;
+const UNIT_MESH_IMAGES = 7;
 const UNIT_CUR = 0;
 const UNIT_PREV = 1;
 /** Uniform buffer binding of the game variant's object scan (GameScan in 00-header.glsl). */
@@ -174,6 +178,8 @@ export class RayEngine {
   private readonly noiseTex: WebGLTexture;
   private readonly terrainMaxTex: WebGLTexture;
   private readonly latheTex: WebGLTexture;
+  private readonly meshes: MeshTextures;
+  private meshVersion = -1;
   private readonly vao: WebGLVertexArrayObject;
   private terrainKey = '';
   private packed: PackedScene | null = null;
@@ -210,6 +216,7 @@ export class RayEngine {
     this.latheTex = dataTexture(gl);
     const lathe = packLathe();
     uploadFloatRows(gl, this.latheTex, lathe.width, lathe.rows, lathe.data);
+    this.meshes = new MeshTextures(gl);
     const scan = gl.createBuffer();
     if (!scan) throw new GlError('Cannot allocate the object scan');
     this.scanBuffer = scan;
@@ -405,9 +412,10 @@ export class RayEngine {
    * The same snapshot is uploaded once, so several views of one scene share the upload.
    */
   setScene(scene: Scene): void {
-    if (this.scene === scene) return;
+    if (this.scene === scene && this.meshVersion === meshLibraryVersion()) return;
     const gl = this.gl;
-    const p = packScene(scene);
+    this.meshVersion = meshLibraryVersion();
+    const p = packScene(scene, this.meshes.update(scene));
     this.packed = p;
     uploadFloatRows(gl, this.objectsTex, OBJ_TEXELS, p.count, p.objects);
     uploadFloatRows(gl, this.materialsTex, MAT_TEXELS, p.count, p.materials);
@@ -595,6 +603,7 @@ export class RayEngine {
     gl.activeTexture(gl.TEXTURE0 + UNIT_LATHE);
     gl.bindTexture(gl.TEXTURE_2D, this.latheTex);
     u.i('uLathe', UNIT_LATHE);
+    this.meshes.bind(u, UNIT_MESH, UNIT_MESH_IMAGES);
     u.i('uNoise', UNIT_NOISE);
     u.i('uTerrainMax', UNIT_TERRAIN_MAX);
     u.i('uObjects', UNIT_OBJECTS);

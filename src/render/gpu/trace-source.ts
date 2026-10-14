@@ -6,6 +6,7 @@ import textures from './glsl/20-textures.glsl?raw';
 import shapes from './glsl/30-shapes.glsl?raw';
 import terrain from './glsl/35-terrain.glsl?raw';
 import lathe from './glsl/36-lathe.glsl?raw';
+import mesh from './glsl/37-mesh.glsl?raw';
 import portalShape from './glsl/38-portal-shape.glsl?raw';
 import sceneGlsl from './glsl/40-scene.glsl?raw';
 import sky from './glsl/50-sky.glsl?raw';
@@ -14,7 +15,7 @@ import portals from './glsl/70-portals.glsl?raw';
 import main from './glsl/90-main.glsl?raw';
 
 /** The ray tracer: one fragment shader, the files of glsl/ in order. */
-export const TRACE_SOURCE = [header, noise, sheen, flowers, textures, shapes, terrain, lathe, portalShape, sceneGlsl, sky, shade, portals, main].join('\n');
+export const TRACE_SOURCE = [header, noise, sheen, flowers, textures, shapes, terrain, lathe, mesh, portalShape, sceneGlsl, sky, shade, portals, main].join('\n');
 
 /** The line of 00-header.glsl after which a variant's #defines go: before anything reads them. */
 export const DEFINES_AT = "// engine.ts inserts a variant's #defines (FAST_PREVIEW, GAME_TRACE) after this line.";

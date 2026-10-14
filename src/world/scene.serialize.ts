@@ -157,6 +157,7 @@ function reviveObject(o: SerializedObject, seen: Set<string>): SceneObject {
     light: LIGHT_KINDS.has(kind) ? check.light(o.light) : null,
     shapeParam: check.shapeParam(kind, o.shapeParam, CREATE_PALETTE.find((e) => e.kind === kind)?.shapeParam ?? 0),
     ...(kind === ShapeKind.Portal && check.isId(o.pair) ? { pair: asObjectId(o.pair) } : {}),
+    ...(kind === ShapeKind.Mesh ? { mesh: check.meshKey(o.mesh) } : {}),
   };
   // Play mode's physics flags: kept only where they differ from the kind's defaults.
   const body = check.bodyFlags(o.body);

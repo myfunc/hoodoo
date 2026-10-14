@@ -8,6 +8,8 @@ import { INFINITE_KINDS, LIGHT_KINDS } from './objects.factory';
 import { coneT, cubeT, cylinderT, pyramidT, torusT } from './ray-shapes';
 import { latheProfile } from '../assets/lathe.profiles';
 import { latheT } from './lathe-ray';
+import { meshEntry } from '../assets/mesh-library';
+import { meshT } from './mesh-ray';
 import { sample } from './terrain/heightfield';
 
 export interface RayHit {
@@ -124,6 +126,10 @@ function objectT(obj: SceneObject, origin: Vec3, dir: Vec3): number {
     case ShapeKind.Torus: return torusT(o, d, obj.shapeParam);
     case ShapeKind.Portal: return portalT(o, d);
     case ShapeKind.Lathe: return latheT(latheProfile(obj.shapeParam), o, d);
+    case ShapeKind.Mesh: {
+      const entry = meshEntry(obj.mesh);
+      return entry ? meshT(entry, o, d) : cubeT(o, d);
+    }
     default: return cubeT(o, d);
   }
 }

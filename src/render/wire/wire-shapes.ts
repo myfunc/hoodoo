@@ -5,6 +5,8 @@ import type { SceneObject, TerrainData } from '../../model/scene.types';
 import { PLANE_EXTENT } from '../../world/bounds';
 import { latheProfile } from '../../assets/lathe.profiles';
 import { latheLines } from './lathe-wire';
+import { meshEntry } from '../../assets/mesh-library';
+import { meshLines } from './mesh-wire';
 
 /** Line list in object space: [a, b, a, b, …]. */
 export type Lines = Vec3[];
@@ -155,6 +157,13 @@ function build(o: SceneObject): Lines {
     case ShapeKind.Lathe:
       out.push(...latheLines(latheProfile(o.shapeParam)));
       break;
+    case ShapeKind.Mesh: {
+      const entry = meshEntry(o.mesh);
+      const lines = entry ? meshLines(entry) : null;
+      if (lines) out.push(...lines);
+      else box(out);
+      break;
+    }
     case ShapeKind.Portal:
       circle(out, 1, 0, 'z'); circle(out, PORTAL_WINDOW, 0, 'z');
       break;
@@ -192,7 +201,8 @@ const shapeCache = new Map<string, Lines>();
 
 /** Cached by the fields that change an outline; terrains by their height array. */
 export function wireLines(o: SceneObject): Lines {
-  const key = `${o.kind}|${o.shapeParam}|${o.showAsBox}`;
+  const mesh = o.kind === ShapeKind.Mesh ? `|${o.mesh}#${meshEntry(o.mesh)?.version ?? 0}` : '';
+  const key = `${o.kind}|${o.shapeParam}|${o.showAsBox}${mesh}`;
   if (o.terrain && !o.showAsBox) {
     const hit = terrainCache.get(o.terrain.heights);
     if (hit && hit.key === key) return hit.lines;
