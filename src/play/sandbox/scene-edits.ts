@@ -1,7 +1,10 @@
 import { type Vec3, add, scale } from '../../core/vec3';
 import type { ObjectId } from '../../model/scene.ids';
 import type { JointKind } from '../../model/scene.enums';
-import type { GroupNode, SceneJoint, SceneObject, Sky, Transform } from '../../model/scene.types';
+import type { GroupNode, Scene, SceneJoint, SceneObject, Sky, Transform } from '../../model/scene.types';
+import { bodyOf, withBody } from '../../world/body-flags';
+import { BodyGroups, carvedOf } from '../../world/carved';
+import { subtree } from '../../world/group-tree';
 import { jointsOf } from '../../world/joints';
 import { sameTransform } from '../../world/group-transform';
 import type { World } from '../../world/world';
@@ -45,6 +48,41 @@ export class SceneEdits {
   change(ids: ReadonlySet<ObjectId>, label: string, fn: (o: SceneObject) => SceneObject): void {
     this.world.updateObjects(ids, label, fn);
     this.touch(ids);
+  }
+
+  /** The editor's scene as it is now. */
+  get scene(): Scene {
+    return this.world.scene;
+  }
+
+  /** Whether the object moves in play: physical itself, or a carved object made physical as a whole. */
+  physical(id: ObjectId): boolean {
+    const o = this.world.object(id);
+    if (!o) return false;
+    const g = carvedOf(this.world.scene, o);
+    return g ? new BodyGroups(this.world.scene).physical(g) : bodyOf(o).physical;
+  }
+
+  /** Physical on or off, one History step; a carved object's part switches the whole object (its group and its parts' own flags). */
+  setPhysical(id: ObjectId, on: boolean): void {
+    const o = this.world.object(id);
+    if (!o) return;
+    const g = carvedOf(this.world.scene, o);
+    if (!g) {
+      this.change(new Set([id]), `${on ? 'Physical' : 'Static'} ${o.name}`, (x) => withBody(x, { physical: on }));
+      return;
+    }
+    const members = new Set(subtree(this.world.scene, g));
+    this.world.beginGesture(`${on ? 'Physical' : 'Static'} ${o.name}`);
+    this.world.setGroupBody(g, { physical: on });
+    if (!on) this.world.updateObjects(new Set(this.world.scene.objects.filter((x) => members.has(x.id) && bodyOf(x).physical).map((x) => x.id)), 'Physics', (x) => withBody(x, { physical: false }), true);
+    this.world.endGesture();
+  }
+
+  /** Solid on or off: one History step. */
+  setSolid(id: ObjectId, on: boolean): void {
+    const o = this.world.object(id);
+    if (o) this.change(new Set([id]), `${on ? 'Solid' : 'Not solid'} ${o.name}`, (x) => withBody(x, { solid: on }));
   }
 
   /** The sky over the world (the spawn menu's Sky tab): one History step. */

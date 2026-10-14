@@ -152,8 +152,25 @@ export class SpawnMenu {
   }
 
   /** The locked mouse's button: a click on what the cursor is over. */
-  clickAtCursor(): void {
-    if (!this.cursor.hidden) this.under()?.click();
+  clickAtCursor(): boolean {
+    const target = this.cursor.hidden ? null : this.under();
+    target?.click();
+    return !!target;
+  }
+
+  /** Where the menu's own cursor is (client pixels), or null while it is hidden. */
+  cursorPoint(): [number, number] | null {
+    return this.cursor.hidden ? null : [this.at[0], this.at[1]];
+  }
+
+  /** The menu is the context menu (C). */
+  get isContext(): boolean {
+    return this.el.classList.contains('is-context');
+  }
+
+  /** Whether a click's target is one of the menu's own panels. */
+  contains(target: EventTarget | null): boolean {
+    return target instanceof Node && this.panels.some((p) => p.contains(target));
   }
 
   /** The locked mouse's wheel scrolls what the cursor is over (the icons when it is hidden). */

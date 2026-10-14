@@ -23,6 +23,8 @@ import type { PlayFrame, PlaySim } from '../sim/play-sim';
 import { SANDBOX_KEYS, isSnapKey, slotOfKey } from './binds';
 import { GameFiles } from './game-files';
 import { SandboxJoints } from './joints';
+import { ContextWorld } from './context-world';
+import { objectMenu } from './object-menu';
 import { Loadout } from './loadout';
 import { type Notice, Notices } from './notices';
 import { Overlay } from './overlay';
@@ -32,7 +34,7 @@ import { NoticeKind, WeaponId } from './sandbox.enums';
 import { SceneEdits } from './scene-edits';
 import { SPAWN_LIMIT, tracedCount } from './spawn';
 import { SPAWN_ITEMS, spawnLists } from './spawn-lists';
-import type { ToolContext, ToolHit, ToolId } from './tools/tool';
+import { type ToolContext, type ToolHit, ToolButton, type ToolId } from './tools/tool';
 import { createTools } from './tools/tools';
 import { decalsOn, normalAt } from './tool-aim';
 import { aimOf } from './weapons/grip';
@@ -116,6 +118,8 @@ export class Sandbox {
   private readonly props: Props;
   /** The scene's welds and other joints in physics. */
   private readonly joints: SandboxJoints;
+  /** The world under the context menu: Mouse 1 fires at the cursor, Mouse 2 an object's menu. */
+  private readonly contextWorld: ContextWorld;
   private readonly edits: SceneEdits;
   private readonly menu: SpawnMenu;
   private readonly notices = new Notices();
@@ -149,6 +153,15 @@ export class Sandbox {
   constructor(private readonly host: SandboxHost) {
     this.props = new Props(host.sim, host.scene);
     this.joints = new SandboxJoints(host.sim);
+    this.contextWorld = new ContextWorld({
+      layer: host.layer, picture: () => host.picture(), camera: () => host.sim.frame(1).camera,
+      inMenu: (t) => this.menu.contains(t),
+      fire: (eye, aim) => { if (this.weapon === this.toolgun) this.toolgun.shootAt(ToolButton.Primary, eye, aim, host.sim.time); },
+      menu: (eye, aim) => {
+        const hit = this.toolTrace(eye, aim);
+        return hit ? objectMenu(hit.object, { sim: host.sim, props: this.props, edits: this.edits, whole: (id) => this.toolContext().whole(id) }) : [];
+      },
+    });
     this.joints.sync(host.world.scene);
     this.edits = new SceneEdits(host.world, host.sim);
     this.menu = new SpawnMenu(host.thumbs, spawnLists(), (key) => void this.spawn(key));
@@ -230,7 +243,12 @@ export class Sandbox {
     this.prev = held;
     // The spawn menu has the mouse: its button clicks there, the gun rests.
     if (this.menu.open) {
-      if (pressed.has(Button.Attack)) this.menu.clickAtCursor();
+      const at = this.menu.isContext ? this.menu.cursorPoint() : null;
+      if (pressed.has(Button.Attack) && !this.menu.clickAtCursor() && at) this.contextWorld.click(0, ...at);
+      if (pressed.has(Button.Attack2) && at) {
+        this.pin();
+        this.contextWorld.click(2, ...at);
+      }
       this.weapon.step({ held: new Set(), pressed: new Set(), reach: 0 }, this.context());
       return { ...raw, buttons: new Set([...raw.buttons].filter((b) => b !== Button.Attack && b !== Button.Attack2)), wheel: 0 };
     }
@@ -305,6 +323,7 @@ export class Sandbox {
   }
 
   dispose(): void {
+    this.contextWorld.stop();
     this.joints.dispose();
     this.game.dispose();
     this.weapon.holster(this.context());
@@ -352,24 +371,31 @@ export class Sandbox {
       return;
     }
     if (!this.menu.open || this.pinned) return;
-    if (performance.now() - this.contextAt < CONTEXT_TAP_MS) {
-      this.pinned = true;
-      this.menu.hideCursor();
-      this.host.freePointer(true);
-    } else this.menu.setOpen(false);
+    if (performance.now() - this.contextAt < CONTEXT_TAP_MS) this.pin();
+    else this.menu.setOpen(false);
+  }
+
+  /** The context menu stays open with the real pointer; its clicks on the world fire or open an object's menu. */
+  private pin(): void {
+    if (this.pinned) return;
+    this.pinned = true;
+    this.menu.hideCursor();
+    this.host.freePointer(true);
+    this.contextWorld.listen();
   }
 
   private closeContext(): void {
     const freed = this.pinned;
-    this.pinned = false;
+    this.pointerCaught();
     this.menu.setOpen(false);
     if (freed) this.host.freePointer(false);
   }
 
-  /** The pointer is caught again (a click on the world): a pinned context menu closes. */
+  /** The pointer is caught again: a pinned context menu closes. */
   pointerCaught(): void {
     if (!this.pinned) return;
     this.pinned = false;
+    this.contextWorld.stop();
     this.menu.setOpen(false);
   }
 

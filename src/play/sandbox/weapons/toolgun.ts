@@ -73,8 +73,13 @@ export class ToolGun implements Weapon {
   }
 
   private fire(button: ToolButton, ctx: WeaponContext): void {
-    const hit = this.host.trace(ctx.eye.position, ctx.aim);
-    if (hit && this.current.use(button, hit, this.host.context())) this.shot = { end: hit.point, time: ctx.time };
+    this.shootAt(button, ctx.eye.position, ctx.aim, ctx.time);
+  }
+
+  /** One use along any ray (the context menu fires at the point under its cursor). */
+  shootAt(button: ToolButton, eye: Vec3, aim: Vec3, time: number): void {
+    const hit = this.host.trace(eye, aim);
+    if (hit && this.current.use(button, hit, this.host.context())) this.shot = { end: hit.point, time };
   }
 
   private endStroke(): void {

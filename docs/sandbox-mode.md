@@ -289,9 +289,16 @@ quarter of a second) pins it open and frees the real pointer, so sliders drag
 and numbers type, until the next C or a click on the world, which catches the
 pointer again. Play keeps running and the keys still walk.
 
-Still to come: Mouse 1 firing the Tool Gun at the cursor (GMod's world
-clicking), an object's menu on Mouse 2 (Remove, Freeze, Collisions, Gravity,
-Materials Lab…, Attributes…), and the session's undo list in a corner.
+On the world (`context-world.ts`), as GMod's world clicking: Mouse 1 fires the
+Tool Gun at the point under the cursor (the menu's own cursor while C is held,
+the real pointer when pinned; the ray goes from the eye through that point of
+the picture), and Mouse 2 on an object opens its menu (`object-menu.ts`, the
+kit's menu at the pointer; held, a Mouse 2 pins the context menu first): its
+name, Remove (a carved object whole), Freeze or Unfreeze for a prop, Physical
+and Solid (Play's body flags, one History step; Physical on a part of a carved
+object switches the whole of it), Remove joints. Pinned, clicks on the world are
+taken before they would catch the pointer again; the next C closes the menu.
+The session's undo list comes with History in Garry's Mod mode.
 
 ## HUD
 

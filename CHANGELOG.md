@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.26.0 - 2026-10-14
+
+### Added
+- Garry's Mod's world clicking in the context menu (C): Mouse 1 fires the Tool Gun at the
+  point under the cursor, Mouse 2 on an object opens its menu: Remove, Freeze or
+  Unfreeze, Physical, Solid and Remove joints.
 ## 0.25.0 - 2026-10-14
 
 ### Added
