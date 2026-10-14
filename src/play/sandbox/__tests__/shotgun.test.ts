@@ -17,6 +17,7 @@ function range() {
   const physics = {
     raycast: (origin: Vec3, dir: Vec3) => ({ body: 7 as BodyId, tag: null, point: [origin[0] + dir[0] * 5, origin[1] + dir[1] * 5, origin[2] + dir[2] * 5] as Vec3, normal: [0, 0, 1] as Vec3 }),
     applyImpulse: (_b: BodyId, impulse: Vec3) => pushes.push(impulse),
+    mass: () => 1600,
   } as unknown as Physics;
   const gun = new Shotgun(() => 0.5);
   let time = 0;
@@ -46,6 +47,8 @@ describe('the shotgun', () => {
     expect(r.ammo()).toEqual({ clip: 5, reserve: 64 });
     expect(r.pushes).toHaveLength(7);
     expect(r.pushes[0][2]).toBeLessThan(0);
+    // A 1600 kg cube still gets a shove: 12 inches a second a pellet, at the player's scale.
+    expect(Math.hypot(...r.pushes[0])).toBeCloseTo(1600 * 12 * 0.025, 0);
     expect(r.kicks[0][0]).toBeGreaterThanOrEqual(1);
     expect(r.sounds).toEqual([CUES.shotgunFire.game]);
     r.hold([Button.Attack], 0.5);

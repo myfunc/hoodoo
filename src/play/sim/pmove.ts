@@ -103,6 +103,9 @@ const UNSTICK: readonly Vec3[] = [
   [0, 2, 0], [2, 0, 0], [-2, 0, 0], [0, 0, 2], [0, 0, -2], [0, 4, 0], [0, -0.5, 0],
 ];
 
+/** Lifts tried first, in skins (Half-Life's 1/32 unit), for a hull only a hair inside what it stands on. */
+const SKIN_LIFTS = [1, 2, 4] as const;
+
 export function newPlayer(origin: Vec3, t: Tuning): PlayerState {
   return {
     origin, velocity: ZERO3, ground: null, groundNormal: ZERO3, ducked: false, inDuck: false, duckTimer: 0,
@@ -403,6 +406,15 @@ function clear(from: Vec3, to: Vec3, half: Vec3, tracer: Tracer): boolean {
 export function unstick(p: PlayerState, t: Tuning, tracer: Tracer): boolean {
   const half = hullOf(p, t);
   if (fits(p.origin, half, tracer)) return true;
+  // A hair inside (a sweep onto a curved top stops a fraction short of exact): lift it out by that hair,
+  // not by a share of a step, which would drop the player again and bounce the view.
+  for (const skins of SKIN_LIFTS) {
+    const at = add(p.origin, [0, skins * t.skin, 0]);
+    if (fits(at, half, tracer)) {
+      p.origin = at;
+      return true;
+    }
+  }
   for (const d of UNSTICK) {
     const at = add(p.origin, scale(d, t.stepSize));
     if (fits(at, half, tracer) && clear(p.origin, at, half, tracer)) {

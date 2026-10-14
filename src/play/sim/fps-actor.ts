@@ -18,6 +18,8 @@ const FREE_REACH = 8;
 const STUCK_STEPS = 50;
 /** Steps the HUD says why noclip stayed on. */
 const NOTICE_STEPS = 200;
+/** SmoothViewOnStairs: the eye catches up this many Half-Life units a second. */
+const STAIRS = { speed: 150 } as const;
 const NOCLIP_LABEL = 'Noclip';
 const NO_ROOM = 'no room to stand here';
 
@@ -55,6 +57,9 @@ export class FpsActor implements Actor {
   private notice = 0;
   /** Steps the hull has been stuck with no near way out. */
   private stuck = 0;
+  /** The height the eye is drawn from (C_BasePlayer::SmoothViewOnStairs): it follows the body over a step instead of jumping. */
+  private viewZ: number | null = null;
+  private grounded = false;
   /** Placed somewhere new (spawn, teleport, respawn): the next step moves it out of anything it is in. */
   private settle = true;
 
@@ -165,10 +170,31 @@ export class FpsActor implements Actor {
     this.unstuck();
     if (p.origin[1] < this.killY) this.respawn();
     this.physics.setPose(this.body, { position: p.origin, rotation: IDENTITY_Q });
+    this.smoothView();
+  }
+
+  /**
+   * Source's smoothed stairs: on ground that does not move, a step up or down moves the eye at
+   * 150 units a second after the body, never more than a step behind; anywhere else it is where the body is.
+   */
+  private smoothView(): void {
+    const p = this.state;
+    const z = p.origin[1];
+    const still = p.ground !== null && this.physics.motion(p.ground) === Motion.Fixed;
+    if (!still || !this.grounded || this.viewZ === null || this.viewZ === z) this.viewZ = z;
+    else {
+      const t = this.tuning;
+      const up = z > this.viewZ;
+      const moved = this.viewZ + (up ? 1 : -1) * STAIRS.speed * t.unit * this.physics.dt;
+      this.viewZ = up ? Math.max(Math.min(moved, z), z - t.stepSize) : Math.min(Math.max(moved, z), z + t.stepSize);
+    }
+    this.grounded = p.ground !== null;
   }
 
   eye(): Eye {
-    return { position: eyeOf(this.state), yaw: this.yaw, pitch: this.pitch, bank: 0 };
+    const at = eyeOf(this.state);
+    const lag = this.viewZ === null || this.flying ? 0 : this.viewZ - this.state.origin[1];
+    return { position: [at[0], at[1] + lag, at[2]], yaw: this.yaw, pitch: this.pitch, bank: 0 };
   }
 
   /** A velocity change (a jump pad, a blast): an upward one lifts the player off the ground. */
@@ -182,6 +208,7 @@ export class FpsActor implements Actor {
   teleport(feet: Vec3): void {
     const p = this.state;
     p.origin = [feet[0], feet[1] + hullOf(p, this.tuning)[1] + this.tuning.skin, feet[2]];
+    this.viewZ = null;
     p.velocity = [0, 0, 0];
     p.ground = null;
     this.settle = true;

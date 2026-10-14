@@ -41,6 +41,13 @@ export enum VmRole {
   ReloadEnd = 'reload-end',
 }
 
+/** A tool's ghost while it is dragged: the box the object would take, and a word on it. */
+export interface Ghost {
+  readonly min: Vec3;
+  readonly max: Vec3;
+  readonly label: string;
+}
+
 /** A bullet's hit: where, the surface's normal there, the body, and when (simulation seconds). */
 export interface Impact {
   readonly point: Vec3;
@@ -68,8 +75,8 @@ export interface WeaponView {
   readonly held: { readonly body: BodyId; readonly local: Vec3; readonly distance: number } | null;
   /** A prop just frozen (true) or unfrozen (false), and when (simulation seconds): Garry's Mod flashes a green or red halo. */
   readonly flash: { readonly body: BodyId; readonly time: number; readonly frozen: boolean } | null;
-  /** The Tool Gun's last shot that did something: where it hit and when (simulation seconds). */
-  readonly shot?: { readonly end: Vec3; readonly time: number } | null;
+  /** The Tool Gun's last shot that did something: where it hit and when (simulation seconds); `repeat`: a brush's later dab, heard and kicked only once a stroke. */
+  readonly shot?: { readonly end: Vec3; readonly time: number; readonly repeat?: boolean } | null;
   /** What the gun's little screen shows (the Tool Gun's tool). */
   readonly screen?: string;
   /** The sequence the hands should play now, and since when (a new time plays it again). */
@@ -80,6 +87,8 @@ export interface WeaponView {
   readonly ammo?: { readonly clip: number; readonly reserve: number } | null;
   /** The latest bullets' hits, newest last. */
   readonly impacts?: readonly Impact[];
+  /** What a dragged tool would do, drawn cheaply until it is let go (Resize's new box). */
+  readonly ghost?: Ghost | null;
 }
 
 export interface Weapon {

@@ -266,3 +266,22 @@ describe('the walker stays outside what the picture shows', () => {
     expect(usual.standView).toBeCloseTo(human.eyeHeight - human.height / 2, 9);
   });
 });
+
+describe('standing on a still disc', () => {
+  it('keeps the eye still: a sweep a hair into its round top is lifted out by a hair, not a share of a step', async () => {
+    // Pyramid Valley's golden disc: a wide flat cylinder (radius 6.2, half height 0.45).
+    const disc = { ...object('cylinder', [6.2, 0.45, 6.2]), transform: { position: [0, 8.2, 0] as Vec3, rotation: [0, 0, 0] as Vec3, size: [6.2, 0.45, 6.2] as Vec3 } };
+    const sim = await PlaySim.create({ scene: stage([object('ground', [50, 1, 50]), disc]), time: 0, player: human });
+    sim.player.teleport([4.5, 8.65, 1]);
+    for (let i = 0; i < 60; i++) sim.step(input());
+    const eyes: number[] = [];
+    let airborne = 0;
+    for (let i = 0; i < 300; i++) {
+      sim.step(input());
+      eyes.push(sim.player.eye().position[1]);
+      if (sim.player.state.ground === null) airborne++;
+    }
+    expect(airborne).toBe(0);
+    expect(Math.max(...eyes) - Math.min(...eyes)).toBeLessThan(0.001);
+  });
+});

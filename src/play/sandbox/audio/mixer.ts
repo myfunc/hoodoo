@@ -29,6 +29,8 @@ export interface PlayOptions {
   readonly at?: Vec3;
 }
 
+/** The master limiter: dB, ratio and seconds. */
+const LIMIT = { threshold: -6, knee: 6, ratio: 12, attack: 0.003, release: 0.15 } as const;
 /** How many names `recent` keeps. */
 const RECENT = 12;
 const METER_SIZE = 2048;
@@ -56,7 +58,14 @@ export class Mixer {
     this.samples = new Float32Array(METER_SIZE);
     const out = this.ctx.createGain();
     out.gain.value = muted ? 0 : 1;
-    this.meter.connect(out).connect(this.ctx.destination);
+    // Many sounds at once (a shot's hits, a pile of knocks) are held under full scale instead of clipping.
+    const limit = this.ctx.createDynamicsCompressor();
+    limit.threshold.value = LIMIT.threshold;
+    limit.knee.value = LIMIT.knee;
+    limit.ratio.value = LIMIT.ratio;
+    limit.attack.value = LIMIT.attack;
+    limit.release.value = LIMIT.release;
+    this.meter.connect(limit).connect(out).connect(this.ctx.destination);
   }
 
   /** The context the game's waves are decoded for. */

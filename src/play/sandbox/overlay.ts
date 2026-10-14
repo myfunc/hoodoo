@@ -4,7 +4,7 @@ import { type Frame, WireProjector } from '../../render/wire/wireframe';
 import { cameraBasis } from '../../world/camera-math';
 import type { PlayFrame, PlaySim } from '../sim/play-sim';
 import { HaloPainter, type Rgb, silhouettes } from './halo';
-import { DEFAULT_WEAPON_COLOR, type WeaponView } from './weapons/weapon';
+import { DEFAULT_WEAPON_COLOR, type Ghost, type WeaponView } from './weapons/weapon';
 
 /**
  * The beam colours and sizes until the owner's chosen look replaces them: Garry's Mod's blue,
@@ -54,6 +54,12 @@ const noise = (k: number, seed: number): number => {
   const v = Math.sin(k * NOISE.a + seed * NOISE.b) * NOISE.scale;
   return v - Math.floor(v);
 };
+
+/** Resize's ghost: the new box dashed in the Tool Gun's blue, its factor over it (pixels). */
+const GHOST = { colour: 'rgba(120, 210, 255, 0.95)', width: 1.5, dash: [6, 4], font: 'bold 14px Verdana, sans-serif', text: '#fff', shadow: 'rgba(0, 0, 0, 0.7)', outline: 3, below: 24 } as const;
+const BOX_CORNERS = 8;
+/** A box's twelve edges by corner index (bit 0 x, bit 1 y, bit 2 z). */
+const BOX_EDGES: readonly (readonly [number, number])[] = [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]];
 
 type Pt = readonly [number, number];
 
@@ -121,6 +127,7 @@ export class Overlay {
     for (const r of this.removed) this.sparks(proj, r.objects, sim.time - r.time, r.seed);
     this.hits = this.hits.filter((h) => sim.time - h.time < HIT.seconds);
     for (const h of this.hits) this.puff(proj, h.at, sim.time - h.time, h.seed);
+    if (view.ghost) this.ghost(proj, picture, view.ghost);
     if (beam && view.firing && view.end) this.beam(proj, picture, view);
     if (beam && view.shot) this.shot(proj, picture, view.shot.end, sim.time - view.shot.time);
   }
@@ -159,6 +166,36 @@ export class Overlay {
       g.fillRect(x - REMOVED.dot / 2, y - REMOVED.dot / 2, REMOVED.dot, REMOVED.dot);
     }
     g.restore();
+  }
+
+  /** A dragged tool's ghost: the new box's edges, dashed, and its word under the crosshair, where it always shows. */
+  private ghost(proj: WireProjector, picture: Frame, g: Ghost): void {
+    const corner = (i: number): Vec3 => [i & 1 ? g.max[0] : g.min[0], i & 2 ? g.max[1] : g.min[1], i & 4 ? g.max[2] : g.min[2]];
+    const pts = Array.from({ length: BOX_CORNERS }, (_, i) => this.screen(proj, corner(i)));
+    const c = this.g;
+    c.save();
+    c.strokeStyle = GHOST.colour;
+    c.lineWidth = GHOST.width;
+    c.setLineDash(GHOST.dash);
+    c.beginPath();
+    for (const [a, b] of BOX_EDGES) {
+      const [p, q] = [pts[a], pts[b]];
+      if (!p || !q) continue;
+      c.moveTo(p[0], p[1]);
+      c.lineTo(q[0], q[1]);
+    }
+    c.stroke();
+    const [x, y] = [picture.x + picture.w / 2, picture.y + picture.h / 2 + GHOST.below];
+    c.setLineDash([]);
+    c.font = GHOST.font;
+    c.textAlign = 'center';
+    c.textBaseline = 'top';
+    c.lineWidth = GHOST.outline;
+    c.strokeStyle = GHOST.shadow;
+    c.strokeText(g.label, x, y);
+    c.fillStyle = GHOST.text;
+    c.fillText(g.label, x, y);
+    c.restore();
   }
 
   private puff(proj: WireProjector, at: Vec3, age: number, seed: number): void {

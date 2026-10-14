@@ -18,7 +18,7 @@ export enum Synth {
   ShotgunFire = 'shotgun-fire', ShotgunPump = 'shotgun-pump', ShotgunShell = 'shotgun-shell', DryFire = 'dry-fire',
 }
 
-enum Wave { Sine, Square, Saw }
+enum Wave { Sine, Triangle, Saw }
 
 /** Noise through filters (Hz): a band (centre, Q), else low and high cuts; `grain`: it crackles this many times a second. */
 interface NoiseLayer {
@@ -68,32 +68,34 @@ const RECIPES: Readonly<Record<Synth, Recipe>> = {
   [Synth.ImpactSoft]: { seconds: 0.3, spread: 0.1, layers: [{ noise: { low: 900 }, gain: 0.6, attack: 0.003, decay: 0.05 }, thud(60, 0.7, 0.06)] },
   [Synth.ImpactMetal]: { seconds: 1.2, spread: 0.06, layers: [{ noise: { band: [3200, 1.2] }, gain: 0.35, attack: 0.001, decay: 0.015 }, thud(90, 0.5, 0.05), { modes: [[312, 0.45, 0.35], [847, 0.32, 0.3], [1593, 0.22, 0.22], [2721, 0.14, 0.12]], gain: 0.55 }] },
   [Synth.ImpactWood]: { seconds: 0.4, spread: 0.08, layers: [{ noise: { band: [1300, 1.3] }, gain: 0.4, attack: 0.001, decay: 0.02 }, thud(120, 0.6, 0.05), { modes: [[260, 0.09, 0.4], [580, 0.06, 0.3], [1210, 0.035, 0.15]], gain: 0.5 }] },
-  [Synth.ImpactGlass]: { seconds: 0.8, spread: 0.05, layers: [{ noise: { high: 2500 }, gain: 0.3, attack: 0.001, decay: 0.012 }, { modes: [[1870, 0.25, 0.4], [3420, 0.18, 0.3], [5130, 0.1, 0.2]], gain: 0.45 }] },
+  [Synth.ImpactGlass]: { seconds: 0.8, spread: 0.05, layers: [{ noise: { band: [3400, 1.2] }, gain: 0.25, attack: 0.002, decay: 0.012 }, { modes: [[1870, 0.25, 0.4], [3420, 0.18, 0.3], [5130, 0.1, 0.2]], gain: 0.45 }] },
   [Synth.ImpactPlastic]: { seconds: 0.3, spread: 0.08, layers: [{ noise: { band: [1700, 1.6] }, gain: 0.45, attack: 0.001, decay: 0.018 }, thud(150, 0.45, 0.035), { modes: [[380, 0.05, 0.35], [940, 0.03, 0.2]], gain: 0.45 }] },
   [Synth.ImpactRubber]: { seconds: 0.3, spread: 0.1, layers: [thud(75, 0.9, 0.06), { noise: { low: 500 }, gain: 0.25, attack: 0.002, decay: 0.03 }] },
   [Synth.ScrapeRough]: { seconds: 1.2, loop: true, layers: [{ noise: { band: [850, 0.8], grain: 140 }, gain: 0.55, attack: 0, decay: Infinity }] },
   [Synth.ScrapeSmooth]: { seconds: 1.2, loop: true, layers: [{ noise: { band: [3100, 1.6] }, gain: 0.35, attack: 0, decay: Infinity }] },
   [Synth.Splash]: { seconds: 0.7, spread: 0.08, layers: [{ noise: { low: 2400, grain: 30 }, gain: 0.8, attack: 0.005, decay: 0.15 }, { tone: { from: 300, to: 1100, glide: 0.12, wave: Wave.Sine }, gain: 0.1, attack: 0.01, decay: 0.06, delay: 0.1 }] },
-  [Synth.ToolShot]: { seconds: 0.4, spread: 0.03, layers: [
-    { tone: { from: 1250, to: 180, glide: 0.3, wave: Wave.Square, wobble: [55, 0.08] }, gain: 0.22, attack: 0.002, decay: 0.12 },
-    { noise: { band: [2400, 2] }, gain: 0.25, attack: 0.001, decay: 0.03 },
+  /** A short electric "pew": a pitch falling fast, a faint shimmer above it, a soft zap of noise. */
+  [Synth.ToolShot]: { seconds: 0.35, spread: 0.03, layers: [
+    { tone: { from: 2400, to: 650, glide: 0.11, wave: Wave.Sine, wobble: [45, 0.04] }, gain: 0.6, attack: 0.003, decay: 0.08 },
+    { tone: { from: 3600, to: 950, glide: 0.08, wave: Wave.Triangle }, gain: 0.14, attack: 0.003, decay: 0.045 },
+    { noise: { band: [2600, 2.5] }, gain: 0.12, attack: 0.002, decay: 0.018 },
   ] },
   [Synth.PhysHum]: { seconds: 1, loop: true, layers: [
     { tone: { from: 60, to: 60, glide: 1, wave: Wave.Saw, wobble: [3, 0.02] }, gain: 0.18, attack: 0, decay: Infinity },
     { tone: { from: 120, to: 120, glide: 1, wave: Wave.Sine, wobble: [4, 0.03] }, gain: 0.25, attack: 0, decay: Infinity },
     { noise: { band: [700, 3] }, gain: 0.05, attack: 0, decay: Infinity },
   ] },
-  [Synth.PhysOff]: { seconds: 0.35, layers: [{ tone: { from: 700, to: 140, glide: 0.25, wave: Wave.Sine }, gain: 0.35, attack: 0.002, decay: 0.12 }, { noise: { high: 3000 }, gain: 0.15, attack: 0.001, decay: 0.01 }] },
-  [Synth.Click]: { seconds: 0.06, layers: [{ tone: { from: 1500, to: 1500, glide: 0.05, wave: Wave.Sine }, gain: 0.3, attack: 0.001, decay: 0.012 }, { noise: { high: 4000 }, gain: 0.15, attack: 0.0005, decay: 0.004 }] },
+  [Synth.PhysOff]: { seconds: 0.35, layers: [{ tone: { from: 700, to: 140, glide: 0.25, wave: Wave.Sine }, gain: 0.35, attack: 0.002, decay: 0.12 }, { noise: { band: [2500, 1.5] }, gain: 0.1, attack: 0.002, decay: 0.01 }] },
+  [Synth.Click]: { seconds: 0.06, layers: [{ tone: { from: 1500, to: 1500, glide: 0.05, wave: Wave.Sine }, gain: 0.3, attack: 0.001, decay: 0.012 }, { noise: { band: [3000, 1.5] }, gain: 0.08, attack: 0.002, decay: 0.006 }] },
   [Synth.Undo]: { seconds: 0.25, layers: [
-    { tone: { from: 880, to: 880, glide: 0.06, wave: Wave.Square }, gain: 0.1, attack: 0.002, decay: 0.04 },
-    { tone: { from: 660, to: 660, glide: 0.08, wave: Wave.Square }, gain: 0.1, attack: 0.002, decay: 0.05, delay: 0.08 },
+    { tone: { from: 880, to: 880, glide: 0.06, wave: Wave.Triangle }, gain: 0.3, attack: 0.004, decay: 0.04 },
+    { tone: { from: 660, to: 660, glide: 0.08, wave: Wave.Triangle }, gain: 0.3, attack: 0.004, decay: 0.05, delay: 0.08 },
   ] },
-  [Synth.Limit]: { seconds: 0.35, layers: [{ tone: { from: 180, to: 160, glide: 0.3, wave: Wave.Square }, gain: 0.14, attack: 0.005, decay: 0.15 }] },
+  [Synth.Limit]: { seconds: 0.35, layers: [{ tone: { from: 220, to: 200, glide: 0.3, wave: Wave.Triangle }, gain: 0.4, attack: 0.008, decay: 0.12 }] },
   [Synth.Hint]: { seconds: 0.3, spread: 0.08, layers: [{ tone: { from: 1500, to: 620, glide: 0.06, wave: Wave.Sine }, gain: 0.3, attack: 0.001, decay: 0.05 }] },
   [Synth.Unfroze]: { seconds: 0.25, layers: [{ tone: { from: 600, to: 1700, glide: 0.1, wave: Wave.Sine }, gain: 0.25, attack: 0.002, decay: 0.06 }] },
   [Synth.Spawn]: { seconds: 0.25, spread: 0.05, layers: [{ tone: { from: 260, to: 620, glide: 0.07, wave: Wave.Sine }, gain: 0.25, attack: 0.002, decay: 0.05 }, { noise: { band: [1800, 1.5] }, gain: 0.12, attack: 0.001, decay: 0.02 }] },
-  [Synth.Remove]: { seconds: 0.5, spread: 0.05, layers: [{ noise: { high: 2200, grain: 60 }, gain: 0.3, attack: 0.01, decay: 0.12 }, { tone: { from: 900, to: 2400, glide: 0.3, wave: Wave.Sine, wobble: [30, 0.05] }, gain: 0.08, attack: 0.01, decay: 0.12 }] },
+  [Synth.Remove]: { seconds: 0.5, spread: 0.05, layers: [{ noise: { band: [3800, 1.2], grain: 60 }, gain: 0.3, attack: 0.01, decay: 0.12 }, { tone: { from: 900, to: 2400, glide: 0.3, wave: Wave.Sine, wobble: [30, 0.05] }, gain: 0.08, attack: 0.01, decay: 0.12 }] },
   [Synth.ShotgunFire]: { seconds: 0.9, spread: 0.04, layers: [
     { noise: { low: 5000 }, gain: 0.9, attack: 0.0005, decay: 0.05 },
     { noise: { low: 700 }, gain: 0.8, attack: 0.002, decay: 0.16 },
@@ -110,8 +112,14 @@ const RECIPES: Readonly<Record<Synth, Recipe>> = {
 /** Variants a recipe renders (loops render one). */
 export const VARIANTS = 4;
 const TAU = Math.PI * 2;
-/** The level every stand-in is brought to: a loop plays on, so it sits lower. */
-const PEAK = { once: 0.8, loop: 0.5 } as const;
+/** The loudness (RMS) every stand-in is brought to: a loop plays on, so it sits lower. */
+const LEVEL = { once: 0.16, loop: 0.1 } as const;
+/** No stand-in peaks above this. */
+const CEILING = 0.85;
+/** Samples quieter than this share of the peak are silence, not part of the sound's loudness. */
+const GATE = 0.01;
+/** The shortest onset, seconds. */
+const MIN_ATTACK = 0.0015;
 /** Seconds the end of a loop fades into its start. */
 const LOOP_FADE = 0.06;
 const SEED = { a: 1103515245, c: 12345, m: 2147483648 } as const;
@@ -124,10 +132,25 @@ export function renderSynth(id: Synth, variant: number, rate: number): Float32Ar
   const random = rng(variant + 1);
   const pitch = 1 + (r.spread ?? 0) * (random() * 2 - 1);
   for (const layer of r.layers) addLayer(out, layer, rate, pitch, random);
-  // Every stand-in peaks alike; how loud each plays is the cue's and the moment's to say.
-  const peak = out.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
-  if (peak > 0) out.forEach((v, i) => { out[i] = (v / peak) * (r.loop ? PEAK.loop : PEAK.once); });
+  // Every stand-in is brought to one loudness (RMS of where it sounds), its peak kept under a ceiling;
+  // how loud each plays is the cue's and the moment's to say.
+  const gain = levelGain(out, r.loop ? LEVEL.loop : LEVEL.once);
+  out.forEach((v, i) => { out[i] = v * gain; });
   return r.loop ? fadeLoop(out, rate) : out;
+}
+
+/** The gain that brings samples to an RMS of `rms` where they sound, without the peak passing the ceiling. */
+function levelGain(out: Float32Array, rms: number): number {
+  const peak = out.reduce((m, v) => Math.max(m, Math.abs(v)), 0);
+  if (peak === 0) return 1;
+  let sum = 0;
+  let n = 0;
+  for (const v of out) {
+    if (Math.abs(v) < peak * GATE) continue;
+    sum += v * v;
+    n++;
+  }
+  return Math.min(rms / Math.sqrt(sum / n), CEILING / peak);
 }
 
 /** The recipe loops. */
@@ -140,12 +163,14 @@ function addLayer(out: Float32Array, layer: Layer, rate: number, pitch: number, 
       const phase = random() * TAU;
       for (let i = start; i < out.length; i++) {
         const t = (i - start) / rate;
-        out[i] += layer.gain * level * Math.sin(phase + TAU * hz * pitch * t) * Math.exp(-t / decay);
+        out[i] += layer.gain * level * Math.sin(phase + TAU * hz * pitch * t) * Math.exp(-t / decay) * Math.min(1, t / MIN_ATTACK);
       }
     }
     return;
   }
-  const env = (t: number) => (t < layer.attack ? t / layer.attack : Math.exp(-(t - layer.attack) / layer.decay));
+  // No onset sharper than MIN_ATTACK: a cliff at the start is heard as a click.
+  const attack = Math.max(layer.attack, MIN_ATTACK);
+  const env = (t: number) => (t < attack ? t / attack : Math.exp(-(t - attack) / layer.decay));
   if ('noise' in layer) {
     const f = filter(layer.noise, rate, pitch);
     const grain = layer.noise.grain ? Math.round(rate / layer.noise.grain) : 0;
@@ -168,7 +193,7 @@ function addLayer(out: Float32Array, layer: Layer, rate: number, pitch: number, 
 }
 
 function shape(wave: Wave, phase: number): number {
-  if (wave === Wave.Square) return phase < 0.5 ? 1 : -1;
+  if (wave === Wave.Triangle) return 1 - 4 * Math.abs(phase - 0.5);
   if (wave === Wave.Saw) return phase * 2 - 1;
   return Math.sin(TAU * phase);
 }

@@ -190,7 +190,7 @@ export class HandsLayer {
     if (!shot) return;
     if (shot.time !== this.kicked) {
       this.kicked = shot.time;
-      this.hands.fire();
+      if (!shot.repeat) this.hands.fire();
     }
     const age = time - shot.time;
     const end = toView(shot.end);

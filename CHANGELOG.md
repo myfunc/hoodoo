@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.39.0 - 2026-10-14
+
+### Changed
+- Garry's Mod mode's Resize: hold Mouse 1 on a prop and drag to size it freely (right or up
+  bigger, left or down smaller, Shift by tenths). A ghost of the new box and the factor
+  show meanwhile; the object changes once, when you let go, as one step. A click still
+  grows or shrinks it a step.
+- The Tool Gun's sound without the game's files is a short electric "pew"; a brush such as
+  Terrain sounds once a stroke instead of on every dab. Sandbox's own sounds are softer
+  (no clicky onsets, one loudness) and a limiter keeps many at once from clipping.
+- A shotgun hit always shoves what it hits, the heavy shapes of the spawn menu too, and
+  turns it from where it was hit.
+
+### Fixed
+- Standing on a round-topped object (Pyramid Valley's golden disc) no longer bounces the
+  view: the player is lifted out of a hair's overlap instead of a step, and the eye follows
+  steps up and down smoothly, as in Source.
 ## 0.38.0 - 2026-10-14
 
 ### Changed

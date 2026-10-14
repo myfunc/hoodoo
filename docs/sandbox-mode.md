@@ -72,7 +72,8 @@ their animations, WAV and soundscripts):
   the faster (`audio/world-sounds.ts`); a body falling into open water
   splashes, and knocks under water are not heard. The gravity gun's hold hum
   winds up and down like weapon_physcannon's motor, Weapon_Physgun.Off plays
-  when the beam stops, the Tool Gun's shot, a spawn icon's click, the notices
+  when the beam stops, the Tool Gun's shot (once a stroke for a brush such as
+  Terrain, not on every dab), a spawn icon's click, the notices
   and Q and C opening sound as in the sandbox gamemode. `?mute=1` mixes them
   silently; `__hoodooSandbox.heard()` reports what played (the game's name,
   or `synth:<id>`) and the level.
@@ -88,7 +89,10 @@ drawn plain (`ui/sandbox/hl2/hl2-plain.ts`): clientscheme.res's sizes and
 colours in system faces, the crosshair's five dots, drawn notice icons, and
 weapon names where the game's icons would be. Sandbox's own sounds
 (`audio/synth.ts`) stand in for the game's: noise, tones and ringing modes
-as data, rendered once in a few variants. There are no arms. Without
+as data, rendered once in a few variants, brought to one loudness (RMS) under a
+peak ceiling, no onset sharper than 1.5 ms; the Tool Gun's is a short falling
+"pew" like airboat_gun_lastshot. A limiter on the mix keeps many sounds at once
+from clipping. There are no arms. Without
 WebGL 2 the 2D beam over the picture stands in for the guns.
 
 ## Controls
@@ -174,8 +178,11 @@ pumping first if the tube was empty; empty with the trigger held it starts
 loading by itself, and with nothing left it clicks. The times are c_shotgun's
 sequences' own (fire 0.333 s, pump 0.533 s, double 0.5 s). Each pellet
 pushes what it hits by Source's buckshot force (BULLET_IMPULSE(200, 1200) with
-its 3.5 exaggeration, 653 kg·in/s, scaled to the player): a 35 kg crate slides
-off, a 1600 kg cube from the spawn menu barely moves. A shot knocks the view
+its 3.5 exaggeration, 653 kg·in/s, scaled to the player) at the point it hits,
+so what it hits turns as well; and never less than 12 units a second of speed a
+pellet, since Hoodoo's shapes weigh far more than Garry's Mod's hollow props: a
+35 kg crate slides off, the spawn menu's 1600 kg cube shifts a hand's width
+(a double shot about a third of a metre). A shot knocks the view
 (ViewPunch: up 1–2° and aside up to 2°, the double shot up or down up to 5°)
 and the knock comes back by itself (`view-punch.ts`, DecayPunchAngle). The
 muzzle flashes, each hit puffs dust and sparks, and the first three hits of
@@ -217,7 +224,7 @@ it was spawned (`SceneEdits.original`).
 | Wheel | attach on an axis along the normal | update | — | torque, friction, forward key, reverse key, toggle, size | a tyre and a hub |
 | Balloon | attach on a rope, or update | a balloon without a rope | — | lift (negative sinks), rope length, colour | a glossy balloon on its rope |
 | Remover | remove the object | remove it and the body it is part of (with Weld: all joined to it) | clear its joints (with Weld) | — | it is gone |
-| Resize | Step: a step bigger · Set: the set scale | Step: a step smaller · Set: copy its scale onto the sliders | the size it had | Mode Step · Set, step × (slider 1.01–4), along All · X · Y · Z, scale X · Y · Z (sliders 0.1–10, of the first size), lock ratio | the new size, its weight with its volume |
+| Resize | held and dragged: any size, a ghost of the new box until let go (one step) · a click: Step: a step bigger · Set: the set scale | Step: a step smaller · Set: copy its scale onto the sliders | the size it had | Mode Step · Set, step × (slider 1.01–4), along All · X · Y · Z, scale X · Y · Z (sliders 0.1–10, of the first size), lock ratio | the new size, its weight with its volume |
 | Colour | paint the diffuse colour, flat | copy the object's colour and alpha | the colour it had | swatches, alpha 100 · 75 · 50 · 25 % (under 100 it lets light through, tinted) | the material's colour |
 | Terrain | paint the brush (raise · lower · smooth · flatten), held: on and on, one stroke one step | the opposite (lower · raise); Flatten: take the level under the aim | smooth | brush, radius (slider, world units), strength (slider) | the terrain's new heights |
 | Decal | stick a dot, square or ring on the surface, a hair above it | take the decal under the aim away | take every decal off what is under the aim | shape, size (slider), colour swatches | a flat mark that never collides; on a lone prop it rides along (prop and decals one carved group) |

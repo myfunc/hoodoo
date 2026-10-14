@@ -6,6 +6,7 @@ import type { ToolSetting } from '../../../ui/sandbox/tool-menu';
 import { canBePhysical } from '../../../world/body-flags';
 import { LIGHT_KINDS } from '../../../world/objects.factory';
 import type { SceneEdits } from '../scene-edits';
+import type { Ghost } from '../weapons/weapon';
 
 /**
  * READ ME — what a Tool Gun tool is (docs/sandbox-mode.md › Tool Gun): its name
@@ -84,6 +85,14 @@ export interface Tool {
   readonly repeat?: number;
   /** Mouse motion the tool takes instead of the view (Easy Weld turns its prop); `snap`: Shift is down. */
   look?(dx: number, dy: number, ctx: ToolContext, snap: boolean): boolean;
+  /** A press the tool holds and drags (Resize): true when a drag began; the mouse then goes to `look`. */
+  begin?(button: ToolButton, hit: ToolHit, ctx: ToolContext): boolean;
+  /** The drag is let go: the tool acts once (one History step); true when it did something. */
+  end?(ctx: ToolContext): boolean;
+  /** The drag is dropped (the gun put away, another tool taken). */
+  cancel?(): void;
+  /** What the drag would do now, for the overlay. */
+  preview?(ctx: ToolContext): Ghost | null;
 }
 
 /** What Colour, Material and Resize change: the object as the player sees it (a carved object whole), without the decals lying on it. */

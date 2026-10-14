@@ -168,6 +168,34 @@ describe('Remover', () => {
   });
 });
 
+describe('Resize by dragging', () => {
+  it('Mouse 1 held and dragged sizes the object once, on letting go, with a ghost meanwhile; a still press is a click', async () => {
+    const b = await bench(stage([ground(), crate()]));
+    const tool = new Resize();
+    expect(tool.begin(ToolButton.Primary, b.hit('Crate'))).toBe(true);
+    for (let i = 0; i < 10; i++) expect(tool.look(10, 0, b.ctx, false)).toBe(true);
+    const ghost = tool.preview(b.ctx);
+    expect(ghost?.label).toBe('\u00d71.65');
+    expect(b.object('Crate')!.transform.size).toEqual([1, 1, 1]);
+    expect(b.edits.labels).toEqual([]);
+    expect(tool.end(b.ctx)).toBe(true);
+    expect(b.object('Crate')!.transform.size[0]).toBeCloseTo(Math.exp(0.5));
+    expect(b.edits.labels).toEqual(['Resize Crate']);
+    // Shift goes by tenths.
+    tool.begin(ToolButton.Primary, b.hit('Crate'));
+    tool.look(0, -61, b.ctx, true);
+    expect(tool.preview(b.ctx)?.label).toBe('\u00d71.40');
+    tool.cancel();
+    expect(tool.end(b.ctx)).toBe(false);
+    // A press that does not move: the click's step.
+    tool.begin(ToolButton.Primary, b.hit('Crate'));
+    tool.look(1, 1, b.ctx, false);
+    tool.end(b.ctx);
+    expect(b.object('Crate')!.transform.size[0]).toBeCloseTo(Math.exp(0.5) * 1.25);
+    expect(b.edits.labels).toHaveLength(2);
+  });
+});
+
 describe('a carved object', () => {
   /** A cup: a cube carved by a sphere, with a decal on it, one body as the player sees it. */
   async function cup() {

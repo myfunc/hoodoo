@@ -13,8 +13,9 @@ import { type Impact, VmRole, type Weapon, type WeaponContext, type WeaponInput,
  * twelve pellets (one shell left: a single shot). R loads shell by shell —
  * start, a shell each 0.4 s, finish — and a shot breaks it off once a shell is
  * in. Empty with nothing to load, it clicks. Each pellet pushes what it hits
- * (Source's bullet force for buckshot) and knocks the view back. The times are
- * the c_shotgun sequences' own.
+ * at the point it hits, so it turns too (Source's bullet force for buckshot, and
+ * at least a visible shove however heavy), and the shot knocks the view back.
+ * The times are the c_shotgun sequences' own.
  */
 
 const CLIP = 6;
@@ -30,6 +31,11 @@ const TIMES = { draw: 0.733, fire: 0.333, fire2: 0.5, pump: 0.533, dry: 0.333, r
  * (1200·12·200·0.0000648·3.5), scaled to the player like every Garry's Mod length.
  */
 const PELLET_FORCE = 653;
+/**
+ * The least a pellet speeds up what it hits, inches a second: a full shot moves even the spawn
+ * menu's 1600 kg cube a hand's width or so, a double shot more, as a player expects a shot to show.
+ */
+const MIN_SHOVE = 12;
 /** How far a pellet flies (MAX_TRACE_LENGTH), inches. */
 const RANGE = 56756;
 /** ViewPunch: Mouse 1 up by 1–2° and sideways by up to 2°; Mouse 2 up or down by up to 5°. */
@@ -137,7 +143,9 @@ export class Shotgun implements Weapon {
       const dir = normalize(add(ctx.aim, add(scale(right, x * SPREAD), scale(up, y * SPREAD))));
       const hit = ctx.physics.raycast(ctx.eye.position, dir, RANGE * ctx.unit, { layers: Layer.World | Layer.Prop });
       if (!hit) continue;
-      ctx.physics.applyImpulse(hit.body, scale(dir, PELLET_FORCE * ctx.unit), hit.point);
+      // Source's force, but never less than a visible shove: Hoodoo's shapes weigh far more than Garry's Mod's hollow props.
+      const push = Math.max(PELLET_FORCE, ctx.physics.mass(hit.body) * MIN_SHOVE) * ctx.unit;
+      ctx.physics.applyImpulse(hit.body, scale(dir, push), hit.point);
       this.impacts.push({ point: hit.point, normal: hit.normal, body: hit.body, time: t });
     }
     if (this.impacts.length > KEEP_IMPACTS) this.impacts = this.impacts.slice(-KEEP_IMPACTS);

@@ -41,7 +41,8 @@ export class SandboxSounds {
     }
     if (this.firing && !firing) this.mixer.play(CUES.physOff);
     const shot = view.shot?.time ?? null;
-    if (shot !== null && shot !== this.shot) this.mixer.play(CUES.toolShot);
+    // A brush's later dabs are silent: one shot sound a stroke, as one press is one shot in Garry's Mod.
+    if (shot !== null && shot !== this.shot && !view.shot?.repeat) this.mixer.play(CUES.toolShot);
     this.holding = holding;
     this.firing = firing;
     this.shot = shot;

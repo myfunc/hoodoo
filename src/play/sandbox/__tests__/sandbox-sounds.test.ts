@@ -47,4 +47,15 @@ describe('sandbox sounds', () => {
     s.weapon(WeaponId.ToolGun, view(false, false), true);
     expect(log).toEqual(['Weapon_PhysCannon.HoldSound 0.8 100 0.5', 'Weapon_PhysCannon.HoldSound 0 50 1', 'play Weapon_Physgun.Off']);
   });
+
+  it('plays the Tool Gun\'s shot once a brush stroke, not on every dab', () => {
+    const { log, game } = fakeGame();
+    const s = new SandboxSounds(game);
+    const shot = (time: number, repeat: boolean): WeaponView => ({ ...view(false, false), shot: { end: [0, 0, 0], time, repeat } });
+    s.weapon(WeaponId.ToolGun, shot(1, false), true);
+    s.weapon(WeaponId.ToolGun, shot(1.08, true), true);
+    s.weapon(WeaponId.ToolGun, shot(1.16, true), true);
+    s.weapon(WeaponId.ToolGun, shot(2, false), true);
+    expect(log.filter((l) => l === 'play Toolgun.Single')).toHaveLength(2);
+  });
 });

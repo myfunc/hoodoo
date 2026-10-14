@@ -33,6 +33,10 @@ export class ToolGun implements Weapon {
   private shot: WeaponView['shot'] = null;
   /** A brush stroke under way: its button and when it dabs next (simulation seconds). */
   private stroke: { readonly button: ToolButton; next: number } | null = null;
+  /** The stroke under way has been heard (its first shot that did something). */
+  private heard = false;
+  /** A press a tool holds and drags (Resize): its button and where it was pressed. */
+  private drag: { readonly button: ToolButton; readonly point: Vec3 } | null = null;
 
   constructor(readonly tools: readonly Tool[], private readonly host: ToolGunHost) {
     this.current = tools[0];
@@ -44,6 +48,7 @@ export class ToolGun implements Weapon {
 
   select(id: ToolId): void {
     if (this.stroke) this.endStroke();
+    this.cancelDrag();
     this.current = this.tools.find((t) => t.id === id) ?? this.current;
   }
 
@@ -53,18 +58,36 @@ export class ToolGun implements Weapon {
   }
 
   step(input: WeaponInput, ctx: WeaponContext): void {
+    // A dragged press acts once, when it is let go.
+    if (this.drag) {
+      const held = PRESSES.find(([, t]) => t === this.drag?.button)?.[0];
+      if (held && input.held.has(held)) return;
+      const point = this.drag.point;
+      this.drag = null;
+      this.heard = false;
+      if (this.current.end?.(this.host.context())) this.shot = { end: point, time: ctx.time };
+      return;
+    }
     // A brush (a tool that repeats) keeps going while its button is held: one stroke, one History step.
     if (this.stroke) {
       const held = PRESSES.find(([, t]) => t === this.stroke?.button)?.[0];
       if (!held || !input.held.has(held)) return this.endStroke();
       if (ctx.time < this.stroke.next) return;
       this.stroke.next = ctx.time + (this.current.repeat ?? 0) / MS_PER_S;
-      this.fire(this.stroke.button, ctx);
+      this.shootAt(this.stroke.button, ctx.eye.position, ctx.aim, ctx.time, true);
       return;
     }
     const button = PRESSES.find(([b]) => input.pressed.has(b))?.[1];
     if (!button) return;
+    if (this.current.begin) {
+      const hit = this.host.trace(ctx.eye.position, ctx.aim);
+      if (hit && this.current.begin(button, hit, this.host.context())) {
+        this.drag = { button, point: hit.point };
+        return;
+      }
+    }
     const repeat = this.current.repeat;
+    this.heard = false;
     if (repeat && button !== ToolButton.Reload) {
       this.host.context().edits.beginStroke(this.current.name);
       this.stroke = { button, next: ctx.time + repeat / MS_PER_S };
@@ -76,10 +99,19 @@ export class ToolGun implements Weapon {
     this.shootAt(button, ctx.eye.position, ctx.aim, ctx.time);
   }
 
-  /** One use along any ray (the context menu fires at the point under its cursor). */
-  shootAt(button: ToolButton, eye: Vec3, aim: Vec3, time: number): void {
+  /** One use along any ray (the context menu fires at the point under its cursor); `repeat`: a brush's later dab. */
+  shootAt(button: ToolButton, eye: Vec3, aim: Vec3, time: number, repeat = false): void {
     const hit = this.host.trace(eye, aim);
-    if (hit && this.current.use(button, hit, this.host.context())) this.shot = { end: hit.point, time };
+    if (!hit || !this.current.use(button, hit, this.host.context())) return;
+    // A stroke is heard once: a dab after a quiet start still counts as its first.
+    this.shot = { end: hit.point, time, repeat: repeat && this.heard };
+    this.heard = true;
+  }
+
+  private cancelDrag(): void {
+    if (!this.drag) return;
+    this.drag = null;
+    this.current.cancel?.();
   }
 
   private endStroke(): void {
@@ -93,11 +125,13 @@ export class ToolGun implements Weapon {
   }
 
   view(): WeaponView {
-    return { ...IDLE, shot: this.shot, screen: this.current.name };
+    const ghost = this.drag ? this.current.preview?.(this.host.context()) ?? null : null;
+    return { ...IDLE, shot: this.shot, screen: this.current.name, ghost };
   }
 
   holster(): void {
     this.shot = null;
+    this.cancelDrag();
     if (this.stroke) this.endStroke();
   }
 }

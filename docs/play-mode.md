@@ -219,7 +219,14 @@ The sweep (`Physics.traceBox`) reports a surface it starts touching and moves
 into, leaves a convex shape it starts inside only by moving out of it, and
 keeps a small skin off mesh and terrain faces; an overlap test asks terrains
 for contacts, and a hull under a terrain's surface counts as inside it.
-Half-Life's unstick takes a nudge only along an open path. Stuck for half a
+A hull a hair inside what it stands on (a sweep onto a curved top, a
+cylinder's, stops a fraction short of exact) is first lifted out by one, two
+or four skins; only deeper does Half-Life's unstick nudge it a share of a
+step, which would drop the player again and bounce the view (Pyramid Valley's
+golden disc did). On ground that does not move, the eye follows a step up or
+down at 150 units a second, never more than a step behind
+(C_BasePlayer::SmoothViewOnStairs); on a moving platform or in the air it is
+where the body is. Half-Life's unstick takes a nudge only along an open path. Stuck for half a
 second (a platform pressing the player into a wall), the player goes to the
 nearest place the hull fits, reached straight if it can be: `freeSpot` in
 `pmove.ts` tries 26 directions at growing distances up to eight heights. A
