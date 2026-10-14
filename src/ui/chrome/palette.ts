@@ -1,4 +1,5 @@
 import type { CreateEntry } from '../../assets/object.catalog';
+import type { MyObject } from '../../io/my-objects';
 import { Action } from '../../input/actions';
 import { PaletteTab } from '../../world/editor-store';
 import { type UiContext, hintOn } from '../context';
@@ -24,7 +25,7 @@ export class Palette {
   private readonly trays: Record<PaletteTab, HTMLElement>;
   private readonly heads = new Map<PaletteTab, HTMLElement>();
 
-  constructor(ctx: UiContext, onCreate: (e: CreateEntry) => void) {
+  constructor(ctx: UiContext, onCreate: (e: CreateEntry) => void, onMine?: (item: MyObject) => void) {
     this.titles = el('div', { cls: 'palette-titles' });
     for (const t of TABS) {
       const tri = glyph(GLYPH.triangleDown, GLYPH_BOX);
@@ -39,7 +40,7 @@ export class Palette {
       this.titles.append(head);
     }
     this.trays = {
-      [PaletteTab.Create]: createTray(ctx, onCreate),
+      [PaletteTab.Create]: createTray(ctx, onCreate, onMine),
       [PaletteTab.Edit]: editTray(ctx),
       [PaletteTab.Sky]: new SkyTray(ctx).el,
     };

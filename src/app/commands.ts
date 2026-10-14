@@ -35,7 +35,7 @@ import { exportMovie } from './movie-export';
 import { promptInstall } from './pwa';
 import { openMovieDialog } from '../ui/labs/movie-dialog';
 import { compareLatest, takeSnapshot } from './snapshot-ops';
-import { createFromLibrary, createGameItem, frame } from './scene-ops';
+import { createFromLibrary, createGameItem, frame, saveSelectionToMyObjects } from './scene-ops';
 import { canLinkPortals, createPortals, linkSelectedPortals } from './portal-ops';
 import { createZone } from './zone-ops';
 import { innerGroupOf } from '../world/edit-scope';
@@ -92,7 +92,7 @@ const VIEW_OF: Partial<Record<Action, ViewKind>> = {
 };
 
 const NEEDS_SELECTION: ReadonlySet<Action> = new Set([
-  Action.Cut, Action.Copy, Action.Duplicate, Action.Replicate, Action.Delete, Action.CopyMaterial, Action.PasteMaterial,
+  Action.Cut, Action.Copy, Action.Duplicate, Action.Replicate, Action.Delete, Action.CopyMaterial, Action.PasteMaterial, Action.SaveToMyObjects,
   Action.Land, Action.Attributes, Action.EditMaterial, Action.EditObject, Action.Randomize, Action.HideSelected, Action.FrameSelected,
   Action.Group, Action.Ungroup,
   Action.MoveSelection, Action.RotateSelection, Action.SizeSelection,
@@ -174,6 +174,11 @@ export class Commands {
       [Action.GizmoOutline]: () => changeSetting(e, 'gizmoStyle', GizmoStyle.Outline),
       [Action.GizmoPebbles]: () => changeSetting(e, 'gizmoStyle', GizmoStyle.Pebbles),
       [Action.GizmoSculpted]: () => changeSetting(e, 'gizmoStyle', GizmoStyle.Sculpted),
+      // The selection into My Objects (the Create palette's last group; Garry's Mod mode's Q › My Objects).
+      [Action.SaveToMyObjects]: () => {
+        const saved = saveSelectionToMyObjects(w);
+        ctx.toast(saved ? `Saved ${saved.name} to My Objects: the Create palette's last group` : 'Could not save: the browser\'s storage is full');
+      },
       // Off keeps the window's last size as the document's.
       [Action.FitWindow]: () => w.setDocument({ ...w.scene.document, fit: !w.scene.document.fit }),
       [Action.Undo]: () => w.undo(),

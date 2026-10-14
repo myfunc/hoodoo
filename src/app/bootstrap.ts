@@ -38,7 +38,7 @@ import { Commands } from './commands';
 import { RecentTracker } from './recent-ops';
 import { focusAt } from './lens-ops';
 import { installPwa } from './pwa';
-import { createFromPalette, createGameItem } from './scene-ops';
+import { createFromPalette, createGameItem, createMyObject } from './scene-ops';
 import { offerPortals } from './portal-ops';
 import { Shell } from './shell';
 import '../ui/styles.css';
@@ -178,7 +178,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
     // The scene window's input is made below; a command runs only after start-up.
     transform: (job) => input.transform.start(job),
   });
-  const shell = new Shell(ctx, (entry) => createFromPalette(world, entry), (item) => createGameItem(world, item));
+  const shell = new Shell(ctx, (entry) => createFromPalette(world, entry), (item) => createGameItem(world, item), (item) => createMyObject(world, item));
   root.replaceChildren(shell.root);
   const palettes = new PaletteImport(ctx);
   palettes.listen();

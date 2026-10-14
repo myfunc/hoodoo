@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.28.0 - 2026-10-14
+
+### Added
+- My Objects in the editor: Objects › Save to My Objects (also on the scene's right-click
+  menu) keeps the selection, with its groups and welds, in this browser. They show as the
+  Create palette's last group: a click puts a copy under the camera's aim, a right-click
+  removes one. The same list is Garry's Mod mode's Q › My Objects.
 ## 0.27.0 - 2026-10-14
 
 ### Added

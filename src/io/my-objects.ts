@@ -39,6 +39,15 @@ export interface MyObjectBuild {
 
 type Store = Pick<Storage, 'getItem' | 'setItem'>;
 
+const listeners = new Set<() => void>();
+/** Runs `listener` after every save or removal here, and when another window of this site changes the list. */
+export function onMyObjectsChanged(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+const changed = () => { for (const l of listeners) l(); };
+if (typeof addEventListener === 'function') addEventListener('storage', (e) => { if (e.key === KEY) changed(); });
+
 export function myObjects(store: Store = localStorage): MyObject[] {
   try {
     const raw = JSON.parse(store.getItem(KEY) ?? '[]');
@@ -82,11 +91,13 @@ export function saveMyObject(name: string, part: { objects: readonly SceneObject
   } catch {
     return null;
   }
+  changed();
   return item;
 }
 
 export function removeMyObject(id: string, store: Store = localStorage): void {
   store.setItem(KEY, JSON.stringify(myObjects(store).filter((i) => i.id !== id)));
+  changed();
 }
 
 /** One copy of an item: every object, group and joint with a fresh id, standing at the origin. */

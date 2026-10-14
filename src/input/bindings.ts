@@ -45,6 +45,7 @@ export const ACTIONS: Readonly<Record<Action, ActionInfo>> = {
   [Action.ShareLink]: { label: 'Copy Share Link', menu: MenuName.File, chords: [c('KeyL', MS)] },
   [Action.DocumentSetup]: { label: 'Document Setup…', menu: MenuName.File, chords: [c('KeyD', MS)] },
   [Action.FitWindow]: { label: 'Fit Window', menu: MenuName.File, chords: [] },
+  [Action.SaveToMyObjects]: { label: 'Save to My Objects', menu: MenuName.Objects, chords: [] },
   [Action.LayoutClassic]: { label: 'Layout: Classic', menu: MenuName.View, chords: [] },
   [Action.LayoutToy]: { label: 'Layout: Toy', menu: MenuName.View, chords: [] },
   [Action.LayoutModes]: { label: 'Layout: Modes', menu: MenuName.View, chords: [] },

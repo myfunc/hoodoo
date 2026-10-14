@@ -152,6 +152,7 @@ input { font: inherit; }
 .tray-set + .tray-set { border-left: 1px solid var(--shade-12); box-shadow: inset 1px 0 0 var(--hi); padding-left: 6px; }
 .tray-set-icons { display: flex; align-items: center; gap: 1px; }
 .tray-set-label { font: 9px/11px var(--font-ui); color: var(--ink-soft); white-space: nowrap; letter-spacing: 0.02em; }
+.tray-mine-empty { align-self: center; max-width: 150px; font: 10px/13px var(--font-ui); color: var(--ink-soft); white-space: normal; }
 .tray-group { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 0 6px; }
 .tray-group-label { font-size: 9px; color: var(--ink-soft); white-space: nowrap; }
 .tray .ui-dial { width: 132px; }

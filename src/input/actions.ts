@@ -10,6 +10,7 @@ export enum Action {
   ShareLink = 'share-link',
   DocumentSetup = 'document-setup',
   FitWindow = 'fit-window',
+  SaveToMyObjects = 'save-to-my-objects',
   LayoutClassic = 'layout-classic',
   LayoutToy = 'layout-toy',
   LayoutModes = 'layout-modes',

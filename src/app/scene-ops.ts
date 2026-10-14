@@ -4,7 +4,8 @@ import type { GameItem } from '../assets/games.library';
 import { buildGameItem } from '../world/game-sets';
 import { createEntry } from '../assets/object.catalog';
 import { randomSeed } from '../core/rng';
-import type { Vec3 } from '../core/vec3';
+import { type Vec3, add } from '../core/vec3';
+import { type MyObject, buildMyObject, itemOf, saveMyObject } from '../io/my-objects';
 import { ViewKind } from '../model/scene.enums';
 import type { Camera, Scene } from '../model/scene.types';
 import type { SceneView } from '../render/viewport';
@@ -40,6 +41,28 @@ export function createGameItem(world: World, item: GameItem): void {
   const [x, z] = dropPoint(world.scene.camera);
   const { objects, groups } = buildGameItem(item, x, z);
   world.addObjects(objects, `Create ${item.name}`, groups);
+}
+
+/** One of My Objects under the camera's aim: its objects, groups and welds, one History step. */
+export function createMyObject(world: World, item: MyObject): void {
+  const [x, z] = dropPoint(world.scene.camera);
+  const { objects, groups, joints } = buildMyObject(item);
+  const label = `Create ${item.name}`;
+  world.beginGesture(label);
+  world.addObjects(objects.map((o) => ({ ...o, transform: { ...o.transform, position: add(o.transform.position, [x, 0, z]) } })), label, groups);
+  if (joints.length) world.setJoints([...(world.scene.joints ?? []), ...joints], label);
+  world.endGesture();
+}
+
+/** The selection, with the groups it is in and what is welded to it, into My Objects under its group's or object's name. */
+export function saveSelectionToMyObjects(world: World): MyObject | null {
+  const scene = world.scene;
+  const parts = [...world.selection].map((id) => itemOf(scene, id));
+  const unique = <T extends { id: string }>(xs: T[]) => [...new Map(xs.map((v) => [v.id, v])).values()];
+  const part = { objects: unique(parts.flatMap((p) => p.objects)), groups: unique(parts.flatMap((p) => p.groups)), joints: unique(parts.flatMap((p) => p.joints)) };
+  const top = part.groups.find((g) => g.parentId === null);
+  const name = top?.name ?? (part.objects.length === 1 ? part.objects[0].name : `${part.objects[0]?.name ?? 'Object'} and more`);
+  return part.objects.length ? saveMyObject(name, part) : null;
 }
 
 /** Frames the selection (or everything) in the active view. */

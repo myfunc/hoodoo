@@ -12,7 +12,7 @@ describe('context menus', () => {
   it('offer the object commands (New Group among them); keys only with animation on', () => {
     const plain = objectEntries({ animation: false });
     expect(actions(plain)).toEqual([
-      Action.Group, Action.Ungroup, Action.NewGroup, Action.EditGroup, Action.NewSmartGroup, Action.Duplicate, Action.Delete, Action.HideSelected, Action.Land,
+      Action.Group, Action.Ungroup, Action.NewGroup, Action.EditGroup, Action.NewSmartGroup, Action.Duplicate, Action.Delete, Action.HideSelected, Action.Land, Action.SaveToMyObjects,
       Action.ChooseMaterial, Action.EditMaterial, Action.Attributes, Action.PreviewFeatures,
     ]);
     const full = objectEntries({ animation: true });
