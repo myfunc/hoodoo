@@ -26,6 +26,7 @@ export const MAPPING_LABELS: Readonly<Record<TextureMapping, string>> = {
   [TextureMapping.World]: 'World Space',
   [TextureMapping.Object]: 'Object Space',
   [TextureMapping.Parametric]: 'Parametric',
+  [TextureMapping.Follows]: 'Follows Object',
 };
 
 export const TEXTURE_KINDS = Object.values(TextureKind).filter((v): v is TextureKind => typeof v === 'number');

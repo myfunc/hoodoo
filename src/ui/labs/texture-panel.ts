@@ -1,7 +1,7 @@
 import type { Rgb } from '../../core/color';
 import { randomSeed } from '../../core/rng';
 import { TEXTURE_DEFAULTS, material, texture } from '../../model/material.factory';
-import { ChannelSource, TextureKind } from '../../model/scene.enums';
+import { ChannelSource, TextureKind, TextureMapping } from '../../model/scene.enums';
 import type { ProceduralTexture } from '../../model/scene.types';
 import { materialPreview } from '../../render/icons';
 import type { Thumbnailer } from '../../render/thumbs';
@@ -97,6 +97,12 @@ export class TexturePanel {
       onChange: (k) => this.patch({ kind: k }),
     });
     const mapping = new Select({ items: MAPPINGS.map((m) => ({ value: m, label: MAPPING_LABELS[m] })), value: t.mapping, onChange: (m) => this.patch({ mapping: m }) });
+    // The texture moves with its object, or stays in the world as Bryce's World Space does.
+    const follows = el('label', { cls: 'lab-follows' }, [el('input', { attrs: { type: 'checkbox', ...(t.mapping !== TextureMapping.World ? { checked: '' } : {}) } }), el('span', { text: 'Follows the object' })]);
+    follows.querySelector('input')?.addEventListener('change', (e) => {
+      this.patch({ mapping: (e.target as HTMLInputElement).checked ? TextureMapping.Follows : TextureMapping.World });
+      this.build();
+    });
     const freq = new Dial({ label: 'Scale', ...FREQ, value: t.frequency, onInput: (v) => this.patch({ frequency: v }) });
     const detail = new Dial({ label: 'Detail', ...DETAIL, value: t.detail, onInput: (v) => this.patch({ detail: v }) });
     const contrast = new Dial({ label: 'Contrast', ...CONTRAST, value: t.contrast, onInput: (v) => this.patch({ contrast: v }) });
@@ -106,7 +112,7 @@ export class TexturePanel {
       onCommit: (v) => this.setColor(i, v),
     }).el);
     this.body.append(
-      el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap' } }, [kind.el, mapping.el]),
+      el('div', { style: { display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' } }, [kind.el, mapping.el, follows]),
       freq.el,
       detail.el,
       contrast.el,

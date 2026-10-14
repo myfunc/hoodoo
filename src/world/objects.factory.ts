@@ -1,9 +1,9 @@
 import { DEFAULT_LATTICE, DEFAULT_LIGHT, DEFAULT_TERRAIN, DEFAULT_TERRAIN_RESOLUTION, type CreateEntry, type TerrainRecipe } from '../assets/object.catalog';
 import { presetMaterial } from '../assets/materials.presets';
 import { ZERO3, type Vec3 } from '../core/vec3';
-import { BooleanMode, ShapeKind } from '../model/scene.enums';
+import { BooleanMode, ShapeKind, TextureMapping } from '../model/scene.enums';
 import { newObjectId } from '../model/scene.ids';
-import type { SceneObject } from '../model/scene.types';
+import type { Material, SceneObject } from '../model/scene.types';
 import { buildTerrain } from './terrain/terrain-recipe';
 
 export const TERRAIN_KINDS: ReadonlySet<ShapeKind> = new Set([ShapeKind.Terrain, ShapeKind.Lattice]);
@@ -35,6 +35,11 @@ function startPosition(kind: ShapeKind, size: Vec3): Vec3 {
 }
 
 /** Builds a new object from a Create palette entry; terrains get their heightfield here. */
+/** A new object's textures move with it (Follows Object) where the preset leaves them in the world. */
+function followingTextures(m: Material): Material {
+  return { ...m, textures: m.textures.map((t) => (t && t.mapping === TextureMapping.World ? { ...t, mapping: TextureMapping.Follows } : t)) as unknown as Material['textures'] };
+}
+
 export function createObject(entry: CreateEntry, opts: CreateOptions): SceneObject {
   const size = opts.size ?? entry.size;
   const recipe = opts.recipe ?? (entry.kind === ShapeKind.Lattice ? DEFAULT_LATTICE : DEFAULT_TERRAIN);
@@ -43,7 +48,7 @@ export function createObject(entry: CreateEntry, opts: CreateOptions): SceneObje
     name: opts.name ?? entry.label,
     kind: entry.kind,
     transform: { position: opts.position ?? startPosition(entry.kind, size), rotation: ZERO3, size },
-    material: presetMaterial(opts.material ?? entry.material),
+    material: followingTextures(presetMaterial(opts.material ?? entry.material)),
     boolean: BooleanMode.Neutral,
     groupId: null,
     family: entry.family,

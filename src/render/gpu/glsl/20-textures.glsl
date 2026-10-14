@@ -22,12 +22,14 @@
 #define MAP_WORLD 0
 #define MAP_OBJECT 1
 #define MAP_PARAMETRIC 2
+#define MAP_FOLLOWS 3
 
 struct Surface {
   vec3 wp;   // world position
   vec3 lp;   // object-space position
   vec3 n;    // world normal (geometric)
   vec2 uv;   // parametric coordinates
+  vec3 fp;   // object-attached position at world size (MAP_FOLLOWS)
 };
 
 vec4 matTexel(int mat, int t) { return texelFetch(uMaterials, ivec2(t, mat), 0); }
@@ -170,7 +172,7 @@ vec3 ramp(float v, vec3 c0, vec3 c1, vec3 c2) {
 }
 
 vec3 texturePoint(int mapping, float freq, float seed, Surface s) {
-  vec3 base = mapping == MAP_WORLD ? s.wp : (mapping == MAP_OBJECT ? s.lp : vec3(s.uv * 4.0, 0.0));
+  vec3 base = mapping == MAP_WORLD ? s.wp : (mapping == MAP_OBJECT ? s.lp : (mapping == MAP_FOLLOWS ? s.fp : vec3(s.uv * 4.0, 0.0)));
   return base * freq + seed * vec3(17.13, 31.71, 7.37);
 }
 
@@ -185,7 +187,7 @@ vec4 evalTexture(int mat, int slot, Surface s) {
   vec4 t3 = matTexel(mat, base + 3);
   int mapping = int(t0.w + 0.5);
   vec3 p = texturePoint(mapping, t0.y, t1.w, s);
-  float unit = mapping == MAP_WORLD ? 1.0 : (mapping == MAP_OBJECT ? gLocalScale : PARAMETRIC_UNITS * gLocalScale);
+  float unit = mapping == MAP_WORLD || mapping == MAP_FOLLOWS ? 1.0 : (mapping == MAP_OBJECT ? gLocalScale : PARAMETRIC_UNITS * gLocalScale);
   gTexFoot = gFoot * t0.y * unit;
   vec3 axisN = mapping == MAP_WORLD ? s.n : gLocalNormal;
   // A flat pattern changes only along the surface: no blur across it.

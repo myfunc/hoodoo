@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.30.0 - 2026-10-14
+
+### Added
+- Textures can follow their object: lift, slide or turn it and its pattern goes along,
+  at the same size as in the world (a stretched object does not stretch it). The Materials
+  Lab has Follows the object on each texture (and Follows Object among the mappings);
+  new objects start with it. Scenes made before keep their textures where they were.
 ## 0.29.1 - 2026-10-14
 
 ### Fixed

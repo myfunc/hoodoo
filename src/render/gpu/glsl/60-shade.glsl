@@ -138,7 +138,9 @@ Surface surfaceAt(int obj, vec3 wp, vec3 n) {
   vec3 t1 = normalize(cross(n, abs(n.y) < 0.9 ? vec3(0, 1, 0) : vec3(1, 0, 0)));
   gLocalScale = max(length(toLocalDir(o, t1)), length(toLocalDir(o, cross(n, t1))));
   gLocalNormal = normalize(toLocalDir(o, n));
-  return Surface(wp, lp, n, parametricUv(o.kind, lp));
+  // Each inverse row's length is one over the object's half-size on that axis: undo it for world-sized units.
+  vec3 fp = lp / vec3(length(o.r0.xyz), length(o.r1.xyz), length(o.r2.xyz));
+  return Surface(wp, lp, n, parametricUv(o.kind, lp), fp);
 }
 
 bool isThin(int kind) {

@@ -71,6 +71,8 @@ export enum TextureMapping {
   World = 0,
   Object = 1,
   Parametric = 2,
+  /** Moves and turns with its object, at world size: a stretched object does not stretch the pattern. */
+  Follows = 3,
 }
 
 /** Which source drives a material channel: the flat value/colour or texture A, B or C. */
