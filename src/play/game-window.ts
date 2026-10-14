@@ -22,6 +22,8 @@ let hosted: PeerLink | null = null;
 let guest: PeerLink | null = null;
 let lastPoses = 0;
 const sent = new Map<ObjectId, Transform>();
+/** The game's props physics moves (refreshed with each send). */
+let moving = new Set<ObjectId>();
 
 /** This window is the game's window. */
 export const isGameWindow = (): boolean => guest !== null;
@@ -29,7 +31,7 @@ export const isGameWindow = (): boolean => guest !== null;
 /** Opens the game's window on this scene (the editor's side). */
 export function openGameWindow(ctx: UiContext): void {
   hosted?.close();
-  const { link, url } = PeerLink.host(ctx.world);
+  const { link, url } = PeerLink.host(ctx.world, location.href);
   hosted = link;
   link.closed = () => {
     link.close();
@@ -46,6 +48,8 @@ export async function joinGameWindow(ctx: UiContext, id: string, play: () => voi
     return false;
   }
   guest = link;
+  // The game keeps where its moving props are when an edit comes in from the editor.
+  link.keepsPlace = (oid) => moving.has(oid);
   link.closed = () => ctx.toast('The editor window closed: changes here stay in this window');
   document.body.classList.add(GAME_CLASS);
   play();
@@ -56,7 +60,7 @@ export async function joinGameWindow(ctx: UiContext, id: string, play: () => voi
 export function sendPoses(sim: PlaySim, frame: PlayFrame, now: number): void {
   if (!guest || now - lastPoses < POSE_EVERY_MS) return;
   lastPoses = now;
-  const moving = new Set<ObjectId>();
+  moving = new Set<ObjectId>();
   for (const item of sim.bodies.items.values()) if (item.motion === Motion.Dynamic) for (const m of item.members) moving.add(m.id);
   const poses: [ObjectId, Transform][] = [];
   for (const o of frame.scene.objects) {

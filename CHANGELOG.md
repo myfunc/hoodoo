@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.20.1 - 2026-10-13
+
+### Fixed
+- With the game in a window of its own, an edit in the editor while props moved in the game
+  could bring back an object the edit had just removed, and could put the moving props back
+  where they had been a moment before.
 ## 0.20.0 - 2026-10-13
 
 ### Added

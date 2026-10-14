@@ -1,6 +1,6 @@
 {
   "name": "hoodoo",
-  "version": "0.20.0",
+  "version": "0.20.1",
   "description": "A Bryce-style 3D landscape studio in the browser: wireframe scene window, Materials Lab, Terrain Editor, Sky & Fog, an animation timeline and a GPU ray tracer.",
   "license": "MIT",
   "author": "Denys Myronov",

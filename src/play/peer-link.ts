@@ -47,6 +47,8 @@ export class PeerLink {
   private readonly off: (() => void)[] = [];
   /** Called when the other window says it is gone. */
   closed: (() => void) | null = null;
+  /** Objects whose place this window keeps when the other's scene comes in (the game's moving props). */
+  keepsPlace: ((id: ObjectId) => boolean) | null = null;
   /** The game window waits for the editor's first scene. */
   private firstScene: (() => void) | null = null;
 
@@ -55,15 +57,17 @@ export class PeerLink {
     this.last = world.scene;
     this.channel.onmessage = (e: MessageEvent<Message>) => this.heard(e.data);
     this.off.push(world.events.on('history', () => this.stepped()));
-    const bye = () => this.say({ say: Say.Bye });
-    window.addEventListener('pagehide', bye);
-    this.off.push(() => window.removeEventListener('pagehide', bye));
+    if (typeof window !== 'undefined') {
+      const bye = () => this.say({ say: Say.Bye });
+      window.addEventListener('pagehide', bye);
+      this.off.push(() => window.removeEventListener('pagehide', bye));
+    }
   }
 
-  /** The editor's side: a new link and the game window's address. */
-  static host(world: World): { link: PeerLink; url: string } {
+  /** The editor's side: a new link and the game window's address (this page's, `page`, with the link's id). */
+  static host(world: World, page: string): { link: PeerLink; url: string } {
     const id = Math.random().toString(ID_RADIX).slice(2, 2 + ID_CHARS);
-    const url = new URL(location.href);
+    const url = new URL(page);
     url.searchParams.set(PEER_PARAM, id);
     url.hash = '';
     return { link: new PeerLink(id, world), url: url.href };
@@ -100,6 +104,8 @@ export class PeerLink {
   /** A History step here: the scene goes to the other window when it shares something new. */
   private stepped(): void {
     if (this.taking) return;
+    // A step on top of the game's props as previewed: that is the scene now, not the one before the preview.
+    this.world.dropPreview();
     const scene = this.world.scene;
     if (SHARED.every((k) => scene[k] === this.last[k])) return;
     this.last = scene;
@@ -124,7 +130,10 @@ export class PeerLink {
   private take(scene: Scene, label: string): void {
     this.world.endPreview();
     const own = this.world.scene;
-    const merged = { ...scene, ...Object.fromEntries(OWN.map((k) => [k, own[k]])) } as Scene;
+    const keep = this.keepsPlace;
+    const mine = keep ? new Map(own.objects.filter((o) => keep(o.id)).map((o) => [o.id, o.transform])) : null;
+    const objects = mine?.size ? scene.objects.map((o) => (mine.has(o.id) ? { ...o, transform: mine.get(o.id) ?? o.transform } : o)) : scene.objects;
+    const merged = { ...scene, objects, ...Object.fromEntries(OWN.map((k) => [k, own[k]])) } as Scene;
     this.taking = true;
     try {
       this.world.replaceScene(merged, label);

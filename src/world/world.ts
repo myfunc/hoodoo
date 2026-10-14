@@ -250,6 +250,11 @@ export class World {
     this.show({ ...base, sky }, ChangeKind.Sky);
   }
 
+  /** Forgets the preview's base without showing it: what is shown now stays (a step was made on top of it). */
+  dropPreview(): void {
+    this.previewBase = null;
+  }
+
   endPreview(): void {
     const base = this.previewBase;
     this.previewBase = null;
