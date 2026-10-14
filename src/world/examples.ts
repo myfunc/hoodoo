@@ -13,6 +13,7 @@ import { sunsetGambit } from './showcase/gambit';
 import { squashAndStretch } from './showcase/bounce';
 import { booleanCarving } from './showcase/carve';
 import { playground } from './showcase/playground';
+import { miniCity, miniCityNight } from './showcase/mini-city';
 import { Feature, type FeatureFlags, isFeatureOn } from './preview-features';
 import { hoodooRun } from './showcase/flight';
 import { marbleDream } from './showcase/marble';
@@ -163,6 +164,8 @@ export const EXAMPLES: readonly Example[] = [
   { id: 'dunes', animated: false, name: 'Golden Dunes', blurb: 'Sunrise fog and three planets', build: () => withDocument(splashScene(SplashKind.Dunes), EXAMPLE_DOCUMENT) },
   { id: 'arch', animated: false, name: 'Ring Arch', blurb: 'A planet ring over a starry lake', build: () => withDocument(splashScene(SplashKind.Arch), EXAMPLE_DOCUMENT) },
   { id: 'surprise', animated: false, name: 'Checkerboard Desert', blurb: `Stones · Surprise Me #${SURPRISE_SEED}`, build: () => surpriseScene(SURPRISE_SEED) },
+  { id: 'mini-city', animated: false, name: 'Mini City', blurb: 'Blocks with windows, streets, hills; crates to push in Play', build: miniCity },
+  { id: 'mini-city-night', animated: false, name: 'Mini City at Night', blurb: 'The same city under the moon, its windows lit', build: miniCityNight },
   { id: 'gambit', animated: true, featured: true, name: 'Sunset Gambit', blurb: 'Chess and billiards by the sea', build: sunsetGambit },
   { id: 'vapor-desk', animated: true, name: 'Vapor Desk', blurb: 'A bell jar, a column and discs on checker decks', build: vaporDesk },
   { id: 'pyramid-valley', animated: true, name: 'Pyramid Valley', blurb: 'Golden pyramids beam light over a green valley', build: pyramidValley },

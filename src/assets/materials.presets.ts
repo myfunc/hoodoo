@@ -378,6 +378,18 @@ const buildings: Material[] = [
 const basic: Material[] = [
   material({ name: 'Default' }),
   material({
+    name: 'Asphalt',
+    textures: [texture(TextureKind.Fbm, 6, [h('#1e1f21'), h('#2c2d30'), h('#3d3e42')], { detail: 4, mapping: FOLLOWS })],
+    colorSources: TEXTURED_COLOR,
+    values: { diffusion: 75, ambience: 10, specularity: 15 },
+  }),
+  material({
+    name: 'Concrete',
+    textures: [texture(TextureKind.Fbm, 3, [h('#8f8f8a'), h('#a9a8a2'), h('#c2c0b8')], { detail: 5, mapping: FOLLOWS })],
+    colorSources: TEXTURED_COLOR,
+    values: { diffusion: 85, ambience: 14, specularity: 10 },
+  }),
+  material({
     name: 'Bryce Teal',
     colors: { diffuse: h('#2b8a8a'), ambient: h('#1c5c5c') },
     values: { diffusion: 80, ambience: 20, specularity: 60 },

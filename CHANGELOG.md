@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.35.0 - 2026-10-14
+
+### Added
+- Mini City, an example to play in: three by three blocks of office towers, brick houses
+  and warehouses with windows, streets and pavements, hills from height maps round it, and
+  a square of crates, barrels and balls to push in Play. Mini City at Night is the same
+  city under the moon, some of its windows lit.
+- Asphalt and Concrete materials (Simple & Basic).
 ## 0.34.0 - 2026-10-14
 
 ### Added
