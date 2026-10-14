@@ -42,6 +42,9 @@ import { createFromPalette, createGameItem } from './scene-ops';
 import { offerPortals } from './portal-ops';
 import { Shell } from './shell';
 import '../ui/styles.css';
+import { joinGameWindow } from '../play/game-window';
+import { togglePlay } from '../play/session';
+import { PEER_PARAM } from '../play/peer-link';
 
 const logger = Logger.create('App');
 const IMAGE_TYPE = /^image\//;
@@ -77,6 +80,8 @@ export async function startApp(root: HTMLElement): Promise<void> {
   const settings = settingsFrom(prefs);
   const params = new URLSearchParams(location.search);
   const startParam = params.get('start');
+  // The game's own window (Play › Open in window): it takes the editor's scene and starts in Play.
+  const peerId = params.get(PEER_PARAM);
   const shared = await sceneFromHash(location.hash).catch((error) => {
     logger.warn('share link unreadable', {}, error);
     return null;
@@ -182,10 +187,10 @@ export async function startApp(root: HTMLElement): Promise<void> {
   // Browser automation (tests, screenshots) drives the editor directly; people get the welcome window,
   // then the start window (unless they came with a share link or turned it off).
   const askedStart = startParam === START_PARAM.show;
-  const wantsStart = !shared && !incoming && startParam !== START_PARAM.skip && (prefs.showStart || askedStart);
+  const wantsStart = !shared && !incoming && !peerId && startParam !== START_PARAM.skip && (prefs.showStart || askedStart);
   // The start window opens under the fading splash, so the two cross-fade.
   const openStartSoon = () => void recent.ready.then(openStart);
-  if (!navigator.webdriver && settings.splash) document.body.append(new Splash(engine, () => { if (wantsStart) openStartSoon(); offerIncoming(); }).el);
+  if (!navigator.webdriver && settings.splash && !peerId) document.body.append(new Splash(engine, () => { if (wantsStart) openStartSoon(); offerIncoming(); }).el);
   else {
     if (wantsStart && (askedStart || !navigator.webdriver)) openStartSoon();
     offerIncoming();
@@ -230,7 +235,8 @@ export async function startApp(root: HTMLElement): Promise<void> {
   autosave.written = (_scene, text, thumb) => tracker.autosaved(text, thumb);
   view.events.on('progress', (p) => { if (!p.active && p.fraction >= 1) tracker.rendered(); });
   view.events.on('live', (s) => { if (!s.moving && s.samples >= s.target) tracker.rendered(); });
-  world.events.on('changed', ({ scene }) => { if (editor.state.settings.autosave) autosave.schedule(scene); });
+  // The game's window leaves the browser's copy to the editor that opened it.
+  world.events.on('changed', ({ scene }) => { if (editor.state.settings.autosave && !peerId) autosave.schedule(scene); });
   onSetting(editor, 'autosave', (on) => (on ? autosave.schedule(world.scene) : autosave.cancel()));
   world.events.on('refused', ({ reason }) => showToast(reason));
   offerPortals(world, editor);
@@ -245,6 +251,7 @@ export async function startApp(root: HTMLElement): Promise<void> {
   offerTutorialBook(ctx);
   installPwa();
   logger.info('started', { objects: world.scene.objects.length, shared: !!shared });
+  if (peerId) void joinGameWindow(ctx, peerId, () => togglePlay(ctx));
   // Live mode renders by itself; the classic mode starts with one Bryce-style render.
   if (!editor.state.liveRender) requestAnimationFrame(() => commands?.run(Action.Render));
 }

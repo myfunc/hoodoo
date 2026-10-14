@@ -31,6 +31,25 @@ it: an airplane, triggers and loops, a faster game render and Sandbox
   and replaces the keys it covers; the material, light and visibility values
   keyed in that span move onto the take's keys at their times.
 
+## Full screen and a window of its own
+
+The Tab panel's **Full screen** puts the scene window alone on the whole screen
+(the Fullscreen API on `SceneView.root`); the picture fills it whatever the
+document's size (`SceneView.setFill`), and Esc gives the window back with play
+paused rather than ended (a pointer lost within half a second of leaving the
+whole screen is that Esc, not a wish to leave).
+
+**Open in window** opens the game in a browser window of its own on the same
+scene and puts this one back in the editor (`src/play/game-window.ts`). The two
+talk over a BroadcastChannel (`src/play/peer-link.ts`): each History step in
+either window (an edit, Z, Y) sends the scene when it changes what they share
+(objects, groups, joints, sky, animation), and the other takes it as a step of
+its own while keeping its own camera, views and document size. The game window
+starts in Play filling its window (`?peer=<id>`: no splash, no start window, no
+autosave), and while props move it sends where they are ten times a second; the
+editor shows them there as a preview, without a step, until the game's next
+step puts them in the scene. Closing either window tells the other.
+
 ## Layers
 
 ```

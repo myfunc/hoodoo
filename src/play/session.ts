@@ -15,6 +15,7 @@ import type { PlayFrame, PlaySim } from './sim/play-sim';
 import type { Sandbox } from './sandbox/sandbox';
 import { withTakes } from './sim/take';
 import './play.css';
+import { isGameWindow, openGameWindow, sendPoses } from './game-window';
 
 const logger = Logger.create('Play');
 const MS_PER_S = 1000;
@@ -23,6 +24,8 @@ const PERCENT = 100;
 const READOUT_MS = 100;
 /** Sandbox's layers wait for the world's next picture at most this long (a resting renderer draws none). */
 const PICTURE_WAIT_MS = 50;
+/** How soon after leaving the whole screen a lost pointer still counts as that Esc, not as leaving Play. */
+const SCREEN_ESC_MS = 500;
 const UNDO_LABEL = 'Record take';
 /** The editor's hint line while playing (the HUD names the keys). */
 const STATUS_HINT = { title: 'Play', text: 'Esc leaves · Tab setup' } as const;
@@ -81,6 +84,8 @@ class PlaySession {
   private res = 0;
   private paused = true;
   private ended = false;
+  /** When the whole screen was last left (performance.now): the Esc that did it does not leave Play. */
+  private screenLeftAt = -Infinity;
   /** Record was switched off by the user (not by a full track). */
   private userStopped = false;
   /** Sandbox's guns and menus (docs/sandbox-mode.md), when its preview is on. */
@@ -114,6 +119,13 @@ class PlaySession {
       record: () => this.record(),
       resume: () => this.input.lock(),
       exit: () => this.exit(),
+      fullScreen: () => this.fullScreen(),
+      isFullScreen: () => document.fullscreenElement === this.ctx.view.root,
+      gameWindow: () => isGameWindow(),
+      openWindow: () => {
+        openGameWindow(this.ctx);
+        this.exit();
+      },
       resolution: () => this.ctx.editor.state.settings.playResolution,
       setResolution: (r) => changeSetting(this.ctx.editor, 'playResolution', r),
     });
@@ -145,9 +157,30 @@ class PlaySession {
         this.sandbox?.sync(scene);
       }),
     );
+    // On the whole screen the picture fills it; leaving full screen (Esc) brings the document's shape back.
+    const screen = () => {
+      const full = document.fullscreenElement === view.root;
+      if (!full) this.screenLeftAt = performance.now();
+      view.setFill(full || isGameWindow());
+      this.panel.sync();
+    };
+    document.addEventListener('fullscreenchange', screen);
+    this.off.push(() => document.removeEventListener('fullscreenchange', screen));
+    // The game's own window: the picture fills it from the start.
+    if (isGameWindow()) view.setFill(true);
     this.hud.place(view.pictureFrame());
     this.automate();
     void this.load();
+  }
+
+  /** The scene window on the whole screen (from the panel's click), or back; play goes on with the pointer caught. */
+  private fullScreen(): void {
+    const root = this.ctx.view.root;
+    if (document.fullscreenElement === root) {
+      void document.exitFullscreen().catch(() => undefined);
+      return;
+    }
+    void root.requestFullscreen({ navigationUI: 'hide' }).then(() => this.input.lock(), () => undefined);
   }
 
   exit(): void {
@@ -165,6 +198,8 @@ class PlaySession {
     for (const f of this.off) f();
     sandbox?.keep();
     this.hud.el.remove();
+    if (document.fullscreenElement === view.root) void document.exitFullscreen().catch(() => undefined);
+    view.setFill(false);
     view.root.classList.remove('is-playing');
     view.setPlay(null);
     editor.update(this.restore);
@@ -234,7 +269,9 @@ class PlaySession {
   /** The pointer came or went: locked plays; Esc (the browser lets go, the page keeps focus) leaves; anything else pauses. */
   private locked(on: boolean, byUser: boolean): void {
     if (!on && this.menu) return;
-    if (!on && byUser && document.hasFocus() && this.sim) {
+    // Esc on the whole screen leaves the whole screen first (the browser lets the pointer go with it): Play waits.
+    const screen = document.fullscreenElement === this.ctx.view.root || performance.now() - this.screenLeftAt < SCREEN_ESC_MS;
+    if (!on && byUser && !screen && document.hasFocus() && this.sim) {
       this.exit();
       return;
     }
@@ -260,6 +297,7 @@ class PlaySession {
     }
     const frame = sim.frame(this.clock.alpha);
     this.current = frame;
+    sendPoses(sim, frame, now);
     this.ctx.view.playFrame();
     this.sandbox?.frame();
     // Without counted pictures, or while the renderer rests, Sandbox's canvases keep their own pace.

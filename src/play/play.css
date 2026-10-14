@@ -82,3 +82,6 @@
 }
 .play-layer.is-plane .play-readout { top: 10px; bottom: auto; }
 .play-layer.is-plane .play-cross { display: none; }
+
+/* The game's own window (Play › Open in window, play/game-window.ts): the scene window alone, filling the page. */
+body.is-game-window .scene-window { position: fixed; inset: 0; z-index: 100; }

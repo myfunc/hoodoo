@@ -113,6 +113,8 @@ export class SceneView {
   private height = 0;
   /** Play mode's source of frames, while a session runs. */
   private play: PlaySource | null = null;
+  /** Play on the whole screen: the picture fills the scene window, whatever the document's size. */
+  private fill = false;
   /** The picture each cell's wires were last drawn for (`shownFor`). */
   private wiresFor = new Map<ViewKind, ShownFrame | null>();
   /** The locked axes of a keyboard Move, Rotate or Size while it runs (input/key-transform.ts). */
@@ -426,7 +428,7 @@ export class SceneView {
     if (this.fitDocument()) return;
     const s = this.editor.state;
     const doc = this.world.scene.document;
-    const aspect = doc.width / doc.height;
+    const aspect = this.fill ? this.width / this.height : doc.width / doc.height;
     const rects: { kind: ViewKind; rect: Frame }[] = s.quad
       ? QUAD_KINDS.map((kind, i) => ({
           kind,
@@ -445,6 +447,14 @@ export class SceneView {
       this.pendingRender = null;
       requestAnimationFrame(() => this.render(final));
     }
+  }
+
+  /** Play on the whole screen: the picture fills the scene window (true) or keeps the document's shape. */
+  setFill(on: boolean): void {
+    if (this.fill === on) return;
+    this.fill = on;
+    this.layout();
+    this.draw();
   }
 
   /**

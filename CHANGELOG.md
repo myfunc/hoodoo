@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.20.0 - 2026-10-13
+
+### Added
+- Play on the whole screen: Tab › Full screen puts the game alone on the screen, the
+  picture filling it; Esc gives the window back with play paused.
+- Play in a window of its own: Tab › Open in window opens the game in a new browser window
+  on the same scene and puts this one back in the editor. Edits in either window show in
+  the other (spawns, welds, deletions, undo), and the editor shows props moving in the game
+  as they move.
 ## 0.19.1 - 2026-10-14
 
 ### Added

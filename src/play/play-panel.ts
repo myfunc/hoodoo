@@ -34,6 +34,8 @@ const FIELDS: readonly { key: NumberKey; label: string; title: string; digits: n
   { key: 'sensitivity', label: 'Mouse', title: 'How fast the mouse turns the view', digits: 2 },
 ];
 
+const FULL_SCREEN = { on: 'Full screen', off: 'Back to window', title: 'The game on the whole screen, without the editor around it' } as const;
+
 export interface PlayPanelHooks {
   readonly player: () => PlayerSettings;
   readonly setPlayer: (p: PlayerSettings) => void;
@@ -45,6 +47,13 @@ export interface PlayPanelHooks {
   readonly record: () => void;
   readonly resume: () => void;
   readonly exit: () => void;
+  /** The game on the whole screen, without the editor around it, or back in the window. */
+  readonly fullScreen: () => void;
+  readonly isFullScreen: () => boolean;
+  /** The game in a window of its own, the editor back in this one, one scene in both. */
+  readonly openWindow: () => void;
+  /** This is the game's own window already (no Open in window here). */
+  readonly gameWindow: () => boolean;
   /** Play's picture: sharp, smooth or both (kept in Settings). */
   readonly resolution: () => PlayResolution;
   readonly setResolution: (r: PlayResolution) => void;
@@ -62,6 +71,7 @@ export class PlayPanel {
   private readonly presets: Choice<PlayerPreset>;
   private readonly fields = new Map<NumberKey, NumberField>();
   private readonly recordButton: Button;
+  private readonly screen: Button;
   private readonly actors: Choice<PlayActor>;
   private readonly title: HTMLElement;
   private readonly walkerGrid: HTMLElement;
@@ -96,6 +106,9 @@ export class PlayPanel {
     this.recordButton = new Button({ cls: 'play-record', content: el('span', { cls: 'play-rec-dot' }), label: 'Record', title: 'Record the camera and what moves as keys (K)', onClick: () => { hooks.record(); this.sync(); } });
     const resume = new Button({ label: 'Resume', title: 'Back to the game (click the picture or Tab)', onClick: () => hooks.resume() });
     const exit = new Button({ label: 'Exit', title: 'Leave Play (Esc)', onClick: () => hooks.exit() });
+    this.screen = new Button({ label: FULL_SCREEN.on, title: FULL_SCREEN.title, onClick: () => hooks.fullScreen() });
+    const window = new Button({ label: 'Open in window', title: 'The game in a window of its own and the editor back here: one scene, edits show in both', onClick: () => hooks.openWindow() });
+    window.el.hidden = hooks.gameWindow();
     this.el = el('div', { cls: 'play-panel' }, [
       this.actors.el,
       this.title,
@@ -104,6 +117,7 @@ export class PlayPanel {
       this.planeGrid,
       el('div', { cls: 'play-panel-title', text: PLAY_PICTURE.name, title: PLAY_PICTURE.hint }),
       this.picture.el,
+      el('div', { cls: 'play-actions' }, [this.screen.el, window.el]),
       el('div', { cls: 'play-actions' }, [this.recordButton.el, resume.el, exit.el]),
     ]);
     // Clicks on the panel stay on the panel (the layer behind it resumes play on a click).
@@ -126,6 +140,7 @@ export class PlayPanel {
     for (const [key, field] of this.planeFields) field.set(plane[key]);
     this.invert.set(plane.invertPitch);
     this.picture.set(this.hooks.resolution());
+    this.screen.el.textContent = this.hooks.isFullScreen() ? FULL_SCREEN.off : FULL_SCREEN.on;
     const flying = this.hooks.actor() === PlayActor.Plane;
     this.actors.set(this.hooks.actor());
     this.title.textContent = flying ? 'Plane' : 'Player';
