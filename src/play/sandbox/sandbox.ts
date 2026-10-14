@@ -25,7 +25,9 @@ import { SANDBOX_SOUNDS } from './sandbox-sounds';
 import { NoticeKind, WeaponId } from './sandbox.enums';
 import { SceneEdits } from './scene-edits';
 import { SPAWN_LIMIT, tracedCount } from './spawn';
-import { SPAWN_ITEMS, spawnLists } from './spawn-lists';
+import { SpawnCategory, findSpawnItem, listOf, spawnLists } from './spawn-lists';
+import { itemOf, removeMyObject, saveMyObject } from '../../io/my-objects';
+import type { ObjectId } from '../../model/scene.ids';
 import { ToolButton, type ToolId } from './tools/tool';
 import { ToolHost } from './tool-host';
 import { ContextMenu } from './context-menu';
@@ -122,14 +124,14 @@ export class Sandbox {
     this.joints.sync(host.world.scene);
     this.edits = new SceneEdits(host.world, host.sim);
     this.tools = new ToolHost(host.world, host.sim, this.edits, this.joints);
-    this.menu = new SpawnMenu(host.thumbs, spawnLists(), (key) => void this.spawn(key));
+    this.menu = new SpawnMenu(host.thumbs, spawnLists((id) => this.forgetMine(id)), (key) => void this.spawn(key));
     this.contextMenu = new ContextMenu({
       menu: this.menu, layer: host.layer, picture: () => host.picture(), camera: () => host.sim.frame(1).camera,
       active: () => host.active(), freePointer: (on) => host.freePointer(on), opened: () => this.toolMenu.show(this.toolgun.tool.id),
       fire: (eye, aim) => { if (this.weapon === this.toolgun) this.toolgun.shootAt(ToolButton.Primary, eye, aim, host.sim.time); },
       objectMenu: (eye, aim) => {
         const hit = this.tools.trace(eye, aim);
-        return hit ? objectMenu(hit.object, { sim: host.sim, props: this.props, edits: this.edits, whole: (id) => this.tools.context().whole(id) }) : [];
+        return hit ? objectMenu(hit.object, { sim: host.sim, props: this.props, edits: this.edits, whole: (id) => this.tools.context().whole(id), save: (id) => this.saveMine(id) }) : [];
       },
     });
     this.toolMenu = new ToolMenu(host.thumbs, this.toolgun.tools, (id) => this.pickTool(id as ToolId));
@@ -331,12 +333,28 @@ export class Sandbox {
 
   /** A spawn list's item where the player aims; past the tracer's limit, Garry's Mod's notice instead. */
   private spawn(key: string): boolean {
-    const item = SPAWN_ITEMS.find((i) => i.key === key);
+    const item = findSpawnItem(key);
     if (!item) return false;
     const done = this.edits.spawn(item);
     if (!done) this.notify(`Props limit reached (${SPAWN_LIMIT})`, NoticeKind.Limit, SANDBOX_SOUNDS.limit);
     this.menu.setCount(tracedCount(this.host.world.scene), SPAWN_LIMIT);
     return done;
+  }
+
+  /** The object as the player sees it (its groups, what is welded to it) into My Objects. */
+  private saveMine(id: ObjectId): void {
+    const scene = this.host.world.scene;
+    const part = itemOf(scene, id);
+    const o = scene.objects.find((x) => x.id === id);
+    const top = o?.groupId ? part.groups.find((g) => g.parentId === null) : null;
+    const saved = saveMyObject(top?.name ?? o?.name ?? 'Object', part);
+    this.notify(saved ? `Saved ${saved.name} to My Objects` : 'Could not save: the browser\'s storage is full', saved ? NoticeKind.Info : NoticeKind.Limit);
+    this.menu.setList(listOf(SpawnCategory.Mine, (x) => this.forgetMine(x)));
+  }
+
+  private forgetMine(id: string): void {
+    removeMyObject(id);
+    this.menu.setList(listOf(SpawnCategory.Mine, (x) => this.forgetMine(x)));
   }
 
   /** Changes the weapon (the old one lets go) and shows the slot strip. */

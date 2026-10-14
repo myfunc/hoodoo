@@ -6,7 +6,8 @@ import type { SpawnList } from '../../ui/sandbox/spawn-menu';
 import { randomSeed } from '../../core/rng';
 import { LatheProfile, ShapeKind } from '../../model/scene.enums';
 import { newGroupId } from '../../model/scene.ids';
-import type { GroupNode, SceneObject } from '../../model/scene.types';
+import type { GroupNode, SceneJoint, SceneObject } from '../../model/scene.types';
+import { buildMyObject, myObjects } from '../../io/my-objects';
 import { withBody } from '../../world/body-flags';
 import { type GameBuild, buildGameItem } from '../../world/game-sets';
 import { createObject } from '../../world/objects.factory';
@@ -23,6 +24,8 @@ export enum SpawnCategory {
   Primitives = 'Primitives',
   /** Map pieces: terrains to paint, water, floors, walls and blocks; they stand still, as a map does. */
   Map = 'Map',
+  /** The player's own items (io/my-objects.ts), saved from the context menu. */
+  Mine = 'My Objects',
   Chess = 'Chess',
   Billiards = 'Billiards',
 }
@@ -31,12 +34,14 @@ export interface SpawnItem {
   readonly key: string;
   readonly name: string;
   readonly category: SpawnCategory;
-  /** The objects and groups a spawn adds, at the origin. */
-  readonly build: () => GameBuild;
+  /** The objects and groups a spawn adds, at the origin, and the joints between them (the player's own items). */
+  readonly build: () => GameBuild & { readonly joints?: readonly SceneJoint[] };
   /** A Chess & Billiards item: its icon is framed as the Object Library frames it. */
   readonly game?: GameItem;
   /** The Create palette entry whose icon it shows, when its key is not one. */
   readonly icon?: string;
+  /** One of the player's own items (its id in io/my-objects.ts): it can be taken out of the list. */
+  readonly mine?: string;
 }
 
 /** The palette's shapes that make sense as props, in its order (object.catalog.ts ids). */
@@ -117,7 +122,19 @@ export const SPAWN_ITEMS: readonly SpawnItem[] = [
   ...GAME_ROWS.flat().filter((g) => g.profile !== LatheProfile.Column && g.profile !== LatheProfile.Pedestal).map(game),
 ];
 
-export const spawnItemsOf = (category: SpawnCategory): SpawnItem[] => SPAWN_ITEMS.filter((i) => i.category === category);
+/** The player's own items, as they are kept now. */
+const MINE_PREFIX = 'mine:';
+const MINE_EMPTY = 'Nothing saved yet. Tap C, Mouse 2 on an object › Save to My Objects';
+const mineItems = (): SpawnItem[] => myObjects().map((m) => ({
+  key: MINE_PREFIX + m.id, name: m.name, category: SpawnCategory.Mine, mine: m.id, build: () => buildMyObject(m),
+}));
+
+export const spawnItemsOf = (category: SpawnCategory): SpawnItem[] =>
+  category === SpawnCategory.Mine ? mineItems() : SPAWN_ITEMS.filter((i) => i.category === category);
+
+/** The item a spawn key names: one of the lists, or one of the player's own. */
+export const findSpawnItem = (key: string): SpawnItem | undefined =>
+  key.startsWith(MINE_PREFIX) ? mineItems().find((i) => i.key === key) : SPAWN_ITEMS.find((i) => i.key === key);
 
 /** Turns a ball's number toward the icon's camera, as the Object Library does (render/icons.ts PIECE_FROM). */
 const BALL_FACING: Vec3 = [-16, 36, 0];
@@ -125,6 +142,7 @@ const BALL_FACING: Vec3 = [-16, 36, 0];
 /** An item's icon: a shape as the Create palette draws it, a library item as the Object Library frames it. */
 function iconOf(item: SpawnItem): IconSpec {
   const g = item.game;
+  if (item.mine) return objectsPreview(item.build().objects, true);
   if (!g) return createIcon(createEntry(item.icon ?? item.key));
   const built = buildGameItem(g, 0, 0).objects;
   // The rack leaves its cue ball out (it waits far in front); a lone ball shows its number.
@@ -134,6 +152,14 @@ function iconOf(item: SpawnItem): IconSpec {
   return objectsPreview(shown, g.kind === GameItemKind.ChessSet || g.kind === GameItemKind.Board || g.kind === GameItemKind.Rack);
 }
 
-/** The menu's lists: one per category, its items with their icons. */
-export const spawnLists = (): SpawnList[] =>
-  Object.values(SpawnCategory).map((name) => ({ name, tiles: spawnItemsOf(name).map((i) => ({ key: i.key, name: i.name, icon: () => iconOf(i) })) }));
+/** The menu's lists: one per category, its items with their icons; the player's own can be taken out (`remove`). */
+export const spawnLists = (remove: (id: string) => void): SpawnList[] => Object.values(SpawnCategory).map((name) => listOf(name, remove));
+
+/** One category's list. */
+export function listOf(name: SpawnCategory, remove: (id: string) => void): SpawnList {
+  return {
+    name,
+    ...(name === SpawnCategory.Mine ? { empty: MINE_EMPTY } : {}),
+    tiles: spawnItemsOf(name).map((i) => ({ key: i.key, name: i.name, icon: () => iconOf(i), ...(i.mine ? { remove: () => remove(i.mine as string) } : {}) })),
+  };
+}

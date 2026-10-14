@@ -147,7 +147,14 @@ export class SceneEdits {
     const hit = this.sim.physics.raycast(eye.position, aim, SPAWN_REACH.surface * unit, { layers: Layer.World | Layer.Prop });
     const spot: SpawnSpot = hit ? { point: hit.point, normal: hit.normal } : { point: add(eye.position, scale(aim, SPAWN_REACH.miss * unit)), normal: UP };
     const objects = placed(built.objects, eye.yaw, spot);
-    this.world.addObjects(objects, `Spawn ${item.name}`, built.groups);
+    const label = `Spawn ${item.name}`;
+    // The player's own items bring their welds: objects and joints one History step.
+    if (built.joints?.length) this.world.beginGesture(label);
+    this.world.addObjects(objects, label, built.groups);
+    if (built.joints?.length) {
+      this.world.setJoints([...(this.world.scene.joints ?? []), ...built.joints], label);
+      this.world.endGesture();
+    }
     for (const o of objects) {
       this.touched.add(o.id);
       this.originals.set(o.id, o);

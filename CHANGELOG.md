@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.27.0 - 2026-10-14
+
+### Added
+- My Objects: save anything you built in Garry's Mod mode (C, Mouse 2 on it › Save to My
+  Objects) and spawn copies from the spawn menu's My Objects list. An object is saved with
+  its group and whatever is welded to it; a small cross takes it out of the list.
 ## 0.26.0 - 2026-10-14
 
 ### Added

@@ -19,12 +19,16 @@ import { el } from '../kit/dom';
  */
 
 export interface SpawnTile {
+  /** Takes the item out of its list (the player's own items); a small cross on the tile. */
+  readonly remove?: () => void;
   readonly key: string;
   readonly name: string;
   readonly icon: () => IconSpec;
 }
 
 export interface SpawnList {
+  /** What an empty list says instead of icons. */
+  readonly empty?: string;
   readonly name: string;
   readonly tiles: readonly SpawnTile[];
 }
@@ -58,7 +62,7 @@ export class SpawnMenu {
   private at: [number, number] = [0, 0];
   private hovered: HTMLElement | null = null;
 
-  constructor(private readonly thumbs: Thumbnailer, private readonly lists: readonly SpawnList[], private readonly spawn: (key: string) => void) {
+  constructor(private readonly thumbs: Thumbnailer, private lists: readonly SpawnList[], private readonly spawn: (key: string) => void) {
     this.cats = el('div', { cls: 'gw-tree sbx-spawn-cats', attrs: { role: 'tree', 'aria-label': 'Spawn lists' } }, [
       el('div', { cls: 'gw-tree-node is-open', text: YOUR_LISTS }),
     ]);
@@ -212,7 +216,9 @@ export class SpawnMenu {
     let page = this.pages.get(name);
     if (!page) {
       const list = this.lists.find((l) => l.name === name);
-      page = el('div', { cls: 'sbx-spawn-page' }, (list?.tiles ?? []).map((t) => this.tile(t)));
+      page = list && !list.tiles.length && list.empty
+        ? el('div', { cls: 'sbx-spawn-empty', text: list.empty })
+        : el('div', { cls: 'sbx-spawn-page' }, (list?.tiles ?? []).map((t) => this.tile(t)));
       this.pages.set(name, page);
     }
     this.grid.replaceChildren(page);
@@ -224,6 +230,21 @@ export class SpawnMenu {
       el('span', { cls: 'sbx-spawn-name', text: t.name }),
     ]);
     tile.addEventListener('click', () => this.spawn(t.key));
+    if (t.remove) {
+      const cross = el('div', { cls: 'sbx-spawn-remove sbx-pick', text: '×', title: `Take ${t.name} out of the list` });
+      cross.addEventListener('click', (e) => {
+        e.stopPropagation();
+        t.remove?.();
+      });
+      tile.append(cross);
+    }
     return tile;
+  }
+
+  /** A list's items changed (the player saved or removed one): its page is drawn again when shown. */
+  setList(list: SpawnList): void {
+    this.lists = this.lists.map((l) => (l.name === list.name ? list : l));
+    this.pages.delete(list.name);
+    if (this.current === list.name && this.open) this.page(list.name);
   }
 }

@@ -260,7 +260,11 @@ headers and selections, DermaDefault's Tahoma 13. Tabs Hoodoo has no content for
 Left, the spawn lists (`src/play/sandbox/spawn-lists.ts`) as a tree under *Your
 Spawnlists*: Primitives (the Create palette's shapes), Map (a flat terrain to
 paint, hills, water, a floor, a wall, a block: they stand still, as a map does),
-Chess and Billiards (the Object Library's items). The Sky tab (`ui/sandbox/
+My Objects (the player's own, `io/my-objects.ts`: the context menu's Save to
+My Objects keeps an object as the player sees it — its outermost group, what is
+welded to it and the joints between them — standing at the origin, in this
+browser; a spawn gives every object, group and joint fresh ids; a small cross
+takes one out of the list), Chess and Billiards (the Object Library's items). The Sky tab (`ui/sandbox/
 sky-page.ts`) shows Hoodoo's sky library; a click puts that sky over the world,
 one History step.
 Right, their ray-traced icons, drawn the first time a list shows, as the

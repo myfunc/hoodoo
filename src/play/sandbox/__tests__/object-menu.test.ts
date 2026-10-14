@@ -30,8 +30,8 @@ async function bench(objects: SceneObject[]) {
 describe('an object\'s menu in the context menu', () => {
   it('offers Remove, Freeze, Physical and Solid for a prop; Physical and Solid are History steps', async () => {
     const b = await bench([withBody(cube('Crate', 1), { physical: true })]);
-    const labels = objectMenu(b.object('Crate'), { sim: b.sim, props: b.props, edits: b.edits, whole: (id) => new Set([id]) }).map((i) => i.label);
-    expect(labels).toEqual(['Crate', '', 'Remove', 'Freeze', 'Physical', 'Solid']);
+    const labels = objectMenu(b.object('Crate'), { sim: b.sim, props: b.props, edits: b.edits, whole: (id) => new Set([id]), save: () => undefined }).map((i) => i.label);
+    expect(labels).toEqual(['Crate', '', 'Remove', 'Save to My Objects', 'Freeze', 'Physical', 'Solid']);
     b.edits.setPhysical(b.object('Crate').id, false);
     expect(bodyOf(b.object('Crate')).physical).toBe(false);
     b.edits.setSolid(b.object('Crate').id, false);
