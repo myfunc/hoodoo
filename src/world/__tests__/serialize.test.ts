@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SCENE_LIMITS } from '../scene.constants';
 import { demoScene } from '../demo-scene';
 import { SceneFileError, deserializeScene, serializeScene } from '../scene.serialize';
 
@@ -102,7 +103,7 @@ describe('scene file limits', () => {
   });
 
   it('refuses scenes with too many objects', () => {
-    expect(() => deserializeScene(wrap(Array.from({ length: 401 }, (_, i) => obj(i))))).toThrow(SceneFileError);
+    expect(() => deserializeScene(wrap(Array.from({ length: SCENE_LIMITS.objects + 1 }, (_, i) => obj(i))))).toThrow(SceneFileError);
   });
 
   it('gives duplicate ids fresh ones and shortens names', () => {

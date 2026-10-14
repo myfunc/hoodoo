@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.33.0 - 2026-10-14
+
+### Added
+- A scene holds up to 2000 objects. Each picture draws the 160 that matter from its
+  camera: the planes, then what is in view nearest first, then what is out of view (it
+  still casts shadows and shows in mirrors), never more than 60 from one place (a square
+  16 units across); a group with cutting parts comes whole. The choice holds until the
+  camera moves a unit or turns 5 degrees, so the picture keeps refining.
+- Past 40 objects in one place a note says so, and Scene load names the most crowded.
+
+### Fixed
+- An orbit in a big scene no longer re-lists the whole scene list every frame, and each
+  object's box is worked out once: 1500 objects orbit at 60 fps (12 before).
 ## 0.32.0 - 2026-10-14
 
 ### Fixed

@@ -11,6 +11,7 @@ import { VIEW_NAMES } from '../strings';
 import { pictureLine } from './picture-readout';
 import { LOAD_WARN, type SceneLoad, loadPercent, sceneLoad } from '../../render/scene-load';
 import { MAX_LIGHTS, MAX_OBJECTS } from '../../render/gpu/render.constants';
+import { PLACE, crowdedPlace } from '../../render/object-budget';
 import { openMenu } from '../kit/controls';
 import { showWhile } from '../feature-gate';
 import { Feature } from '../../world/preview-features';
@@ -64,6 +65,8 @@ export class DisplayBar {
   private readonly load: Button;
   private loadQueued = false;
   private lastFps = 0;
+  /** The most crowded place's count when the readout last looked: a new crowd past the aim is told once. */
+  private lastCrowd = 0;
 
   constructor(private readonly ctx: UiContext) {
     this.viewSelect = new Select<ViewKind>({
@@ -200,8 +203,14 @@ export class DisplayBar {
       this.loadQueued = false;
       const l = sceneLoad(this.ctx.world.scene);
       this.load.el.textContent = `Load ${loadPercent(l)}%`;
-      this.load.el.classList.toggle('is-warn', l.share >= LOAD_WARN && l.leftOut === 0 && l.lightsLeftOut === 0);
-      this.load.el.classList.toggle('is-over', l.leftOut > 0 || l.lightsLeftOut > 0);
+      const crowd = crowdedPlace(this.ctx.world.scene)?.count ?? 0;
+      if (crowd > PLACE.perPlace && crowd > this.lastCrowd) this.ctx.toast(`${crowd} objects in one place: ${PLACE.perPlace} is the aim, up to ${PLACE.drawnPerPlace} there are drawn`);
+      this.lastCrowd = crowd;
+      const crowdNow = crowdedPlace(this.ctx.world.scene)?.count ?? 0;
+      // Red only when something near the camera can go missing: a place past what is drawn there.
+      const over = crowdNow > PLACE.drawnPerPlace;
+      this.load.el.classList.toggle('is-warn', !over && (l.share >= LOAD_WARN || crowdNow > PLACE.perPlace));
+      this.load.el.classList.toggle('is-over', over);
     });
   }
 
@@ -209,8 +218,9 @@ export class DisplayBar {
   private showLoad(e: MouseEvent): void {
     const l: SceneLoad = sceneLoad(this.ctx.world.scene);
     const rows = [
-      `Objects ${l.objects} / ${MAX_SHOWN.objects}${l.leftOut ? ` · ${l.leftOut} not drawn` : ''}`,
-      `Lights ${l.lights} / ${MAX_SHOWN.lights}${l.lightsLeftOut ? ` · ${l.lightsLeftOut} unlit` : ''}`,
+      `Objects ${l.objects} / ${MAX_SHOWN.objects} a picture${l.leftOut ? ` · ${l.objects + l.leftOut} in the scene` : ''}`,
+      `Lights ${l.lights} / ${MAX_SHOWN.lights}${l.lightsLeftOut ? ` · ${l.lights + l.lightsLeftOut} in the scene` : ''}`,
+      `Most in one place: ${crowdedPlace(this.ctx.world.scene)?.count ?? 0} (aim ${PLACE.perPlace})`,
       `Terrains ${l.terrains}${l.finestTerrain ? ` · finest ${l.finestTerrain}×${l.finestTerrain}` : ''}`,
       `Glass and mirrors ${l.glassy} · Booleans ${l.booleans} · Portals ${l.portals}`,
       ...(this.lastFps ? [`Live picture while moving: ${this.lastFps} fps`] : []),

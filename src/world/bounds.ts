@@ -16,7 +16,20 @@ export const PLANE_EXTENT = 40;
 
 export const objectMatrix = (o: SceneObject) => compose(o.transform.position, o.transform.rotation, o.transform.size);
 
+/** Boxes by object: objects are replaced, never changed, so a box holds while its object does. */
+const boxes = new WeakMap<SceneObject, Box>();
+
+/** The object's box in the world (kept per object: wires, picking and the picture's choice ask every frame). */
 export function worldBox(o: SceneObject): Box {
+  let box = boxes.get(o);
+  if (!box) {
+    box = boxOf(o);
+    boxes.set(o, box);
+  }
+  return box;
+}
+
+function boxOf(o: SceneObject): Box {
   if (INFINITE_KINDS.has(o.kind)) {
     const p = o.transform.position;
     return { min: [p[0] - PLANE_EXTENT, p[1], p[2] - PLANE_EXTENT], max: [p[0] + PLANE_EXTENT, p[1], p[2] + PLANE_EXTENT] };

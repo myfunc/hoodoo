@@ -56,7 +56,15 @@ export class Outliner {
     });
     this.drag = new OutlinerDrag(ctx.world, this.body, (under) => this.dropTarget(under), (id) => this.groupRows.get(id) ?? null, () => this.render());
     // Names, eyes and locks do not move with the playhead.
-    ctx.world.events.on('changed', ({ kind }) => { if (kind !== ChangeKind.Time) this.schedule(); });
+    // The list shows objects, groups and the camera's and sun's eye and lock: a move of the camera,
+    // a view's pan or the document's size change none of it (an orbit re-listed every row each frame).
+    let rig = ctx.world.scene.rig;
+    ctx.world.events.on('changed', ({ kind, scene }) => {
+      if (kind === ChangeKind.Time || kind === ChangeKind.Views || kind === ChangeKind.Document) return;
+      if (kind === ChangeKind.Camera && scene.rig === rig) return;
+      rig = scene.rig;
+      this.schedule();
+    });
     ctx.world.events.on('selection', () => this.schedule());
     ctx.world.events.on('scope', () => this.schedule());
     this.render();

@@ -17,6 +17,7 @@ import type { ShownFrame } from './gpu/view-renderer';
 import { outsideScope } from '../world/edit-scope';
 import { CONVERGE_FACTOR, ViewPictures } from './view-pictures';
 import { cellRoom, drawCellLabel, drawCellLine, fitFrame } from './view-cells';
+import { ObjectBudget } from './object-budget';
 import { type Frame, type GizmoHandles, type SegmentIndex, WireProjector, drawWireframe } from './wire/wireframe';
 import { type KeyHandle, drawMotionPaths } from './wire/motion-paths';
 import { type AxisGuide, drawAxisGuide } from './wire/axis-guide';
@@ -119,6 +120,8 @@ export class SceneView {
   private wiresFor = new Map<ViewKind, ShownFrame | null>();
   /** The locked axes of a keyboard Move, Rotate or Size while it runs (input/key-transform.ts). */
   private guideState: AxisGuide | null = null;
+  /** A scene past the tracer's limits: each picture draws what matters from its camera (object-budget.ts). */
+  private readonly budget = new ObjectBudget();
 
   constructor(
     private readonly world: World,
@@ -233,7 +236,8 @@ export class SceneView {
     const h = Math.max(1, Math.round(cell.frame.h * scale));
     this.renderer.resize(w, h);
     this.placeGlCanvas(cell.frame);
-    this.renderer.start(this.world.viewScene, this.basisFor(cell.kind, w / h), {
+    const basis = this.basisFor(cell.kind, w / h);
+    this.renderer.start(this.budget.pick(this.world.viewScene, basis), basis, {
       samples: final ? s.renderSamples : PREVIEW_SAMPLES,
       bounces: final ? finalBounces(this.world.scene) : PREVIEW_BOUNCES,
       blocks: true,
@@ -336,11 +340,13 @@ export class SceneView {
     const h = Math.max(1, Math.round(cell.frame.h * dpr));
     // Play mode: the session's frame, through the player's eyes, at the play quality.
     const play = this.play?.frame() ?? null;
-    const scene = play?.scene ?? this.world.viewScene;
+    const full = play?.scene ?? this.world.viewScene;
+    const basis = play ? cameraBasis(play.camera, w / h) : this.basisFor(cell.kind, w / h);
+    const scene = this.budget.pick(full, basis);
     this.pictures.refresh(scene);
     live.resize(w, h);
     this.placeGlCanvas(cell.frame);
-    live.update(scene, play ? cameraBasis(play.camera, w / h) : this.basisFor(cell.kind, w / h));
+    live.update(scene, basis);
     if (!this.engineReady()) return;
     this.showPicture();
     this.pictures.run();

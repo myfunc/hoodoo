@@ -24,6 +24,6 @@ describe('scene load', () => {
     expect(l.leftOut).toBe(OVER);
     expect(l.lightsLeftOut).toBe(1);
     expect(l.share).toBeGreaterThan(1);
-    expect(l.tips[0]).toContain(`${OVER} objects`);
+    expect(l.tips[0]).toContain(`${MAX_OBJECTS + OVER} objects`);
   });
 });

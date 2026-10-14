@@ -3,6 +3,7 @@ import { createEntry } from '../../assets/object.catalog';
 import { createObject } from '../objects.factory';
 import { emptyScene } from '../scene.defaults';
 import { SelectMode, World } from '../world';
+import { SCENE_LIMITS } from '../scene.constants';
 
 const sphere = () => createObject(createEntry('sphere'), { seed: 1 });
 
@@ -97,10 +98,10 @@ describe('scene limits in the editor', () => {
     const reasons: string[] = [];
     w.events.on('refused', ({ reason }) => reasons.push(reason));
     const cubes = (n: number) => Array.from({ length: n }, (_, i) => createObject(createEntry('cube'), { seed: i }));
-    w.addObjects(cubes(400), 'fill');
-    expect(w.scene.objects).toHaveLength(400);
+    w.addObjects(cubes(SCENE_LIMITS.objects), 'fill');
+    expect(w.scene.objects).toHaveLength(SCENE_LIMITS.objects);
     w.addObjects(cubes(1), 'one more');
-    expect(w.scene.objects).toHaveLength(400);
+    expect(w.scene.objects).toHaveLength(SCENE_LIMITS.objects);
     expect(reasons).toHaveLength(1);
   });
 });

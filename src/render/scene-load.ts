@@ -2,6 +2,7 @@ import { BooleanMode, ChannelSource, ShapeKind, ValueChannel } from '../model/sc
 import type { Scene, SceneObject } from '../model/scene.types';
 import { LIGHT_KINDS, TERRAIN_KINDS } from '../world/objects.factory';
 import { MAX_LIGHTS, MAX_OBJECTS, MAX_TERRAIN_RES } from './gpu/render.constants';
+import { PLACE, crowdedPlace } from './object-budget';
 
 /** Past this share of a limit the scene is getting heavy (the readout turns amber). */
 export const LOAD_WARN = 0.75;
@@ -13,7 +14,7 @@ const PERCENT = 100;
 
 /** What a scene asks of the tracer, against its limits (render/gpu/render.constants.ts). */
 export interface SceneLoad {
-  /** Objects the tracer draws, and those past the limit it leaves out. */
+  /** Objects one picture draws, and how many more the scene holds (each picture picks; object-budget.ts). */
   readonly objects: number;
   readonly leftOut: number;
   readonly lights: number;
@@ -46,9 +47,11 @@ export function sceneLoad(scene: Scene): SceneLoad {
   const lightsLeftOut = Math.max(0, lights.length - MAX_LIGHTS);
   const share = Math.max(solids.length / MAX_OBJECTS, lights.length / MAX_LIGHTS);
   const tips: string[] = [];
-  if (leftOut > 0) tips.push(`${leftOut} objects past the ${MAX_OBJECTS} drawn at once are not drawn: hide what the camera does not see`);
+  if (leftOut > 0) tips.push(`${solids.length} objects: each picture draws the ${MAX_OBJECTS} that matter from the camera, nearest first`);
   else if (solids.length / MAX_OBJECTS >= LOAD_WARN) tips.push(`Close to the ${MAX_OBJECTS} objects drawn at once: hide or delete far details`);
-  if (lightsLeftOut > 0) tips.push(`${lightsLeftOut} lights past ${MAX_LIGHTS} give no light`);
+  if (lightsLeftOut > 0) tips.push(`${lights.length} lights: the ${MAX_LIGHTS} nearest the camera light the picture`);
+  const crowd = crowdedPlace(scene);
+  if (crowd && crowd.count > PLACE.perPlace) tips.push(`${crowd.count} objects in one place (${PLACE.perPlace} is the aim): up to ${PLACE.drawnPerPlace} of them are drawn`);
   if (finestTerrain > FINE_TERRAIN) tips.push(`A terrain at ${finestTerrain}×${finestTerrain}: ${FINE_TERRAIN} in the Terrain Editor is quicker`);
   if (glassy > MANY_GLASSY) tips.push(`${glassy} glass and mirror objects: lower Reflections on the Render page`);
   return {
